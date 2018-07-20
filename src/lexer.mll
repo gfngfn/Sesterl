@@ -13,6 +13,7 @@ let small = ['a'-'z']
 let latin = (small | capital)
 let identifier = (small (digit | latin | "_")*)
 let constructor = (capital (digit | latin | "_")*)
+let nssymbol = ['&' '|' '=' '<' '>' '/' '+' '-']
 
 rule token = parse
   | space { token lexbuf }
@@ -42,6 +43,15 @@ rule token = parse
   | "("  { LPAREN(Range.from_lexbuf lexbuf) }
   | ")"  { RPAREN(Range.from_lexbuf lexbuf) }
   | "/*" { comment (Range.from_lexbuf lexbuf) lexbuf; token lexbuf }
+  | ("&" (nssymbol*)) { BINOP_AMP(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+  | ("|" (nssymbol*)) { BINOP_BAR(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+  | ("=" (nssymbol+)) { BINOP_EQ(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+  | ("<" (nssymbol+)) { BINOP_LT(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+  | (">" (nssymbol+)) { BINOP_GT(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+  | ("*" (nssymbol*)) { BINOP_TIMES(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+  | ("/" (nssymbol*)) { BINOP_DIVIDES(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+  | ("+" (nssymbol*)) { BINOP_PLUS(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+  | ("-" (nssymbol*)) { BINOP_MINUS(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
   | eof  { EOI }
   | _ as c { raise (UnidentifiedToken(Range.from_lexbuf lexbuf, String.make 1 c)) }
 
