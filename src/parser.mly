@@ -27,7 +27,7 @@
 %}
 
 %token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN TRUE FALSE
-%token<Syntax.identifier> IDENT
+%token<Range.t * Syntax.identifier> IDENT
 %token<Range.t * int> INT
 %token EOI
 
@@ -49,7 +49,8 @@ ident:
 ;
 letdec:
   | tok1=LET; ident=IDENT; args=list(ident); DEFEQ; e1=exprlet {
-        (tok1, ident, make_lambda None args e1)
+        let (_, x) = ident in
+        (tok1, x, make_lambda None args e1)
       }
 ;
 exprlet:
@@ -82,6 +83,6 @@ exprbot:
   | rng=TRUE { (rng, Bool(true)) }
   | rng=FALSE { (rng, Bool(false)) }
   | c=INT { let (rng, n) = c in (rng, Int(n)) }
-  | ident=ident { let (rng, _) = ident in (rng, Var(ident)) }
+  | ident=ident { let (rng, x) = ident in (rng, Var(x)) }
   | LPAREN; e=exprlet; RPAREN { e }
 ;
