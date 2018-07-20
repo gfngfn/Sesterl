@@ -6,7 +6,7 @@ let main fname =
   let inc = open_in fname in
   let lexbuf = Lexing.from_channel inc in
   let utast = ParserInterface.process lexbuf in
-    Format.printf "%a" pp_untyped_ast utast
+    Format.printf "%a\n" pp_untyped_ast utast
 
 
 let () =
