@@ -46,9 +46,12 @@
 
 main:
   | dec=letdec; e2=main {
-        let (tok1, ident, e1) = dec in
+        let (tok1, ident, isrec, e1) = dec in
         let rng = make_range (Token(tok1)) (Ranged(e2)) in
-        (rng, LetIn(ident, e1, e2))
+        if isrec then
+          (rng, LetRecIn(ident, e1, e2))
+        else
+          (rng, LetIn(ident, e1, e2))
       }
   | IN; e=exprfun; EOI { e }
 ;
@@ -57,15 +60,20 @@ ident:
 ;
 letdec:
   | tok1=LET; ident=IDENT; args=list(ident); DEFEQ; e1=exprlet {
-        let (_, x) = ident in
-        (tok1, x, make_lambda None args e1)
+        (tok1, ident, false, make_lambda None args e1)
+      }
+  | tok1=LETREC; ident=IDENT; args=list(ident); DEFEQ; e1=exprlet {
+        (tok1, ident, true, make_lambda None args e1)
       }
 ;
 exprlet:
   | dec=letdec; IN; e2=exprlet {
-        let (tok1, ident, e1) = dec in
+        let (tok1, ident, isrec, e1) = dec in
         let rng = make_range (Token(tok1)) (Ranged(e2)) in
-        (rng, LetIn(ident, e1, e2))
+        if isrec then
+          (rng, LetRecIn(ident, e1, e2))
+        else
+          (rng, LetIn(ident, e1, e2))
       }
   | tok1=IF; e0=exprlet; THEN; e1=exprlet; ELSE; e2=exprlet {
         let rng = make_range (Token(tok1)) (Ranged(e2)) in
