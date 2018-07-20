@@ -1,5 +1,5 @@
 
-let foldn f i c =
+letrec foldn f i c =
   if i <= 0 then c else
     foldn f (i - 1) (f i c)
 
