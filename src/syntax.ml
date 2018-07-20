@@ -21,4 +21,4 @@ and untyped_ast_main =
   | Apply  of untyped_ast * untyped_ast
   | If     of untyped_ast * untyped_ast * untyped_ast
   | LetIn  of identifier * untyped_ast * untyped_ast
-[@@deriving show]
+[@@deriving show { with_path = false; } ]
