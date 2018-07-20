@@ -1,0 +1,7 @@
+
+let foldn f i c =
+  if nonpos i then c else
+    foldn f (pred i) (f i c)
+
+in
+  foldn (fun i c -> add i c) 10 0
