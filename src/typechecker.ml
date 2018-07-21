@@ -31,7 +31,6 @@ let unify tyact tyexp =
   let rec aux ty1 ty2 =
     let (_, ty1main) = ty1 in
     let (_, ty2main) = ty2 in
-    Format.printf "unify %a ==== %a\n" pp_mono_type ty1 pp_mono_type ty2;
     match (ty1main, ty2main) with
     | (TypeVar({contents = Link(ty1l)}), _) ->
         aux ty1l ty2
@@ -47,13 +46,12 @@ let unify tyact tyexp =
         let res2 = aux ty1c ty2c in
         res1 &&& res2
 
-    | (TypeVar({contents = Free(fid1)} as tvref1), TypeVar({contents = (Free(fid2) as tv2)})) ->
+    | (TypeVar({contents = Free(fid1)} as tvref1), TypeVar({contents = Free(fid2)})) ->
         let () =
-          if FreeID.equal fid1 fid2 then
-            Format.printf "equal\n"
-          else
-            let () = Format.printf "%a <--- %a\n" FreeID.pp fid1 FreeID.pp fid2 in
-            tvref1 := tv2
+          if FreeID.equal fid1 fid2 then () else
+            begin
+              tvref1 := Link(ty2);  (* -- not `Free(fid2)`! -- *)
+            end
         in
         Consistent
 
@@ -99,17 +97,12 @@ let rec aux tyenv (rng, utastmain) =
   | Var(x) ->
       begin
         match tyenv |> Typeenv.find_opt x with
-        | None ->
-            raise (UnboundVariable(rng, x))
-
-        | Some((_, tymain) as ty) ->
-            Format.printf "$Var %s : %a\n" x pp_mono_type ty;
-            (rng, tymain)
+        | None              -> raise (UnboundVariable(rng, x))
+        | Some((_, tymain)) -> (rng, tymain)
       end
 
   | Lambda((rngv, x), utast0) ->
       let tydom = fresh_type rngv in
-      Format.printf "$Lambda %s : %a\n" x pp_mono_type tydom;
       let tycod = aux (tyenv |> Typeenv.add x tydom) utast0 in
       (rng, FuncType(tydom, tycod))
 
