@@ -74,7 +74,8 @@ let unify tyact tyexp =
         Consistent
 
     | (TypeVar({contents = Free(fid1)} as tvref1), _) ->
-        if occurs fid1 ty2 then
+        let b = occurs fid1 ty2 in
+        if b then
           Inclusion(fid1)
         else
           begin
@@ -83,7 +84,8 @@ let unify tyact tyexp =
           end
 
     | (_, TypeVar({contents = Free(fid2)} as tvref2)) ->
-        if occurs fid2 ty1 then
+        let b = occurs fid2 ty1 in
+        if b then
           Inclusion(fid2)
         else
           begin

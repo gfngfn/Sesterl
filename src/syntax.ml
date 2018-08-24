@@ -63,7 +63,7 @@ type poly_type = poly_type_var typ
 module FreeIDHashTable = Hashtbl.Make(FreeID)
 
 
-let lift_scheme pred ty =
+let lift_scheme rngf pred ty =
 
   let fidht = FreeIDHashTable.create 32 in
 
@@ -81,7 +81,7 @@ let lift_scheme pred ty =
   let rec aux (rng, tymain) =
     match tymain with
     | BaseType(bty) ->
-        (rng, BaseType(bty))
+        (rngf rng, BaseType(bty))
 
     | TypeVar({contents = Link(ty)}) ->
         aux ty
@@ -93,25 +93,27 @@ let lift_scheme pred ty =
           else
             Mono(mtv)
         in
-        (rng, TypeVar(ptv))
+        (rngf rng, TypeVar(ptv))
 
     | FuncType(ty1, ty2) ->
         let pty1 = aux ty1 in
         let pty2 = aux ty2 in
-        (rng, FuncType(pty1, pty2))
+        (rngf rng, FuncType(pty1, pty2))
   in
   aux ty
 
 
 let generalize lev ty =
-  lift_scheme (fun fid ->
-    let levx = FreeID.get_level fid in
-    lev <= levx
-  ) ty
+  lift_scheme
+    (fun _ -> Range.dummy "erased")
+    (fun fid ->
+      let levx = FreeID.get_level fid in
+      lev <= levx
+    ) ty
 
 
 let lift ty =
-  lift_scheme (fun _ -> false) ty
+  lift_scheme (fun rng -> rng) (fun _ -> false) ty
 
 
 module BoundIDHashTable = Hashtbl.Make(BoundID)
@@ -123,13 +125,14 @@ let instantiate lev pty =
 
   let intern bid =
     match BoundIDHashTable.find_opt bidht bid with
-    | Some(fid) ->
-        fid
+    | Some(mtv) ->
+        mtv
 
     | None ->
         let fid = FreeID.fresh lev in
-        BoundIDHashTable.add bidht bid fid;
-        fid
+        let mtv = ref (Free(fid)) in
+        BoundIDHashTable.add bidht bid mtv;
+        mtv
   in
 
   let rec aux (rng, ptymain) =
@@ -141,8 +144,7 @@ let instantiate lev pty =
         (rng, TypeVar(mtv))
 
     | TypeVar(Bound(bid)) ->
-        let fid = intern bid in
-        let mtv = ref (Free(fid)) in
+        let mtv = intern bid in
         (rng, TypeVar(mtv))
 
     | FuncType(pty1, pty2) ->
