@@ -136,23 +136,23 @@ let rec aux lev tyenv (rng, utastmain) =
 
   | If(utast0, utast1, utast2) ->
       let ty0 = aux lev tyenv utast0 in
-      let () = unify ty0 (Range.dummy "If", BaseType(BoolType)) in
+      unify ty0 (Range.dummy "If", BaseType(BoolType));
       let ty1 = aux lev tyenv utast1 in
       let ty2 = aux lev tyenv utast2 in
       unify ty1 ty2;
       ty1
 
   | LetIn((_, x), utast1, utast2) ->
-      let ty1 = aux (lev + 1) tyenv utast1 in  (* -- monomorphic -- *)
+      let ty1 = aux (lev + 1) tyenv utast1 in
       let pty1 = generalize lev ty1 in
       let ty2 = aux lev (tyenv |> Typeenv.add x pty1) utast2 in
       ty2
 
   | LetRecIn((rngv, x), utast1, utast2) ->
-      let tyf = fresh_type lev rngv in
+      let tyf = fresh_type (lev + 1) rngv in
       let ptyf = lift tyf in
       let tyenv = tyenv |> Typeenv.add x ptyf in
-      let ty1 = aux (lev + 1) tyenv utast1 in  (* -- monomorphic -- *)
+      let ty1 = aux (lev + 1) tyenv utast1 in
       unify ty1 tyf;
       let ty2 = aux lev tyenv utast2 in
       ty2
