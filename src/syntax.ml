@@ -60,6 +60,50 @@ type poly_type_var =
 type poly_type = poly_type_var typ
 
 
+module FreeIDHashTable = Hashtbl.Make(FreeID)
+
+
+let generalize lev ty =
+
+  let fidht = FreeIDHashTable.create 32 in
+
+  let intern fid =
+    match FreeIDHashTable.find_opt fidht fid with
+    | Some(bid) ->
+        bid
+
+    | None ->
+        let bid = BoundID.fresh () in
+        FreeIDHashTable.add fidht fid bid;
+        bid
+  in
+
+  let rec aux (rng, tymain) =
+    match tymain with
+    | BaseType(bty) ->
+        (rng, BaseType(bty))
+
+    | TypeVar({contents = Link(ty)}) ->
+        aux ty
+
+    | TypeVar({contents = Free(fidx)} as mtv) ->
+        let levx = FreeID.get_level fidx in
+        let ptv =
+          if lev <= levx then
+            Bound(intern fidx)
+          else
+            Mono(mtv)
+        in
+        (rng, TypeVar(ptv))
+
+    | FuncType(ty1, ty2) ->
+        let pty1 = aux ty1 in
+        let pty2 = aux ty2 in
+        (rng, FuncType(pty1, pty2))
+  in
+  aux ty
+
+
 let show_mono_type ty =
   let rec aux isdom (_, tymain) =
     match tymain with

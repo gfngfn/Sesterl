@@ -5,6 +5,8 @@ type t
 
 val equal : t -> t -> bool
 
+val hash : t -> int
+
 val initialize : unit -> unit
 
 val fresh : level -> t
