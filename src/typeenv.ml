@@ -5,7 +5,7 @@ open Syntax
 module VarMap = Map.Make(String)
 
 
-type t = mono_type VarMap.t
+type t = poly_type VarMap.t
 
 
 let empty = VarMap.empty

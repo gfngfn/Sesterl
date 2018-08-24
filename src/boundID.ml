@@ -8,6 +8,9 @@ let equal bid1 bid2 =
   bid1.id = bid2.id
 
 
+let hash = Hashtbl.hash
+
+
 let current_max = ref 0
 
 

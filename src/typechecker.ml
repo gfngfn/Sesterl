@@ -115,13 +115,14 @@ let rec aux lev tyenv (rng, utastmain) =
   | Var(x) ->
       begin
         match tyenv |> Typeenv.find_opt x with
-        | None              -> raise (UnboundVariable(rng, x))
-        | Some((_, tymain)) -> (rng, tymain)
+        | None               -> raise (UnboundVariable(rng, x))
+        | Some((_, ptymain)) -> instantiate lev (rng, ptymain)
       end
 
   | Lambda((rngv, x), utast0) ->
       let tydom = fresh_type lev rngv in
-      let tycod = aux lev (tyenv |> Typeenv.add x tydom) utast0 in
+      let ptydom = lift tydom in
+      let tycod = aux lev (tyenv |> Typeenv.add x ptydom) utast0 in
       (rng, FuncType(tydom, tycod))
 
   | Apply(utast1, utast2) ->
@@ -141,12 +142,14 @@ let rec aux lev tyenv (rng, utastmain) =
 
   | LetIn((_, x), utast1, utast2) ->
       let ty1 = aux (lev + 1) tyenv utast1 in  (* -- monomorphic -- *)
-      let ty2 = aux lev (tyenv |> Typeenv.add x ty1) utast2 in
+      let pty1 = generalize lev ty1 in
+      let ty2 = aux lev (tyenv |> Typeenv.add x pty1) utast2 in
       ty2
 
   | LetRecIn((rngv, x), utast1, utast2) ->
       let tyf = fresh_type lev rngv in
-      let tyenv = tyenv |> Typeenv.add x tyf in
+      let ptyf = lift tyf in
+      let tyenv = tyenv |> Typeenv.add x ptyf in
       let ty1 = aux (lev + 1) tyenv utast1 in  (* -- monomorphic -- *)
       unify ty1 tyf;
       let ty2 = aux lev tyenv utast2 in
