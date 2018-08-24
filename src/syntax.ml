@@ -53,6 +53,12 @@ type mono_type_var =
 
 and mono_type = (mono_type_var ref) typ
 
+type poly_type_var =
+  | Mono  of mono_type_var ref
+  | Bound of BoundID.t
+
+type poly_type = poly_type_var typ
+
 
 let show_mono_type ty =
   let rec aux isdom (_, tymain) =
