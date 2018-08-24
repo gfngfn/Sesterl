@@ -19,7 +19,7 @@ let (&&&) res1 res2 =
   | _               -> res1
 
 
-let rec occurs fid ty =
+let occurs fid ty =
   let lev = FreeID.get_level fid in
   let rec aux (_, tymain) =
     match tymain with
@@ -27,12 +27,12 @@ let rec occurs fid ty =
         false
 
     | FuncType(ty1, ty2) ->
-        let b1 = occurs fid ty1 in
-        let b2 = occurs fid ty2 in
+        let b1 = aux ty1 in
+        let b2 = aux ty2 in
         b1 || b2
 
     | TypeVar({contents = Link(ty)}) ->
-        occurs fid ty
+        aux ty
 
     | TypeVar({contents = Free(fidx)}) ->
         if FreeID.equal fid fidx then true else
@@ -128,7 +128,7 @@ let rec aux lev tyenv (rng, utastmain) =
       let ty1 = aux lev tyenv utast1 in
       let ty2 = aux lev tyenv utast2 in
       let tyret = fresh_type lev rng in
-      let () = unify ty1 (Range.dummy "Apply", FuncType(ty2, tyret)) in
+      unify ty1 (Range.dummy "Apply", FuncType(ty2, tyret));
       tyret
 
   | If(utast0, utast1, utast2) ->
@@ -136,7 +136,7 @@ let rec aux lev tyenv (rng, utastmain) =
       let () = unify ty0 (Range.dummy "If", BaseType(BoolType)) in
       let ty1 = aux lev tyenv utast1 in
       let ty2 = aux lev tyenv utast2 in
-      let () = unify ty1 ty2 in
+      unify ty1 ty2;
       ty1
 
   | LetIn((_, x), utast1, utast2) ->
@@ -148,7 +148,7 @@ let rec aux lev tyenv (rng, utastmain) =
       let tyf = fresh_type lev rngv in
       let tyenv = tyenv |> Typeenv.add x tyf in
       let ty1 = aux (lev + 1) tyenv utast1 in  (* -- monomorphic -- *)
-      let () = unify ty1 tyf in
+      unify ty1 tyf;
       let ty2 = aux lev tyenv utast2 in
       ty2
 
