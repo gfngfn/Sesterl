@@ -19,12 +19,30 @@ let (&&&) res1 res2 =
   | _               -> res1
 
 
-let rec occurs fid (_, tymain) =
-  match tymain with
-  | BaseType(_)                      -> false
-  | FuncType(ty1, ty2)               -> occurs fid ty1 || occurs fid ty2
-  | TypeVar({contents = Link(ty)})   -> occurs fid ty
-  | TypeVar({contents = Free(fidx)}) -> FreeID.equal fid fidx
+let rec occurs fid ty =
+  let lev = FreeID.get_level fid in
+  let rec aux (_, tymain) =
+    match tymain with
+    | BaseType(_) ->
+        false
+
+    | FuncType(ty1, ty2) ->
+        let b1 = occurs fid ty1 in
+        let b2 = occurs fid ty2 in
+        b1 || b2
+
+    | TypeVar({contents = Link(ty)}) ->
+        occurs fid ty
+
+    | TypeVar({contents = Free(fidx)}) ->
+        if FreeID.equal fid fidx then true else
+          begin
+            FreeID.update_level fidx lev;
+            false
+          end
+
+  in
+  aux ty
 
 
 let unify tyact tyexp =
@@ -83,13 +101,13 @@ let unify tyact tyexp =
   | Inclusion(fid) -> raise (InclusionError(fid, tyact, tyexp))
 
 
-let fresh_type rng =
-  let fid = FreeID.fresh () in
+let fresh_type lev rng =
+  let fid = FreeID.fresh lev in
   let tvref = ref (Free(fid)) in
     (rng, TypeVar(tvref))
 
 
-let rec aux tyenv (rng, utastmain) =
+let rec aux lev tyenv (rng, utastmain) =
   match utastmain with
   | Int(_) -> (rng, BaseType(IntType))
   | Bool(_) -> (rng, BaseType(BoolType))
@@ -102,39 +120,39 @@ let rec aux tyenv (rng, utastmain) =
       end
 
   | Lambda((rngv, x), utast0) ->
-      let tydom = fresh_type rngv in
-      let tycod = aux (tyenv |> Typeenv.add x tydom) utast0 in
+      let tydom = fresh_type lev rngv in
+      let tycod = aux lev (tyenv |> Typeenv.add x tydom) utast0 in
       (rng, FuncType(tydom, tycod))
 
   | Apply(utast1, utast2) ->
-      let ty1 = aux tyenv utast1 in
-      let ty2 = aux tyenv utast2 in
-      let tyret = fresh_type rng in
+      let ty1 = aux lev tyenv utast1 in
+      let ty2 = aux lev tyenv utast2 in
+      let tyret = fresh_type lev rng in
       let () = unify ty1 (Range.dummy "Apply", FuncType(ty2, tyret)) in
       tyret
 
   | If(utast0, utast1, utast2) ->
-      let ty0 = aux tyenv utast0 in
+      let ty0 = aux lev tyenv utast0 in
       let () = unify ty0 (Range.dummy "If", BaseType(BoolType)) in
-      let ty1 = aux tyenv utast1 in
-      let ty2 = aux tyenv utast2 in
+      let ty1 = aux lev tyenv utast1 in
+      let ty2 = aux lev tyenv utast2 in
       let () = unify ty1 ty2 in
       ty1
 
   | LetIn((_, x), utast1, utast2) ->
-      let ty1 = aux tyenv utast1 in  (* -- monomorphic -- *)
-      let ty2 = aux (tyenv |> Typeenv.add x ty1) utast2 in
+      let ty1 = aux (lev + 1) tyenv utast1 in  (* -- monomorphic -- *)
+      let ty2 = aux lev (tyenv |> Typeenv.add x ty1) utast2 in
       ty2
 
   | LetRecIn((rngv, x), utast1, utast2) ->
-      let tyf = fresh_type rngv in
+      let tyf = fresh_type lev rngv in
       let tyenv = tyenv |> Typeenv.add x tyf in
-      let ty1 = aux tyenv utast1 in  (* -- monomorphic -- *)
+      let ty1 = aux (lev + 1) tyenv utast1 in  (* -- monomorphic -- *)
       let () = unify ty1 tyf in
-      let ty2 = aux tyenv utast2 in
+      let ty2 = aux lev tyenv utast2 in
       ty2
 
 
 let main utast =
   let tyenv = Primitives.initial_type_environment in
-  aux tyenv utast
+  aux 0 tyenv utast
