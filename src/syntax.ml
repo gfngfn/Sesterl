@@ -53,6 +53,108 @@ type mono_type_var =
 
 and mono_type = (mono_type_var ref) typ
 
+type poly_type_var =
+  | Mono  of mono_type_var ref
+  | Bound of BoundID.t
+
+type poly_type = poly_type_var typ
+
+
+module FreeIDHashTable = Hashtbl.Make(FreeID)
+
+
+let lift_scheme rngf pred ty =
+
+  let fidht = FreeIDHashTable.create 32 in
+
+  let intern fid =
+    match FreeIDHashTable.find_opt fidht fid with
+    | Some(bid) ->
+        bid
+
+    | None ->
+        let bid = BoundID.fresh () in
+        FreeIDHashTable.add fidht fid bid;
+        bid
+  in
+
+  let rec aux (rng, tymain) =
+    match tymain with
+    | BaseType(bty) ->
+        (rngf rng, BaseType(bty))
+
+    | TypeVar({contents = Link(ty)}) ->
+        aux ty
+
+    | TypeVar({contents = Free(fid)} as mtv) ->
+        let ptv =
+          if pred fid then
+            Bound(intern fid)
+          else
+            Mono(mtv)
+        in
+        (rngf rng, TypeVar(ptv))
+
+    | FuncType(ty1, ty2) ->
+        let pty1 = aux ty1 in
+        let pty2 = aux ty2 in
+        (rngf rng, FuncType(pty1, pty2))
+  in
+  aux ty
+
+
+let generalize lev ty =
+  lift_scheme
+    (fun _ -> Range.dummy "erased")
+    (fun fid ->
+      let levx = FreeID.get_level fid in
+      lev <= levx
+    ) ty
+
+
+let lift ty =
+  lift_scheme (fun rng -> rng) (fun _ -> false) ty
+
+
+module BoundIDHashTable = Hashtbl.Make(BoundID)
+
+
+let instantiate lev pty =
+
+  let bidht = BoundIDHashTable.create 32 in
+
+  let intern bid =
+    match BoundIDHashTable.find_opt bidht bid with
+    | Some(mtv) ->
+        mtv
+
+    | None ->
+        let fid = FreeID.fresh lev in
+        let mtv = ref (Free(fid)) in
+        BoundIDHashTable.add bidht bid mtv;
+        mtv
+  in
+
+  let rec aux (rng, ptymain) =
+    match ptymain with
+    | BaseType(bty) ->
+        (rng, BaseType(bty))
+
+    | TypeVar(Mono(mtv)) ->
+        (rng, TypeVar(mtv))
+
+    | TypeVar(Bound(bid)) ->
+        let mtv = intern bid in
+        (rng, TypeVar(mtv))
+
+    | FuncType(pty1, pty2) ->
+        let ty1 = aux pty1 in
+        let ty2 = aux pty2 in
+        (rng, FuncType(ty1, ty2))
+
+  in
+  aux pty
+
 
 let show_mono_type ty =
   let rec aux isdom (_, tymain) =

@@ -19,12 +19,30 @@ let (&&&) res1 res2 =
   | _               -> res1
 
 
-let rec occurs fid (_, tymain) =
-  match tymain with
-  | BaseType(_)                      -> false
-  | FuncType(ty1, ty2)               -> occurs fid ty1 || occurs fid ty2
-  | TypeVar({contents = Link(ty)})   -> occurs fid ty
-  | TypeVar({contents = Free(fidx)}) -> FreeID.equal fid fidx
+let occurs fid ty =
+  let lev = FreeID.get_level fid in
+  let rec aux (_, tymain) =
+    match tymain with
+    | BaseType(_) ->
+        false
+
+    | FuncType(ty1, ty2) ->
+        let b1 = aux ty1 in
+        let b2 = aux ty2 in
+        b1 || b2
+
+    | TypeVar({contents = Link(ty)}) ->
+        aux ty
+
+    | TypeVar({contents = Free(fidx)}) ->
+        if FreeID.equal fid fidx then true else
+          begin
+            FreeID.update_level fidx lev;
+            false
+          end
+
+  in
+  aux ty
 
 
 let unify tyact tyexp =
@@ -56,7 +74,8 @@ let unify tyact tyexp =
         Consistent
 
     | (TypeVar({contents = Free(fid1)} as tvref1), _) ->
-        if occurs fid1 ty2 then
+        let b = occurs fid1 ty2 in
+        if b then
           Inclusion(fid1)
         else
           begin
@@ -65,7 +84,8 @@ let unify tyact tyexp =
           end
 
     | (_, TypeVar({contents = Free(fid2)} as tvref2)) ->
-        if occurs fid2 ty1 then
+        let b = occurs fid2 ty1 in
+        if b then
           Inclusion(fid2)
         else
           begin
@@ -83,13 +103,13 @@ let unify tyact tyexp =
   | Inclusion(fid) -> raise (InclusionError(fid, tyact, tyexp))
 
 
-let fresh_type rng =
-  let fid = FreeID.fresh () in
+let fresh_type lev rng =
+  let fid = FreeID.fresh lev in
   let tvref = ref (Free(fid)) in
     (rng, TypeVar(tvref))
 
 
-let rec aux tyenv (rng, utastmain) =
+let rec aux lev tyenv (rng, utastmain) =
   match utastmain with
   | Int(_) -> (rng, BaseType(IntType))
   | Bool(_) -> (rng, BaseType(BoolType))
@@ -97,44 +117,47 @@ let rec aux tyenv (rng, utastmain) =
   | Var(x) ->
       begin
         match tyenv |> Typeenv.find_opt x with
-        | None              -> raise (UnboundVariable(rng, x))
-        | Some((_, tymain)) -> (rng, tymain)
+        | None               -> raise (UnboundVariable(rng, x))
+        | Some((_, ptymain)) -> instantiate lev (rng, ptymain)
       end
 
   | Lambda((rngv, x), utast0) ->
-      let tydom = fresh_type rngv in
-      let tycod = aux (tyenv |> Typeenv.add x tydom) utast0 in
+      let tydom = fresh_type lev rngv in
+      let ptydom = lift tydom in
+      let tycod = aux lev (tyenv |> Typeenv.add x ptydom) utast0 in
       (rng, FuncType(tydom, tycod))
 
   | Apply(utast1, utast2) ->
-      let ty1 = aux tyenv utast1 in
-      let ty2 = aux tyenv utast2 in
-      let tyret = fresh_type rng in
-      let () = unify ty1 (Range.dummy "Apply", FuncType(ty2, tyret)) in
+      let ty1 = aux lev tyenv utast1 in
+      let ty2 = aux lev tyenv utast2 in
+      let tyret = fresh_type lev rng in
+      unify ty1 (Range.dummy "Apply", FuncType(ty2, tyret));
       tyret
 
   | If(utast0, utast1, utast2) ->
-      let ty0 = aux tyenv utast0 in
-      let () = unify ty0 (Range.dummy "If", BaseType(BoolType)) in
-      let ty1 = aux tyenv utast1 in
-      let ty2 = aux tyenv utast2 in
-      let () = unify ty1 ty2 in
+      let ty0 = aux lev tyenv utast0 in
+      unify ty0 (Range.dummy "If", BaseType(BoolType));
+      let ty1 = aux lev tyenv utast1 in
+      let ty2 = aux lev tyenv utast2 in
+      unify ty1 ty2;
       ty1
 
   | LetIn((_, x), utast1, utast2) ->
-      let ty1 = aux tyenv utast1 in  (* -- monomorphic -- *)
-      let ty2 = aux (tyenv |> Typeenv.add x ty1) utast2 in
+      let ty1 = aux (lev + 1) tyenv utast1 in
+      let pty1 = generalize lev ty1 in
+      let ty2 = aux lev (tyenv |> Typeenv.add x pty1) utast2 in
       ty2
 
   | LetRecIn((rngv, x), utast1, utast2) ->
-      let tyf = fresh_type rngv in
-      let tyenv = tyenv |> Typeenv.add x tyf in
-      let ty1 = aux tyenv utast1 in  (* -- monomorphic -- *)
-      let () = unify ty1 tyf in
-      let ty2 = aux tyenv utast2 in
+      let tyf = fresh_type (lev + 1) rngv in
+      let ptyf = lift tyf in
+      let tyenv = tyenv |> Typeenv.add x ptyf in
+      let ty1 = aux (lev + 1) tyenv utast1 in
+      unify ty1 tyf;
+      let ty2 = aux lev tyenv utast2 in
       ty2
 
 
 let main utast =
   let tyenv = Primitives.initial_type_environment in
-  aux tyenv utast
+  aux 0 tyenv utast
