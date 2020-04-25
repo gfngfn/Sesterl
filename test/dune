@@ -1,0 +1,5 @@
+(tests
+  (names testRange)
+  (libraries alcotest))
+
+(copy_files ../src/*.{ml,mli})
