@@ -15,7 +15,7 @@ type t =
 let pp ppf rng =
   match rng with
   | Dummy(s) ->
-      Format.printf "(%s)" s
+      Format.fprintf ppf "(%s)" s
 
   | Real(r) ->
       if r.start_line = r.last_line then
