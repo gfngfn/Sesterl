@@ -142,22 +142,39 @@ let rec aux lev tyenv (rng, utastmain) =
       unify ty1 ty2;
       ty1
 
-  | LetIn((_, x), utast1, utast2) ->
-      let ty1 = aux (lev + 1) tyenv utast1 in
-      let pty1 = generalize lev ty1 in
-      let ty2 = aux lev (tyenv |> Typeenv.add x pty1) utast2 in
+  | LetIn(ident, utast1, utast2) ->
+      let tyenv = typecheck_let lev tyenv ident utast1 in
+      let ty2 = aux lev tyenv utast2 in
       ty2
 
-  | LetRecIn((rngv, x), utast1, utast2) ->
-      let tyf = fresh_type (lev + 1) rngv in
-      let ptyf = lift tyf in
-      let tyenv = tyenv |> Typeenv.add x ptyf in
-      let ty1 = aux (lev + 1) tyenv utast1 in
-      unify ty1 tyf;
+  | LetRecIn(ident, utast1, utast2) ->
+      let tyenv = typecheck_letrec lev tyenv ident utast1 in
       let ty2 = aux lev tyenv utast2 in
       ty2
 
 
-let main utast =
+and typecheck_let (lev : int) (tyenv : Typeenv.t) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t =
+  let ty1 = aux (lev + 1) tyenv utast1 in
+  let pty1 = generalize lev ty1 in
+  tyenv |> Typeenv.add x pty1
+
+
+and typecheck_letrec (lev : int) (tyenv : Typeenv.t) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t =
+  let tyf = fresh_type (lev + 1) rngv in
+  let ptyf = lift tyf in
+  let tyenv = tyenv |> Typeenv.add x ptyf in
+  let ty1 = aux (lev + 1) tyenv utast1 in
+  unify ty1 tyf;
+  tyenv
+
+
+let main (decls : declaration list) : Typeenv.t =
   let tyenv = Primitives.initial_type_environment in
-  aux 0 tyenv utast
+  decls |> List.fold_left (fun tyenv decl ->
+    match decl with
+    | ValDecl(isrec, binder, utast) ->
+        if isrec then
+          typecheck_letrec 0 tyenv binder utast
+        else
+          typecheck_let 0 tyenv binder utast
+  ) tyenv

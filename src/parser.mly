@@ -33,38 +33,44 @@
     (rng, Apply((Range.dummy "binary", Apply((rngop, Var(vop)), e1)), e2))
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN TRUE FALSE
+%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN TRUE FALSE COMMA
 %token<Range.t * Syntax.identifier> IDENT BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * Syntax.identifier> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
 %token EOI
 
 %start main
-%type<Syntax.untyped_ast> main
+%type<Syntax.declaration list> main
 
 %%
-
 main:
-  | dec=letdec; e2=main {
-        let (tok1, ident, isrec, e1) = dec in
-        let rng = make_range (Token(tok1)) (Ranged(e2)) in
-        if isrec then
-          (rng, LetRecIn(ident, e1, e2))
-        else
-          (rng, LetIn(ident, e1, e2))
+  | decls=decls { decls }
+;
+decls:
+  | dec=letdec; tail=decls {
+        let (_, ident, isrec, e1) = dec in
+        ValDecl(isrec, ident, e1) :: tail
       }
-  | IN; e=exprfun; EOI { e }
+  | EOI { [] }
 ;
 ident:
   | ident=IDENT { ident }
 ;
 letdec:
-  | tok1=LET; ident=IDENT; args=list(ident); DEFEQ; e1=exprlet {
+  | tok1=LET; ident=IDENT; args=args; DEFEQ; e1=exprlet {
         (tok1, ident, false, make_lambda None args e1)
       }
-  | tok1=LETREC; ident=IDENT; args=list(ident); DEFEQ; e1=exprlet {
+  | tok1=LETREC; ident=IDENT; args=args; DEFEQ; e1=exprlet {
         (tok1, ident, true, make_lambda None args e1)
       }
+;
+args:
+  | LPAREN; args=argssub { args }
+;
+argssub:
+  | RPAREN                           { [] }
+  | ident=IDENT; RPAREN              { ident :: [] }
+  | ident=IDENT; COMMA; tail=argssub { ident :: tail }
 ;
 exprlet:
   | dec=letdec; IN; e2=exprlet {
@@ -82,7 +88,7 @@ exprlet:
   | e=exprfun { e }
 ;
 exprfun:
-  | tok1=LAMBDA; args=nonempty_list(ident); ARROW; e=exprlet {
+  | tok1=LAMBDA; args=args; ARROW; e=exprlet {
         let rng = make_range (Token(tok1)) (Ranged(e)) in
         make_lambda (Some(rng)) args e
       }

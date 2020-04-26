@@ -13,3 +13,5 @@ let empty = VarMap.empty
 let add = VarMap.add
 
 let find_opt = VarMap.find_opt
+
+let fold = VarMap.fold

@@ -38,6 +38,7 @@ rule token = parse
         let rng = Range.from_lexbuf lexbuf in
           INT(rng, int_of_string s)
       }
+  | ","  { COMMA(Range.from_lexbuf lexbuf) }
   | "="  { DEFEQ(Range.from_lexbuf lexbuf) }
   | "->" { ARROW(Range.from_lexbuf lexbuf) }
   | "("  { LPAREN(Range.from_lexbuf lexbuf) }

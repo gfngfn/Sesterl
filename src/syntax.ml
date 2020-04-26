@@ -31,6 +31,9 @@ and untyped_ast_main =
   | LetRecIn of binder * untyped_ast * untyped_ast
 [@@deriving show { with_path = false; } ]
 
+type declaration =
+  | ValDecl of bool * binder * untyped_ast
+[@@deriving show { with_path = false; } ]
 
 type base_type =
   | IntType
@@ -58,7 +61,6 @@ type poly_type_var =
   | Bound of BoundID.t
 
 type poly_type = poly_type_var typ
-
 
 module FreeIDHashTable = Hashtbl.Make(FreeID)
 
@@ -156,26 +158,55 @@ let instantiate lev pty =
   aux pty
 
 
-let show_mono_type ty =
+let show_base_type = function
+  | BoolType -> "bool"
+  | IntType  -> "int"
+
+
+let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
   let rec aux isdom (_, tymain) =
     match tymain with
-    | BaseType(IntType) -> "int"
-    | BaseType(BoolType) -> "bool"
+    | BaseType(bty) ->
+        show_base_type bty
+
     | FuncType(ty1, ty2) ->
         let s1 = aux true ty1 in
         let s2 = aux false ty2 in
         let s = s1 ^ " -> " ^ s2 in
         if isdom then "(" ^ s ^ ")" else s
 
-    | TypeVar(tvref) ->
-        begin
-          match !tvref with
-          | Link(ty) -> aux isdom ty
-          | Free(fid) -> Format.asprintf "%a" FreeID.pp fid
-        end
+    | TypeVar(tv) ->
+        showtv tv
   in
   aux false ty
 
 
+and show_mono_type_var_scheme showty tvref =
+  match !tvref with
+  | Link(ty)  -> showty (show_mono_type_var_scheme showty) ty
+  | Free(fid) -> Format.asprintf "%a" FreeID.pp fid
+
+
+let show_mono_type_var_ref =
+  show_mono_type_var_scheme show_mono_type_scheme
+
+
+let show_mono_type =
+  show_mono_type_scheme show_mono_type_var_ref
+
+
 let pp_mono_type ppf ty =
   Format.fprintf ppf "%s" (show_mono_type ty)
+
+
+let show_poly_type_var = function
+  | Bound(bid)  -> Format.asprintf "%a" BoundID.pp bid
+  | Mono(tvref) -> show_mono_type_var_ref tvref
+
+
+let show_poly_type =
+  show_mono_type_scheme show_poly_type_var
+
+
+let pp_poly_type ppf pty =
+  Format.fprintf ppf "%s" (show_poly_type pty)

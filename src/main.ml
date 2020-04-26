@@ -5,10 +5,12 @@ open Syntax
 let main fname =
   let inc = open_in fname in
   let lexbuf = Lexing.from_channel inc in
-  let utast = ParserInterface.process lexbuf in
-  let ty = Typechecker.main utast in
-  Format.printf "%a\n" pp_untyped_ast utast;
-  Format.printf "%a\n" pp_mono_type ty
+  let decls = ParserInterface.process lexbuf in
+  let tyenv = Typechecker.main decls in
+  Format.printf "%a\n" (Format.pp_print_list pp_declaration) decls;
+  Typeenv.fold (fun x pty () ->
+    Format.printf "%s : %a\n" x pp_poly_type pty
+  ) tyenv ()
 
 
 let () =

@@ -21,3 +21,7 @@ let initialize () =
 let fresh () =
   incr current_max;
   { id = !current_max; }
+
+
+let pp ppf bid =
+  Format.fprintf ppf "'#%d" bid.id
