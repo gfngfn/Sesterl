@@ -164,11 +164,17 @@ let fresh_type lev rng =
   ty
 
 
+let type_of_base_constant (rng : Range.t) (bc : base_constant) =
+  match bc with
+  | Unit    -> (rng, BaseType(UnitType))
+  | Int(_)  -> (rng, BaseType(IntType))
+  | Bool(_) -> (rng, BaseType(BoolType))
+
+
 let rec typecheck (pre : pre) (rng, utastmain) =
   match utastmain with
-  | Unit -> (rng, BaseType(UnitType))
-  | Int(_) -> (rng, BaseType(IntType))
-  | Bool(_) -> (rng, BaseType(BoolType))
+  | BaseConst(bc) ->
+      type_of_base_constant rng bc
 
   | Var(x) ->
       begin

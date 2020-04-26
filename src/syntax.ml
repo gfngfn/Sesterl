@@ -17,14 +17,18 @@ let pp_binder ppf (_, s) =
   pp_identifier ppf s
 
 
+type base_constant =
+  | Unit
+  | Bool of bool
+  | Int  of int
+[@@deriving show { with_path = false; } ]
+
 type untyped_ast =
   untyped_ast_main ranged
 [@printer (fun ppf (_, utastmain) -> pp_untyped_ast_main ppf utastmain)]
 
 and untyped_ast_main =
-  | Unit
-  | Bool     of bool
-  | Int      of int
+  | BaseConst of base_constant
   | Var      of identifier
   | Lambda   of binder list * untyped_ast
   | Apply    of untyped_ast * untyped_ast list

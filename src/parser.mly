@@ -140,10 +140,10 @@ exprargs:
   | e=exprlet; COMMA; rest=exprargs { let (rtok, tail) = rest in (rtok, e :: tail) }
 ;
 exprbot:
-  | rng=TRUE                  { (rng, Bool(true)) }
-  | rng=FALSE                 { (rng, Bool(false)) }
-  | tok1=LPAREN; tok2=RPAREN  { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, Unit) }
-  | c=INT                     { let (rng, n) = c in (rng, Int(n)) }
+  | rng=TRUE                  { (rng, BaseConst(Bool(true))) }
+  | rng=FALSE                 { (rng, BaseConst(Bool(false))) }
+  | tok1=LPAREN; tok2=RPAREN  { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, BaseConst(Unit)) }
+  | c=INT                     { let (rng, n) = c in (rng, BaseConst(Int(n))) }
   | ident=ident               { let (rng, x) = ident in (rng, Var(x)) }
   | LPAREN; e=exprlet; RPAREN { e }
 ;
