@@ -83,6 +83,11 @@ let unify tyact tyexp =
         let res2 = aux ty1cod ty2cod in
         res1 &&& res2
 
+    | (EffType(eff1, tysub1), EffType(eff2, tysub2)) ->
+        let reseff = aux_effect eff1 eff2 in
+        let ressub = aux tysub1 tysub2 in
+        reseff &&& ressub
+
     | (TypeVar({contents = Free(fid1)} as tvref1), TypeVar({contents = Free(fid2)})) ->
         let () =
           if FreeID.equal fid1 fid2 then () else
@@ -114,6 +119,9 @@ let unify tyact tyexp =
 
     | _ ->
         Contradiction
+
+  and aux_effect (Effect(ty1)) (Effect(ty2)) =
+    aux ty1 ty2
   in
   let res = aux tyact tyexp in
   match res with
