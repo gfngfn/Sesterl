@@ -38,6 +38,7 @@ type declaration =
 type base_type =
   | IntType
   | BoolType
+  | UnitType
 [@@deriving show { with_path = false; } ]
 
 type 'a typ = Range.t * 'a typ_main
@@ -197,6 +198,7 @@ let instantiate lev pty =
 
 
 let show_base_type = function
+  | UnitType -> "unit"
   | BoolType -> "bool"
   | IntType  -> "int"
 
