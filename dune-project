@@ -13,7 +13,7 @@
  (description "A Session-Typed Erlang")
  (depends
   (alcotest :with-test)
-  (dune (> 2.5.1))
+  (dune (>= 2.5.1))
   (ocamlformat :dev)
-  (ppx_deriving (> 1.1.0))
+  (ppx_deriving (>= 1.1.0))
   ))
