@@ -43,6 +43,7 @@ and untyped_pattern_main =
   | PBool of bool
   | PInt  of int
   | PVar  of identifier
+  | PWildCard
 [@@deriving show { with_path = false; } ]
 
 type declaration =

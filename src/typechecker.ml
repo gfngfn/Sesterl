@@ -265,6 +265,10 @@ and typecheck_pattern (lev : int) (tyenv : Typeenv.t) ((rng, patmain) : untyped_
       let ty = fresh_type lev rng in
       (ty, tyenv |> Typeenv.add x (lift ty))
 
+  | PWildCard ->
+      let ty = fresh_type lev rng in
+      (ty, tyenv)
+
 
 and typecheck_let (lev : int) (tyenv : Typeenv.t) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t =
   let ty1 = aux (lev + 1) tyenv utast1 in

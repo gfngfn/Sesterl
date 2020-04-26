@@ -1,17 +1,20 @@
 
-let make_sub() =
+let make_sub(cond) =
   spawn(
     receive
-    | x ->
+    | x when cond ->
         if x then return(()) else return(())
+
+    | _ ->
+        return(())
     end
   )
 
 letrec aux(n) =
   if n <= 0 then
-    return(())
+    return(57)
   else
-    do pid <- make_sub() in
+    do pid <- make_sub(true) in
     aux(n - 1)
 
 

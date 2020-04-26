@@ -42,6 +42,7 @@ rule token = parse
         let rng = Range.from_lexbuf lexbuf in
           INT(rng, int_of_string s)
       }
+  | "_"  { UNDERSCORE(Range.from_lexbuf lexbuf) }
   | ","  { COMMA(Range.from_lexbuf lexbuf) }
   | "="  { DEFEQ(Range.from_lexbuf lexbuf) }
   | "|"  { BAR(Range.from_lexbuf lexbuf) }
