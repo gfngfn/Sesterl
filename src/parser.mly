@@ -56,6 +56,9 @@ letdec:
   | tok1=LETREC; ident=IDENT; args=args; DEFEQ; e1=exprlet {
         (tok1, ident, true, make_lambda (Range.dummy "letrec") args e1)
       }
+  | tok1=LET; ident=IDENT; DEFEQ; e1=exprlet {
+        (tok1, ident, false, e1)
+      }
 ;
 args:
   | LPAREN; args=argssub { args }
