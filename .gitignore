@@ -1,5 +1,6 @@
 _build/
-*~
-.merlin
+_opam/
 .DS_Store
+.merlin
+*.install
 main
