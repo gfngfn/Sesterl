@@ -225,6 +225,45 @@ let rec aux lev tyenv (rng, utastmain) =
       unify ty2 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tysome));
       ty2
 
+  | Receive(branches) ->
+      let tyrecv = fresh_type lev (Range.dummy "receive-recv") in
+      let tyret = fresh_type lev (Range.dummy "receive-ret") in
+      let () =
+        List.fold_left (fun () branch ->
+          typecheck_branch lev tyenv tyrecv tyret branch
+        ) () branches
+      in
+      (rng, EffType(Effect(tyrecv), tyret))
+
+
+and typecheck_branch lev tyenv tyrecv tyret (Branch(pat, utast0opt, utast1)) =
+  let (typat, tyenv) = typecheck_pattern lev tyenv pat in
+  unify typat tyrecv;
+  let () =
+    match utast0opt with
+    | None ->
+        ()
+
+    | Some(utast0) ->
+        let ty0 = aux lev tyenv utast0 in
+        unify ty0 (Range.dummy "when", BaseType(BoolType));
+        ()
+  in
+  let ty1 = aux lev tyenv utast1 in
+  unify ty1 (Range.dummy "branch", EffType(Effect(tyrecv), tyret));
+  ()
+
+
+and typecheck_pattern (lev : int) (tyenv : Typeenv.t) ((rng, patmain) : untyped_pattern) =
+  let immediate tymain = ((rng, tymain), tyenv) in
+  match patmain with
+  | PUnit    -> immediate (BaseType(UnitType))
+  | PBool(_) -> immediate (BaseType(BoolType))
+  | PInt(_)  -> immediate (BaseType(IntType))
+
+  | PVar(x) ->
+      let ty = fresh_type lev rng in
+      (ty, tyenv |> Typeenv.add x (lift ty))
 
 
 and typecheck_let (lev : int) (tyenv : Typeenv.t) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t =

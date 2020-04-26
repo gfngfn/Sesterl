@@ -26,7 +26,7 @@
     (rng, Apply((rngop, Var(vop)), [e1; e2]))
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN TRUE FALSE COMMA DO REVARROW
+%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END
 %token<Range.t * Syntax.identifier> IDENT BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * Syntax.identifier> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
@@ -93,6 +93,10 @@ exprfun:
         let rng = make_range (Token(tok1)) (Ranged(e)) in
         make_lambda rng args e
       }
+  | tok1=RECEIVE; branches=nonempty_list(branch); tok2=END {
+        let rng = make_range (Token(tok1)) (Token(tok2)) in
+        (rng, Receive(branches))
+      }
   | e=exprland { e }
 ;
 exprland:
@@ -139,4 +143,18 @@ exprbot:
   | c=INT { let (rng, n) = c in (rng, Int(n)) }
   | ident=ident { let (rng, x) = ident in (rng, Var(x)) }
   | LPAREN; e=exprlet; RPAREN { e }
+;
+branch:
+  | BAR; pat=pattern; ARROW; e=exprlet {
+        Branch(pat, None, e)
+      }
+  | BAR; pat=pattern; WHEN; ew=exprlet; ARROW; e=exprlet {
+        Branch(pat, Some(ew), e)
+      }
+;
+pattern:
+  | rng=TRUE { (rng, PBool(true)) }
+  | rng=FALSE { (rng, PBool(true)) }
+  | tok1=LPAREN; tok2=RPAREN { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, PUnit) }
+  | c=INT { let (rng, n) = c in (rng, PInt(n)) }
 ;

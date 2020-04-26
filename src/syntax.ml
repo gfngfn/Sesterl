@@ -31,6 +31,18 @@ and untyped_ast_main =
   | LetIn    of binder * untyped_ast * untyped_ast
   | LetRecIn of binder * untyped_ast * untyped_ast
   | Do       of binder option * untyped_ast * untyped_ast
+  | Receive  of untyped_branch list
+
+and untyped_branch =
+  | Branch of untyped_pattern * untyped_ast option * untyped_ast
+
+and untyped_pattern = Range.t * untyped_pattern_main
+
+and untyped_pattern_main =
+  | PUnit
+  | PBool of bool
+  | PInt  of int
+  | PVar  of identifier
 [@@deriving show { with_path = false; } ]
 
 type declaration =
@@ -197,6 +209,10 @@ let instantiate lev pty =
     Pid(ty)
   in
   aux pty
+
+
+let overwrite_range_of_type (type a) (rng : Range.t) ((_, tymain) : a typ) : a typ =
+  (rng, tymain)
 
 
 let show_base_type = function

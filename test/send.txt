@@ -1,9 +1,17 @@
 
+let make_sub() =
+  spawn(
+    receive
+    | true ->
+        return(())
+    end
+  )
+
 letrec aux(n) =
   if n <= 0 then
     return(())
   else
-    do pid <- spawn(return(())) in
+    do pid <- make_sub() in
     aux(n - 1)
 
 
