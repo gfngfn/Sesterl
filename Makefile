@@ -9,3 +9,11 @@ test:
 .PHONY: clean
 clean:
 	dune clean
+
+.PHONY: fmt
+fmt:
+	dune build @fmt --auto-promote
+
+.PHONY: fmt-check
+fmt-check:
+	dune build @fmt
