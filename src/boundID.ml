@@ -1,27 +1,15 @@
+type t = { id : int }
 
-type t = {
-  id : int;
-}
-
-
-let equal bid1 bid2 =
-  bid1.id = bid2.id
-
+let equal bid1 bid2 = bid1.id = bid2.id
 
 let hash = Hashtbl.hash
 
-
 let current_max = ref 0
 
-
-let initialize () =
-  current_max := 0
-
+let initialize () = current_max := 0
 
 let fresh () =
   incr current_max;
-  { id = !current_max; }
+  { id = !current_max }
 
-
-let pp ppf bid =
-  Format.fprintf ppf "'#%d" bid.id
+let pp ppf bid = Format.fprintf ppf "'#%d" bid.id

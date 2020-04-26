@@ -1,12 +1,7 @@
-
 open Syntax
-
-
-module VarMap = Map.Make(String)
-
+module VarMap = Map.Make (String)
 
 type t = poly_type VarMap.t
-
 
 let empty = VarMap.empty
 

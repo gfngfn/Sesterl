@@ -1,4 +1,3 @@
-
 open Syntax
 
 type t
