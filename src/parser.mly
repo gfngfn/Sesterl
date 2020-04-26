@@ -101,27 +101,27 @@ exprfun:
 ;
 exprland:
   | e1=exprlor; op=BINOP_AMP; e2=exprland { binary e1 op e2 }
-  | e=exprlor { e }
+  | e=exprlor                             { e }
 ;
 exprlor:
   | e1=exprcomp; op=BINOP_BAR; e2=exprlor { binary e1 op e2 }
-  | e=exprcomp { e }
+  | e=exprcomp                            { e }
 ;
 exprcomp:
   | e1=exprtimes; op=BINOP_EQ; e2=exprcomp { binary e1 op e2 }
   | e1=exprtimes; op=BINOP_LT; e2=exprcomp { binary e1 op e2 }
   | e1=exprtimes; op=BINOP_GT; e2=exprcomp { binary e1 op e2 }
-  | e=exprtimes { e }
+  | e=exprtimes                            { e }
 ;
 exprtimes:
-  | e1=exprplus; op=BINOP_TIMES; e2=exprtimes { binary e1 op e2 }
+  | e1=exprplus; op=BINOP_TIMES; e2=exprtimes   { binary e1 op e2 }
   | e1=exprplus; op=BINOP_DIVIDES; e2=exprtimes { binary e1 op e2 }
-  | e=exprplus { e }
+  | e=exprplus                                  { e }
 ;
 exprplus:
-  | e1=exprapp; op=BINOP_PLUS; e2=exprplus { binary e1 op e2 }
+  | e1=exprapp; op=BINOP_PLUS; e2=exprplus  { binary e1 op e2 }
   | e1=exprapp; op=BINOP_MINUS; e2=exprplus { binary e1 op e2 }
-  | e=exprapp { e }
+  | e=exprapp                               { e }
 ;
 exprapp:
   | efun=exprapp; LPAREN; args=exprargs {
@@ -137,11 +137,11 @@ exprargs:
   | e=exprlet; COMMA; rest=exprargs { let (rtok, tail) = rest in (rtok, e :: tail) }
 ;
 exprbot:
-  | rng=TRUE { (rng, Bool(true)) }
-  | rng=FALSE { (rng, Bool(false)) }
-  | tok1=LPAREN; tok2=RPAREN { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, Unit) }
-  | c=INT { let (rng, n) = c in (rng, Int(n)) }
-  | ident=ident { let (rng, x) = ident in (rng, Var(x)) }
+  | rng=TRUE                  { (rng, Bool(true)) }
+  | rng=FALSE                 { (rng, Bool(false)) }
+  | tok1=LPAREN; tok2=RPAREN  { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, Unit) }
+  | c=INT                     { let (rng, n) = c in (rng, Int(n)) }
+  | ident=ident               { let (rng, x) = ident in (rng, Var(x)) }
   | LPAREN; e=exprlet; RPAREN { e }
 ;
 branch:
@@ -153,8 +153,9 @@ branch:
       }
 ;
 pattern:
-  | rng=TRUE { (rng, PBool(true)) }
-  | rng=FALSE { (rng, PBool(true)) }
+  | rng=TRUE                 { (rng, PBool(true)) }
+  | rng=FALSE                { (rng, PBool(true)) }
   | tok1=LPAREN; tok2=RPAREN { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, PUnit) }
-  | c=INT { let (rng, n) = c in (rng, PInt(n)) }
+  | c=INT                    { let (rng, n) = c in (rng, PInt(n)) }
+  | ident=ident              { let (rng, x) = ident in (rng, PVar(x)) }
 ;

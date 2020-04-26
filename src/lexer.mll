@@ -22,20 +22,20 @@ rule token = parse
         let s = Lexing.lexeme lexbuf in
         let pos = Range.from_lexbuf lexbuf in
           match s with
-          | "let"    -> LET(pos)
-          | "letrec" -> LETREC(pos)
-          | "in"     -> IN(pos)
-          | "fun"    -> LAMBDA(pos)
-          | "if"     -> IF(pos)
-          | "then"   -> THEN(pos)
-          | "else"   -> ELSE(pos)
-          | "true"   -> TRUE(pos)
-          | "false"  -> FALSE(pos)
-          | "do"     -> DO(pos)
+          | "let"     -> LET(pos)
+          | "letrec"  -> LETREC(pos)
+          | "in"      -> IN(pos)
+          | "fun"     -> LAMBDA(pos)
+          | "if"      -> IF(pos)
+          | "then"    -> THEN(pos)
+          | "else"    -> ELSE(pos)
+          | "true"    -> TRUE(pos)
+          | "false"   -> FALSE(pos)
+          | "do"      -> DO(pos)
           | "receive" -> RECEIVE(pos)
           | "when"    -> WHEN(pos)
           | "end"     -> END(pos)
-          | _        -> IDENT(pos, s)
+          | _         -> IDENT(pos, s)
       }
   | ("0" | nzdigit (digit*) | ("0x" | "0X") hex+) {
         let s = Lexing.lexeme lexbuf in

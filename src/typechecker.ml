@@ -3,9 +3,9 @@ open MyUtil
 open Syntax
 
 
-exception UnboundVariable of Range.t * string
+exception UnboundVariable    of Range.t * string
 exception ContradictionError of mono_type * mono_type
-exception InclusionError of FreeID.t * mono_type * mono_type
+exception InclusionError     of FreeID.t * mono_type * mono_type
 
 
 type unification_result =

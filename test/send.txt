@@ -2,8 +2,8 @@
 let make_sub() =
   spawn(
     receive
-    | true ->
-        return(())
+    | x ->
+        if x then return(()) else return(())
     end
   )
 

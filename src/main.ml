@@ -31,7 +31,7 @@ let () =
 
   | Typechecker.ContradictionError(ty1, ty2) ->
       let (rng1, _) = ty1 in
-      Format.printf "%a: this expression has type %a but is expected of type %a"
+      Format.printf "%a: this expression has type %a but is expected of type %a\n"
         Range.pp rng1
         pp_mono_type ty1
         pp_mono_type ty2
