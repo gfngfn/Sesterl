@@ -31,6 +31,7 @@ rule token = parse
           | "else"   -> ELSE(pos)
           | "true"   -> TRUE(pos)
           | "false"  -> FALSE(pos)
+          | "do"     -> DO(pos)
           | _        -> IDENT(pos, s)
       }
   | ("0" | nzdigit (digit*) | ("0x" | "0X") hex+) {
@@ -41,6 +42,7 @@ rule token = parse
   | ","  { COMMA(Range.from_lexbuf lexbuf) }
   | "="  { DEFEQ(Range.from_lexbuf lexbuf) }
   | "->" { ARROW(Range.from_lexbuf lexbuf) }
+  | "<-" { REVARROW(Range.from_lexbuf lexbuf) }
   | "("  { LPAREN(Range.from_lexbuf lexbuf) }
   | ")"  { RPAREN(Range.from_lexbuf lexbuf) }
   | "/*" { comment (Range.from_lexbuf lexbuf) lexbuf; token lexbuf }
