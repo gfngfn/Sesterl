@@ -1,0 +1,11 @@
+
+letrec aux(n) =
+  if n <= 0 then
+    return(())
+  else
+    do pid <- spawn(return(())) in
+    aux(n - 1)
+
+
+let main() =
+  aux(10)

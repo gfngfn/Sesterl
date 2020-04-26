@@ -150,6 +150,7 @@ let fresh_type lev rng =
 
 let rec aux lev tyenv (rng, utastmain) =
   match utastmain with
+  | Unit -> (rng, BaseType(UnitType))
   | Int(_) -> (rng, BaseType(IntType))
   | Bool(_) -> (rng, BaseType(BoolType))
 

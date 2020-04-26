@@ -28,6 +28,12 @@ let initial_type_environment =
     let tyrecvremote = fresh_bound () in
     [pid tyrecvremote; tyrecvremote] @-> eff tyrecv u
   in
+  let tyreturn : poly_type =
+    let tyrecv = fresh_bound () in
+    let tyres = fresh_bound () in
+    [tyres] @-> eff tyrecv tyres
+  in
+
   List.fold_left (fun tyenv (x, ty) ->
     tyenv |> Typeenv.add x ty
   ) Typeenv.empty [
@@ -44,4 +50,5 @@ let initial_type_environment =
     ("-", tyarith);
     ("spawn", tyspawn);
     ("send", tysend);
+    ("return", tyreturn);
   ]

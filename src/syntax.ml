@@ -21,6 +21,7 @@ type untyped_ast = Range.t * untyped_ast_main
   [@printer (fun ppf (_, utastmain) -> pp_untyped_ast_main ppf utastmain)]
 
 and untyped_ast_main =
+  | Unit
   | Bool     of bool
   | Int      of int
   | Var      of identifier

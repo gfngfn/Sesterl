@@ -135,6 +135,7 @@ exprargs:
 exprbot:
   | rng=TRUE { (rng, Bool(true)) }
   | rng=FALSE { (rng, Bool(false)) }
+  | tok1=LPAREN; tok2=RPAREN { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, Unit) }
   | c=INT { let (rng, n) = c in (rng, Int(n)) }
   | ident=ident { let (rng, x) = ident in (rng, Var(x)) }
   | LPAREN; e=exprlet; RPAREN { e }
