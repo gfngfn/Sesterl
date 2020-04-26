@@ -22,3 +22,23 @@
   * [ ] Pattern matching
 * [ ] Mutual recursion by generalized `letrec`-expressions
 * [ ] Pattern matching by generalized `let`-expressions
+
+## Build Notes
+
+### Create a local switch
+
+```bash
+opam switch create .
+```
+
+### Install the required packages
+
+```bash
+opam install . --deps-only --with-doc --with-test
+```
+
+### Build
+
+```bash
+make
+```
