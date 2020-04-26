@@ -1,4 +1,5 @@
 
+open MyUtil
 open Syntax
 
 
@@ -26,9 +27,9 @@ let occurs fid ty =
     | BaseType(_) ->
         false
 
-    | FuncType(ty1, ty2) ->
-        let b1 = aux ty1 in
-        let b2 = aux ty2 in
+    | FuncType(tydoms, tycod) ->
+        let b1 = List.exists aux tydoms in
+        let b2 = aux tycod in
         b1 || b2
 
     | TypeVar({contents = Link(ty)}) ->
@@ -59,9 +60,18 @@ let unify tyact tyexp =
     | (BaseType(bt1), BaseType(bt2)) ->
         if bt1 = bt2 then Consistent else Contradiction
 
-    | (FuncType(ty1d, ty1c), FuncType(ty2d, ty2c)) ->
-        let res1 = aux ty1d ty2d in
-        let res2 = aux ty1c ty2c in
+    | (FuncType(ty1doms, ty1cod), FuncType(ty2doms, ty2cod)) ->
+        let res1 =
+          try
+            List.fold_left2 (fun res ty1 ty2 ->
+              match res with
+              | Consistent -> aux ty1 ty2
+              | _          -> res
+            ) Consistent ty1doms ty2doms
+          with
+          | Invalid_argument(_) -> Contradiction
+        in
+        let res2 = aux ty1cod ty2cod in
         res1 &&& res2
 
     | (TypeVar({contents = Free(fid1)} as tvref1), TypeVar({contents = Free(fid2)})) ->
@@ -121,17 +131,22 @@ let rec aux lev tyenv (rng, utastmain) =
         | Some((_, ptymain)) -> instantiate lev (rng, ptymain)
       end
 
-  | Lambda((rngv, x), utast0) ->
-      let tydom = fresh_type lev rngv in
-      let ptydom = lift tydom in
-      let tycod = aux lev (tyenv |> Typeenv.add x ptydom) utast0 in
-      (rng, FuncType(tydom, tycod))
+  | Lambda(binders, utast0) ->
+      let (tyenv, tydomacc) =
+        List.fold_left (fun (tyenv, tydomacc) (rngv, x) ->
+          let tydom = fresh_type lev rngv in
+          let ptydom = lift tydom in
+          (tyenv |> Typeenv.add x ptydom, Alist.extend tydomacc tydom)
+        ) (tyenv, Alist.empty) binders
+      in
+      let tycod = aux lev tyenv utast0 in
+      (rng, FuncType(tydomacc |> Alist.to_list, tycod))
 
-  | Apply(utast1, utast2) ->
-      let ty1 = aux lev tyenv utast1 in
-      let ty2 = aux lev tyenv utast2 in
+  | Apply(utastfun, utastargs) ->
+      let tyfun = aux lev tyenv utastfun in
+      let tyargs = List.map (aux lev tyenv) utastargs in
       let tyret = fresh_type lev rng in
-      unify ty1 (Range.dummy "Apply", FuncType(ty2, tyret));
+      unify tyfun (Range.dummy "Apply", FuncType(tyargs, tyret));
       tyret
 
   | If(utast0, utast1, utast2) ->

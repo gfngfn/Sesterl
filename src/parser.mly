@@ -16,21 +16,14 @@
       Range.unite rng1 rng2
 
 
-  let make_lambda rngopt args e =
-    let (_, elammain) as elam =
-      List.fold_right (fun ident e ->
-        (Range.dummy "make_lambda", Lambda(ident, e))
-      ) args e
-    in
-    match rngopt with
-    | None      -> elam
-    | Some(rng) -> (rng, elammain)
+  let make_lambda rng binders e =
+    (rng, Lambda(binders, e))
 
 
   let binary e1 op e2 =
     let rng = make_range (Ranged(e1)) (Ranged(e2)) in
     let (rngop, vop) = op in
-    (rng, Apply((Range.dummy "binary", Apply((rngop, Var(vop)), e1)), e2))
+    (rng, Apply((rngop, Var(vop)), [e1; e2]))
 %}
 
 %token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN TRUE FALSE COMMA
@@ -58,10 +51,10 @@ ident:
 ;
 letdec:
   | tok1=LET; ident=IDENT; args=args; DEFEQ; e1=exprlet {
-        (tok1, ident, false, make_lambda None args e1)
+        (tok1, ident, false, make_lambda (Range.dummy "let") args e1)
       }
   | tok1=LETREC; ident=IDENT; args=args; DEFEQ; e1=exprlet {
-        (tok1, ident, true, make_lambda None args e1)
+        (tok1, ident, true, make_lambda (Range.dummy "letrec") args e1)
       }
 ;
 args:
@@ -90,7 +83,7 @@ exprlet:
 exprfun:
   | tok1=LAMBDA; args=args; ARROW; e=exprlet {
         let rng = make_range (Token(tok1)) (Ranged(e)) in
-        make_lambda (Some(rng)) args e
+        make_lambda rng args e
       }
   | e=exprland { e }
 ;
@@ -119,11 +112,17 @@ exprplus:
   | e=exprapp { e }
 ;
 exprapp:
-  | e1=exprapp; e2=exprbot {
-        let rng = make_range (Ranged(e1)) (Ranged(e2)) in
-        (rng, Apply(e1, e2))
+  | efun=exprapp; LPAREN; args=exprargs {
+        let (rtok, eargs) = args in
+        let rng = make_range (Ranged(efun)) (Token(rtok)) in
+        (rng, Apply(efun, eargs))
       }
   | e=exprbot { e }
+;
+exprargs:
+  | rtok=RPAREN                     { (rtok, []) }
+  | e=exprlet; rtok=RPAREN          { (rtok, e :: []) }
+  | e=exprlet; COMMA; rest=exprargs { let (rtok, tail) = rest in (rtok, e :: tail) }
 ;
 exprbot:
   | rng=TRUE { (rng, Bool(true)) }

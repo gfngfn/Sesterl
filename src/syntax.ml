@@ -24,8 +24,8 @@ and untyped_ast_main =
   | Bool     of bool
   | Int      of int
   | Var      of identifier
-  | Lambda   of binder * untyped_ast
-  | Apply    of untyped_ast * untyped_ast
+  | Lambda   of binder list * untyped_ast
+  | Apply    of untyped_ast * untyped_ast list
   | If       of untyped_ast * untyped_ast * untyped_ast
   | LetIn    of binder * untyped_ast * untyped_ast
   | LetRecIn of binder * untyped_ast * untyped_ast
@@ -46,7 +46,7 @@ type 'a typ = Range.t * 'a typ_main
 *)
 and 'a typ_main =
   | BaseType of base_type
-  | FuncType of 'a typ * 'a typ
+  | FuncType of ('a typ) list * 'a typ
   | TypeVar  of 'a
 [@@deriving show { with_path = false; } ]
 
@@ -97,10 +97,10 @@ let lift_scheme rngf pred ty =
         in
         (rngf rng, TypeVar(ptv))
 
-    | FuncType(ty1, ty2) ->
-        let pty1 = aux ty1 in
-        let pty2 = aux ty2 in
-        (rngf rng, FuncType(pty1, pty2))
+    | FuncType(tydoms, tycod) ->
+        let ptydoms = tydoms |> List.map aux in
+        let ptycod = aux tycod in
+        (rngf rng, FuncType(ptydoms, ptycod))
   in
   aux ty
 
@@ -149,10 +149,10 @@ let instantiate lev pty =
         let mtv = intern bid in
         (rng, TypeVar(mtv))
 
-    | FuncType(pty1, pty2) ->
-        let ty1 = aux pty1 in
-        let ty2 = aux pty2 in
-        (rng, FuncType(ty1, ty2))
+    | FuncType(ptydoms, ptycod) ->
+        let tydoms = ptydoms |> List.map aux in
+        let tycod = aux ptycod in
+        (rng, FuncType(tydoms, tycod))
 
   in
   aux pty
@@ -164,21 +164,20 @@ let show_base_type = function
 
 
 let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
-  let rec aux isdom (_, tymain) =
+  let rec aux (_, tymain) =
     match tymain with
     | BaseType(bty) ->
         show_base_type bty
 
-    | FuncType(ty1, ty2) ->
-        let s1 = aux true ty1 in
-        let s2 = aux false ty2 in
-        let s = s1 ^ " -> " ^ s2 in
-        if isdom then "(" ^ s ^ ")" else s
+    | FuncType(tydoms, tycod) ->
+        let sdoms = tydoms |> List.map aux in
+        let scod = aux tycod in
+        "(" ^ (String.concat ", " sdoms) ^ ") -> " ^ scod
 
     | TypeVar(tv) ->
         showtv tv
   in
-  aux false ty
+  aux ty
 
 
 and show_mono_type_var_scheme showty tvref =

@@ -6,10 +6,10 @@ let initial_type_environment =
   let dr = Range.dummy "primitives" in
   let b = (dr, BaseType(BoolType)) in
   let i = (dr, BaseType(IntType)) in
-  let ( @-> ) ty1 ty2 = (dr, FuncType(ty1, ty2)) in
-  let tylogic = b @-> b @-> b in
-  let tycomp = i @-> i @-> b in
-  let tyarith = i @-> i @-> i in
+  let ( @-> ) tydoms tycod = (dr, FuncType(tydoms, tycod)) in
+  let tylogic = [b; b] @-> b in
+  let tycomp = [i; i] @-> b in
+  let tyarith = [i; i] @-> i in
 
   List.fold_left (fun tyenv (x, ty) ->
     tyenv |> Typeenv.add x ty
