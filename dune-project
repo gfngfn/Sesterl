@@ -12,8 +12,8 @@
  (synopsis "A Session-Typed Erlang")
  (description "A Session-Typed Erlang")
  (depends
-  (alcotest :with-test)
+  (alcotest (and :with-test (>= 1.1.0)))
   (dune (>= 2.5.1))
-  (ocamlformat :dev)
+  (ocamlformat (and :dev (>= 0.14.1)))
   (ppx_deriving (>= 1.1.0))
   ))

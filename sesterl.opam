@@ -7,9 +7,9 @@ authors: ["gfngfn"]
 homepage: "https://github.com/gfngfn/Sesterl"
 bug-reports: "https://github.com/gfngfn/Sesterl/issues"
 depends: [
-  "alcotest" {with-test}
+  "alcotest" {with-test & >= "1.1.0"}
   "dune" {>= "2.5.1"}
-  "ocamlformat" {dev}
+  "ocamlformat" {dev & >= "0.14.1"}
   "ppx_deriving" {>= "1.1.0"}
 ]
 build: [
