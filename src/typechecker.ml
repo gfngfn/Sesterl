@@ -31,6 +31,16 @@ let occurs fid ty =
         let b1 = List.exists aux tydoms in
         let b2 = aux tycod in
         b1 || b2
+          (* -- must not be short-circuit due to the level inference -- *)
+
+    | EffType(eff, ty0) ->
+        let beff = aux_effect eff in
+        let b0 = aux ty0 in
+        beff || b0
+          (* -- must not be short-circuit due to the level inference -- *)
+
+    | PidType(pidty) ->
+        aux_pid_type pidty
 
     | TypeVar({contents = Link(ty)}) ->
         aux ty
@@ -42,6 +52,11 @@ let occurs fid ty =
             false
           end
 
+  and aux_effect (Effect(ty)) =
+    aux ty
+
+  and aux_pid_type (Pid(ty)) =
+    aux ty
   in
   aux ty
 
@@ -74,6 +89,14 @@ let unify tyact tyexp =
         let res2 = aux ty1cod ty2cod in
         res1 &&& res2
 
+    | (EffType(eff1, tysub1), EffType(eff2, tysub2)) ->
+        let reseff = aux_effect eff1 eff2 in
+        let ressub = aux tysub1 tysub2 in
+        reseff &&& ressub
+
+    | (PidType(pidty1), PidType(pidty2)) ->
+        aux_pid_type pidty1 pidty2
+
     | (TypeVar({contents = Free(fid1)} as tvref1), TypeVar({contents = Free(fid2)})) ->
         let () =
           if FreeID.equal fid1 fid2 then () else
@@ -105,6 +128,12 @@ let unify tyact tyexp =
 
     | _ ->
         Contradiction
+
+  and aux_effect (Effect(ty1)) (Effect(ty2)) =
+    aux ty1 ty2
+
+  and aux_pid_type (Pid(ty1)) (Pid(ty2)) =
+    aux ty1 ty2
   in
   let res = aux tyact tyexp in
   match res with
@@ -166,6 +195,25 @@ let rec aux lev tyenv (rng, utastmain) =
       let tyenv = typecheck_letrec lev tyenv ident utast1 in
       let ty2 = aux lev tyenv utast2 in
       ty2
+
+  | Do(identopt, utast1, utast2) ->
+      let ty1 = aux (lev + 1) tyenv utast1 in
+      let (tyx, tyenv) =
+        match identopt with
+        | None ->
+            ((Range.dummy "do-unit", BaseType(UnitType)), tyenv)
+
+        | Some(rng, x) ->
+            let tyx = fresh_type (lev + 1) rng in
+            (tyx, tyenv |> Typeenv.add x (lift tyx))
+      in
+      let tyrecv = fresh_type lev (Range.dummy "do-recv") in
+      unify ty1 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tyx));
+      let ty2 = aux lev tyenv utast2 in
+      let tysome = fresh_type lev (Range.dummy "do-some") in
+      unify ty2 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tysome));
+      ty2
+
 
 
 and typecheck_let (lev : int) (tyenv : Typeenv.t) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t =

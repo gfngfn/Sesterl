@@ -26,7 +26,7 @@
     (rng, Apply((rngop, Var(vop)), [e1; e2]))
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN TRUE FALSE COMMA
+%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN TRUE FALSE COMMA DO REVARROW
 %token<Range.t * Syntax.identifier> IDENT BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * Syntax.identifier> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
@@ -77,6 +77,14 @@ exprlet:
   | tok1=IF; e0=exprlet; THEN; e1=exprlet; ELSE; e2=exprlet {
         let rng = make_range (Token(tok1)) (Ranged(e2)) in
         (rng, If(e0, e1, e2))
+      }
+  | tok1=DO; ident=IDENT; REVARROW; e1=exprlet; IN; e2=exprlet {
+        let rng = make_range (Token(tok1)) (Ranged(e2)) in
+        (rng, Do(Some(ident), e1, e2))
+      }
+  | tok1=DO; e1=exprlet; IN; e2=exprlet {
+        let rng = make_range (Token(tok1)) (Ranged(e2)) in
+        (rng, Do(None, e1, e2))
       }
   | e=exprfun { e }
 ;
