@@ -33,6 +33,10 @@ let initial_type_environment =
     let tyres = fresh_bound () in
     [tyres] @-> eff tyrecv tyres
   in
+  let tyself : poly_type =
+    let tyrecv = fresh_bound () in
+    [] @-> eff tyrecv (pid tyrecv)
+  in
 
   List.fold_left (fun tyenv (x, ty) ->
     tyenv |> Typeenv.add x ty
@@ -51,4 +55,5 @@ let initial_type_environment =
     ("spawn", tyspawn);
     ("send", tysend);
     ("return", tyreturn);
+    ("self", tyself);
   ]

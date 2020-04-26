@@ -1,24 +1,25 @@
 
-exception UnidentifiedToken of Range.t * string
+exception UnidentifiedToken     of Range.t * string
 exception SeeEndOfFileInComment of Range.t
 
 
-type identifier = string
+type 'a ranged = Range.t * 'a
 
+type identifier = string
 
 let pp_identifier ppf s =
   Format.fprintf ppf "\"%s\"" s
 
 
-type binder = Range.t * identifier
-
+type binder = identifier ranged
 
 let pp_binder ppf (_, s) =
-  Format.fprintf ppf "%a" pp_identifier s
+  pp_identifier ppf s
 
 
-type untyped_ast = Range.t * untyped_ast_main
-  [@printer (fun ppf (_, utastmain) -> pp_untyped_ast_main ppf utastmain)]
+type untyped_ast =
+  untyped_ast_main ranged
+[@printer (fun ppf (_, utastmain) -> pp_untyped_ast_main ppf utastmain)]
 
 and untyped_ast_main =
   | Unit
@@ -31,6 +32,21 @@ and untyped_ast_main =
   | LetIn    of binder * untyped_ast * untyped_ast
   | LetRecIn of binder * untyped_ast * untyped_ast
   | Do       of binder option * untyped_ast * untyped_ast
+  | Receive  of untyped_branch list
+
+and untyped_branch =
+  | Branch of untyped_pattern * untyped_ast option * untyped_ast
+
+and untyped_pattern =
+  untyped_pattern_main ranged
+[@printer (fun ppf (_, utpatmain) -> pp_untyped_pattern_main ppf utpatmain)]
+
+and untyped_pattern_main =
+  | PUnit
+  | PBool of bool
+  | PInt  of int
+  | PVar  of identifier
+  | PWildCard
 [@@deriving show { with_path = false; } ]
 
 type declaration =
@@ -43,17 +59,15 @@ type base_type =
   | UnitType
 [@@deriving show { with_path = false; } ]
 
-type 'a typ = Range.t * 'a typ_main
-(*
-  [@printer (fun (pp_sub : Format.formatter -> 'a -> unit) (ppf : Format.formatter) ((_, tymain) : 'a typ) -> Format.fprintf ppf "%a" (pp_typ_main pp_sub) tymain)]
-*)
+type 'a typ =
+  ('a typ_main) ranged
+
 and 'a typ_main =
   | BaseType of base_type
   | FuncType of ('a typ) list * 'a typ
   | PidType  of 'a pid_type
   | EffType  of 'a effect * 'a typ
   | TypeVar  of 'a
-[@@deriving show { with_path = false; } ]
 
 and 'a effect =
   | Effect of 'a typ
@@ -197,6 +211,10 @@ let instantiate lev pty =
     Pid(ty)
   in
   aux pty
+
+
+let overwrite_range_of_type (type a) (rng : Range.t) ((_, tymain) : a typ) : a typ =
+  (rng, tymain)
 
 
 let show_base_type = function

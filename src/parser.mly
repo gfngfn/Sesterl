@@ -26,7 +26,7 @@
     (rng, Apply((rngop, Var(vop)), [e1; e2]))
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN TRUE FALSE COMMA DO REVARROW
+%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE
 %token<Range.t * Syntax.identifier> IDENT BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * Syntax.identifier> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
@@ -55,6 +55,9 @@ letdec:
       }
   | tok1=LETREC; ident=IDENT; args=args; DEFEQ; e1=exprlet {
         (tok1, ident, true, make_lambda (Range.dummy "letrec") args e1)
+      }
+  | tok1=LET; ident=IDENT; DEFEQ; e1=exprlet {
+        (tok1, ident, false, e1)
       }
 ;
 args:
@@ -93,31 +96,35 @@ exprfun:
         let rng = make_range (Token(tok1)) (Ranged(e)) in
         make_lambda rng args e
       }
+  | tok1=RECEIVE; branches=nonempty_list(branch); tok2=END {
+        let rng = make_range (Token(tok1)) (Token(tok2)) in
+        (rng, Receive(branches))
+      }
   | e=exprland { e }
 ;
 exprland:
   | e1=exprlor; op=BINOP_AMP; e2=exprland { binary e1 op e2 }
-  | e=exprlor { e }
+  | e=exprlor                             { e }
 ;
 exprlor:
   | e1=exprcomp; op=BINOP_BAR; e2=exprlor { binary e1 op e2 }
-  | e=exprcomp { e }
+  | e=exprcomp                            { e }
 ;
 exprcomp:
   | e1=exprtimes; op=BINOP_EQ; e2=exprcomp { binary e1 op e2 }
   | e1=exprtimes; op=BINOP_LT; e2=exprcomp { binary e1 op e2 }
   | e1=exprtimes; op=BINOP_GT; e2=exprcomp { binary e1 op e2 }
-  | e=exprtimes { e }
+  | e=exprtimes                            { e }
 ;
 exprtimes:
-  | e1=exprplus; op=BINOP_TIMES; e2=exprtimes { binary e1 op e2 }
+  | e1=exprplus; op=BINOP_TIMES; e2=exprtimes   { binary e1 op e2 }
   | e1=exprplus; op=BINOP_DIVIDES; e2=exprtimes { binary e1 op e2 }
-  | e=exprplus { e }
+  | e=exprplus                                  { e }
 ;
 exprplus:
-  | e1=exprapp; op=BINOP_PLUS; e2=exprplus { binary e1 op e2 }
+  | e1=exprapp; op=BINOP_PLUS; e2=exprplus  { binary e1 op e2 }
   | e1=exprapp; op=BINOP_MINUS; e2=exprplus { binary e1 op e2 }
-  | e=exprapp { e }
+  | e=exprapp                               { e }
 ;
 exprapp:
   | efun=exprapp; LPAREN; args=exprargs {
@@ -133,10 +140,26 @@ exprargs:
   | e=exprlet; COMMA; rest=exprargs { let (rtok, tail) = rest in (rtok, e :: tail) }
 ;
 exprbot:
-  | rng=TRUE { (rng, Bool(true)) }
-  | rng=FALSE { (rng, Bool(false)) }
-  | tok1=LPAREN; tok2=RPAREN { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, Unit) }
-  | c=INT { let (rng, n) = c in (rng, Int(n)) }
-  | ident=ident { let (rng, x) = ident in (rng, Var(x)) }
+  | rng=TRUE                  { (rng, Bool(true)) }
+  | rng=FALSE                 { (rng, Bool(false)) }
+  | tok1=LPAREN; tok2=RPAREN  { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, Unit) }
+  | c=INT                     { let (rng, n) = c in (rng, Int(n)) }
+  | ident=ident               { let (rng, x) = ident in (rng, Var(x)) }
   | LPAREN; e=exprlet; RPAREN { e }
+;
+branch:
+  | BAR; pat=pattern; ARROW; e=exprlet {
+        Branch(pat, None, e)
+      }
+  | BAR; pat=pattern; WHEN; ew=exprlet; ARROW; e=exprlet {
+        Branch(pat, Some(ew), e)
+      }
+;
+pattern:
+  | rng=TRUE                 { (rng, PBool(true)) }
+  | rng=FALSE                { (rng, PBool(true)) }
+  | tok1=LPAREN; tok2=RPAREN { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, PUnit) }
+  | c=INT                    { let (rng, n) = c in (rng, PInt(n)) }
+  | ident=ident              { let (rng, x) = ident in (rng, PVar(x)) }
+  | rng=UNDERSCORE           { (rng, PWildCard) }
 ;

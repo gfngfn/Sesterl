@@ -1,11 +1,27 @@
 
+letrec wait_all(n) =
+  if n <= 0 then
+    return(())
+  else
+    receive
+    | x -> wait_all(n - 1)
+    end
+
+
 letrec aux(n) =
   if n <= 0 then
     return(())
   else
-    do pid <- spawn(return(())) in
+    do parent <- self() in
+    do pid <-
+      spawn(
+        send(parent, n)
+      )
+    in
     aux(n - 1)
 
 
 let main() =
-  aux(10)
+  let m = 10 in
+  do aux(m) in
+  wait_all(m)

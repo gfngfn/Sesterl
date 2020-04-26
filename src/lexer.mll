@@ -22,32 +22,37 @@ rule token = parse
         let s = Lexing.lexeme lexbuf in
         let pos = Range.from_lexbuf lexbuf in
           match s with
-          | "let"    -> LET(pos)
-          | "letrec" -> LETREC(pos)
-          | "in"     -> IN(pos)
-          | "fun"    -> LAMBDA(pos)
-          | "if"     -> IF(pos)
-          | "then"   -> THEN(pos)
-          | "else"   -> ELSE(pos)
-          | "true"   -> TRUE(pos)
-          | "false"  -> FALSE(pos)
-          | "do"     -> DO(pos)
-          | _        -> IDENT(pos, s)
+          | "let"     -> LET(pos)
+          | "letrec"  -> LETREC(pos)
+          | "in"      -> IN(pos)
+          | "fun"     -> LAMBDA(pos)
+          | "if"      -> IF(pos)
+          | "then"    -> THEN(pos)
+          | "else"    -> ELSE(pos)
+          | "true"    -> TRUE(pos)
+          | "false"   -> FALSE(pos)
+          | "do"      -> DO(pos)
+          | "receive" -> RECEIVE(pos)
+          | "when"    -> WHEN(pos)
+          | "end"     -> END(pos)
+          | _         -> IDENT(pos, s)
       }
   | ("0" | nzdigit (digit*) | ("0x" | "0X") hex+) {
         let s = Lexing.lexeme lexbuf in
         let rng = Range.from_lexbuf lexbuf in
           INT(rng, int_of_string s)
       }
+  | "_"  { UNDERSCORE(Range.from_lexbuf lexbuf) }
   | ","  { COMMA(Range.from_lexbuf lexbuf) }
   | "="  { DEFEQ(Range.from_lexbuf lexbuf) }
+  | "|"  { BAR(Range.from_lexbuf lexbuf) }
   | "->" { ARROW(Range.from_lexbuf lexbuf) }
   | "<-" { REVARROW(Range.from_lexbuf lexbuf) }
   | "("  { LPAREN(Range.from_lexbuf lexbuf) }
   | ")"  { RPAREN(Range.from_lexbuf lexbuf) }
   | "/*" { comment (Range.from_lexbuf lexbuf) lexbuf; token lexbuf }
   | ("&" (nssymbol*)) { BINOP_AMP(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
-  | ("|" (nssymbol*)) { BINOP_BAR(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+  | ("|" (nssymbol+)) { BINOP_BAR(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
   | ("=" (nssymbol+)) { BINOP_EQ(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
   | ("<" (nssymbol+)) { BINOP_LT(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
   | (">" (nssymbol+)) { BINOP_GT(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
