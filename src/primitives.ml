@@ -39,7 +39,8 @@ let initial_type_environment =
   in
 
   List.fold_left (fun tyenv (x, ty) ->
-    tyenv |> Typeenv.add x ty
+    let name = Name.local x in  (* temporary *)
+    tyenv |> Typeenv.add x ty name
   ) Typeenv.empty [
     ("&&", tylogic);
     ("||", tylogic);

@@ -289,3 +289,26 @@ let show_poly_type =
 
 let pp_poly_type ppf pty =
   Format.fprintf ppf "%s" (show_poly_type pty)
+
+
+type name = string (* temporary *)
+
+type pattern =
+  | IPUnit
+  | IPBool of bool
+  | IPInt  of int
+  | IPVar  of name
+  | IPWildCard
+
+type ast =
+  | IBaseConst of base_constant
+  | IVar       of name
+  | ILambda    of name list * ast
+  | IApply     of name * ast list
+  | ILetIn     of name * ast * ast
+  | ILetRecIn  of name * ast * ast
+  | ICase      of ast * branch list
+  | IReceive   of branch list
+
+and branch =
+  | IBranch of pattern * ast option * ast
