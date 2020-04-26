@@ -1,4 +1,4 @@
-# Sesterl: A Session-Typed Erlang
+# [WIP] Sesterl: A Session-Typed Erlang
 
 ## TODO
 
