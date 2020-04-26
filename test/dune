@@ -1,5 +1,5 @@
 (tests
-  (names testRange)
-  (libraries alcotest))
+ (names testRange)
+ (libraries alcotest menhirLib))
 
 (copy_files ../src/*.{ml,mli})
