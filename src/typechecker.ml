@@ -49,6 +49,9 @@ let occurs fid ty =
         if FreeID.equal fid fidx then true else
           begin
             FreeID.update_level fidx lev;
+(*
+            Format.printf "LEVEL %a L%d --> L%d\n" FreeID.pp fidx (FreeID.get_level fidx) lev;  (* for debug *)
+*)
             false
           end
 
@@ -62,6 +65,9 @@ let occurs fid ty =
 
 
 let unify tyact tyexp =
+(*
+  Format.printf "UNIFY %a =?= %a\n" pp_mono_type tyact pp_mono_type tyexp; (* for debug *)
+*)
   let rec aux ty1 ty2 =
     let (_, ty1main) = ty1 in
     let (_, ty2main) = ty2 in
@@ -145,7 +151,11 @@ let unify tyact tyexp =
 let fresh_type lev rng =
   let fid = FreeID.fresh lev in
   let tvref = ref (Free(fid)) in
-    (rng, TypeVar(tvref))
+  let ty = (rng, TypeVar(tvref)) in
+(*
+  Format.printf "GEN L%d %a\n" lev pp_mono_type ty;  (* for debug *)
+*)
+  ty
 
 
 let rec aux lev tyenv (rng, utastmain) =
@@ -198,14 +208,14 @@ let rec aux lev tyenv (rng, utastmain) =
       ty2
 
   | Do(identopt, utast1, utast2) ->
-      let ty1 = aux (lev + 1) tyenv utast1 in
+      let ty1 = aux lev tyenv utast1 in
       let (tyx, tyenv) =
         match identopt with
         | None ->
             ((Range.dummy "do-unit", BaseType(UnitType)), tyenv)
 
         | Some(rng, x) ->
-            let tyx = fresh_type (lev + 1) rng in
+            let tyx = fresh_type lev rng in
             (tyx, tyenv |> Typeenv.add x (lift tyx))
       in
       let tyrecv = fresh_type lev (Range.dummy "do-recv") in
@@ -225,11 +235,10 @@ and typecheck_let (lev : int) (tyenv : Typeenv.t) ((rngv, x) : Range.t * identif
 
 and typecheck_letrec (lev : int) (tyenv : Typeenv.t) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t =
   let tyf = fresh_type (lev + 1) rngv in
-  let ptyf = lift tyf in
-  let tyenv = tyenv |> Typeenv.add x ptyf in
-  let ty1 = aux (lev + 1) tyenv utast1 in
+  let tyenvsub = tyenv |> Typeenv.add x (lift tyf) in
+  let ty1 = aux (lev + 1) tyenvsub utast1 in
   unify ty1 tyf;
-  tyenv
+  tyenv |> Typeenv.add x (generalize lev tyf)
 
 
 let main (decls : declaration list) : Typeenv.t =
