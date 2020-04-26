@@ -196,6 +196,25 @@ let rec aux lev tyenv (rng, utastmain) =
       let ty2 = aux lev tyenv utast2 in
       ty2
 
+  | Do(identopt, utast1, utast2) ->
+      let ty1 = aux (lev + 1) tyenv utast1 in
+      let (tyx, tyenv) =
+        match identopt with
+        | None ->
+            ((Range.dummy "do-unit", BaseType(UnitType)), tyenv)
+
+        | Some(rng, x) ->
+            let tyx = fresh_type (lev + 1) rng in
+            (tyx, tyenv |> Typeenv.add x (lift tyx))
+      in
+      let tyrecv = fresh_type lev (Range.dummy "do-recv") in
+      unify ty1 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tyx));
+      let ty2 = aux lev tyenv utast2 in
+      let tysome = fresh_type lev (Range.dummy "do-some") in
+      unify ty2 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tysome));
+      ty2
+
+
 
 and typecheck_let (lev : int) (tyenv : Typeenv.t) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t =
   let ty1 = aux (lev + 1) tyenv utast1 in

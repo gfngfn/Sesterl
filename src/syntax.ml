@@ -29,6 +29,7 @@ and untyped_ast_main =
   | If       of untyped_ast * untyped_ast * untyped_ast
   | LetIn    of binder * untyped_ast * untyped_ast
   | LetRecIn of binder * untyped_ast * untyped_ast
+  | Do       of binder option * untyped_ast * untyped_ast
 [@@deriving show { with_path = false; } ]
 
 type declaration =
