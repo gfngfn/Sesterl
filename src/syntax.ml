@@ -47,12 +47,16 @@ type 'a typ = Range.t * 'a typ_main
 and 'a typ_main =
   | BaseType of base_type
   | FuncType of ('a typ) list * 'a typ
+  | PidType  of 'a pid_type
   | EffType  of 'a effect * 'a typ
   | TypeVar  of 'a
 [@@deriving show { with_path = false; } ]
 
 and 'a effect =
   | Effect of 'a typ
+
+and 'a pid_type =
+  | Pid of 'a typ
 
 type mono_type_var =
   | Free of FreeID.t
@@ -109,9 +113,16 @@ let lift_scheme rngf pred ty =
     | EffType(eff, ty0) ->
         (rngf rng, EffType(aux_effect eff, aux ty0))
 
+    | PidType(pidty) ->
+        (rngf rng, PidType(aux_pid_type pidty))
+
   and aux_effect (Effect(ty)) =
     let pty = aux ty in
     Effect(pty)
+
+  and aux_pid_type (Pid(ty)) =
+    let pty = aux ty in
+    Pid(pty)
   in
   aux ty
 
@@ -170,9 +181,17 @@ let instantiate lev pty =
         let ty0 = aux pty0 in
         (rng, EffType(eff, ty0))
 
+    | PidType(ppidty) ->
+        let pidty = aux_pid_type ppidty in
+        (rng, PidType(pidty))
+
   and aux_effect (Effect(pty)) =
     let ty = aux pty in
     Effect(ty)
+
+  and aux_pid_type (Pid(pty)) =
+    let ty = aux pty in
+    Pid(ty)
   in
   aux pty
 
@@ -198,12 +217,19 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
         let s0 = aux ty0 in
         seff ^ s0
 
+    | PidType(pidty) ->
+        let spid = aux_pid_type pidty in
+        "pid(" ^ spid ^ ")"
+
     | TypeVar(tv) ->
         showtv tv
 
   and aux_effect (Effect(ty)) =
     let s = aux ty in
     "[" ^ s ^ "]"
+
+  and aux_pid_type (Pid(ty)) =
+    aux ty
   in
   aux ty
 

@@ -39,6 +39,9 @@ let occurs fid ty =
         beff || b0
           (* -- must not be short-circuit due to the level inference -- *)
 
+    | PidType(pidty) ->
+        aux_pid_type pidty
+
     | TypeVar({contents = Link(ty)}) ->
         aux ty
 
@@ -50,6 +53,9 @@ let occurs fid ty =
           end
 
   and aux_effect (Effect(ty)) =
+    aux ty
+
+  and aux_pid_type (Pid(ty)) =
     aux ty
   in
   aux ty
@@ -88,6 +94,9 @@ let unify tyact tyexp =
         let ressub = aux tysub1 tysub2 in
         reseff &&& ressub
 
+    | (PidType(pidty1), PidType(pidty2)) ->
+        aux_pid_type pidty1 pidty2
+
     | (TypeVar({contents = Free(fid1)} as tvref1), TypeVar({contents = Free(fid2)})) ->
         let () =
           if FreeID.equal fid1 fid2 then () else
@@ -121,6 +130,9 @@ let unify tyact tyexp =
         Contradiction
 
   and aux_effect (Effect(ty1)) (Effect(ty2)) =
+    aux ty1 ty2
+
+  and aux_pid_type (Pid(ty1)) (Pid(ty2)) =
     aux ty1 ty2
   in
   let res = aux tyact tyexp in
