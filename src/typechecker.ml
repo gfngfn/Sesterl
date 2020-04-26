@@ -31,6 +31,13 @@ let occurs fid ty =
         let b1 = List.exists aux tydoms in
         let b2 = aux tycod in
         b1 || b2
+          (* -- must not be short-circuit due to the level inference -- *)
+
+    | EffType(eff, ty0) ->
+        let beff = aux_effect eff in
+        let b0 = aux ty0 in
+        beff || b0
+          (* -- must not be short-circuit due to the level inference -- *)
 
     | TypeVar({contents = Link(ty)}) ->
         aux ty
@@ -42,6 +49,8 @@ let occurs fid ty =
             false
           end
 
+  and aux_effect (Effect(ty)) =
+    aux ty
   in
   aux ty
 

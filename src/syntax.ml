@@ -47,8 +47,12 @@ type 'a typ = Range.t * 'a typ_main
 and 'a typ_main =
   | BaseType of base_type
   | FuncType of ('a typ) list * 'a typ
+  | EffType  of 'a effect * 'a typ
   | TypeVar  of 'a
 [@@deriving show { with_path = false; } ]
+
+and 'a effect =
+  | Effect of 'a typ
 
 type mono_type_var =
   | Free of FreeID.t
@@ -101,6 +105,13 @@ let lift_scheme rngf pred ty =
         let ptydoms = tydoms |> List.map aux in
         let ptycod = aux tycod in
         (rngf rng, FuncType(ptydoms, ptycod))
+
+    | EffType(eff, ty0) ->
+        (rngf rng, EffType(aux_effect eff, aux ty0))
+
+  and aux_effect (Effect(ty)) =
+    let pty = aux ty in
+    Effect(pty)
   in
   aux ty
 
@@ -154,6 +165,14 @@ let instantiate lev pty =
         let tycod = aux ptycod in
         (rng, FuncType(tydoms, tycod))
 
+    | EffType(peff, pty0) ->
+        let eff = aux_effect peff in
+        let ty0 = aux pty0 in
+        (rng, EffType(eff, ty0))
+
+  and aux_effect (Effect(pty)) =
+    let ty = aux pty in
+    Effect(ty)
   in
   aux pty
 
@@ -172,10 +191,19 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
     | FuncType(tydoms, tycod) ->
         let sdoms = tydoms |> List.map aux in
         let scod = aux tycod in
-        "(" ^ (String.concat ", " sdoms) ^ ") -> " ^ scod
+        "fun(" ^ (String.concat ", " sdoms) ^ ") -> " ^ scod
+
+    | EffType(eff, ty0) ->
+        let seff = aux_effect eff in
+        let s0 = aux ty0 in
+        seff ^ s0
 
     | TypeVar(tv) ->
         showtv tv
+
+  and aux_effect (Effect(ty)) =
+    let s = aux ty in
+    "[" ^ s ^ "]"
   in
   aux ty
 
