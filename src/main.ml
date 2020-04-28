@@ -5,8 +5,8 @@ open Syntax
 let main fname =
   let inc = open_in fname in
   let lexbuf = Lexing.from_channel inc in
-  let decls = ParserInterface.process lexbuf in
-  let tyenv = Typechecker.main decls in
+  let utdecls = ParserInterface.process lexbuf in
+  let (tyenv, decls) = Typechecker.main utdecls in
   Format.printf "%a\n" (Format.pp_print_list pp_declaration) decls;
   Typeenv.fold (fun x pty () ->
     Format.printf "%s : %a\n" x pp_poly_type pty

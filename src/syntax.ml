@@ -53,7 +53,7 @@ and untyped_pattern_main =
   | PWildCard
 [@@deriving show { with_path = false; } ]
 
-type declaration =
+type untyped_declaration =
   | ValDecl of bool * binder * untyped_ast
 [@@deriving show { with_path = false; } ]
 
@@ -292,6 +292,7 @@ let pp_poly_type ppf pty =
 
 
 type name = string (* temporary *)
+[@@deriving show { with_path = false; } ]
 
 type pattern =
   | IPUnit
@@ -299,6 +300,7 @@ type pattern =
   | IPInt  of int
   | IPVar  of name
   | IPWildCard
+[@@deriving show { with_path = false; } ]
 
 type ast =
   | IBaseConst of base_constant
@@ -312,3 +314,8 @@ type ast =
 
 and branch =
   | IBranch of pattern * ast option * ast
+[@@deriving show { with_path = false; } ]
+
+type declaration =
+  | IValDecl of name * ast
+[@@deriving show { with_path = false; } ]

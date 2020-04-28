@@ -328,16 +328,19 @@ and typecheck_letrec (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : un
   (pre.tyenv |> Typeenv.add x (generalize lev tyf) name, name, e1)
 
 
-let main (decls : declaration list) : Typeenv.t =
+let main (utdecls : untyped_declaration list) : Typeenv.t * declaration list =
   let tyenv = Primitives.initial_type_environment in
-  decls |> List.fold_left (fun tyenv decl ->
-    match decl with
-    | ValDecl(isrec, binder, utast) ->
-        let (tyenv, name, e) =
-          if isrec then
-            typecheck_letrec { level = 0; tyenv = tyenv } binder utast
-          else
-            typecheck_let { level = 0; tyenv = tyenv } binder utast
-        in
-        tyenv
-  ) tyenv
+  let (tyenv, declacc) =
+    utdecls |> List.fold_left (fun (tyenv, declacc) utdecl ->
+      match utdecl with
+      | ValDecl(isrec, binder, utast) ->
+          let (tyenv, name, e) =
+            if isrec then
+              typecheck_letrec { level = 0; tyenv = tyenv } binder utast
+            else
+              typecheck_let { level = 0; tyenv = tyenv } binder utast
+          in
+          (tyenv, Alist.extend declacc (IValDecl(name, e)))
+    ) (tyenv, Alist.empty)
+  in
+  (tyenv, declacc |> Alist.to_list)

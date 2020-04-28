@@ -33,7 +33,7 @@
 %token EOI
 
 %start main
-%type<Syntax.declaration list> main
+%type<Syntax.untyped_declaration list> main
 
 %%
 main:
