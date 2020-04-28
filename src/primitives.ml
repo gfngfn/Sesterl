@@ -38,27 +38,24 @@ let initial_type_environment =
     [] @-> eff tyrecv (pid tyrecv)
   in
 
-  List.fold_left (fun tyenv (x, ty) ->
-    let name =
-      match OutputIdentifier.global x with
-      | None       -> assert false
-      | Some(name) -> name
-    in  (* temporary *)
+  let op = OutputIdentifier.global_operator in
+  let normal = OutputIdentifier.global in
+  List.fold_left (fun tyenv (x, ty, name) ->
     tyenv |> Typeenv.add x ty name
   ) Typeenv.empty [
-    ("&&", tylogic);
-    ("||", tylogic);
-    ("==", tycomp);
-    ("<=", tycomp);
-    (">=", tycomp);
-    ("<", tycomp);
-    (">", tycomp);
-    ("*", tyarith);
-    ("/", tyarith);
-    ("+", tyarith);
-    ("-", tyarith);
-    ("spawn", tyspawn);
-    ("send", tysend);
-    ("return", tyreturn);
-    ("self", tyself);
+    ("&&", tylogic, op "and");
+    ("||", tylogic, op "or" );
+    ("==", tycomp , op "==" );
+    ("<=", tycomp , op "=<" );
+    (">=", tycomp , op ">=" );
+    ("<" , tycomp , op "<"  );
+    (">" , tycomp , op ">"  );
+    ("*" , tyarith, op "*"  );
+    ("/" , tyarith, op "/"  );
+    ("+" , tyarith, op "+"  );
+    ("-" , tyarith, op "-"  );
+    ("spawn" , tyspawn , normal "thunk_spawn" );
+    ("send"  , tysend  , normal "thunk_send"  );
+    ("return", tyreturn, normal "thunk_return");
+    ("self"  , tyself  , normal "thunk_self"  );
   ]

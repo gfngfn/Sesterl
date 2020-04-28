@@ -201,14 +201,9 @@ let fresh_type lev rng =
 
 
 let generate_output_identifier scope rng x =
-  let f =
-    match scope with
-    | Local  -> OutputIdentifier.local
-    | Global -> OutputIdentifier.global
-  in
-  match f x with
-  | Some(name) -> name
-  | None       -> assert false
+  match scope with
+  | Local  -> OutputIdentifier.local x
+  | Global -> OutputIdentifier.global x
 
 
 let type_of_base_constant (rng : Range.t) (bc : base_constant) =

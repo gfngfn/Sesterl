@@ -13,34 +13,49 @@ let stringify_base_constant (bc : base_constant) =
   | Int(n)      -> string_of_int n
 
 
+let output_normal name =
+  match OutputIdentifier.output name with
+  | OutputIdentifier.Normal(s) -> s
+  | _                          -> assert false
+
+
 let rec stringify_ast (ast : ast) =
   match ast with
   | IVar(name) ->
-      OutputIdentifier.to_string name
+      output_normal name
 
   | IBaseConst(bc) ->
       stringify_base_constant bc
 
   | ILambda(recopt, names, ast0) ->
-      let snames = names |> List.map OutputIdentifier.to_string in
+      let snames = names |> List.map output_normal in
       let s0 = stringify_ast ast0 in
       let srec =
         match recopt with
         | None          -> ""
-        | Some(namerec) -> " " ^ OutputIdentifier.to_string namerec
+        | Some(namerec) -> " " ^ output_normal namerec
       in
       Printf.sprintf "fun%s(%s) -> %s end" srec (String.concat ", " snames) s0
 
   | IApply(name, astargs) ->
-      let sname = OutputIdentifier.to_string name in
       let sargs = astargs |> List.map stringify_ast in
-      Printf.sprintf "%s(%s)" sname (String.concat ", " sargs)
+      begin
+        match (OutputIdentifier.output name, sargs) with
+        | (Normal(sname), _) ->
+            Printf.sprintf "%s(%s)" sname (String.concat ", " sargs)
+
+        | (Operator(sop), [sarg1; sarg2]) ->
+            Printf.sprintf "(%s %s %s)" sarg1 sop sarg2
+
+        | _ ->
+            assert false
+      end
 
   | ILetIn(name, ast1, ast2) ->
-      let sname = OutputIdentifier.to_string name in
+      let sname = output_normal name in
       let s1 = stringify_ast ast1 in
       let s2 = stringify_ast ast2 in
-      Printf.sprintf "%s = %s, %s" sname s1 s2
+      Printf.sprintf "begin %s = %s, %s end" sname s1 s2
 
   | ICase(ast0, branches) ->
       let s0 = stringify_ast ast0 in
@@ -50,6 +65,7 @@ let rec stringify_ast (ast : ast) =
   | IReceive(branches) ->
       let sbrs = branches |> List.map stringify_branch in
       Printf.sprintf "receive %s end" (String.concat "; " sbrs)
+
 
 and stringify_branch (br : branch) =
   match br with
@@ -67,13 +83,14 @@ and stringify_branch (br : branch) =
       let s1 = stringify_ast ast1 in
       Printf.sprintf "%s%s -> %s" spat swhen s1
 
+
 and stringify_pattern (pat : pattern) =
   match pat with
   | IPUnit        -> unit_atom
   | IPBool(true)  -> "true"
   | IPBool(false) -> "false"
   | IPInt(n)      -> string_of_int n
-  | IPVar(name)   -> OutputIdentifier.to_string name
+  | IPVar(name)   -> output_normal name
   | IPWildCard    -> "_"
 
 
@@ -82,11 +99,11 @@ let stringify_declaration (decl : declaration) =
   | IValDecl(namefun, ast) ->
       begin
         match ast with
-        | ILambda(None, nameargs, ast0) ->
-            let sfun = OutputIdentifier.to_string namefun in
-            let sargs = nameargs |> List.map OutputIdentifier.to_string in
+        | ILambda(None, nameparams, ast0) ->
+            let sfun = output_normal namefun in
+            let sparams = nameparams |> List.map output_normal in
             let s0 = stringify_ast ast0 in
-            Printf.sprintf "%s(%s) -> %s." sfun (String.concat ", " sargs) s0
+            Printf.sprintf "%s(%s) -> %s." sfun (String.concat ", " sparams) s0
 
         | _ ->
             assert false
@@ -94,4 +111,15 @@ let stringify_declaration (decl : declaration) =
 
 
 let main (decls : declaration list) =
-  decls |> List.map stringify_declaration |> String.concat "\n"
+  let sdecls = decls |> List.map stringify_declaration in
+  let lines =
+    List.append [
+      "-module(autogen).";
+      "-export[main/0].";
+      "thunk_return(X) -> fun() -> X end.";
+      "thunk_spawn(X) -> fun() -> erlang:spawn(X) end.";
+      "thunk_send(X, Y) -> fun() -> X ! Y, ok end.";
+      "thunk_self() -> fun() -> self() end.";
+    ] sdecls
+  in
+  lines |> List.map (fun s -> s ^ "\n") |> String.concat ""
