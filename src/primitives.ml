@@ -38,6 +38,11 @@ let initial_type_environment =
     [] @-> eff tyrecv (pid tyrecv)
   in
 
+  let typrintdebug : poly_type =
+    let typaram = fresh_bound () in
+    [typaram] @-> u
+  in
+
   let op = OutputIdentifier.global_operator in
   let normal = OutputIdentifier.global in
   List.fold_left (fun tyenv (x, ty, name) ->
@@ -54,8 +59,11 @@ let initial_type_environment =
     ("/" , tyarith, op "/"  );
     ("+" , tyarith, op "+"  );
     ("-" , tyarith, op "-"  );
+
     ("spawn" , tyspawn , normal "thunk_spawn" );
     ("send"  , tysend  , normal "thunk_send"  );
     ("return", tyreturn, normal "thunk_return");
     ("self"  , tyself  , normal "thunk_self"  );
+
+    ("print_debug", typrintdebug, normal "print_debug");
   ]

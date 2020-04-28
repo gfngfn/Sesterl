@@ -4,7 +4,9 @@ letrec wait_all(n) =
     return(())
   else
     receive
-    | x -> wait_all(n - 1)
+    | x ->
+        let u = print_debug(x) in
+        wait_all(n - 1)
     end
 
 

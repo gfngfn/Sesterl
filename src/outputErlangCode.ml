@@ -120,6 +120,7 @@ let main (decls : declaration list) =
       "thunk_spawn(X) -> fun() -> erlang:spawn(X) end.";
       "thunk_send(X, Y) -> fun() -> X ! Y, ok end.";
       "thunk_self() -> fun() -> self() end.";
+      "print_debug(X) -> io:format(\"~p~n\", [X]), ok.";
     ] sdecls
   in
   lines |> List.map (fun s -> s ^ "\n") |> String.concat ""
