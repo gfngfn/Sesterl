@@ -305,10 +305,9 @@ type pattern =
 type ast =
   | IBaseConst of base_constant
   | IVar       of name
-  | ILambda    of name list * ast
+  | ILambda    of name option * name list * ast
   | IApply     of name * ast list
   | ILetIn     of name * ast * ast
-  | ILetRecIn  of name * ast * ast
   | ICase      of ast * branch list
   | IReceive   of branch list
 

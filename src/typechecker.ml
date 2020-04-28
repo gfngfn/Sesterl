@@ -35,6 +35,27 @@ let iapply efun eargs =
       ILetIn(name, efun, IApply(name, eargs))
 
 
+let ilambda names e0 =
+  ILambda(None, names, e0)
+
+
+let ithunk e =
+  ilambda [] e
+
+
+let iforce e =
+  iapply e []
+
+
+let iletrecin name_outer name_inner e1 e2 =
+  match e1 with
+  | ILambda(None, names, e0) ->
+      ILetIn(name_outer, ILambda(Some(name_inner), names, e1), e2)
+
+  | _ ->
+      assert false
+
+
 let occurs fid ty =
   let lev = FreeID.get_level fid in
   let rec aux (_, tymain) =
@@ -227,7 +248,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let tydoms = tydomacc |> Alist.to_list in
       let (tycod, e0) = typecheck { pre with tyenv } utast0 in
       let ty = (rng, FuncType(tydoms, tycod)) in
-      (ty, ILambda(names, e0))
+      (ty, ilambda names e0)
 
   | Apply(utastfun, utastargs) ->
       let (tyfun, efun) = typecheck pre utastfun in
@@ -252,10 +273,12 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       (ty2, ILetIn(name, e1, e2))
 
-  | LetRecIn(ident, utast1, utast2) ->
-      let (tyenv, name, e1) = typecheck_letrec Local pre ident utast1 in
+  | LetRecIn(((_, x) as ident), utast1, utast2) ->
+      let (tyenv, name_inner, e1, pty) = typecheck_letrec Local pre ident utast1 in
+      let name_outer = OutputIdentifier.fresh () in
+      let tyenv = tyenv |> Typeenv.add x pty name_outer in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
-      (ty2, ILetRecIn(name, e1, e2))
+      (ty2, iletrecin name_inner name_outer e1 e2)
 
   | Do(identopt, utast1, utast2) ->
       let lev = pre.level in
@@ -276,7 +299,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let tysome = fresh_type lev (Range.dummy "do-some") in
       unify ty2 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tysome));
       let e2 =
-        ILambda([], ILetIn(name, iapply e1 [], iapply e2 []))
+        ithunk (ILetIn(name, iforce e1, iforce e2))
       in
       (ty2, e2)
 
@@ -334,14 +357,15 @@ and typecheck_let (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier)
   (pre.tyenv |> Typeenv.add x pty1 name, name, e1)
 
 
-and typecheck_letrec (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast =
+and typecheck_letrec (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast * poly_type =
   let lev = pre.level in
   let tyf = fresh_type (lev + 1) rngv in
   let name = generate_output_identifier scope rngv x in
   let tyenvsub = pre.tyenv |> Typeenv.add x (lift tyf) name in
   let (ty1, e1) = typecheck { level = lev + 1; tyenv = tyenvsub } utast1 in
   unify ty1 tyf;
-  (pre.tyenv |> Typeenv.add x (generalize lev tyf) name, name, e1)
+  let ptyf = generalize lev tyf in
+  (pre.tyenv |> Typeenv.add x ptyf name, name, e1, ptyf)
 
 
 let main (utdecls : untyped_declaration list) : Typeenv.t * declaration list =
@@ -352,7 +376,10 @@ let main (utdecls : untyped_declaration list) : Typeenv.t * declaration list =
       | ValDecl(isrec, binder, utast) ->
           let (tyenv, name, e) =
             if isrec then
-              typecheck_letrec Global { level = 0; tyenv = tyenv } binder utast
+              let (tyenv, name, e, _) =
+                typecheck_letrec Global { level = 0; tyenv = tyenv } binder utast
+              in
+              (tyenv, name, e)
             else
               typecheck_let Global { level = 0; tyenv = tyenv } binder utast
           in
