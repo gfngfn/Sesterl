@@ -39,7 +39,11 @@ let initial_type_environment =
   in
 
   List.fold_left (fun tyenv (x, ty) ->
-    let name = Name.local x in  (* temporary *)
+    let name =
+      match OutputIdentifier.global x with
+      | None       -> assert false
+      | Some(name) -> name
+    in  (* temporary *)
     tyenv |> Typeenv.add x ty name
   ) Typeenv.empty [
     ("&&", tylogic);

@@ -14,6 +14,11 @@ type unification_result =
   | Inclusion of FreeID.t
 
 
+type scope =
+  | Local
+  | Global
+
+
 let (&&&) res1 res2 =
   match (res1, res2) with
   | (Consistent, _) -> res2
@@ -26,7 +31,7 @@ let iapply efun eargs =
       IApply(name, eargs)
 
   | _ ->
-      let name = Name.fresh () in
+      let name = OutputIdentifier.fresh () in
       ILetIn(name, efun, IApply(name, eargs))
 
 
@@ -174,6 +179,17 @@ let fresh_type lev rng =
   ty
 
 
+let generate_output_identifier scope rng x =
+  let f =
+    match scope with
+    | Local  -> OutputIdentifier.local
+    | Global -> OutputIdentifier.global
+  in
+  match f x with
+  | Some(name) -> name
+  | None       -> assert false
+
+
 let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   match bc with
   | Unit    -> ((rng, BaseType(UnitType)))
@@ -203,7 +219,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
         List.fold_left (fun (tyenv, nameacc, tydomacc) (rngv, x) ->
           let tydom = fresh_type pre.level rngv in
           let ptydom = lift tydom in
-          let name = Name.local x in
+          let name = generate_output_identifier Local rngv x in
           (tyenv |> Typeenv.add x ptydom name, Alist.extend nameacc name, Alist.extend tydomacc tydom)
         ) (pre.tyenv, Alist.empty, Alist.empty) binders
       in
@@ -232,12 +248,12 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       (ty1, ICase(e0, ibranches))
 
   | LetIn(ident, utast1, utast2) ->
-      let (tyenv, name, e1) = typecheck_let pre ident utast1 in
+      let (tyenv, name, e1) = typecheck_let Local pre ident utast1 in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       (ty2, ILetIn(name, e1, e2))
 
   | LetRecIn(ident, utast1, utast2) ->
-      let (tyenv, name, e1) = typecheck_letrec pre ident utast1 in
+      let (tyenv, name, e1) = typecheck_letrec Local pre ident utast1 in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       (ty2, ILetRecIn(name, e1, e2))
 
@@ -247,11 +263,11 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let (tyx, tyenv, name) =
         match identopt with
         | None ->
-            ((Range.dummy "do-unit", BaseType(UnitType)), pre.tyenv, Name.unused)
+            ((Range.dummy "do-unit", BaseType(UnitType)), pre.tyenv, OutputIdentifier.unused)
 
-        | Some(rng, x) ->
-            let tyx = fresh_type lev rng in
-            let name = Name.local x in
+        | Some(rngv, x) ->
+            let tyx = fresh_type lev rngv in
+            let name = generate_output_identifier Local rngv x in
             (tyx, pre.tyenv |> Typeenv.add x (lift tyx) name, name)
       in
       let tyrecv = fresh_type lev (Range.dummy "do-recv") in
@@ -303,7 +319,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
 
   | PVar(x) ->
       let ty = fresh_type pre.level rng in
-      let name = Name.local x in
+      let name = generate_output_identifier Local rng x in
       (ty, IPVar(name), pre.tyenv |> Typeenv.add x (lift ty) name)
 
   | PWildCard ->
@@ -311,17 +327,17 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
       (ty, IPWildCard, pre.tyenv)
 
 
-and typecheck_let (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast =
+and typecheck_let (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast =
   let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in
   let pty1 = generalize pre.level ty1 in
-  let name = Name.local x in
+  let name = generate_output_identifier scope rngv x in
   (pre.tyenv |> Typeenv.add x pty1 name, name, e1)
 
 
-and typecheck_letrec (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast =
+and typecheck_letrec (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast =
   let lev = pre.level in
   let tyf = fresh_type (lev + 1) rngv in
-  let name = Name.local x in
+  let name = generate_output_identifier scope rngv x in
   let tyenvsub = pre.tyenv |> Typeenv.add x (lift tyf) name in
   let (ty1, e1) = typecheck { level = lev + 1; tyenv = tyenvsub } utast1 in
   unify ty1 tyf;
@@ -336,9 +352,9 @@ let main (utdecls : untyped_declaration list) : Typeenv.t * declaration list =
       | ValDecl(isrec, binder, utast) ->
           let (tyenv, name, e) =
             if isrec then
-              typecheck_letrec { level = 0; tyenv = tyenv } binder utast
+              typecheck_letrec Global { level = 0; tyenv = tyenv } binder utast
             else
-              typecheck_let { level = 0; tyenv = tyenv } binder utast
+              typecheck_let Global { level = 0; tyenv = tyenv } binder utast
           in
           (tyenv, Alist.extend declacc (IValDecl(name, e)))
     ) (tyenv, Alist.empty)

@@ -291,7 +291,7 @@ let pp_poly_type ppf pty =
   Format.fprintf ppf "%s" (show_poly_type pty)
 
 
-type name = string (* temporary *)
+type name = OutputIdentifier.t
 [@@deriving show { with_path = false; } ]
 
 type pattern =
