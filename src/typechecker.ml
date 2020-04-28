@@ -14,10 +14,46 @@ type unification_result =
   | Inclusion of FreeID.t
 
 
+type scope =
+  | Local
+  | Global
+
+
 let (&&&) res1 res2 =
   match (res1, res2) with
   | (Consistent, _) -> res2
   | _               -> res1
+
+
+let iapply efun eargs =
+  match efun with
+  | IVar(name) ->
+      IApply(name, eargs)
+
+  | _ ->
+      let name = OutputIdentifier.fresh () in
+      ILetIn(name, efun, IApply(name, eargs))
+
+
+let ilambda names e0 =
+  ILambda(None, names, e0)
+
+
+let ithunk e =
+  ilambda [] e
+
+
+let iforce e =
+  iapply e []
+
+
+let iletrecin name_outer name_inner e1 e2 =
+  match e1 with
+  | ILambda(None, names, e0) ->
+      ILetIn(name_outer, ILambda(Some(name_inner), names, e1), e2)
+
+  | _ ->
+      assert false
 
 
 let occurs fid ty =
@@ -164,150 +200,185 @@ let fresh_type lev rng =
   ty
 
 
+let generate_output_identifier scope rng x =
+  match scope with
+  | Local  -> OutputIdentifier.local x
+  | Global -> OutputIdentifier.global x
+
+
 let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   match bc with
-  | Unit    -> (rng, BaseType(UnitType))
-  | Int(_)  -> (rng, BaseType(IntType))
-  | Bool(_) -> (rng, BaseType(BoolType))
+  | Unit    -> ((rng, BaseType(UnitType)))
+  | Int(n)  -> (rng, BaseType(IntType))
+  | Bool(b) -> (rng, BaseType(BoolType))
 
 
-let rec typecheck (pre : pre) (rng, utastmain) =
+let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   match utastmain with
   | BaseConst(bc) ->
-      type_of_base_constant rng bc
+      let ty = type_of_base_constant rng bc in
+      (ty, IBaseConst(bc))
 
   | Var(x) ->
       begin
         match pre.tyenv |> Typeenv.find_opt x with
-        | None               -> raise (UnboundVariable(rng, x))
-        | Some((_, ptymain)) -> instantiate pre.level (rng, ptymain)
+        | None ->
+            raise (UnboundVariable(rng, x))
+
+        | Some((_, ptymain), name) ->
+            let ty = instantiate pre.level (rng, ptymain) in
+            (ty, IVar(name))
       end
 
   | Lambda(binders, utast0) ->
-      let (tyenv, tydomacc) =
-        List.fold_left (fun (tyenv, tydomacc) (rngv, x) ->
+      let (tyenv, nameacc, tydomacc) =
+        List.fold_left (fun (tyenv, nameacc, tydomacc) (rngv, x) ->
           let tydom = fresh_type pre.level rngv in
           let ptydom = lift tydom in
-          (tyenv |> Typeenv.add x ptydom, Alist.extend tydomacc tydom)
-        ) (pre.tyenv, Alist.empty) binders
+          let name = generate_output_identifier Local rngv x in
+          (tyenv |> Typeenv.add x ptydom name, Alist.extend nameacc name, Alist.extend tydomacc tydom)
+        ) (pre.tyenv, Alist.empty, Alist.empty) binders
       in
+      let names = nameacc |> Alist.to_list in
       let tydoms = tydomacc |> Alist.to_list in
-      let tycod = typecheck { pre with tyenv } utast0 in
-      (rng, FuncType(tydoms, tycod))
+      let (tycod, e0) = typecheck { pre with tyenv } utast0 in
+      let ty = (rng, FuncType(tydoms, tycod)) in
+      (ty, ilambda names e0)
 
   | Apply(utastfun, utastargs) ->
-      let tyfun = typecheck pre utastfun in
-      let tyargs = List.map (typecheck pre) utastargs in
+      let (tyfun, efun) = typecheck pre utastfun in
+      let tyeargs = List.map (typecheck pre) utastargs in
+      let tyargs = List.map fst tyeargs in
+      let eargs = List.map snd tyeargs in
       let tyret = fresh_type pre.level rng in
       unify tyfun (Range.dummy "Apply", FuncType(tyargs, tyret));
-      tyret
+      (tyret, iapply efun eargs)
 
   | If(utast0, utast1, utast2) ->
-      let ty0 = typecheck pre utast0 in
+      let (ty0, e0) = typecheck pre utast0 in
       unify ty0 (Range.dummy "If", BaseType(BoolType));
-      let ty1 = typecheck pre utast1 in
-      let ty2 = typecheck pre utast2 in
+      let (ty1, e1) = typecheck pre utast1 in
+      let (ty2, e2) = typecheck pre utast2 in
       unify ty1 ty2;
-      ty1
+      let ibranches = [ IBranch(IPBool(true), None, e1); IBranch(IPBool(false), None, e2) ] in
+      (ty1, ICase(e0, ibranches))
 
   | LetIn(ident, utast1, utast2) ->
-      let tyenv = typecheck_let pre ident utast1 in
-      let ty2 = typecheck { pre with tyenv } utast2 in
-      ty2
+      let (tyenv, name, e1) = typecheck_let Local pre ident utast1 in
+      let (ty2, e2) = typecheck { pre with tyenv } utast2 in
+      (ty2, ILetIn(name, e1, e2))
 
-  | LetRecIn(ident, utast1, utast2) ->
-      let tyenv = typecheck_letrec pre ident utast1 in
-      let ty2 = typecheck { pre with tyenv } utast2 in
-      ty2
+  | LetRecIn(((_, x) as ident), utast1, utast2) ->
+      let (tyenv, name_inner, e1, pty) = typecheck_letrec Local pre ident utast1 in
+      let name_outer = OutputIdentifier.fresh () in
+      let tyenv = tyenv |> Typeenv.add x pty name_outer in
+      let (ty2, e2) = typecheck { pre with tyenv } utast2 in
+      (ty2, iletrecin name_inner name_outer e1 e2)
 
   | Do(identopt, utast1, utast2) ->
       let lev = pre.level in
-      let ty1 = typecheck pre utast1 in
-      let (tyx, tyenv) =
+      let (ty1, e1) = typecheck pre utast1 in
+      let (tyx, tyenv, name) =
         match identopt with
         | None ->
-            ((Range.dummy "do-unit", BaseType(UnitType)), pre.tyenv)
+            ((Range.dummy "do-unit", BaseType(UnitType)), pre.tyenv, OutputIdentifier.unused)
 
-        | Some(rng, x) ->
-            let tyx = fresh_type lev rng in
-            (tyx, pre.tyenv |> Typeenv.add x (lift tyx))
+        | Some(rngv, x) ->
+            let tyx = fresh_type lev rngv in
+            let name = generate_output_identifier Local rngv x in
+            (tyx, pre.tyenv |> Typeenv.add x (lift tyx) name, name)
       in
       let tyrecv = fresh_type lev (Range.dummy "do-recv") in
       unify ty1 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tyx));
-      let ty2 = typecheck { pre with tyenv } utast2 in
+      let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       let tysome = fresh_type lev (Range.dummy "do-some") in
       unify ty2 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tysome));
-      ty2
+      let e2 =
+        ithunk (ILetIn(name, iforce e1, iforce e2))
+      in
+      (ty2, e2)
 
   | Receive(branches) ->
       let lev = pre.level in
       let tyrecv = fresh_type lev (Range.dummy "receive-recv") in
       let tyret = fresh_type lev (Range.dummy "receive-ret") in
-      let () =
-        List.fold_left (fun () branch ->
-          typecheck_branch pre tyrecv tyret branch
-        ) () branches
+      let ibracc =
+        List.fold_left (fun ibracc branch ->
+          let ibranch = typecheck_branch pre tyrecv tyret branch in
+          Alist.extend ibracc ibranch
+        ) Alist.empty branches
       in
-      (rng, EffType(Effect(tyrecv), tyret))
+      let ty = (rng, EffType(Effect(tyrecv), tyret)) in
+      (ty, IReceive(ibracc |> Alist.to_list))
 
 
-and typecheck_branch (pre : pre) tyrecv tyret (Branch(pat, utast0opt, utast1)) =
-  let (typat, tyenv) = typecheck_pattern pre pat in
+and typecheck_branch (pre : pre) tyrecv tyret (Branch(pat, utast0opt, utast1)) : branch =
+  let (typat, ipat, tyenv) = typecheck_pattern pre pat in
   let pre = { pre with tyenv } in
   unify typat tyrecv;
-  let () =
-    match utast0opt with
-    | None ->
-        ()
-
-    | Some(utast0) ->
-        let ty0 = typecheck pre utast0 in
-        unify ty0 (Range.dummy "when", BaseType(BoolType));
-        ()
+  let e0opt =
+    utast0opt |> Option.map (fun utast0 ->
+      let (ty0, e0) = typecheck pre utast0 in
+      unify ty0 (Range.dummy "when", BaseType(BoolType));
+      e0
+    )
   in
-  let ty1 = typecheck pre utast1 in
+  let (ty1, e1) = typecheck pre utast1 in
   unify ty1 (Range.dummy "branch", EffType(Effect(tyrecv), tyret));
-  ()
+  IBranch(ipat, e0opt, e1)
 
 
-and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) =
-  let immediate tymain = ((rng, tymain), pre.tyenv) in
+and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type * pattern * Typeenv.t =
+  let immediate tymain ipat = ((rng, tymain), ipat, pre.tyenv) in
   match patmain with
-  | PUnit    -> immediate (BaseType(UnitType))
-  | PBool(_) -> immediate (BaseType(BoolType))
-  | PInt(_)  -> immediate (BaseType(IntType))
+  | PUnit    -> immediate (BaseType(UnitType)) IPUnit
+  | PBool(b) -> immediate (BaseType(BoolType)) (IPBool(b))
+  | PInt(n)  -> immediate (BaseType(IntType)) (IPInt(n))
 
   | PVar(x) ->
       let ty = fresh_type pre.level rng in
-      (ty, pre.tyenv |> Typeenv.add x (lift ty))
+      let name = generate_output_identifier Local rng x in
+      (ty, IPVar(name), pre.tyenv |> Typeenv.add x (lift ty) name)
 
   | PWildCard ->
       let ty = fresh_type pre.level rng in
-      (ty, pre.tyenv)
+      (ty, IPWildCard, pre.tyenv)
 
 
-and typecheck_let (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t =
-  let ty1 = typecheck { pre with level = pre.level + 1 } utast1 in
+and typecheck_let (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast =
+  let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in
   let pty1 = generalize pre.level ty1 in
-  pre.tyenv |> Typeenv.add x pty1
+  let name = generate_output_identifier scope rngv x in
+  (pre.tyenv |> Typeenv.add x pty1 name, name, e1)
 
 
-and typecheck_letrec (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t =
+and typecheck_letrec (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast * poly_type =
   let lev = pre.level in
   let tyf = fresh_type (lev + 1) rngv in
-  let tyenvsub = pre.tyenv |> Typeenv.add x (lift tyf) in
-  let ty1 = typecheck { level = lev + 1; tyenv = tyenvsub } utast1 in
+  let name = generate_output_identifier scope rngv x in
+  let tyenvsub = pre.tyenv |> Typeenv.add x (lift tyf) name in
+  let (ty1, e1) = typecheck { level = lev + 1; tyenv = tyenvsub } utast1 in
   unify ty1 tyf;
-  pre.tyenv |> Typeenv.add x (generalize lev tyf)
+  let ptyf = generalize lev tyf in
+  (pre.tyenv |> Typeenv.add x ptyf name, name, e1, ptyf)
 
 
-let main (decls : declaration list) : Typeenv.t =
+let main (utdecls : untyped_declaration list) : Typeenv.t * declaration list =
   let tyenv = Primitives.initial_type_environment in
-  decls |> List.fold_left (fun tyenv decl ->
-    match decl with
-    | ValDecl(isrec, binder, utast) ->
-        if isrec then
-          typecheck_letrec { level = 0; tyenv = tyenv } binder utast
-        else
-          typecheck_let { level = 0; tyenv = tyenv } binder utast
-  ) tyenv
+  let (tyenv, declacc) =
+    utdecls |> List.fold_left (fun (tyenv, declacc) utdecl ->
+      match utdecl with
+      | ValDecl(isrec, binder, utast) ->
+          let (tyenv, name, e) =
+            if isrec then
+              let (tyenv, name, e, _) =
+                typecheck_letrec Global { level = 0; tyenv = tyenv } binder utast
+              in
+              (tyenv, name, e)
+            else
+              typecheck_let Global { level = 0; tyenv = tyenv } binder utast
+          in
+          (tyenv, Alist.extend declacc (IValDecl(name, e)))
+    ) (tyenv, Alist.empty)
+  in
+  (tyenv, declacc |> Alist.to_list)

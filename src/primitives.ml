@@ -38,22 +38,32 @@ let initial_type_environment =
     [] @-> eff tyrecv (pid tyrecv)
   in
 
-  List.fold_left (fun tyenv (x, ty) ->
-    tyenv |> Typeenv.add x ty
+  let typrintdebug : poly_type =
+    let typaram = fresh_bound () in
+    [typaram] @-> u
+  in
+
+  let op = OutputIdentifier.global_operator in
+  let normal = OutputIdentifier.global in
+  List.fold_left (fun tyenv (x, ty, name) ->
+    tyenv |> Typeenv.add x ty name
   ) Typeenv.empty [
-    ("&&", tylogic);
-    ("||", tylogic);
-    ("==", tycomp);
-    ("<=", tycomp);
-    (">=", tycomp);
-    ("<", tycomp);
-    (">", tycomp);
-    ("*", tyarith);
-    ("/", tyarith);
-    ("+", tyarith);
-    ("-", tyarith);
-    ("spawn", tyspawn);
-    ("send", tysend);
-    ("return", tyreturn);
-    ("self", tyself);
+    ("&&", tylogic, op "and");
+    ("||", tylogic, op "or" );
+    ("==", tycomp , op "==" );
+    ("<=", tycomp , op "=<" );
+    (">=", tycomp , op ">=" );
+    ("<" , tycomp , op "<"  );
+    (">" , tycomp , op ">"  );
+    ("*" , tyarith, op "*"  );
+    ("/" , tyarith, op "/"  );
+    ("+" , tyarith, op "+"  );
+    ("-" , tyarith, op "-"  );
+
+    ("spawn" , tyspawn , normal "thunk_spawn" );
+    ("send"  , tysend  , normal "thunk_send"  );
+    ("return", tyreturn, normal "thunk_return");
+    ("self"  , tyself  , normal "thunk_self"  );
+
+    ("print_debug", typrintdebug, normal "print_debug");
   ]
