@@ -10,10 +10,10 @@
   * [ ] `monitor`/`demonitor`
   * [ ] `link`/`unlink`
 * [ ] Type annotation
-* [ ] Output Erlang code
+* [x] Output Erlang code
 * [ ] FFI
-* [ ] Product types
 * [ ] Data types
+  * [ ] Product types
   * [ ] Strings
   * [ ] Binaries
   * [ ] Lists
@@ -22,3 +22,8 @@
   * [ ] Pattern matching
 * [ ] Mutual recursion by generalized `letrec`-expressions
 * [ ] Pattern matching by generalized `let`-expressions
+
+## References
+
+* Simon Fowler. *Typed Concurrent Functional Programming with Channels, Actors, and Sessions*. PhD thesis, University of Edinburgh, 2019.
+* Dominic Orchard and Nobuko Yoshida. Effects as sessions, sessions as effects. In *Proceedings of the 43rd Annual ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL’16)*, pp. 568–581, 2016.
