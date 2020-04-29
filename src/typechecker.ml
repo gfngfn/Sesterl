@@ -125,16 +125,7 @@ let unify tyact tyexp =
         if bt1 = bt2 then Consistent else Contradiction
 
     | (FuncType(ty1doms, ty1cod), FuncType(ty2doms, ty2cod)) ->
-        let res1 =
-          try
-            List.fold_left2 (fun res ty1 ty2 ->
-              match res with
-              | Consistent -> aux ty1 ty2
-              | _          -> res
-            ) Consistent ty1doms ty2doms
-          with
-          | Invalid_argument(_) -> Contradiction
-        in
+        let res1 = aux_list ty1doms ty2doms in
         let res2 = aux ty1cod ty2cod in
         res1 &&& res2
 
@@ -145,6 +136,9 @@ let unify tyact tyexp =
 
     | (PidType(pidty1), PidType(pidty2)) ->
         aux_pid_type pidty1 pidty2
+
+    | (ProductType(tys1), ProductType(tys2)) ->
+        aux_list (tys1 |> TupleList.to_list) (tys2 |> TupleList.to_list)
 
     | (TypeVar({contents = Free(fid1)} as tvref1), TypeVar({contents = Free(fid2)})) ->
         let () =
@@ -177,6 +171,16 @@ let unify tyact tyexp =
 
     | _ ->
         Contradiction
+
+  and aux_list tys1 tys2 =
+    try
+      List.fold_left2 (fun res ty1 ty2 ->
+        match res with
+        | Consistent -> aux ty1 ty2
+        | _          -> res
+      ) Consistent tys1 tys2
+    with
+    | Invalid_argument(_) -> Contradiction
 
   and aux_effect (Effect(ty1)) (Effect(ty2)) =
     aux ty1 ty2

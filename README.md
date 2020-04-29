@@ -13,7 +13,7 @@
 * [x] Output Erlang code
 * [ ] FFI
 * [ ] Data types
-  * [ ] Product types
+  * [x] Product types
   * [ ] Strings
   * [ ] Binaries
   * [ ] Lists
