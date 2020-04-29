@@ -146,6 +146,13 @@ exprbot:
   | c=INT                     { let (rng, n) = c in (rng, BaseConst(Int(n))) }
   | ident=ident               { let (rng, x) = ident in (rng, Var(x)) }
   | LPAREN; e=exprlet; RPAREN { e }
+  | rngl=LPAREN; e1=exprlet; COMMA; e2=exprlet; es=list(tuplesub); rngr=RPAREN {
+        let rng = make_range (Token(rngl)) (Token(rngr)) in
+        (rng, Tuple(TupleList.make e1 e2 es))
+      }
+;
+tuplesub:
+  COMMA; e=exprlet { e }
 ;
 branch:
   | BAR; pat=pattern; ARROW; e=exprlet {

@@ -64,9 +64,13 @@ let occurs fid ty =
         false
 
     | FuncType(tydoms, tycod) ->
-        let b1 = List.exists aux tydoms in
+        let b1 = aux_list tydoms in
         let b2 = aux tycod in
         b1 || b2
+          (* -- must not be short-circuit due to the level inference -- *)
+
+    | ProductType(tys) ->
+        tys |> TupleList.to_list |> aux_list
           (* -- must not be short-circuit due to the level inference -- *)
 
     | EffType(eff, ty0) ->
@@ -96,6 +100,9 @@ let occurs fid ty =
 
   and aux_pid_type (Pid(ty)) =
     aux ty
+
+  and aux_list tys =
+    tys |> List.map aux |> List.fold_left ( || ) false
   in
   aux ty
 
@@ -310,6 +317,13 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       in
       let ty = (rng, EffType(Effect(tyrecv), tyret)) in
       (ty, IReceive(ibracc |> Alist.to_list))
+
+  | Tuple(utasts) ->
+      let tyes = utasts |> TupleList.map (typecheck pre) in
+      let tys = tyes |> TupleList.map fst in
+      let es = tyes |> TupleList.map snd in
+      let ty = (rng, ProductType(tys)) in
+      (ty, ITuple(es))
 
 
 and typecheck_branch (pre : pre) tyrecv tyret (Branch(pat, utast0opt, utast1)) : branch =
