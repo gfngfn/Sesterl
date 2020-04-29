@@ -4,26 +4,28 @@ letrec wait_all(n) =
     return(())
   else
     receive
-    | x ->
-        let u = print_debug(x) in
+    | msg ->
+        let u = print_debug(msg) in
         wait_all(n - 1)
     end
 
 
-letrec aux(n) =
+letrec aux(acc, n) =
   if n <= 0 then
-    return(())
+    return(acc)
   else
     do parent <- self() in
     do pid <-
       spawn(
-        send(parent, n)
+        do me <- self() in
+        send(parent, (me, n))
       )
     in
-    aux(n - 1)
+    aux(pid :: acc, n - 1)
 
 
 let main() =
   let m = 10 in
-  do aux(m) in
+  do pids <- aux([], m) in
+  let u = print_debug(pids) in
   wait_all(m)

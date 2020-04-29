@@ -64,10 +64,17 @@ let occurs fid ty =
         false
 
     | FuncType(tydoms, tycod) ->
-        let b1 = List.exists aux tydoms in
+        let b1 = aux_list tydoms in
         let b2 = aux tycod in
         b1 || b2
           (* -- must not be short-circuit due to the level inference -- *)
+
+    | ProductType(tys) ->
+        tys |> TupleList.to_list |> aux_list
+          (* -- must not be short-circuit due to the level inference -- *)
+
+    | ListType(ty) ->
+        aux ty
 
     | EffType(eff, ty0) ->
         let beff = aux_effect eff in
@@ -96,6 +103,9 @@ let occurs fid ty =
 
   and aux_pid_type (Pid(ty)) =
     aux ty
+
+  and aux_list tys =
+    tys |> List.map aux |> List.fold_left ( || ) false
   in
   aux ty
 
@@ -118,16 +128,7 @@ let unify tyact tyexp =
         if bt1 = bt2 then Consistent else Contradiction
 
     | (FuncType(ty1doms, ty1cod), FuncType(ty2doms, ty2cod)) ->
-        let res1 =
-          try
-            List.fold_left2 (fun res ty1 ty2 ->
-              match res with
-              | Consistent -> aux ty1 ty2
-              | _          -> res
-            ) Consistent ty1doms ty2doms
-          with
-          | Invalid_argument(_) -> Contradiction
-        in
+        let res1 = aux_list ty1doms ty2doms in
         let res2 = aux ty1cod ty2cod in
         res1 &&& res2
 
@@ -138,6 +139,12 @@ let unify tyact tyexp =
 
     | (PidType(pidty1), PidType(pidty2)) ->
         aux_pid_type pidty1 pidty2
+
+    | (ProductType(tys1), ProductType(tys2)) ->
+        aux_list (tys1 |> TupleList.to_list) (tys2 |> TupleList.to_list)
+
+    | (ListType(ty1), ListType(ty2)) ->
+        aux ty1 ty2
 
     | (TypeVar({contents = Free(fid1)} as tvref1), TypeVar({contents = Free(fid2)})) ->
         let () =
@@ -170,6 +177,16 @@ let unify tyact tyexp =
 
     | _ ->
         Contradiction
+
+  and aux_list tys1 tys2 =
+    try
+      List.fold_left2 (fun res ty1 ty2 ->
+        match res with
+        | Consistent -> aux ty1 ty2
+        | _          -> res
+      ) Consistent tys1 tys2
+    with
+    | Invalid_argument(_) -> Contradiction
 
   and aux_effect (Effect(ty1)) (Effect(ty2)) =
     aux ty1 ty2
@@ -310,6 +327,24 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       in
       let ty = (rng, EffType(Effect(tyrecv), tyret)) in
       (ty, IReceive(ibracc |> Alist.to_list))
+
+  | Tuple(utasts) ->
+      let tyes = utasts |> TupleList.map (typecheck pre) in
+      let tys = tyes |> TupleList.map fst in
+      let es = tyes |> TupleList.map snd in
+      let ty = (rng, ProductType(tys)) in
+      (ty, ITuple(es))
+
+  | ListNil ->
+      let tysub = fresh_type pre.level (Range.dummy "list-nil") in
+      let ty = (rng, ListType(tysub)) in
+      (ty, IListNil)
+
+  | ListCons(utast1, utast2) ->
+      let (ty1, e1) = typecheck pre utast1 in
+      let (ty2, e2) = typecheck pre utast2 in
+      unify ty2 (Range.dummy "list-cons", ListType(ty1));
+      (ty2, IListCons(e1, e2))
 
 
 and typecheck_branch (pre : pre) tyrecv tyret (Branch(pat, utast0opt, utast1)) : branch =

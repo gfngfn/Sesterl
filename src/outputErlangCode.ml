@@ -66,6 +66,18 @@ let rec stringify_ast (ast : ast) =
       let sbrs = branches |> List.map stringify_branch in
       Printf.sprintf "receive %s end" (String.concat "; " sbrs)
 
+  | ITuple(es) ->
+      let ss = es |> TupleList.to_list |> List.map stringify_ast in
+      Printf.sprintf "{%s}" (String.concat ", " ss)
+
+  | IListNil ->
+      "[]"
+
+  | IListCons(e1, e2) ->
+      let s1 = stringify_ast e1 in
+      let s2 = stringify_ast e2 in
+      Printf.sprintf "[%s | %s]" s1 s2
+
 
 and stringify_branch (br : branch) =
   match br with
