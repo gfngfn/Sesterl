@@ -38,6 +38,8 @@ and untyped_ast_main =
   | Do       of binder option * untyped_ast * untyped_ast
   | Receive  of untyped_branch list
   | Tuple    of untyped_ast TupleList.t
+  | ListNil
+  | ListCons of untyped_ast * untyped_ast
 
 and untyped_branch =
   | Branch of untyped_pattern * untyped_ast option * untyped_ast
@@ -74,6 +76,7 @@ and 'a typ_main =
   | EffType  of 'a effect * 'a typ
   | TypeVar  of 'a
   | ProductType of ('a typ) TupleList.t
+  | ListType    of 'a typ
 
 and 'a effect =
   | Effect of 'a typ
@@ -142,6 +145,9 @@ let lift_scheme rngf pred ty =
     | ProductType(tys) ->
         let ptys = tys |> TupleList.map aux in
         (rngf rng, ProductType(ptys))
+
+    | ListType(ty0) ->
+        (rngf rng, ListType(aux ty0))
 
   and aux_effect (Effect(ty)) =
     let pty = aux ty in
@@ -216,6 +222,8 @@ let instantiate lev pty =
         let tys = ptys |> TupleList.map aux in
         (rng, ProductType(tys))
 
+    | ListType(pty0) ->
+        (rng, ListType(aux pty0))
 
   and aux_effect (Effect(pty)) =
     let ty = aux pty in
@@ -264,6 +272,10 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
     | ProductType(tys) ->
         let ss = tys |> TupleList.to_list |> List.map aux in
         Printf.sprintf "(%s)" (String.concat ", " ss)
+
+    | ListType(ty0) ->
+        let s0 = aux ty0 in
+        Printf.sprintf "list(%s)" s0
 
   and aux_effect (Effect(ty)) =
     let s = aux ty in
@@ -326,6 +338,8 @@ type ast =
   | ICase      of ast * branch list
   | IReceive   of branch list
   | ITuple     of ast TupleList.t
+  | IListNil
+  | IListCons  of ast * ast
 
 and branch =
   | IBranch of pattern * ast option * ast

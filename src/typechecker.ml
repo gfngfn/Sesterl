@@ -73,6 +73,9 @@ let occurs fid ty =
         tys |> TupleList.to_list |> aux_list
           (* -- must not be short-circuit due to the level inference -- *)
 
+    | ListType(ty) ->
+        aux ty
+
     | EffType(eff, ty0) ->
         let beff = aux_effect eff in
         let b0 = aux ty0 in
@@ -139,6 +142,9 @@ let unify tyact tyexp =
 
     | (ProductType(tys1), ProductType(tys2)) ->
         aux_list (tys1 |> TupleList.to_list) (tys2 |> TupleList.to_list)
+
+    | (ListType(ty1), ListType(ty2)) ->
+        aux ty1 ty2
 
     | (TypeVar({contents = Free(fid1)} as tvref1), TypeVar({contents = Free(fid2)})) ->
         let () =
@@ -328,6 +334,17 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let es = tyes |> TupleList.map snd in
       let ty = (rng, ProductType(tys)) in
       (ty, ITuple(es))
+
+  | ListNil ->
+      let tysub = fresh_type pre.level (Range.dummy "list-nil") in
+      let ty = (rng, ListType(tysub)) in
+      (ty, IListNil)
+
+  | ListCons(utast1, utast2) ->
+      let (ty1, e1) = typecheck pre utast1 in
+      let (ty2, e2) = typecheck pre utast2 in
+      unify ty2 (Range.dummy "list-cons", ListType(ty2));
+      (ty2, IListCons(e1, e2))
 
 
 and typecheck_branch (pre : pre) tyrecv tyret (Branch(pat, utast0opt, utast1)) : branch =
