@@ -170,18 +170,23 @@ tuplesub:
   COMMA; e=exprlet { e }
 ;
 branch:
-  | BAR; pat=pattern; ARROW; e=exprlet {
+  | BAR; pat=patcons; ARROW; e=exprlet {
         Branch(pat, None, e)
       }
-  | BAR; pat=pattern; WHEN; ew=exprlet; ARROW; e=exprlet {
+  | BAR; pat=patcons; WHEN; ew=exprlet; ARROW; e=exprlet {
         Branch(pat, Some(ew), e)
       }
 ;
-pattern:
+patcons:
+  | p1=patbot; CONS; p2=patcons { let rng = make_range (Ranged(p1)) (Ranged(p2)) in (rng, PListCons(p1, p2)) }
+  | p=patbot                    { p }
+;
+patbot:
   | rng=TRUE                 { (rng, PBool(true)) }
   | rng=FALSE                { (rng, PBool(true)) }
   | tok1=LPAREN; tok2=RPAREN { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, PUnit) }
   | c=INT                    { let (rng, n) = c in (rng, PInt(n)) }
   | ident=ident              { let (rng, x) = ident in (rng, PVar(x)) }
   | rng=UNDERSCORE           { (rng, PWildCard) }
+  | tok1=LSQUARE; tok2=RSQUARE { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, PListNil) }
 ;

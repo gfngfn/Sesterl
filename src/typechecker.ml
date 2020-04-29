@@ -57,7 +57,7 @@ let iforce e =
 let iletrecin name_outer name_inner e1 e2 =
   match e1 with
   | ILambda(None, names, e0) ->
-      ILetIn(name_outer, ILambda(Some(name_inner), names, e1), e2)
+      ILetIn(name_outer, ILambda(Some(name_inner), names, e0), e2)
 
   | _ ->
       assert false
@@ -297,7 +297,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let name_outer = OutputIdentifier.fresh () in
       let tyenv = tyenv |> Typeenv.add x pty name_outer in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
-      (ty2, iletrecin name_inner name_outer e1 e2)
+      (ty2, iletrecin name_outer name_inner e1 e2)
 
   | Do(identopt, utast1, utast2) ->
       let lev = pre.level in
@@ -328,7 +328,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let tyret = fresh_type lev (Range.dummy "receive-ret") in
       let ibracc =
         branches |> List.fold_left (fun ibracc branch ->
-          let ibranch = typecheck_branch pre tyrecv tyret branch in
+          let ibranch = typecheck_receive_branch pre tyrecv tyret branch in
           Alist.extend ibracc ibranch
         ) Alist.empty
       in
@@ -359,14 +359,26 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let tyret = fresh_type lev (Range.dummy "case-ret") in
       let ibracc =
         branches |> List.fold_left (fun ibracc branch ->
-          let ibranch = typecheck_branch pre ty0 tyret branch in
+          let ibranch = typecheck_case_branch pre ty0 tyret branch in
           Alist.extend ibracc ibranch
         ) Alist.empty
       in
       (tyret, ICase(e0, ibracc |> Alist.to_list))
 
 
-and typecheck_branch (pre : pre) typatexp tyret (Branch(pat, utast0opt, utast1)) : branch =
+and typecheck_case_branch (pre : pre) =
+  typecheck_branch_scheme (fun ty1 _ tyret ->
+    unify ty1 tyret
+  ) pre
+
+
+and typecheck_receive_branch (pre : pre) =
+  typecheck_branch_scheme (fun ty1 typatexp tyret ->
+    unify ty1 (Range.dummy "branch", EffType(Effect(typatexp), tyret))
+  ) pre
+
+
+and typecheck_branch_scheme unifyk (pre : pre) typatexp tyret (Branch(pat, utast0opt, utast1)) : branch =
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
   let tyenv =
     BindingMap.fold (fun x (ty, name) tyenv ->
@@ -383,7 +395,7 @@ and typecheck_branch (pre : pre) typatexp tyret (Branch(pat, utast0opt, utast1))
     )
   in
   let (ty1, e1) = typecheck pre utast1 in
-  unify ty1 (Range.dummy "branch", EffType(Effect(typatexp), tyret));
+  unifyk ty1 typatexp tyret;
   IBranch(ipat, e0opt, e1)
 
 
