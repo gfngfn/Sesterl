@@ -14,8 +14,8 @@ letrec wait_all(n) =
     return(())
   else
     receive
-    | msg ->
-        let u = print_debug(msg) in
+    | (from, x) ->
+        let u = print_debug((from, x, n)) in
         wait_all(n - 1)
     end
 
