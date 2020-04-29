@@ -137,11 +137,11 @@ let main (decls : declaration list) =
   let lines =
     List.append [
       "-module(autogen).";
-      "-export[main/0].";
+      "-export([main/0]).";
       "thunk_return(X) -> fun() -> X end.";
       "thunk_spawn(X) -> fun() -> erlang:spawn(X) end.";
       "thunk_send(X, Y) -> fun() -> X ! Y, ok end.";
-      "thunk_self() -> fun() -> self() end.";
+      "thunk_self() -> erlang:self().";
       "print_debug(X) -> io:format(\"~p~n\", [X]), ok.";
     ] sdecls
   in

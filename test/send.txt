@@ -24,10 +24,10 @@ letrec aux(acc, n) =
   if n <= 0 then
     return(reverse_list(acc))
   else
-    do parent <- self() in
+    do parent <- self in
     do pid <-
       spawn(
-        do me <- self() in
+        do me <- self in
         send(parent, (me, n))
       )
     in

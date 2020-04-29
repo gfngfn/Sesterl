@@ -35,7 +35,7 @@ let initial_type_environment =
   in
   let tyself : poly_type =
     let tyrecv = fresh_bound () in
-    [] @-> eff tyrecv (pid tyrecv)
+    eff tyrecv (pid tyrecv)
   in
 
   let typrintdebug : poly_type =
