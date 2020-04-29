@@ -26,7 +26,7 @@
     (rng, Apply((rngop, Var(vop)), [e1; e2]))
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE
+%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS
 %token<Range.t * Syntax.identifier> IDENT BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * Syntax.identifier> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
@@ -111,10 +111,17 @@ exprlor:
   | e=exprcomp                            { e }
 ;
 exprcomp:
-  | e1=exprtimes; op=BINOP_EQ; e2=exprcomp { binary e1 op e2 }
-  | e1=exprtimes; op=BINOP_LT; e2=exprcomp { binary e1 op e2 }
-  | e1=exprtimes; op=BINOP_GT; e2=exprcomp { binary e1 op e2 }
-  | e=exprtimes                            { e }
+  | e1=exprcons; op=BINOP_EQ; e2=exprcomp { binary e1 op e2 }
+  | e1=exprcons; op=BINOP_LT; e2=exprcomp { binary e1 op e2 }
+  | e1=exprcons; op=BINOP_GT; e2=exprcomp { binary e1 op e2 }
+  | e=exprcons                            { e }
+;
+exprcons:
+  | e1=exprtimes; CONS; e2=exprcons {
+        let rng = make_range (Ranged(e1)) (Ranged(e2)) in
+        (rng, ListCons(e1, e2))
+      }
+  | e=exprtimes { e }
 ;
 exprtimes:
   | e1=exprplus; op=BINOP_TIMES; e2=exprtimes   { binary e1 op e2 }
@@ -149,6 +156,10 @@ exprbot:
   | rngl=LPAREN; e1=exprlet; COMMA; e2=exprlet; es=list(tuplesub); rngr=RPAREN {
         let rng = make_range (Token(rngl)) (Token(rngr)) in
         (rng, Tuple(TupleList.make e1 e2 es))
+      }
+  | tok1=LSQUARE; tok2=RSQUARE {
+        let rng = make_range (Token(tok1)) (Token(tok2)) in
+        (rng, ListNil)
       }
 ;
 tuplesub:
