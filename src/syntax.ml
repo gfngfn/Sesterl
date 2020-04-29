@@ -40,6 +40,7 @@ and untyped_ast_main =
   | Tuple    of untyped_ast TupleList.t
   | ListNil
   | ListCons of untyped_ast * untyped_ast
+  | Case     of untyped_ast * untyped_branch list
 
 and untyped_branch =
   | Branch of untyped_pattern * untyped_ast option * untyped_ast
@@ -54,6 +55,8 @@ and untyped_pattern_main =
   | PInt  of int
   | PVar  of identifier
   | PWildCard
+  | PListNil
+  | PListCons of untyped_pattern * untyped_pattern
 [@@deriving show { with_path = false; } ]
 
 type untyped_declaration =
@@ -327,6 +330,8 @@ type pattern =
   | IPInt  of int
   | IPVar  of name
   | IPWildCard
+  | IPListNil
+  | IPListCons of pattern * pattern
 [@@deriving show { with_path = false; } ]
 
 type ast =

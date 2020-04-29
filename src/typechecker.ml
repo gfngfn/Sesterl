@@ -3,9 +3,16 @@ open MyUtil
 open Syntax
 
 
-exception UnboundVariable    of Range.t * string
+exception UnboundVariable    of Range.t * identifier
 exception ContradictionError of mono_type * mono_type
 exception InclusionError     of FreeID.t * mono_type * mono_type
+exception BoundMoreThanOnceInPattern of Range.t * identifier
+
+
+module BindingMap = Map.Make(String)
+
+
+type binding_map = (mono_type * name) BindingMap.t
 
 
 type unification_result =
@@ -50,7 +57,7 @@ let iforce e =
 let iletrecin name_outer name_inner e1 e2 =
   match e1 with
   | ILambda(None, names, e0) ->
-      ILetIn(name_outer, ILambda(Some(name_inner), names, e1), e2)
+      ILetIn(name_outer, ILambda(Some(name_inner), names, e0), e2)
 
   | _ ->
       assert false
@@ -290,7 +297,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let name_outer = OutputIdentifier.fresh () in
       let tyenv = tyenv |> Typeenv.add x pty name_outer in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
-      (ty2, iletrecin name_inner name_outer e1 e2)
+      (ty2, iletrecin name_outer name_inner e1 e2)
 
   | Do(identopt, utast1, utast2) ->
       let lev = pre.level in
@@ -320,10 +327,10 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let tyrecv = fresh_type lev (Range.dummy "receive-recv") in
       let tyret = fresh_type lev (Range.dummy "receive-ret") in
       let ibracc =
-        List.fold_left (fun ibracc branch ->
-          let ibranch = typecheck_branch pre tyrecv tyret branch in
+        branches |> List.fold_left (fun ibracc branch ->
+          let ibranch = typecheck_receive_branch pre tyrecv tyret branch in
           Alist.extend ibracc ibranch
-        ) Alist.empty branches
+        ) Alist.empty
       in
       let ty = (rng, EffType(Effect(tyrecv), tyret)) in
       (ty, IReceive(ibracc |> Alist.to_list))
@@ -346,11 +353,40 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       unify ty2 (Range.dummy "list-cons", ListType(ty1));
       (ty2, IListCons(e1, e2))
 
+  | Case(utast0, branches) ->
+      let (ty0, e0) = typecheck pre utast0 in
+      let lev = pre.level in
+      let tyret = fresh_type lev (Range.dummy "case-ret") in
+      let ibracc =
+        branches |> List.fold_left (fun ibracc branch ->
+          let ibranch = typecheck_case_branch pre ty0 tyret branch in
+          Alist.extend ibracc ibranch
+        ) Alist.empty
+      in
+      (tyret, ICase(e0, ibracc |> Alist.to_list))
 
-and typecheck_branch (pre : pre) tyrecv tyret (Branch(pat, utast0opt, utast1)) : branch =
-  let (typat, ipat, tyenv) = typecheck_pattern pre pat in
+
+and typecheck_case_branch (pre : pre) =
+  typecheck_branch_scheme (fun ty1 _ tyret ->
+    unify ty1 tyret
+  ) pre
+
+
+and typecheck_receive_branch (pre : pre) =
+  typecheck_branch_scheme (fun ty1 typatexp tyret ->
+    unify ty1 (Range.dummy "branch", EffType(Effect(typatexp), tyret))
+  ) pre
+
+
+and typecheck_branch_scheme unifyk (pre : pre) typatexp tyret (Branch(pat, utast0opt, utast1)) : branch =
+  let (typat, ipat, bindmap) = typecheck_pattern pre pat in
+  let tyenv =
+    BindingMap.fold (fun x (ty, name) tyenv ->
+      tyenv |> Typeenv.add x (lift ty) name
+    ) bindmap pre.tyenv
+  in
   let pre = { pre with tyenv } in
-  unify typat tyrecv;
+  unify typat typatexp;
   let e0opt =
     utast0opt |> Option.map (fun utast0 ->
       let (ty0, e0) = typecheck pre utast0 in
@@ -359,12 +395,12 @@ and typecheck_branch (pre : pre) tyrecv tyret (Branch(pat, utast0opt, utast1)) :
     )
   in
   let (ty1, e1) = typecheck pre utast1 in
-  unify ty1 (Range.dummy "branch", EffType(Effect(tyrecv), tyret));
+  unifyk ty1 typatexp tyret;
   IBranch(ipat, e0opt, e1)
 
 
-and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type * pattern * Typeenv.t =
-  let immediate tymain ipat = ((rng, tymain), ipat, pre.tyenv) in
+and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type * pattern * binding_map =
+  let immediate tymain ipat = ((rng, tymain), ipat, BindingMap.empty) in
   match patmain with
   | PUnit    -> immediate (BaseType(UnitType)) IPUnit
   | PBool(b) -> immediate (BaseType(BoolType)) (IPBool(b))
@@ -373,11 +409,29 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
   | PVar(x) ->
       let ty = fresh_type pre.level rng in
       let name = generate_output_identifier Local rng x in
-      (ty, IPVar(name), pre.tyenv |> Typeenv.add x (lift ty) name)
+      (ty, IPVar(name), BindingMap.singleton x (ty, name))
 
   | PWildCard ->
       let ty = fresh_type pre.level rng in
-      (ty, IPWildCard, pre.tyenv)
+      (ty, IPWildCard, BindingMap.empty)
+
+  | PListNil ->
+      let ty =
+        let tysub = fresh_type pre.level rng in
+        (rng, ListType(tysub))
+      in
+      (ty, IPListNil, BindingMap.empty)
+
+  | PListCons(pat1, pat2) ->
+      let (ty1, ipat1, bindmap1) = typecheck_pattern pre pat1 in
+      let (ty2, ipat2, bindmap2) = typecheck_pattern pre pat2 in
+      let bindmap =
+        BindingMap.union (fun x _ _ ->
+          raise (BoundMoreThanOnceInPattern(rng, x))
+        ) bindmap1 bindmap2
+      in
+      unify ty2 (Range.dummy "pattern-cons", ListType(ty1));
+      (ty2, IPListCons(ipat1, ipat2), bindmap)
 
 
 and typecheck_let (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast =

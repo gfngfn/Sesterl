@@ -1,4 +1,14 @@
 
+let reverse_list(xs) =
+  letrec aux(rev, xs) =
+    case xs of
+    | []        -> rev
+    | x :: tail -> aux(x :: rev, tail)
+    end
+  in
+  aux([], xs)
+
+
 letrec wait_all(n) =
   if n <= 0 then
     return(())
@@ -12,7 +22,7 @@ letrec wait_all(n) =
 
 letrec aux(acc, n) =
   if n <= 0 then
-    return(acc)
+    return(reverse_list(acc))
   else
     do parent <- self() in
     do pid <-

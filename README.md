@@ -9,6 +9,7 @@
   * [x] `self`
   * [ ] `monitor`/`demonitor`
   * [ ] `link`/`unlink`
+* [x] Principal type inference
 * [ ] Type annotation
 * [x] Output Erlang code
 * [ ] FFI
@@ -18,7 +19,7 @@
   * [x] Lists
   * [ ] Records
   * [ ] User-defined ADTs
-  * [ ] Pattern matching
+  * [x] Pattern matching
 * [ ] Mutual recursion by generalized `letrec`-expressions
 * [ ] Pattern matching by generalized `let`-expressions
 
