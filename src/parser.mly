@@ -26,7 +26,7 @@
     (rng, Apply((rngop, Var(vop)), [e1; e2]))
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS
+%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF
 %token<Range.t * Syntax.identifier> IDENT BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * Syntax.identifier> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
@@ -99,6 +99,10 @@ exprfun:
   | tok1=RECEIVE; branches=nonempty_list(branch); tok2=END {
         let rng = make_range (Token(tok1)) (Token(tok2)) in
         (rng, Receive(branches))
+      }
+  | tok1=CASE; e=exprlet; OF; branches=nonempty_list(branch); tok2=END {
+        let rng = make_range (Token(tok1)) (Token(tok2)) in
+        (rng, Case(e, branches))
       }
   | e=exprland { e }
 ;

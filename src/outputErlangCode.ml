@@ -96,14 +96,20 @@ and stringify_branch (br : branch) =
       Printf.sprintf "%s%s -> %s" spat swhen s1
 
 
-and stringify_pattern (pat : pattern) =
-  match pat with
+and stringify_pattern (ipat : pattern) =
+  match ipat with
   | IPUnit        -> unit_atom
   | IPBool(true)  -> "true"
   | IPBool(false) -> "false"
   | IPInt(n)      -> string_of_int n
   | IPVar(name)   -> output_normal name
   | IPWildCard    -> "_"
+  | IPListNil     -> "[]"
+
+  | IPListCons(ipat1, ipat2) ->
+      let s1 = stringify_pattern ipat1 in
+      let s2 = stringify_pattern ipat2 in
+      Printf.sprintf "[%s | %s]" s1 s2
 
 
 let stringify_declaration (decl : declaration) =

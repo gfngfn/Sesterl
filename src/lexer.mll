@@ -35,6 +35,8 @@ rule token = parse
           | "receive" -> RECEIVE(pos)
           | "when"    -> WHEN(pos)
           | "end"     -> END(pos)
+          | "case"    -> CASE(pos)
+          | "of"      -> OF(pos)
           | _         -> IDENT(pos, s)
       }
   | ("0" | nzdigit (digit*) | ("0x" | "0X") hex+) {
