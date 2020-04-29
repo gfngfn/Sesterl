@@ -343,7 +343,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
   | ListCons(utast1, utast2) ->
       let (ty1, e1) = typecheck pre utast1 in
       let (ty2, e2) = typecheck pre utast2 in
-      unify ty2 (Range.dummy "list-cons", ListType(ty2));
+      unify ty2 (Range.dummy "list-cons", ListType(ty1));
       (ty2, IListCons(e1, e2))
 
 
