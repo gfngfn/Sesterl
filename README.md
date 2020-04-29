@@ -13,10 +13,9 @@
 * [x] Output Erlang code
 * [ ] FFI
 * [ ] Data types
+  * [ ] Strings/Binaries
   * [x] Product types
-  * [ ] Strings
-  * [ ] Binaries
-  * [ ] Lists
+  * [x] Lists
   * [ ] Records
   * [ ] User-defined ADTs
   * [ ] Pattern matching
