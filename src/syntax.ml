@@ -57,6 +57,7 @@ and untyped_pattern_main =
   | PWildCard
   | PListNil
   | PListCons of untyped_pattern * untyped_pattern
+  | PTuple    of untyped_pattern TupleList.t
 [@@deriving show { with_path = false; } ]
 
 type untyped_declaration =
@@ -332,6 +333,7 @@ type pattern =
   | IPWildCard
   | IPListNil
   | IPListCons of pattern * pattern
+  | IPTuple    of pattern TupleList.t
 [@@deriving show { with_path = false; } ]
 
 type ast =

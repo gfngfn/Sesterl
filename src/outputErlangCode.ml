@@ -111,6 +111,10 @@ and stringify_pattern (ipat : pattern) =
       let s2 = stringify_pattern ipat2 in
       Printf.sprintf "[%s | %s]" s1 s2
 
+  | IPTuple(ipats) ->
+      let ss = ipats |> TupleList.to_list |> List.map stringify_pattern in
+      Printf.sprintf "{%s}" (String.concat ", " ss)
+
 
 let stringify_declaration (decl : declaration) =
   match decl with
