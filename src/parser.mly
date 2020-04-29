@@ -189,4 +189,11 @@ patbot:
   | ident=ident              { let (rng, x) = ident in (rng, PVar(x)) }
   | rng=UNDERSCORE           { (rng, PWildCard) }
   | tok1=LSQUARE; tok2=RSQUARE { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, PListNil) }
+  | rngl=LPAREN; p1=patcons; COMMA; p2=patcons; pats=list(pattuplesub); rngr=RPAREN {
+        let rng = make_range (Token(rngl)) (Token(rngr)) in
+        (rng, PTuple(TupleList.make p1 p2 pats))
+      }
+;
+pattuplesub:
+  | COMMA; p=patcons { p }
 ;
