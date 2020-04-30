@@ -18,10 +18,10 @@
   * [x] Product types
   * [x] Lists
   * [ ] Records
-  * [ ] User-defined ADTs
+  * [x] User-defined ADTs
   * [x] Pattern matching
 * [ ] Mutual recursion by generalized `letrec`-expressions
-* [ ] Pattern matching by generalized `let`-expressions
+* [x] Pattern matching by generalized `let`-expressions
 
 ## References
 
