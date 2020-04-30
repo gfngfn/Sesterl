@@ -44,3 +44,8 @@ let () =
         pp_mono_type ty1
         pp_mono_type ty2
         FreeID.pp fid
+
+  | Typechecker.BoundMoreThanOnceInPattern(rng, x) ->
+      Format.printf "%a: this pattern binds '%s' more than once.\n"
+        Range.pp rng
+        x
