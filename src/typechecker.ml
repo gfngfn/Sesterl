@@ -549,8 +549,8 @@ and typecheck_letrec (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifi
   (pre.tyenv |> Typeenv.add_val x ptyf name, name, e1, ptyf)
 
 
-let make_type_parameter_assoc (typarams : type_variable_name list) : type_parameter_assoc =
-  typarams |> List.fold_left (fun map typaram ->
+let make_type_parameter_assoc (typarams : (type_variable_name ranged) list) : type_parameter_assoc =
+  typarams |> List.fold_left (fun map (_, typaram) ->
     let bid = BoundID.fresh () in
     map |> TypeParameterAssoc.add_last typaram bid
   ) TypeParameterAssoc.empty

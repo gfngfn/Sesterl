@@ -40,6 +40,10 @@ rule token = parse
           | "type"    -> TYPE(pos)
           | _         -> IDENT(pos, s)
       }
+  | ("%" (identifier as s)) {
+        let pos = Range.from_lexbuf lexbuf in
+        TYPARAM(pos, s)
+      }
   | constructor {
         let s = Lexing.lexeme lexbuf in
         let pos = Range.from_lexbuf lexbuf in

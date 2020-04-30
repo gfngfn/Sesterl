@@ -27,7 +27,7 @@
 %}
 
 %token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE
-%token<Range.t * string> IDENT CTOR BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
+%token<Range.t * string> IDENT CTOR TYPARAM BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
 %token EOI
@@ -44,13 +44,22 @@ ident:
   | ident=IDENT { ident }
 ;
 bindtop:
-  | TYPE; ident=IDENT; DEFEQ; ctorbrs=nonempty_list(ctorbranch) {
-        BindType(ident, [], ctorbrs)
+  | TYPE; ident=IDENT; typarams=typarams; DEFEQ; ctorbrs=nonempty_list(ctorbranch) {
+        BindType(ident, typarams, ctorbrs)
       }
   | bindval=bindvaltop {
         let (_, isrec, ident, e1) = bindval in
         BindVal(isrec, ident, e1)
       }
+;
+typarams:
+  |                                     { [] }
+  | LPAREN; typarams=typaramssub RPAREN { typarams }
+;
+typaramssub:
+  |                                          { [] }
+  | typaram=TYPARAM                          { typaram :: [] }
+  | typaram=TYPARAM; COMMA; tail=typaramssub { typaram :: tail }
 ;
 bindvaltop:
   | tok=LET; ident=IDENT; args=args; DEFEQ; e1=exprlet {
@@ -230,6 +239,10 @@ ty:
   | mty=tybot { mty }
 ;
 tybot:
+  | tok=TYPARAM {
+        let (rng, typaram) = tok in
+        (rng, MTypeVar(typaram))
+      }
   | ident=IDENT {
         let (rng, tynm) = ident in
         (rng, MTypeName(tynm, []))

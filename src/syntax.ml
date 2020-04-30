@@ -96,7 +96,7 @@ type constructor_branch =
 
 type untyped_binding =
   | BindVal  of bool * binder * untyped_ast
-  | BindType of type_name ranged * type_variable_name list * constructor_branch list
+  | BindType of type_name ranged * (type_variable_name ranged) list * constructor_branch list
 [@@deriving show { with_path = false; } ]
 
 type 'a typ =
