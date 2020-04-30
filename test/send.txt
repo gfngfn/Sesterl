@@ -15,7 +15,7 @@ letrec wait_all(n) =
   else
     receive
     | (from, x) ->
-        let u = print_debug((from, x, n)) in
+        let _ = print_debug((from, x, n)) in
         wait_all(n - 1)
     end
 
@@ -37,5 +37,5 @@ letrec aux(acc, n) =
 let main() =
   let m = 10 in
   do pids <- aux([], m) in
-  let u = print_debug(pids) in
+  let _ = print_debug(pids) in
   wait_all(m)
