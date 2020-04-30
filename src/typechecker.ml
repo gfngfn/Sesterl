@@ -375,6 +375,22 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       in
       (tyret, ICase(e0, ibracc |> Alist.to_list))
 
+  | LetPatIn(utpat, utast1, utast2) ->
+      let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in
+      let (typat, ipat, bindmap) = typecheck_pattern pre utpat in
+      unify ty1 typat;
+      let tyenv =
+        BindingMap.fold (fun x (ty, name, _) tyenv ->
+          let pty = generalize pre.level ty in
+          tyenv |> Typeenv.add_val x pty name
+        ) bindmap pre.tyenv
+      in
+      let (ty2, e2) = typecheck { pre with tyenv } utast2 in
+      BindingMap.iter (fun x (_, _, rng) ->
+        check_properly_used tyenv (rng, x)
+      ) bindmap;
+      (ty2, ICase(e1, [ IBranch(ipat, None, e2) ]))
+
 
 and typecheck_case_branch (pre : pre) =
   typecheck_branch_scheme (fun ty1 _ tyret ->

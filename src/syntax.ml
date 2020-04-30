@@ -35,6 +35,7 @@ and untyped_ast_main =
   | If       of untyped_ast * untyped_ast * untyped_ast
   | LetIn    of binder * untyped_ast * untyped_ast
   | LetRecIn of binder * untyped_ast * untyped_ast
+  | LetPatIn of untyped_pattern * untyped_ast * untyped_ast
   | Do       of binder option * untyped_ast * untyped_ast
   | Receive  of untyped_branch list
   | Tuple    of untyped_ast TupleList.t

@@ -40,7 +40,7 @@ main:
   | decls=decls { decls }
 ;
 decls:
-  | dec=letdec; tail=decls {
+  | dec=dectop; tail=decls {
         let (_, ident, isrec, e1) = dec in
         ValDecl(isrec, ident, e1) :: tail
       }
@@ -49,15 +49,12 @@ decls:
 ident:
   | ident=IDENT { ident }
 ;
-letdec:
+dectop:
   | tok1=LET; ident=IDENT; args=args; DEFEQ; e1=exprlet {
         (tok1, ident, false, make_lambda (Range.dummy "let") args e1)
       }
   | tok1=LETREC; ident=IDENT; args=args; DEFEQ; e1=exprlet {
         (tok1, ident, true, make_lambda (Range.dummy "letrec") args e1)
-      }
-  | tok1=LET; ident=IDENT; DEFEQ; e1=exprlet {
-        (tok1, ident, false, e1)
       }
 ;
 args:
@@ -69,13 +66,17 @@ argssub:
   | ident=IDENT; COMMA; tail=argssub { ident :: tail }
 ;
 exprlet:
-  | dec=letdec; IN; e2=exprlet {
+  | dec=dectop; IN; e2=exprlet {
         let (tok1, ident, isrec, e1) = dec in
         let rng = make_range (Token(tok1)) (Ranged(e2)) in
         if isrec then
           (rng, LetRecIn(ident, e1, e2))
         else
           (rng, LetIn(ident, e1, e2))
+      }
+  | tok1=LET; pat=patcons; DEFEQ; e1=exprlet; IN; e2=exprlet {
+        let rng = make_range (Token(tok1)) (Ranged(e2)) in
+        (rng, LetPatIn(pat, e1, e2))
       }
   | tok1=IF; e0=exprlet; THEN; e1=exprlet; ELSE; e2=exprlet {
         let rng = make_range (Token(tok1)) (Ranged(e2)) in
