@@ -133,6 +133,18 @@ and stringify_pattern (ipat : pattern) =
       let ss = ipats |> TupleList.to_list |> List.map stringify_pattern in
       Printf.sprintf "{%s}" (String.concat ", " ss)
 
+  | IPConstructor(ctorid, ipats) ->
+      let atom = ConstructorID.output ctorid in
+      begin
+        match ipats with
+        | [] ->
+            atom
+
+        | _ :: _ ->
+            let ss = ipats |> List.map stringify_pattern in
+            Printf.sprintf "{%s, %s}" atom (String.concat ", " ss)
+      end
+
 
 let stringify_declaration (bind : binding) =
   match bind with

@@ -20,6 +20,12 @@ module BindingMap = Map.Make(String)
 type binding_map = (mono_type * name * Range.t) BindingMap.t
 
 
+let binding_map_union rng =
+  BindingMap.union (fun x _ _ ->
+    raise (BoundMoreThanOnceInPattern(rng, x))
+  )
+
+
 type unification_result =
   | Consistent
   | Contradiction
@@ -425,34 +431,37 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       (ty2, ICase(e1, [ IBranch(ipat, None, e2) ]))
 
   | Constructor(ctornm, utastargs) ->
+      let (tyid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng ctornm in
       begin
-        match pre.tyenv |> Typeenv.find_constructor ctornm with
-        | None ->
-            raise (UndefinedConstructor(rng, ctornm))
-
-        | Some(tyid, ctorid, typaramassoc, ptys) ->
-            let lev = pre.level in
-            let (tyargs, bfmap) = make_bound_to_free_map lev typaramassoc in
-            begin
-              try
-                let es =
-                  List.fold_left2 (fun acc pty utast ->
-                    let ty_expected = instantiate_by_map bfmap lev pty in
-                    let (ty, e) = typecheck pre utast in
-                    unify ty ty_expected;
-                    Alist.extend acc e
-                  ) Alist.empty ptys utastargs |> Alist.to_list
-                in
-                let ty = (rng, VariantType(tyid, tyargs)) in
-                let e = IConstructor(ctorid, es) in
-                (ty, e)
-              with
-              | Invalid_argument(_) ->
-                  let len_expected = List.length ptys in
-                  let len_actual = List.length utastargs in
-                  raise (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
-            end
+        try
+          let es =
+            List.fold_left2 (fun acc ty_expected utast ->
+              let (ty, e) = typecheck pre utast in
+              unify ty ty_expected;
+              Alist.extend acc e
+            ) Alist.empty tys_expected utastargs |> Alist.to_list
+          in
+          let ty = (rng, VariantType(tyid, tyargs)) in
+          let e = IConstructor(ctorid, es) in
+          (ty, e)
+        with
+        | Invalid_argument(_) ->
+            let len_expected = List.length tys_expected in
+            let len_actual = List.length utastargs in
+            raise (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
       end
+
+
+and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name) =
+  match pre.tyenv |> Typeenv.find_constructor ctornm with
+  | None ->
+      raise (UndefinedConstructor(rng, ctornm))
+
+  | Some(tyid, ctorid, typaramassoc, ptys) ->
+      let lev = pre.level in
+      let (tyargs, bfmap) = make_bound_to_free_map lev typaramassoc in
+      let tys_expected = ptys |> List.map (instantiate_by_map bfmap lev) in
+      (tyid, ctorid, tyargs, tys_expected)
 
 
 and typecheck_case_branch (pre : pre) =
@@ -493,11 +502,6 @@ and typecheck_branch_scheme unifyk (pre : pre) typatexp tyret (Branch(pat, utast
 
 and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type * pattern * binding_map =
   let immediate tymain ipat = ((rng, tymain), ipat, BindingMap.empty) in
-  let binding_map_union =
-    BindingMap.union (fun x _ _ ->
-      raise (BoundMoreThanOnceInPattern(rng, x))
-    )
-  in
   match patmain with
   | PUnit    -> immediate (BaseType(UnitType)) IPUnit
   | PBool(b) -> immediate (BaseType(BoolType)) (IPBool(b))
@@ -522,7 +526,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
   | PListCons(pat1, pat2) ->
       let (ty1, ipat1, bindmap1) = typecheck_pattern pre pat1 in
       let (ty2, ipat2, bindmap2) = typecheck_pattern pre pat2 in
-      let bindmap = binding_map_union bindmap1 bindmap2 in
+      let bindmap = binding_map_union rng bindmap1 bindmap2 in
       unify ty2 (Range.dummy "pattern-cons", ListType(ty1));
       (ty2, IPListCons(ipat1, ipat2), bindmap)
 
@@ -531,12 +535,32 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
       let tys = triples |> TupleList.map (fun (ty, _, _) -> ty) in
       let ipats = triples |> TupleList.map (fun (_, ipat, _) -> ipat) in
       let bindmaps = triples |> TupleList.map (fun (_, _, bindmap) -> bindmap) in
-      let ty = (rng, ProductType(tys)) in
       let bindmap =
         bindmaps |> TupleList.to_list
-          |> List.fold_left binding_map_union BindingMap.empty
+          |> List.fold_left (binding_map_union rng) BindingMap.empty
       in
+      let ty = (rng, ProductType(tys)) in
       (ty, IPTuple(ipats), bindmap)
+
+  | PConstructor(ctornm, pats) ->
+      let (tyid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng ctornm in
+      begin
+        try
+          let (ipatacc, bindmap) =
+            List.fold_left2 (fun (ipatacc, bindmapacc) ty_expected pat ->
+              let (ty, ipat, bindmap) = typecheck_pattern pre pat in
+              unify ty ty_expected;
+              (Alist.extend ipatacc ipat, binding_map_union rng bindmapacc bindmap)
+            ) (Alist.empty, BindingMap.empty) tys_expected pats
+          in
+          let ty = (rng, VariantType(tyid, tyargs)) in
+          (ty, IPConstructor(ctorid, Alist.to_list ipatacc), bindmap)
+        with
+        | Invalid_argument(_) ->
+            let len_expected = List.length tys_expected in
+            let len_actual = List.length pats in
+            raise (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
+      end
 
 
 and typecheck_let (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast =

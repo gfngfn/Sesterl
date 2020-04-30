@@ -88,6 +88,7 @@ and untyped_pattern_main =
   | PListNil
   | PListCons of untyped_pattern * untyped_pattern
   | PTuple    of untyped_pattern TupleList.t
+  | PConstructor of constructor_name * untyped_pattern list
 [@@deriving show { with_path = false; } ]
 
 type constructor_branch =
@@ -406,6 +407,7 @@ type pattern =
   | IPListNil
   | IPListCons of pattern * pattern
   | IPTuple    of pattern TupleList.t
+  | IPConstructor of ConstructorID.t * pattern list
 [@@deriving show { with_path = false; } ]
 
 type ast =
