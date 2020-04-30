@@ -133,7 +133,11 @@ type poly_type = poly_type_var typ
 module FreeIDHashTable = Hashtbl.Make(FreeID)
 
 
-let lift_scheme rngf pred ty =
+(* --
+Arguments:
++ `pred`: A predicate for free IDs. Given a free ID, it returns whether it should be bound or not.
+-- *)
+let lift_scheme (rngf : Range.t -> Range.t) (pred : FreeID.t -> bool) (ty : mono_type) : poly_type =
 
   let fidht = FreeIDHashTable.create 32 in
 
@@ -197,16 +201,23 @@ let lift_scheme rngf pred ty =
   aux ty
 
 
-let generalize lev ty =
+(* --
+  `generalize lev ty` transforms a monotype `ty` into a polytype
+  by binding type variables the level of which is higher than `lev`.
+-- *)
+let generalize (lev : int) (ty : mono_type) : poly_type =
   lift_scheme
     (fun _ -> Range.dummy "erased")
     (fun fid ->
       let levx = FreeID.get_level fid in
-      lev <= levx
+      lev < levx
     ) ty
 
 
-let lift ty =
+(* --
+  `lift` projects monotypes into polytypes without binding any type variables.
+--*)
+let lift (ty : mono_type) : poly_type =
   lift_scheme (fun rng -> rng) (fun _ -> false) ty
 
 

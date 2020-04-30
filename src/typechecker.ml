@@ -36,7 +36,11 @@ let make_bound_to_free_map (lev : int) (typaramassoc : type_parameter_assoc) : m
     typaramassoc |> TypeParameterAssoc.fold_left (fun (tyargacc, bfmap) tyvar bid ->
       let fid = FreeID.fresh lev in
       let mtv = ref (Free(fid)) in
-      (Alist.extend tyargacc (Range.dummy "constructor-arg", TypeVar(mtv)), bfmap |> BoundIDMap.add bid mtv)
+      let ty = (Range.dummy "constructor-arg", TypeVar(mtv)) in
+(*
+      Format.printf "BTOF L%d %a\n" lev pp_mono_type ty;  (* for debug *)
+*)
+      (Alist.extend tyargacc ty, bfmap |> BoundIDMap.add bid mtv)
     ) (Alist.empty, BoundIDMap.empty)
   in
   (Alist.to_list tyargacc, bfmap)
@@ -239,12 +243,13 @@ type pre = {
 }
 
 
-let fresh_type lev rng =
+let fresh_type ?name:nameopt lev rng =
   let fid = FreeID.fresh lev in
   let tvref = ref (Free(fid)) in
   let ty = (rng, TypeVar(tvref)) in
 (*
-  Format.printf "GEN L%d %a\n" lev pp_mono_type ty;  (* for debug *)
+  let name = nameopt |> Option.map (fun x -> x ^ " : ") |> Option.value ~default:"" in
+  Format.printf "GEN %sL%d %a\n" name lev pp_mono_type ty;  (* for debug *)
 *)
   ty
 
@@ -284,13 +289,16 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
 
         | Some((_, ptymain), name) ->
             let ty = instantiate pre.level (rng, ptymain) in
+(*
+            Format.printf "INST %s : L%d %a\n" x pre.level pp_mono_type ty;  (* for debug *)
+*)
             (ty, IVar(name))
       end
 
   | Lambda(binders, utast0) ->
       let (tyenv, nameacc, tydomacc) =
         List.fold_left (fun (tyenv, nameacc, tydomacc) (rngv, x) ->
-          let tydom = fresh_type pre.level rngv in
+          let tydom = fresh_type ~name:x pre.level rngv in
           let ptydom = lift tydom in
           let name = generate_output_identifier Local rngv x in
           (tyenv |> Typeenv.add_val x ptydom name, Alist.extend nameacc name, Alist.extend tydomacc tydom)
@@ -343,7 +351,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
             ((Range.dummy "do-unit", BaseType(UnitType)), pre.tyenv, OutputIdentifier.unused)
 
         | Some(rngv, x) ->
-            let tyx = fresh_type lev rngv in
+            let tyx = fresh_type ~name:x lev rngv in
             let name = generate_output_identifier Local rngv x in
             (tyx, pre.tyenv |> Typeenv.add_val x (lift tyx) name, name)
       in
@@ -496,12 +504,12 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
   | PInt(n)  -> immediate (BaseType(IntType)) (IPInt(n))
 
   | PVar(x) ->
-      let ty = fresh_type pre.level rng in
+      let ty = fresh_type ~name:x pre.level rng in
       let name = generate_output_identifier Local rng x in
       (ty, IPVar(name), BindingMap.singleton x (ty, name, rng))
 
   | PWildCard ->
-      let ty = fresh_type pre.level rng in
+      let ty = fresh_type ~name:"_" pre.level rng in
       (ty, IPWildCard, BindingMap.empty)
 
   | PListNil ->
@@ -540,7 +548,7 @@ and typecheck_let (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier)
 
 and typecheck_letrec (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast * poly_type =
   let lev = pre.level in
-  let tyf = fresh_type (lev + 1) rngv in
+  let tyf = fresh_type ~name:x (lev + 1) rngv in
   let name = generate_output_identifier scope rngv x in
   let tyenvsub = pre.tyenv |> Typeenv.add_val x (lift tyf) name in
   let (ty1, e1) = typecheck { level = lev + 1; tyenv = tyenvsub } utast1 in
