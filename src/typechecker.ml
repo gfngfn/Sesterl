@@ -34,7 +34,7 @@ type unification_result =
 
 type scope =
   | Local
-  | Global
+  | Global of int
 
 
 let make_bound_to_free_map (lev : int) (typaramassoc : type_parameter_assoc) : mono_type list * (mono_type_var ref) BoundIDMap.t =
@@ -270,8 +270,8 @@ let check_properly_used (tyenv : Typeenv.t) ((rng, x) : identifier ranged) =
 
 let generate_output_identifier scope rng x =
   match scope with
-  | Local  -> OutputIdentifier.local x
-  | Global -> OutputIdentifier.global x
+  | Local         -> OutputIdentifier.local x
+  | Global(arity) -> OutputIdentifier.global x arity
 
 
 let type_of_base_constant (rng : Range.t) (bc : base_constant) =
@@ -650,15 +650,17 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
   let (tyenv, bindacc) =
     utbinds |> List.fold_left (fun (tyenv, bindacc) utdecl ->
       match utdecl with
-      | BindVal(isrec, binder, utast) ->
+      | BindVal(isrec, binder, params, utast0) ->
+          let arity = List.length params in
+          let utast1 = (Range.dummy "bind-val", Lambda(params, utast0)) in
           let (tyenv, name, e) =
             if isrec then
               let (tyenv, name, e, _) =
-                typecheck_letrec Global { level = 0; tyenv = tyenv } binder utast
+                typecheck_letrec (Global(arity)) { level = 0; tyenv = tyenv } binder utast1
               in
               (tyenv, name, e)
             else
-              typecheck_let Global { level = 0; tyenv = tyenv } binder utast
+              typecheck_let (Global(arity)) { level = 0; tyenv = tyenv } binder utast1
           in
           (tyenv, Alist.extend bindacc (IBindVal(name, e)))
 

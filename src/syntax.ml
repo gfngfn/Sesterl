@@ -96,7 +96,7 @@ type constructor_branch =
 [@@deriving show { with_path = false; } ]
 
 type untyped_binding =
-  | BindVal  of bool * binder * untyped_ast
+  | BindVal  of bool * binder * (identifier ranged) list * untyped_ast
   | BindType of type_name ranged * (type_variable_name ranged) list * constructor_branch list
 [@@deriving show { with_path = false; } ]
 

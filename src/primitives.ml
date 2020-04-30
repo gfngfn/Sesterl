@@ -44,7 +44,7 @@ let initial_type_environment =
   in
 
   let op = OutputIdentifier.global_operator in
-  let normal = OutputIdentifier.global in
+  let normal n s = OutputIdentifier.global s n in
   List.fold_left (fun tyenv (x, ty, name) ->
     tyenv |> Typeenv.add_val x ty name
   ) Typeenv.empty [
@@ -60,10 +60,10 @@ let initial_type_environment =
     ("+" , tyarith, op "+"  );
     ("-" , tyarith, op "-"  );
 
-    ("spawn" , tyspawn , normal "thunk_spawn" );
-    ("send"  , tysend  , normal "thunk_send"  );
-    ("return", tyreturn, normal "thunk_return");
-    ("self"  , tyself  , normal "thunk_self"  );
+    ("spawn" , tyspawn , normal 1 "thunk_spawn" );
+    ("send"  , tysend  , normal 2 "thunk_send"  );
+    ("return", tyreturn, normal 1 "thunk_return");
+    ("self"  , tyself  , normal 0 "thunk_self"  );
 
-    ("print_debug", typrintdebug, normal "print_debug");
+    ("print_debug", typrintdebug, normal 1 "print_debug");
   ]

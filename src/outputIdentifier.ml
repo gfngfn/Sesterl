@@ -1,6 +1,7 @@
 
 type answer =
-  | Normal   of string
+  | Local    of string
+  | Global   of string * int
   | Operator of string
 
 type t = answer
@@ -15,11 +16,11 @@ let fresh =
   (fun () ->
     incr current_max;
     let s = Printf.sprintf "GenSym%d" (!current_max) in
-    Normal(s)
+    Local(s)
   )
 
 
-let scheme (should_capitalize : bool) (s : string) : t =
+let scheme (f : string -> t) (should_capitalize : bool) (s : string) : t =
   if String.length s <= 0 then
     assert false
   else
@@ -31,17 +32,17 @@ let scheme (should_capitalize : bool) (s : string) : t =
         else
           s
       in
-      Normal(sret)
+      f sret
     else
       fresh ()
 
 
 let local (s : string) : t =
-  scheme true s
+  scheme (fun x -> Local(x)) true s
 
 
-let global (s : string) : t =
-  scheme false s
+let global (s : string) (arity : int) : t =
+  scheme (fun x -> Global(x, arity)) false s
 
 
 let global_operator (s : string) : t =
@@ -54,8 +55,9 @@ let output (ans : t) : answer =
 
 let pp ppf (ans : t) =
   match ans with
-  | Normal(s) | Operator(s) -> Format.fprintf ppf "\"%s\"" s
+  | Local(s) | Operator(s) -> Format.fprintf ppf "\"%s\"" s
+  | Global(s, arity)       -> Format.fprintf ppf "\"%s/%d\"" s arity
 
 
 let unused =
-  Normal("_")
+  Local("_")

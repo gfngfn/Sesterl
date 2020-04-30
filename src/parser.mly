@@ -16,10 +16,6 @@
       Range.unite rng1 rng2
 
 
-  let make_lambda rng binders e =
-    (rng, Lambda(binders, e))
-
-
   let binary e1 op e2 =
     let rng = make_range (Ranged(e1)) (Ranged(e2)) in
     let (rngop, vop) = op in
@@ -48,8 +44,8 @@ bindtop:
         BindType(ident, typarams, ctorbrs)
       }
   | bindval=bindvaltop {
-        let (_, isrec, ident, e1) = bindval in
-        BindVal(isrec, ident, e1)
+        let (_, isrec, ident, params, e0) = bindval in
+        BindVal(isrec, ident, params, e0)
       }
 ;
 typarams:
@@ -62,11 +58,11 @@ typaramssub:
   | typaram=TYPARAM; COMMA; tail=typaramssub { typaram :: tail }
 ;
 bindvaltop:
-  | tok=LET; ident=IDENT; args=args; DEFEQ; e1=exprlet {
-        (tok, false, ident, make_lambda (Range.dummy "let") args e1)
+  | tok=LET; ident=IDENT; params=args; DEFEQ; e1=exprlet {
+        (tok, false, ident, params, e1)
       }
-  | tok=LETREC; ident=IDENT; args=args; DEFEQ; e1=exprlet {
-        (tok, true, ident, make_lambda (Range.dummy "letrec") args e1)
+  | tok=LETREC; ident=IDENT; params=args; DEFEQ; e1=exprlet {
+        (tok, true, ident, params, e1)
       }
 ;
 ctorbranch:
@@ -89,7 +85,8 @@ argssub:
 ;
 exprlet:
   | bindval=bindvaltop; IN; e2=exprlet {
-        let (tok1, isrec, ident, e1) = bindval in
+        let (tok1, isrec, ident, params, e0) = bindval in
+        let e1 = (Range.dummy "bind-val-local", Lambda(params, e0)) in
         let rng = make_range (Token(tok1)) (Ranged(e2)) in
         if isrec then
           (rng, LetRecIn(ident, e1, e2))
@@ -115,9 +112,9 @@ exprlet:
   | e=exprfun { e }
 ;
 exprfun:
-  | tok1=LAMBDA; args=args; ARROW; e=exprlet {
+  | tok1=LAMBDA; params=args; ARROW; e=exprlet {
         let rng = make_range (Token(tok1)) (Ranged(e)) in
-        make_lambda rng args e
+        (rng, Lambda(params, e))
       }
   | tok1=RECEIVE; branches=nonempty_list(branch); tok2=END {
         let rng = make_range (Token(tok1)) (Token(tok2)) in

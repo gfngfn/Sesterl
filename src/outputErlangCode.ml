@@ -13,27 +13,50 @@ let stringify_base_constant (bc : base_constant) =
   | Int(n)      -> string_of_int n
 
 
-let output_normal name =
+let output_local name =
   match OutputIdentifier.output name with
-  | OutputIdentifier.Normal(s) -> s
-  | _                          -> assert false
+  | OutputIdentifier.Local(s) -> s
+  | _                         -> assert false
+
+let output_global name =
+  match OutputIdentifier.output name with
+  | OutputIdentifier.Global(s, _) -> s
+  | _                             -> assert false
+
+
+let output_single name =
+  match OutputIdentifier.output name with
+  | OutputIdentifier.Local(s) ->
+      s
+
+  | OutputIdentifier.Global(s, arity) ->
+      let sparam =
+        List.init arity (fun _ ->
+          let name = OutputIdentifier.fresh () in
+          output_local name
+        ) |> String.concat ", "
+      in
+      Printf.sprintf "(fun(%s) -> %s(%s) end)" sparam s sparam
+
+  | _ ->
+      assert false
 
 
 let rec stringify_ast (ast : ast) =
   match ast with
   | IVar(name) ->
-      output_normal name
+      output_single name
 
   | IBaseConst(bc) ->
       stringify_base_constant bc
 
   | ILambda(recopt, names, ast0) ->
-      let snames = names |> List.map output_normal in
+      let snames = names |> List.map output_local in
       let s0 = stringify_ast ast0 in
       let srec =
         match recopt with
         | None          -> ""
-        | Some(namerec) -> " " ^ output_normal namerec
+        | Some(namerec) -> " " ^ output_local namerec
       in
       Printf.sprintf "fun%s(%s) -> %s end" srec (String.concat ", " snames) s0
 
@@ -41,10 +64,11 @@ let rec stringify_ast (ast : ast) =
       let sargs = astargs |> List.map stringify_ast in
       begin
         match (OutputIdentifier.output name, sargs) with
-        | (Normal(sname), _) ->
+        | (OutputIdentifier.Local(sname), _)
+        | (OutputIdentifier.Global(sname, _), _) ->
             Printf.sprintf "%s(%s)" sname (String.concat ", " sargs)
 
-        | (Operator(sop), [sarg1; sarg2]) ->
+        | (OutputIdentifier.Operator(sop), [sarg1; sarg2]) ->
             Printf.sprintf "(%s %s %s)" sarg1 sop sarg2
 
         | _ ->
@@ -52,7 +76,7 @@ let rec stringify_ast (ast : ast) =
       end
 
   | ILetIn(name, ast1, ast2) ->
-      let sname = output_normal name in
+      let sname = output_local name in
       let s1 = stringify_ast ast1 in
       let s2 = stringify_ast ast2 in
       Printf.sprintf "begin %s = %s, %s end" sname s1 s2
@@ -120,7 +144,7 @@ and stringify_pattern (ipat : pattern) =
   | IPBool(true)  -> "true"
   | IPBool(false) -> "false"
   | IPInt(n)      -> string_of_int n
-  | IPVar(name)   -> output_normal name
+  | IPVar(name)   -> output_local name
   | IPWildCard    -> "_"
   | IPListNil     -> "[]"
 
@@ -152,8 +176,8 @@ let stringify_declaration (bind : binding) =
       begin
         match ast with
         | ILambda(None, nameparams, ast0) ->
-            let sfun = output_normal namefun in
-            let sparams = nameparams |> List.map output_normal in
+            let sfun = output_global namefun in
+            let sparams = nameparams |> List.map output_local in
             let s0 = stringify_ast ast0 in
             Printf.sprintf "%s(%s) -> %s." sfun (String.concat ", " sparams) s0
 
