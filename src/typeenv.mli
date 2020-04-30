@@ -15,6 +15,8 @@ val fold_val : (identifier -> poly_type -> 'a -> 'a) -> t -> 'a -> 'a
 
 val add_type : type_name -> TypeID.t -> type_parameter_assoc -> constructor_branch_map -> t -> t
 
+val add_type_for_recursion : type_name -> TypeID.t -> int -> t -> t
+
 val find_constructor : constructor_name -> t -> (TypeID.t * ConstructorID.t * type_parameter_assoc * poly_type list) option
 
 val find_type : type_name -> t -> (TypeID.t * int) option

@@ -633,7 +633,10 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
       | BindType((_, tynm), typarams, ctorbrs) ->
           let tyid = TypeID.fresh tynm in
           let typaramassoc = make_type_parameter_assoc typarams in
-          let ctorbrmap = make_constructor_branch_map tyenv typaramassoc ctorbrs in
+          let ctorbrmap =
+            let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm tyid (List.length typarams) in
+            make_constructor_branch_map tyenv typaramassoc ctorbrs
+          in
           (tyenv |> Typeenv.add_type tynm tyid typaramassoc ctorbrmap, bindacc)
 
     ) (tyenv, Alist.empty)
