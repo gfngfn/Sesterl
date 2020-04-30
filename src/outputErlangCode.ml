@@ -84,6 +84,18 @@ let rec stringify_ast (ast : ast) =
       let s2 = stringify_ast e2 in
       Printf.sprintf "[%s | %s]" s1 s2
 
+  | IConstructor(ctorid, es) ->
+      let sctor = ConstructorID.output ctorid in
+      begin
+        match es with
+        | [] ->
+            sctor
+
+        | _ :: _ ->
+            let ss = es |> List.map stringify_ast in
+            Printf.sprintf "{%s, %s}" sctor (String.concat ", " ss)
+      end
+
 
 and stringify_branch (br : branch) =
   match br with

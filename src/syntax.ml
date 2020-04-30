@@ -70,6 +70,7 @@ and untyped_ast_main =
   | ListNil
   | ListCons of untyped_ast * untyped_ast
   | Case     of untyped_ast * untyped_branch list
+  | Constructor of constructor_name * untyped_ast list
 
 and untyped_branch =
   | Branch of untyped_pattern * untyped_ast option * untyped_ast
@@ -211,22 +212,10 @@ let lift ty =
 
 module BoundIDHashTable = Hashtbl.Make(BoundID)
 
+module BoundIDMap = Map.Make(BoundID)
 
-let instantiate lev pty =
 
-  let bidht = BoundIDHashTable.create 32 in
-
-  let intern bid =
-    match BoundIDHashTable.find_opt bidht bid with
-    | Some(mtv) ->
-        mtv
-
-    | None ->
-        let fid = FreeID.fresh lev in
-        let mtv = ref (Free(fid)) in
-        BoundIDHashTable.add bidht bid mtv;
-        mtv
-  in
+let instantiate_scheme intern lev pty =
 
   let rec aux (rng, ptymain) =
     match ptymain with
@@ -273,6 +262,32 @@ let instantiate lev pty =
     Pid(ty)
   in
   aux pty
+
+
+let instantiate (lev : int) (pty : poly_type) : mono_type =
+  let bidht = BoundIDHashTable.create 32 in
+    (* -- a hash table is created at every (non-partial) call of `instantiate` -- *)
+  let intern bid =
+    match BoundIDHashTable.find_opt bidht bid with
+    | Some(mtv) ->
+        mtv
+
+    | None ->
+        let fid = FreeID.fresh lev in
+        let mtv = ref (Free(fid)) in
+        BoundIDHashTable.add bidht bid mtv;
+        mtv
+  in
+  instantiate_scheme intern lev pty
+
+
+let instantiate_by_map (bfmap : (mono_type_var ref) BoundIDMap.t) =
+  let intern bid =
+    match bfmap |> BoundIDMap.find_opt bid with
+    | None      -> assert false
+    | Some(mtv) -> mtv
+  in
+  instantiate_scheme intern
 
 
 let overwrite_range_of_type (type a) (rng : Range.t) ((_, tymain) : a typ) : a typ =
@@ -386,6 +401,7 @@ type ast =
   | ITuple     of ast TupleList.t
   | IListNil
   | IListCons  of ast * ast
+  | IConstructor of ConstructorID.t * ast list
 
 and branch =
   | IBranch of pattern * ast option * ast

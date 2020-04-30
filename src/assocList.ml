@@ -9,9 +9,10 @@ end
 module Make(Key : EQ) : sig
   type elem
   type 'v t
-  val empty : 'a t
-  val add_last : elem -> 'a -> 'a t -> 'a t
-  val find_opt : elem -> 'a t -> 'a option
+  val empty : 'v t
+  val add_last : elem -> 'v -> 'v t -> 'v t
+  val find_opt : elem -> 'v t -> 'v option
+  val fold_left : ('a -> elem -> 'v -> 'a) -> 'a -> 'v t -> 'a
 end
   with type elem = Key.t
 = struct
@@ -49,5 +50,9 @@ end
           Some(vx)
         else
           find_opt k tail
+
+
+  let fold_left f init assoc =
+    List.fold_left (fun acc (k, v) -> f acc k v) init assoc
 
 end

@@ -8,6 +8,8 @@ exception ContradictionError         of mono_type * mono_type
 exception InclusionError             of FreeID.t * mono_type * mono_type
 exception BoundMoreThanOnceInPattern of Range.t * identifier
 exception UnboundTypeParameter       of Range.t * type_variable_name
+exception UndefinedConstructor       of Range.t * constructor_name
+exception InvalidNumberOfConstructorArguments of Range.t * constructor_name * int * int
 
 
 module BindingMap = Map.Make(String)
@@ -25,6 +27,14 @@ type unification_result =
 type scope =
   | Local
   | Global
+
+
+let make_bound_to_free_map (lev : int) (typaramassoc : type_parameter_assoc) : (mono_type_var ref) BoundIDMap.t =
+  typaramassoc |> TypeParameterAssoc.fold_left (fun bidmap tyvar bid ->
+    let fid = FreeID.fresh lev in
+    let mtv = ref (Free(fid)) in
+    bidmap |> BoundIDMap.add bid mtv
+  ) BoundIDMap.empty
 
 
 let (&&&) res1 res2 =
@@ -400,6 +410,38 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
         check_properly_used tyenv (rng, x)
       ) bindmap;
       (ty2, ICase(e1, [ IBranch(ipat, None, e2) ]))
+
+  | Constructor(ctornm, utastargs) ->
+      begin
+        match pre.tyenv |> Typeenv.find_constructor ctornm with
+        | None ->
+            raise (UndefinedConstructor(rng, ctornm))
+
+        | Some(tyid, ctorid, typaramassoc, ptys) ->
+            let lev = pre.level in
+            let bfmap = make_bound_to_free_map lev typaramassoc in
+            begin
+              try
+                let tyes =
+                  List.fold_left2 (fun acc pty utast ->
+                    let ty_expected = instantiate_by_map bfmap lev pty in
+                    let (ty, e) = typecheck pre utast in
+                    unify ty ty_expected;
+                    Alist.extend acc (ty, e)
+                  ) Alist.empty ptys utastargs |> Alist.to_list
+                in
+                let tys = tyes |> List.map fst in
+                let es = tyes |> List.map snd in
+                let ty = (rng, VariantType(tyid, tys)) in
+                let e = IConstructor(ctorid, es) in
+                (ty, e)
+              with
+              | Invalid_argument(_) ->
+                  let len_expected = List.length ptys in
+                  let len_actual = List.length utastargs in
+                  raise (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
+            end
+      end
 
 
 and typecheck_case_branch (pre : pre) =

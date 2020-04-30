@@ -27,8 +27,8 @@
 %}
 
 %token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF
-%token<Range.t * Syntax.identifier> IDENT BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
-%token<Range.t * Syntax.identifier> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
+%token<Range.t * string> IDENT CTOR BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
+%token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
 %token EOI
 
@@ -143,6 +143,12 @@ exprapp:
         let (rtok, eargs) = args in
         let rng = make_range (Ranged(efun)) (Token(rtok)) in
         (rng, Apply(efun, eargs))
+      }
+  | ctor=CTOR; LPAREN; args=exprargs {
+        let (ltok, ctornm) = ctor in
+        let (rtok, eargs) = args in
+        let rng = make_range (Token(ltok)) (Token(rtok)) in
+        (rng, Constructor(ctornm, eargs))
       }
   | e=exprbot { e }
 ;
