@@ -1,4 +1,4 @@
 
 open Syntax
 
-val main : declaration list -> string
+val main : binding list -> string

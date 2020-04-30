@@ -61,8 +61,8 @@ and untyped_pattern_main =
   | PTuple    of untyped_pattern TupleList.t
 [@@deriving show { with_path = false; } ]
 
-type untyped_declaration =
-  | DeclVal of bool * binder * untyped_ast
+type untyped_binding =
+  | BindVal of bool * binder * untyped_ast
 [@@deriving show { with_path = false; } ]
 
 type base_type =
@@ -364,6 +364,6 @@ and branch =
   | IBranch of pattern * ast option * ast
 [@@deriving show { with_path = false; } ]
 
-type declaration =
-  | IValDecl of name * ast
+type binding =
+  | IBindVal of name * ast
 [@@deriving show { with_path = false; } ]

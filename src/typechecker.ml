@@ -503,12 +503,12 @@ and typecheck_letrec (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifi
   (pre.tyenv |> Typeenv.add_val x ptyf name, name, e1, ptyf)
 
 
-let main (utdecls : untyped_declaration list) : Typeenv.t * declaration list =
+let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
   let tyenv = Primitives.initial_type_environment in
-  let (tyenv, declacc) =
-    utdecls |> List.fold_left (fun (tyenv, declacc) utdecl ->
+  let (tyenv, bindacc) =
+    utbinds |> List.fold_left (fun (tyenv, bindacc) utdecl ->
       match utdecl with
-      | DeclVal(isrec, binder, utast) ->
+      | BindVal(isrec, binder, utast) ->
           let (tyenv, name, e) =
             if isrec then
               let (tyenv, name, e, _) =
@@ -518,7 +518,7 @@ let main (utdecls : untyped_declaration list) : Typeenv.t * declaration list =
             else
               typecheck_let Global { level = 0; tyenv = tyenv } binder utast
           in
-          (tyenv, Alist.extend declacc (IValDecl(name, e)))
+          (tyenv, Alist.extend bindacc (IBindVal(name, e)))
     ) (tyenv, Alist.empty)
   in
-  (tyenv, declacc |> Alist.to_list)
+  (tyenv, bindacc |> Alist.to_list)

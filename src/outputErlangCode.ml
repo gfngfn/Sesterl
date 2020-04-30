@@ -122,9 +122,9 @@ and stringify_pattern (ipat : pattern) =
       Printf.sprintf "{%s}" (String.concat ", " ss)
 
 
-let stringify_declaration (decl : declaration) =
-  match decl with
-  | IValDecl(namefun, ast) ->
+let stringify_declaration (bind : binding) =
+  match bind with
+  | IBindVal(namefun, ast) ->
       begin
         match ast with
         | ILambda(None, nameparams, ast0) ->
@@ -138,8 +138,8 @@ let stringify_declaration (decl : declaration) =
       end
 
 
-let main (decls : declaration list) =
-  let sdecls = decls |> List.map stringify_declaration in
+let main (binds : binding list) =
+  let sbinds = binds |> List.map stringify_declaration in
   let lines =
     List.append [
       "-module(autogen).";
@@ -149,6 +149,6 @@ let main (decls : declaration list) =
       "thunk_send(X, Y) -> fun() -> X ! Y, ok end.";
       "thunk_self() -> erlang:self().";
       "print_debug(X) -> io:format(\"~p~n\", [X]), ok.";
-    ] sdecls
+    ] sbinds
   in
   lines |> List.map (fun s -> s ^ "\n") |> String.concat ""

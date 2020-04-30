@@ -33,23 +33,23 @@
 %token EOI
 
 %start main
-%type<Syntax.untyped_declaration list> main
+%type<Syntax.untyped_binding list> main
 
 %%
 main:
-  | decls=decls { decls }
+  | binds=binds { binds }
 ;
-decls:
-  | dec=dectop; tail=decls {
-        let (_, ident, isrec, e1) = dec in
-        DeclVal(isrec, ident, e1) :: tail
+binds:
+  | bind=bindtop; tail=binds {
+        let (_, ident, isrec, e1) = bind in
+        BindVal(isrec, ident, e1) :: tail
       }
   | EOI { [] }
 ;
 ident:
   | ident=IDENT { ident }
 ;
-dectop:
+bindtop:
   | tok1=LET; ident=IDENT; args=args; DEFEQ; e1=exprlet {
         (tok1, ident, false, make_lambda (Range.dummy "let") args e1)
       }
@@ -66,8 +66,8 @@ argssub:
   | ident=IDENT; COMMA; tail=argssub { ident :: tail }
 ;
 exprlet:
-  | dec=dectop; IN; e2=exprlet {
-        let (tok1, ident, isrec, e1) = dec in
+  | bind=bindtop; IN; e2=exprlet {
+        let (tok1, ident, isrec, e1) = bind in
         let rng = make_range (Token(tok1)) (Ranged(e2)) in
         if isrec then
           (rng, LetRecIn(ident, e1, e2))
