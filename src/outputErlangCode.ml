@@ -84,6 +84,18 @@ let rec stringify_ast (ast : ast) =
       let s2 = stringify_ast e2 in
       Printf.sprintf "[%s | %s]" s1 s2
 
+  | IConstructor(ctorid, es) ->
+      let sctor = ConstructorID.output ctorid in
+      begin
+        match es with
+        | [] ->
+            sctor
+
+        | _ :: _ ->
+            let ss = es |> List.map stringify_ast in
+            Printf.sprintf "{%s, %s}" sctor (String.concat ", " ss)
+      end
+
 
 and stringify_branch (br : branch) =
   match br with
@@ -121,10 +133,22 @@ and stringify_pattern (ipat : pattern) =
       let ss = ipats |> TupleList.to_list |> List.map stringify_pattern in
       Printf.sprintf "{%s}" (String.concat ", " ss)
 
+  | IPConstructor(ctorid, ipats) ->
+      let atom = ConstructorID.output ctorid in
+      begin
+        match ipats with
+        | [] ->
+            atom
 
-let stringify_declaration (decl : declaration) =
-  match decl with
-  | IValDecl(namefun, ast) ->
+        | _ :: _ ->
+            let ss = ipats |> List.map stringify_pattern in
+            Printf.sprintf "{%s, %s}" atom (String.concat ", " ss)
+      end
+
+
+let stringify_declaration (bind : binding) =
+  match bind with
+  | IBindVal(namefun, ast) ->
       begin
         match ast with
         | ILambda(None, nameparams, ast0) ->
@@ -138,8 +162,8 @@ let stringify_declaration (decl : declaration) =
       end
 
 
-let main (decls : declaration list) =
-  let sdecls = decls |> List.map stringify_declaration in
+let main (binds : binding list) =
+  let sbinds = binds |> List.map stringify_declaration in
   let lines =
     List.append [
       "-module(autogen).";
@@ -149,6 +173,6 @@ let main (decls : declaration list) =
       "thunk_send(X, Y) -> fun() -> X ! Y, ok end.";
       "thunk_self() -> erlang:self().";
       "print_debug(X) -> io:format(\"~p~n\", [X]), ok.";
-    ] sdecls
+    ] sbinds
   in
   lines |> List.map (fun s -> s ^ "\n") |> String.concat ""

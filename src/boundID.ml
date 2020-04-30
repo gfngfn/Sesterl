@@ -11,6 +11,10 @@ let equal bid1 bid2 =
 let hash = Hashtbl.hash
 
 
+let compare bid1 bid2 =
+  bid2.id - bid1.id
+
+
 let current_max = ref 0
 
 

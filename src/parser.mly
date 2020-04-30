@@ -26,35 +26,57 @@
     (rng, Apply((rngop, Var(vop)), [e1; e2]))
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF
-%token<Range.t * Syntax.identifier> IDENT BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
-%token<Range.t * Syntax.identifier> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
+%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE
+%token<Range.t * string> IDENT CTOR TYPARAM BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
+%token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
 %token EOI
 
 %start main
-%type<Syntax.untyped_declaration list> main
+%type<Syntax.untyped_binding list> main
+%type<Syntax.manual_type> ty
 
 %%
 main:
-  | decls=decls { decls }
-;
-decls:
-  | dec=dectop; tail=decls {
-        let (_, ident, isrec, e1) = dec in
-        ValDecl(isrec, ident, e1) :: tail
-      }
-  | EOI { [] }
+  | binds=list(bindtop); EOI { binds }
 ;
 ident:
   | ident=IDENT { ident }
 ;
-dectop:
-  | tok1=LET; ident=IDENT; args=args; DEFEQ; e1=exprlet {
-        (tok1, ident, false, make_lambda (Range.dummy "let") args e1)
+bindtop:
+  | TYPE; ident=IDENT; typarams=typarams; DEFEQ; ctorbrs=nonempty_list(ctorbranch) {
+        BindType(ident, typarams, ctorbrs)
       }
-  | tok1=LETREC; ident=IDENT; args=args; DEFEQ; e1=exprlet {
-        (tok1, ident, true, make_lambda (Range.dummy "letrec") args e1)
+  | bindval=bindvaltop {
+        let (_, isrec, ident, e1) = bindval in
+        BindVal(isrec, ident, e1)
+      }
+;
+typarams:
+  |                                     { [] }
+  | LPAREN; typarams=typaramssub RPAREN { typarams }
+;
+typaramssub:
+  |                                          { [] }
+  | typaram=TYPARAM                          { typaram :: [] }
+  | typaram=TYPARAM; COMMA; tail=typaramssub { typaram :: tail }
+;
+bindvaltop:
+  | tok=LET; ident=IDENT; args=args; DEFEQ; e1=exprlet {
+        (tok, false, ident, make_lambda (Range.dummy "let") args e1)
+      }
+  | tok=LETREC; ident=IDENT; args=args; DEFEQ; e1=exprlet {
+        (tok, true, ident, make_lambda (Range.dummy "letrec") args e1)
+      }
+;
+ctorbranch:
+  | BAR; ctor=CTOR; {
+        let (_, ctornm) = ctor in
+        ConstructorBranch(ctornm, [])
+      }
+  | BAR; ctor=CTOR; LPAREN; paramtys=tys; RPAREN {
+        let (_, ctornm) = ctor in
+        ConstructorBranch(ctornm, paramtys)
       }
 ;
 args:
@@ -66,8 +88,8 @@ argssub:
   | ident=IDENT; COMMA; tail=argssub { ident :: tail }
 ;
 exprlet:
-  | dec=dectop; IN; e2=exprlet {
-        let (tok1, ident, isrec, e1) = dec in
+  | bindval=bindvaltop; IN; e2=exprlet {
+        let (tok1, isrec, ident, e1) = bindval in
         let rng = make_range (Token(tok1)) (Ranged(e2)) in
         if isrec then
           (rng, LetRecIn(ident, e1, e2))
@@ -144,6 +166,12 @@ exprapp:
         let rng = make_range (Ranged(efun)) (Token(rtok)) in
         (rng, Apply(efun, eargs))
       }
+  | ctor=CTOR; LPAREN; args=exprargs {
+        let (ltok, ctornm) = ctor in
+        let (rtok, eargs) = args in
+        let rng = make_range (Token(ltok)) (Token(rtok)) in
+        (rng, Constructor(ctornm, eargs))
+      }
   | e=exprbot { e }
 ;
 exprargs:
@@ -165,6 +193,10 @@ exprbot:
   | tok1=LSQUARE; tok2=RSQUARE {
         let rng = make_range (Token(tok1)) (Token(tok2)) in
         (rng, ListNil)
+      }
+  | ctor=CTOR {
+        let (rng, ctornm) = ctor in
+        (rng, Constructor(ctornm, []))
       }
 ;
 tuplesub:
@@ -194,7 +226,48 @@ patbot:
         let rng = make_range (Token(rngl)) (Token(rngr)) in
         (rng, PTuple(TupleList.make p1 p2 pats))
       }
+  | ctor=CTOR {
+        let (rng, ctornm) = ctor in
+        (rng, PConstructor(ctornm, []))
+      }
+  | ctor=CTOR; LPAREN; pats=pats; tokR=RPAREN {
+        let (tokL, ctornm) = ctor in
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, PConstructor(ctornm, pats))
+      }
+;
+pats:
+  |                               { [] }
+  | pat=patcons                   { pat :: [] }
+  | pat=patcons; COMMA; tail=pats { pat :: tail }
 ;
 pattuplesub:
   | COMMA; p=patcons { p }
+;
+tys:
+  |                         { [] }
+  | mty=ty                  { mty :: [] }
+  | mty=ty; COMMA; tail=tys { mty :: tail }
+;
+ty:
+  | mty=tybot { mty }
+;
+tybot:
+  | tok=TYPARAM {
+        let (rng, typaram) = tok in
+        (rng, MTypeVar(typaram))
+      }
+  | ident=IDENT {
+        let (rng, tynm) = ident in
+        (rng, MTypeName(tynm, []))
+      }
+  | ident=IDENT; LPAREN; mtyargs=tys; tokR=RPAREN {
+        let (tokL, tynm) = ident in
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, MTypeName(tynm, mtyargs))
+      }
+  | tokL=LAMBDA; LPAREN; mtydoms=tys; RPAREN; ARROW; mtycod=ty {
+        let rng = make_range (Token(tokL)) (Ranged(mtycod)) in
+        (rng, MFuncType(mtydoms, mtycod))
+      }
 ;

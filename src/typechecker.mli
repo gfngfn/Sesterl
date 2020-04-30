@@ -6,4 +6,4 @@ exception ContradictionError         of mono_type * mono_type
 exception InclusionError             of FreeID.t * mono_type * mono_type
 exception BoundMoreThanOnceInPattern of Range.t * identifier
 
-val main : untyped_declaration list -> Typeenv.t * declaration list
+val main : untyped_binding list -> Typeenv.t * binding list

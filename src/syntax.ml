@@ -5,7 +5,20 @@ exception SeeEndOfFileInComment of Range.t
 
 type 'a ranged = Range.t * 'a
 
+let pp_ranged ppsub ppf (_, x) =
+  Format.fprintf ppf "%a" ppsub x
+
 type identifier = string
+
+type type_name = string
+[@@deriving show { with_path = false; } ]
+
+type constructor_name = string
+[@@deriving show { with_path = false; } ]
+
+type type_variable_name = string
+[@@deriving show { with_path = false; } ]
+
 
 let pp_identifier ppf s =
   Format.fprintf ppf "\"%s\"" s
@@ -16,6 +29,21 @@ type binder = identifier ranged
 let pp_binder ppf (_, s) =
   pp_identifier ppf s
 
+
+type base_type =
+  | IntType
+  | BoolType
+  | UnitType
+[@@deriving show { with_path = false; } ]
+
+type manual_type = manual_type_main ranged
+
+and manual_type_main =
+  | MTypeName    of type_name * manual_type list
+  | MFuncType    of manual_type list * manual_type
+  | MProductType of manual_type TupleList.t
+  | MTypeVar     of type_variable_name
+[@@deriving show { with_path = false; } ]
 
 type base_constant =
   | Unit
@@ -42,6 +70,7 @@ and untyped_ast_main =
   | ListNil
   | ListCons of untyped_ast * untyped_ast
   | Case     of untyped_ast * untyped_branch list
+  | Constructor of constructor_name * untyped_ast list
 
 and untyped_branch =
   | Branch of untyped_pattern * untyped_ast option * untyped_ast
@@ -59,16 +88,16 @@ and untyped_pattern_main =
   | PListNil
   | PListCons of untyped_pattern * untyped_pattern
   | PTuple    of untyped_pattern TupleList.t
+  | PConstructor of constructor_name * untyped_pattern list
 [@@deriving show { with_path = false; } ]
 
-type untyped_declaration =
-  | ValDecl of bool * binder * untyped_ast
+type constructor_branch =
+  | ConstructorBranch of constructor_name * manual_type list
 [@@deriving show { with_path = false; } ]
 
-type base_type =
-  | IntType
-  | BoolType
-  | UnitType
+type untyped_binding =
+  | BindVal  of bool * binder * untyped_ast
+  | BindType of type_name ranged * (type_variable_name ranged) list * constructor_branch list
 [@@deriving show { with_path = false; } ]
 
 type 'a typ =
@@ -82,6 +111,7 @@ and 'a typ_main =
   | TypeVar     of 'a
   | ProductType of ('a typ) TupleList.t
   | ListType    of 'a typ
+  | VariantType of TypeID.t * ('a typ) list
 
 and 'a effect =
   | Effect of 'a typ
@@ -104,7 +134,11 @@ type poly_type = poly_type_var typ
 module FreeIDHashTable = Hashtbl.Make(FreeID)
 
 
-let lift_scheme rngf pred ty =
+(* --
+Arguments:
++ `pred`: A predicate for free IDs. Given a free ID, it returns whether it should be bound or not.
+-- *)
+let lift_scheme (rngf : Range.t -> Range.t) (pred : FreeID.t -> bool) (ty : mono_type) : poly_type =
 
   let fidht = FreeIDHashTable.create 32 in
 
@@ -154,6 +188,9 @@ let lift_scheme rngf pred ty =
     | ListType(ty0) ->
         (rngf rng, ListType(aux ty0))
 
+    | VariantType(tyid, tyargs) ->
+        (rngf rng, VariantType(tyid, tyargs |> List.map aux))
+
   and aux_effect (Effect(ty)) =
     let pty = aux ty in
     Effect(pty)
@@ -165,37 +202,32 @@ let lift_scheme rngf pred ty =
   aux ty
 
 
-let generalize lev ty =
+(* --
+  `generalize lev ty` transforms a monotype `ty` into a polytype
+  by binding type variables the level of which is higher than `lev`.
+-- *)
+let generalize (lev : int) (ty : mono_type) : poly_type =
   lift_scheme
     (fun _ -> Range.dummy "erased")
     (fun fid ->
       let levx = FreeID.get_level fid in
-      lev <= levx
+      lev < levx
     ) ty
 
 
-let lift ty =
+(* --
+  `lift` projects monotypes into polytypes without binding any type variables.
+--*)
+let lift (ty : mono_type) : poly_type =
   lift_scheme (fun rng -> rng) (fun _ -> false) ty
 
 
 module BoundIDHashTable = Hashtbl.Make(BoundID)
 
+module BoundIDMap = Map.Make(BoundID)
 
-let instantiate lev pty =
 
-  let bidht = BoundIDHashTable.create 32 in
-
-  let intern bid =
-    match BoundIDHashTable.find_opt bidht bid with
-    | Some(mtv) ->
-        mtv
-
-    | None ->
-        let fid = FreeID.fresh lev in
-        let mtv = ref (Free(fid)) in
-        BoundIDHashTable.add bidht bid mtv;
-        mtv
-  in
+let instantiate_scheme intern lev pty =
 
   let rec aux (rng, ptymain) =
     match ptymain with
@@ -230,6 +262,9 @@ let instantiate lev pty =
     | ListType(pty0) ->
         (rng, ListType(aux pty0))
 
+    | VariantType(tyid, ptyargs) ->
+        (rng, VariantType(tyid, ptyargs |> List.map aux))
+
   and aux_effect (Effect(pty)) =
     let ty = aux pty in
     Effect(ty)
@@ -239,6 +274,32 @@ let instantiate lev pty =
     Pid(ty)
   in
   aux pty
+
+
+let instantiate (lev : int) (pty : poly_type) : mono_type =
+  let bidht = BoundIDHashTable.create 32 in
+    (* -- a hash table is created at every (non-partial) call of `instantiate` -- *)
+  let intern bid =
+    match BoundIDHashTable.find_opt bidht bid with
+    | Some(mtv) ->
+        mtv
+
+    | None ->
+        let fid = FreeID.fresh lev in
+        let mtv = ref (Free(fid)) in
+        BoundIDHashTable.add bidht bid mtv;
+        mtv
+  in
+  instantiate_scheme intern lev pty
+
+
+let instantiate_by_map (bfmap : (mono_type_var ref) BoundIDMap.t) =
+  let intern bid =
+    match bfmap |> BoundIDMap.find_opt bid with
+    | None      -> assert false
+    | Some(mtv) -> mtv
+  in
+  instantiate_scheme intern
 
 
 let overwrite_range_of_type (type a) (rng : Range.t) ((_, tymain) : a typ) : a typ =
@@ -281,6 +342,17 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
     | ListType(ty0) ->
         let s0 = aux ty0 in
         Printf.sprintf "list(%s)" s0
+
+    | VariantType(tyid, tyargs) ->
+        begin
+          match tyargs with
+          | [] ->
+              Format.asprintf "%a" TypeID.pp tyid
+
+          | _ :: _ ->
+              let ss = tyargs |> List.map aux in
+              Format.asprintf "%a(%s)" TypeID.pp tyid (String.concat ", " ss)
+        end
 
   and aux_effect (Effect(ty)) =
     let s = aux ty in
@@ -335,6 +407,7 @@ type pattern =
   | IPListNil
   | IPListCons of pattern * pattern
   | IPTuple    of pattern TupleList.t
+  | IPConstructor of ConstructorID.t * pattern list
 [@@deriving show { with_path = false; } ]
 
 type ast =
@@ -348,11 +421,20 @@ type ast =
   | ITuple     of ast TupleList.t
   | IListNil
   | IListCons  of ast * ast
+  | IConstructor of ConstructorID.t * ast list
 
 and branch =
   | IBranch of pattern * ast option * ast
 [@@deriving show { with_path = false; } ]
 
-type declaration =
-  | IValDecl of name * ast
+type binding =
+  | IBindVal of name * ast
 [@@deriving show { with_path = false; } ]
+
+module ConstructorBranchMap = Map.Make(String)
+
+type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorBranchMap.t
+
+module TypeParameterAssoc = AssocList.Make(String)
+
+type type_parameter_assoc = BoundID.t TypeParameterAssoc.t
