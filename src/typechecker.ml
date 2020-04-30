@@ -12,7 +12,7 @@ exception BoundMoreThanOnceInPattern of Range.t * identifier
 module BindingMap = Map.Make(String)
 
 
-type binding_map = (mono_type * name) BindingMap.t
+type binding_map = (mono_type * name * Range.t) BindingMap.t
 
 
 type unification_result =
@@ -224,6 +224,14 @@ let fresh_type lev rng =
   ty
 
 
+let check_properly_used (tyenv : Typeenv.t) ((rng, x) : identifier ranged) =
+  match tyenv |> Typeenv.is_val_properly_used x with
+  | None        -> assert false
+  | Some(true)  -> ()
+  | Some(false) -> Logging.warn_val_not_used rng x
+
+
+
 let generate_output_identifier scope rng x =
   match scope with
   | Local  -> OutputIdentifier.local x
@@ -290,6 +298,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
   | LetIn(ident, utast1, utast2) ->
       let (tyenv, name, e1) = typecheck_let Local pre ident utast1 in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
+      check_properly_used tyenv ident;
       (ty2, ILetIn(name, e1, e2))
 
   | LetRecIn(((_, x) as ident), utast1, utast2) ->
@@ -297,6 +306,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let name_outer = OutputIdentifier.fresh () in
       let tyenv = tyenv |> Typeenv.add_val x pty name_outer in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
+      check_properly_used tyenv ident;
       (ty2, iletrecin name_outer name_inner e1 e2)
 
   | Do(identopt, utast1, utast2) ->
@@ -381,7 +391,7 @@ and typecheck_receive_branch (pre : pre) =
 and typecheck_branch_scheme unifyk (pre : pre) typatexp tyret (Branch(pat, utast0opt, utast1)) : branch =
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
   let tyenv =
-    BindingMap.fold (fun x (ty, name) tyenv ->
+    BindingMap.fold (fun x (ty, name, _) tyenv ->
       tyenv |> Typeenv.add_val x (lift ty) name
     ) bindmap pre.tyenv
   in
@@ -395,6 +405,9 @@ and typecheck_branch_scheme unifyk (pre : pre) typatexp tyret (Branch(pat, utast
     )
   in
   let (ty1, e1) = typecheck pre utast1 in
+  BindingMap.iter (fun x (_, _, rng) ->
+    check_properly_used tyenv (rng, x)
+  ) bindmap;
   unifyk ty1 typatexp tyret;
   IBranch(ipat, e0opt, e1)
 
@@ -414,7 +427,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
   | PVar(x) ->
       let ty = fresh_type pre.level rng in
       let name = generate_output_identifier Local rng x in
-      (ty, IPVar(name), BindingMap.singleton x (ty, name))
+      (ty, IPVar(name), BindingMap.singleton x (ty, name, rng))
 
   | PWildCard ->
       let ty = fresh_type pre.level rng in
