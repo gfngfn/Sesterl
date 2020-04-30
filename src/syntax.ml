@@ -51,9 +51,9 @@ and untyped_pattern =
 
 and untyped_pattern_main =
   | PUnit
-  | PBool of bool
-  | PInt  of int
-  | PVar  of identifier
+  | PBool     of bool
+  | PInt      of int
+  | PVar      of identifier
   | PWildCard
   | PListNil
   | PListCons of untyped_pattern * untyped_pattern
@@ -74,11 +74,11 @@ type 'a typ =
   ('a typ_main) ranged
 
 and 'a typ_main =
-  | BaseType of base_type
-  | FuncType of ('a typ) list * 'a typ
-  | PidType  of 'a pid_type
-  | EffType  of 'a effect * 'a typ
-  | TypeVar  of 'a
+  | BaseType    of base_type
+  | FuncType    of ('a typ) list * 'a typ
+  | PidType     of 'a pid_type
+  | EffType     of 'a effect * 'a typ
+  | TypeVar     of 'a
   | ProductType of ('a typ) TupleList.t
   | ListType    of 'a typ
 
