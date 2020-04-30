@@ -82,6 +82,7 @@ and 'a typ_main =
   | TypeVar     of 'a
   | ProductType of ('a typ) TupleList.t
   | ListType    of 'a typ
+  | VariantType of TypeID.t * ('a typ) list
 
 and 'a effect =
   | Effect of 'a typ
@@ -153,6 +154,9 @@ let lift_scheme rngf pred ty =
 
     | ListType(ty0) ->
         (rngf rng, ListType(aux ty0))
+
+    | VariantType(tyid, tyargs) ->
+        (rngf rng, VariantType(tyid, tyargs |> List.map aux))
 
   and aux_effect (Effect(ty)) =
     let pty = aux ty in
@@ -230,6 +234,9 @@ let instantiate lev pty =
     | ListType(pty0) ->
         (rng, ListType(aux pty0))
 
+    | VariantType(tyid, ptyargs) ->
+        (rng, VariantType(tyid, ptyargs |> List.map aux))
+
   and aux_effect (Effect(pty)) =
     let ty = aux pty in
     Effect(ty)
@@ -281,6 +288,10 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
     | ListType(ty0) ->
         let s0 = aux ty0 in
         Printf.sprintf "list(%s)" s0
+
+    | VariantType(tyid, tyargs) ->
+        let ss = tyargs |> List.map aux in
+        Format.asprintf "%a(%s)" TypeID.pp tyid (String.concat ", " ss)
 
   and aux_effect (Effect(ty)) =
     let s = aux ty in

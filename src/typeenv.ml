@@ -11,6 +11,10 @@ type val_entry = {
   mutable is_used : bool;
 }
 
+type type_entry = {
+  type_id : TypeID.t;
+}
+
 type t = {
   vals  : val_entry VarMap.t;
   types : unit;  (* temporary*)

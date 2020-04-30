@@ -83,6 +83,9 @@ let occurs fid ty =
     | ListType(ty) ->
         aux ty
 
+    | VariantType(tyid, tyargs) ->
+        aux_list tyargs
+
     | EffType(eff, ty0) ->
         let beff = aux_effect eff in
         let b0 = aux ty0 in
@@ -152,6 +155,12 @@ let unify tyact tyexp =
 
     | (ListType(ty1), ListType(ty2)) ->
         aux ty1 ty2
+
+    | (VariantType(tyid1, tyargs1), VariantType(tyid2, tyargs2)) ->
+        if TypeID.equal tyid1 tyid2 then
+          aux_list tyargs1 tyargs2
+        else
+          Contradiction
 
     | (TypeVar({contents = Free(fid1)} as tvref1), TypeVar({contents = Free(fid2)})) ->
         let () =
