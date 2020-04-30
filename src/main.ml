@@ -9,7 +9,7 @@ let main fname =
   let (tyenv, decls) = Typechecker.main utdecls in
   let scode = OutputErlangCode.main decls in
   Format.printf "%s\n" scode;
-  Typeenv.fold (fun x pty () ->
+  Typeenv.fold_val (fun x pty () ->
     Format.printf "%s : %a\n" x pp_poly_type pty
   ) tyenv ()
 

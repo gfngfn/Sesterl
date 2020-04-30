@@ -22,16 +22,16 @@ let empty = {
 }
 
 
-let add x pty name tyenv =
+let add_val x pty name tyenv =
   let vals = tyenv.vals |> VarMap.add x { typ = pty; name = name } in
   { tyenv with vals = vals; }
 
 
-let find_opt x tyenv =
+let find_val_opt x tyenv =
   tyenv.vals |> VarMap.find_opt x |> Option.map (fun entry ->
     (entry.typ, entry.name)
   )
 
 
-let fold f tyenv acc =
+let fold_val f tyenv acc =
   VarMap.fold (fun x entry acc -> f x entry.typ acc) tyenv.vals acc
