@@ -40,7 +40,7 @@ rule token = parse
           | "type"    -> TYPE(pos)
           | _         -> IDENT(pos, s)
       }
-  | ("%" (identifier as s)) {
+  | ("$" (identifier as s)) {
         let pos = Range.from_lexbuf lexbuf in
         TYPARAM(pos, s)
       }
