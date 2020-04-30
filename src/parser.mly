@@ -85,43 +85,43 @@ argssub:
 ;
 exprlet:
   | bindval=bindvaltop; IN; e2=exprlet {
-        let (tok1, isrec, ident, params, e0) = bindval in
+        let (tokL, isrec, ident, params, e0) = bindval in
         let e1 = (Range.dummy "bind-val-local", Lambda(params, e0)) in
-        let rng = make_range (Token(tok1)) (Ranged(e2)) in
+        let rng = make_range (Token(tokL)) (Ranged(e2)) in
         if isrec then
           (rng, LetRecIn(ident, e1, e2))
         else
           (rng, LetIn(ident, e1, e2))
       }
-  | tok1=LET; pat=patcons; DEFEQ; e1=exprlet; IN; e2=exprlet {
-        let rng = make_range (Token(tok1)) (Ranged(e2)) in
+  | tokL=LET; pat=patcons; DEFEQ; e1=exprlet; IN; e2=exprlet {
+        let rng = make_range (Token(tokL)) (Ranged(e2)) in
         (rng, LetPatIn(pat, e1, e2))
       }
-  | tok1=IF; e0=exprlet; THEN; e1=exprlet; ELSE; e2=exprlet {
-        let rng = make_range (Token(tok1)) (Ranged(e2)) in
+  | tokL=IF; e0=exprlet; THEN; e1=exprlet; ELSE; e2=exprlet {
+        let rng = make_range (Token(tokL)) (Ranged(e2)) in
         (rng, If(e0, e1, e2))
       }
-  | tok1=DO; ident=IDENT; REVARROW; e1=exprlet; IN; e2=exprlet {
-        let rng = make_range (Token(tok1)) (Ranged(e2)) in
+  | tokL=DO; ident=IDENT; REVARROW; e1=exprlet; IN; e2=exprlet {
+        let rng = make_range (Token(tokL)) (Ranged(e2)) in
         (rng, Do(Some(ident), e1, e2))
       }
-  | tok1=DO; e1=exprlet; IN; e2=exprlet {
-        let rng = make_range (Token(tok1)) (Ranged(e2)) in
+  | tokL=DO; e1=exprlet; IN; e2=exprlet {
+        let rng = make_range (Token(tokL)) (Ranged(e2)) in
         (rng, Do(None, e1, e2))
       }
   | e=exprfun { e }
 ;
 exprfun:
-  | tok1=LAMBDA; params=args; ARROW; e=exprlet {
-        let rng = make_range (Token(tok1)) (Ranged(e)) in
+  | tokL=LAMBDA; params=args; ARROW; e=exprlet {
+        let rng = make_range (Token(tokL)) (Ranged(e)) in
         (rng, Lambda(params, e))
       }
-  | tok1=RECEIVE; branches=nonempty_list(branch); tok2=END {
-        let rng = make_range (Token(tok1)) (Token(tok2)) in
+  | tokL=RECEIVE; branches=nonempty_list(branch); tok2=END {
+        let rng = make_range (Token(tokL)) (Token(tok2)) in
         (rng, Receive(branches))
       }
-  | tok1=CASE; e=exprlet; OF; branches=nonempty_list(branch); tok2=END {
-        let rng = make_range (Token(tok1)) (Token(tok2)) in
+  | tokL=CASE; e=exprlet; OF; branches=nonempty_list(branch); tok2=END {
+        let rng = make_range (Token(tokL)) (Token(tok2)) in
         (rng, Case(e, branches))
       }
   | e=exprland { e }
@@ -159,36 +159,36 @@ exprplus:
 ;
 exprapp:
   | efun=exprapp; LPAREN; args=exprargs {
-        let (rtok, eargs) = args in
-        let rng = make_range (Ranged(efun)) (Token(rtok)) in
+        let (tokR, eargs) = args in
+        let rng = make_range (Ranged(efun)) (Token(tokR)) in
         (rng, Apply(efun, eargs))
       }
   | ctor=CTOR; LPAREN; args=exprargs {
-        let (ltok, ctornm) = ctor in
-        let (rtok, eargs) = args in
-        let rng = make_range (Token(ltok)) (Token(rtok)) in
+        let (tokL, ctornm) = ctor in
+        let (tokR, eargs) = args in
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, Constructor(ctornm, eargs))
       }
   | e=exprbot { e }
 ;
 exprargs:
-  | rtok=RPAREN                     { (rtok, []) }
-  | e=exprlet; rtok=RPAREN          { (rtok, e :: []) }
-  | e=exprlet; COMMA; rest=exprargs { let (rtok, tail) = rest in (rtok, e :: tail) }
+  | tokR=RPAREN                     { (tokR, []) }
+  | e=exprlet; tokR=RPAREN          { (tokR, e :: []) }
+  | e=exprlet; COMMA; rest=exprargs { let (tokR, tail) = rest in (tokR, e :: tail) }
 ;
 exprbot:
   | rng=TRUE                  { (rng, BaseConst(Bool(true))) }
   | rng=FALSE                 { (rng, BaseConst(Bool(false))) }
-  | tok1=LPAREN; tok2=RPAREN  { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, BaseConst(Unit)) }
+  | tokL=LPAREN; tokR=RPAREN  { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, BaseConst(Unit)) }
   | c=INT                     { let (rng, n) = c in (rng, BaseConst(Int(n))) }
   | ident=ident               { let (rng, x) = ident in (rng, Var(x)) }
   | LPAREN; e=exprlet; RPAREN { e }
-  | rngl=LPAREN; e1=exprlet; COMMA; e2=exprlet; es=list(tuplesub); rngr=RPAREN {
-        let rng = make_range (Token(rngl)) (Token(rngr)) in
+  | tokL=LPAREN; e1=exprlet; COMMA; e2=exprlet; es=list(tuplesub); tokR=RPAREN {
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, Tuple(TupleList.make e1 e2 es))
       }
-  | tok1=LSQUARE; tok2=RSQUARE {
-        let rng = make_range (Token(tok1)) (Token(tok2)) in
+  | tokL=LSQUARE; tokR=RSQUARE {
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, ListNil)
       }
   | ctor=CTOR {
@@ -214,13 +214,13 @@ patcons:
 patbot:
   | rng=TRUE                 { (rng, PBool(true)) }
   | rng=FALSE                { (rng, PBool(true)) }
-  | tok1=LPAREN; tok2=RPAREN { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, PUnit) }
+  | tokL=LPAREN; tokR=RPAREN { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, PUnit) }
   | c=INT                    { let (rng, n) = c in (rng, PInt(n)) }
   | ident=ident              { let (rng, x) = ident in (rng, PVar(x)) }
   | rng=UNDERSCORE           { (rng, PWildCard) }
-  | tok1=LSQUARE; tok2=RSQUARE { let rng = make_range (Token(tok1)) (Token(tok2)) in (rng, PListNil) }
-  | rngl=LPAREN; p1=patcons; COMMA; p2=patcons; pats=list(pattuplesub); rngr=RPAREN {
-        let rng = make_range (Token(rngl)) (Token(rngr)) in
+  | tokL=LSQUARE; tokR=RSQUARE { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, PListNil) }
+  | tokL=LPAREN; p1=patcons; COMMA; p2=patcons; pats=list(pattuplesub); tokR=RPAREN {
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, PTuple(TupleList.make p1 p2 pats))
       }
   | ctor=CTOR {
