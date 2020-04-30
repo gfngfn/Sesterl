@@ -58,10 +58,10 @@ typaramssub:
   | typaram=TYPARAM; COMMA; tail=typaramssub { typaram :: tail }
 ;
 bindvaltop:
-  | tok=LET; ident=IDENT; params=args; DEFEQ; e1=exprlet {
+  | tok=LET; ident=IDENT; LPAREN; params=params; RPAREN; DEFEQ; e1=exprlet {
         (tok, false, ident, params, e1)
       }
-  | tok=LETREC; ident=IDENT; params=args; DEFEQ; e1=exprlet {
+  | tok=LETREC; ident=IDENT; LPAREN; params=params; RPAREN; DEFEQ; e1=exprlet {
         (tok, true, ident, params, e1)
       }
 ;
@@ -75,13 +75,10 @@ ctorbranch:
         ConstructorBranch(ctornm, paramtys)
       }
 ;
-args:
-  | LPAREN; args=argssub { args }
-;
-argssub:
-  | RPAREN                           { [] }
-  | ident=IDENT; RPAREN              { ident :: [] }
-  | ident=IDENT; COMMA; tail=argssub { ident :: tail }
+params:
+  |                                 { [] }
+  | ident=IDENT;                    { ident :: [] }
+  | ident=IDENT; COMMA; tail=params { ident :: tail }
 ;
 exprlet:
   | bindval=bindvaltop; IN; e2=exprlet {
@@ -112,16 +109,16 @@ exprlet:
   | e=exprfun { e }
 ;
 exprfun:
-  | tokL=LAMBDA; params=args; ARROW; e=exprlet {
+  | tokL=LAMBDA; LPAREN; params=params; RPAREN; ARROW; e=exprlet {
         let rng = make_range (Token(tokL)) (Ranged(e)) in
         (rng, Lambda(params, e))
       }
-  | tokL=RECEIVE; branches=nonempty_list(branch); tok2=END {
-        let rng = make_range (Token(tokL)) (Token(tok2)) in
+  | tokL=RECEIVE; branches=nonempty_list(branch); tokR=END {
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, Receive(branches))
       }
-  | tokL=CASE; e=exprlet; OF; branches=nonempty_list(branch); tok2=END {
-        let rng = make_range (Token(tokL)) (Token(tok2)) in
+  | tokL=CASE; e=exprlet; OF; branches=nonempty_list(branch); tokR=END {
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, Case(e, branches))
       }
   | e=exprland { e }
@@ -158,23 +155,21 @@ exprplus:
   | e=exprapp                               { e }
 ;
 exprapp:
-  | efun=exprapp; LPAREN; args=exprargs {
-        let (tokR, eargs) = args in
+  | efun=exprapp; LPAREN; eargs=exprargs; tokR=RPAREN {
         let rng = make_range (Ranged(efun)) (Token(tokR)) in
         (rng, Apply(efun, eargs))
       }
-  | ctor=CTOR; LPAREN; args=exprargs {
+  | ctor=CTOR; LPAREN; eargs=exprargs; tokR=RPAREN {
         let (tokL, ctornm) = ctor in
-        let (tokR, eargs) = args in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, Constructor(ctornm, eargs))
       }
   | e=exprbot { e }
 ;
 exprargs:
-  | tokR=RPAREN                     { (tokR, []) }
-  | e=exprlet; tokR=RPAREN          { (tokR, e :: []) }
-  | e=exprlet; COMMA; rest=exprargs { let (tokR, tail) = rest in (tokR, e :: tail) }
+  |                                 { [] }
+  | e=exprlet;                      { e :: [] }
+  | e=exprlet; COMMA; tail=exprargs { e :: tail }
 ;
 exprbot:
   | rng=TRUE                  { (rng, BaseConst(Bool(true))) }
