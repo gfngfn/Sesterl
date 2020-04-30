@@ -182,9 +182,13 @@ exprbot:
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, Tuple(TupleList.make e1 e2 es))
       }
-  | tokL=LSQUARE; tokR=RSQUARE {
+  | tokL=LSQUARE; es=exprargs; tokR=RSQUARE {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, ListNil)
+        let dr = Range.dummy "list" in
+        let (_, emain) =
+          List.fold_right (fun e tail -> (dr, ListCons(e, tail))) es (dr, ListNil)
+        in
+        (rng, emain)
       }
   | ctor=CTOR {
         let (rng, ctornm) = ctor in

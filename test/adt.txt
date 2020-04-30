@@ -26,15 +26,15 @@ letrec tree_size(tr) =
 
 let main() =
   let tr =
-    Node(3,
-      Node(1,
-        leaf(4) ::
-        Node(1,
-          leaf(5) ::
-          leaf(9) :: []
-        ) ::
-        leaf(2) :: []
-      ) :: []
-    )
+    Node(3, [
+      Node(1, [
+        leaf(4),
+        Node(1, [
+          leaf(5),
+          leaf(9),
+        ]),
+        leaf(2),
+      ])
+    ])
   in
   tree_size(tr)
