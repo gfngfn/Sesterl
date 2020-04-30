@@ -5,26 +5,33 @@ open Syntax
 module VarMap = Map.Make(String)
 
 
-type entry = {
+type val_entry = {
   typ  : poly_type;
   name : name;
 }
 
-type t = entry VarMap.t
+type t = {
+  vals  : val_entry VarMap.t;
+  types : unit;  (* temporary*)
+}
 
 
-let empty = VarMap.empty
+let empty = {
+  vals  = VarMap.empty;
+  types = ();  (* temporary *)
+}
 
 
 let add x pty name tyenv =
-  tyenv |> VarMap.add x { typ = pty; name = name }
+  let vals = tyenv.vals |> VarMap.add x { typ = pty; name = name } in
+  { tyenv with vals = vals; }
 
 
 let find_opt x tyenv =
-  tyenv |> VarMap.find_opt x |> Option.map (fun entry ->
+  tyenv.vals |> VarMap.find_opt x |> Option.map (fun entry ->
     (entry.typ, entry.name)
   )
 
 
-let fold f =
-  VarMap.fold (fun x entry acc -> f x entry.typ acc)
+let fold f tyenv acc =
+  VarMap.fold (fun x entry acc -> f x entry.typ acc) tyenv.vals acc
