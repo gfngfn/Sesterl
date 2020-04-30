@@ -226,6 +226,20 @@ patbot:
         let rng = make_range (Token(rngl)) (Token(rngr)) in
         (rng, PTuple(TupleList.make p1 p2 pats))
       }
+  | ctor=CTOR {
+        let (rng, ctornm) = ctor in
+        (rng, PConstructor(ctornm, []))
+      }
+  | ctor=CTOR; LPAREN; pats=pats; tokR=RPAREN {
+        let (tokL, ctornm) = ctor in
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, PConstructor(ctornm, pats))
+      }
+;
+pats:
+  |                               { [] }
+  | pat=patcons                   { pat :: [] }
+  | pat=patcons; COMMA; tail=pats { pat :: tail }
 ;
 pattuplesub:
   | COMMA; p=patcons { p }
