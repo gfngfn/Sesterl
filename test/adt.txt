@@ -1,0 +1,15 @@
+
+type option($a) =
+  | None
+  | Some($a)
+
+type tree($a) =
+| Node($a, list(tree($a)))
+
+let leaf(x) =
+  Node(x, [])
+
+let children(tr) =
+  case tr of
+  | Node(_, trs) -> trs
+  end
