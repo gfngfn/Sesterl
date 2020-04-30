@@ -7,6 +7,7 @@ exception UnboundVariable            of Range.t * identifier
 exception ContradictionError         of mono_type * mono_type
 exception InclusionError             of FreeID.t * mono_type * mono_type
 exception BoundMoreThanOnceInPattern of Range.t * identifier
+exception UnboundTypeParameter       of Range.t * type_variable_name
 
 
 module BindingMap = Map.Make(String)
@@ -503,6 +504,48 @@ and typecheck_letrec (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifi
   (pre.tyenv |> Typeenv.add_val x ptyf name, name, e1, ptyf)
 
 
+let make_type_parameter_assoc (typarams : type_variable_name list) : type_parameter_assoc =
+  typarams |> List.fold_left (fun map typaram ->
+    let bid = BoundID.fresh () in
+    map |> TypeParameterAssoc.add_last typaram bid
+  ) TypeParameterAssoc.empty
+
+
+let decode_manual_type (tyenv : Typeenv.t) (typaramassoc : type_parameter_assoc) (mty : manual_type) : poly_type =
+  let rec aux (rng, mtymain) =
+    match mtymain with
+    | MBaseType(bty) ->
+        (rng, BaseType(bty))
+
+    | MFuncType(mtydoms, mtycod) ->
+        (rng, FuncType(List.map aux mtydoms, aux mtycod))
+
+    | MProductType(mtys) ->
+        (rng, ProductType(TupleList.map aux mtys))
+
+    | MTypeVar(typaram) ->
+        begin
+          match typaramassoc |> TypeParameterAssoc.find_opt typaram with
+          | None ->
+              raise (UnboundTypeParameter(rng, typaram))
+
+          | Some(bid) ->
+              (rng, TypeVar(Bound(bid)))
+        end
+  in
+  aux mty
+
+
+let make_constructor_branch_map (tyenv : Typeenv.t) (typaramassoc : type_parameter_assoc) (ctorbrs : constructor_branch list) =
+  ctorbrs |> List.fold_left (fun ctormap ctorbr ->
+    match ctorbr with
+    | ConstructorBranch(ctornm, mtyargs) ->
+        let ptyargs = mtyargs |> List.map (decode_manual_type tyenv typaramassoc) in
+        let ctorid = ConstructorID.make ctornm in
+        ctormap |> ConstructorBranchMap.add ctornm (ctorid, ptyargs)
+  ) ConstructorBranchMap.empty
+
+
 let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
   let tyenv = Primitives.initial_type_environment in
   let (tyenv, bindacc) =
@@ -519,6 +562,13 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
               typecheck_let Global { level = 0; tyenv = tyenv } binder utast
           in
           (tyenv, Alist.extend bindacc (IBindVal(name, e)))
+
+      | BindType(tynm, typarams, ctorbrs) ->
+          let tyid = TypeID.fresh tynm in
+          let typaramassoc = make_type_parameter_assoc typarams in
+          let ctorbrmap = make_constructor_branch_map tyenv typaramassoc ctorbrs in
+          (tyenv |> Typeenv.add_type tynm tyid typaramassoc ctorbrmap, bindacc)
+
     ) (tyenv, Alist.empty)
   in
   (tyenv, bindacc |> Alist.to_list)

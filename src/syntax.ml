@@ -5,7 +5,20 @@ exception SeeEndOfFileInComment of Range.t
 
 type 'a ranged = Range.t * 'a
 
+let pp_ranged ppsub ppf (_, x) =
+  Format.fprintf ppf "%a" ppsub x
+
 type identifier = string
+
+type type_name = string
+[@@deriving show { with_path = false; } ]
+
+type constructor_name = string
+[@@deriving show { with_path = false; } ]
+
+type type_variable_name = string
+[@@deriving show { with_path = false; } ]
+
 
 let pp_identifier ppf s =
   Format.fprintf ppf "\"%s\"" s
@@ -16,6 +29,21 @@ type binder = identifier ranged
 let pp_binder ppf (_, s) =
   pp_identifier ppf s
 
+
+type base_type =
+  | IntType
+  | BoolType
+  | UnitType
+[@@deriving show { with_path = false; } ]
+
+type manual_type = manual_type_main ranged
+
+and manual_type_main =
+  | MBaseType    of base_type
+  | MFuncType    of manual_type list * manual_type
+  | MProductType of manual_type TupleList.t
+  | MTypeVar     of type_variable_name
+[@@deriving show { with_path = false; } ]
 
 type base_constant =
   | Unit
@@ -61,14 +89,13 @@ and untyped_pattern_main =
   | PTuple    of untyped_pattern TupleList.t
 [@@deriving show { with_path = false; } ]
 
-type untyped_binding =
-  | BindVal of bool * binder * untyped_ast
+type constructor_branch =
+  | ConstructorBranch of constructor_name * manual_type list
 [@@deriving show { with_path = false; } ]
 
-type base_type =
-  | IntType
-  | BoolType
-  | UnitType
+type untyped_binding =
+  | BindVal  of bool * binder * untyped_ast
+  | BindType of type_name * type_variable_name list * constructor_branch list
 [@@deriving show { with_path = false; } ]
 
 type 'a typ =
@@ -367,3 +394,11 @@ and branch =
 type binding =
   | IBindVal of name * ast
 [@@deriving show { with_path = false; } ]
+
+module ConstructorBranchMap = Map.Make(String)
+
+type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorBranchMap.t
+
+module TypeParameterAssoc = AssocList.Make(String)
+
+type type_parameter_assoc = BoundID.t TypeParameterAssoc.t
