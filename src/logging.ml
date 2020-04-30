@@ -1,17 +1,8 @@
 
-type variable = string
-type type_variable = string
-type term = string
-type typ = string
-
-type entry =
-  | EnterScope of variable * type_variable * entry list
-  | Destruct   of term * (entry list) list * typ
-  | Equation   of typ * typ
-  | Solution   of type_variable * typ
-
-type t = entry list
+open Syntax
 
 
-let initial () =
-  []
+let warn_val_not_used (rng : Range.t) (x : identifier) =
+  Format.printf "* [Warning] %a: variable '%s' is unused\n"
+    Range.pp rng
+    x

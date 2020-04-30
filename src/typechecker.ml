@@ -12,7 +12,7 @@ exception BoundMoreThanOnceInPattern of Range.t * identifier
 module BindingMap = Map.Make(String)
 
 
-type binding_map = (mono_type * name) BindingMap.t
+type binding_map = (mono_type * name * Range.t) BindingMap.t
 
 
 type unification_result =
@@ -224,6 +224,14 @@ let fresh_type lev rng =
   ty
 
 
+let check_properly_used (tyenv : Typeenv.t) ((rng, x) : identifier ranged) =
+  match tyenv |> Typeenv.is_val_properly_used x with
+  | None        -> assert false
+  | Some(true)  -> ()
+  | Some(false) -> Logging.warn_val_not_used rng x
+
+
+
 let generate_output_identifier scope rng x =
   match scope with
   | Local  -> OutputIdentifier.local x
@@ -245,7 +253,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
 
   | Var(x) ->
       begin
-        match pre.tyenv |> Typeenv.find_opt x with
+        match pre.tyenv |> Typeenv.find_val_opt x with
         | None ->
             raise (UnboundVariable(rng, x))
 
@@ -260,7 +268,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
           let tydom = fresh_type pre.level rngv in
           let ptydom = lift tydom in
           let name = generate_output_identifier Local rngv x in
-          (tyenv |> Typeenv.add x ptydom name, Alist.extend nameacc name, Alist.extend tydomacc tydom)
+          (tyenv |> Typeenv.add_val x ptydom name, Alist.extend nameacc name, Alist.extend tydomacc tydom)
         ) (pre.tyenv, Alist.empty, Alist.empty) binders
       in
       let names = nameacc |> Alist.to_list in
@@ -290,13 +298,15 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
   | LetIn(ident, utast1, utast2) ->
       let (tyenv, name, e1) = typecheck_let Local pre ident utast1 in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
+      check_properly_used tyenv ident;
       (ty2, ILetIn(name, e1, e2))
 
   | LetRecIn(((_, x) as ident), utast1, utast2) ->
       let (tyenv, name_inner, e1, pty) = typecheck_letrec Local pre ident utast1 in
       let name_outer = OutputIdentifier.fresh () in
-      let tyenv = tyenv |> Typeenv.add x pty name_outer in
+      let tyenv = tyenv |> Typeenv.add_val x pty name_outer in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
+      check_properly_used tyenv ident;
       (ty2, iletrecin name_outer name_inner e1 e2)
 
   | Do(identopt, utast1, utast2) ->
@@ -310,7 +320,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
         | Some(rngv, x) ->
             let tyx = fresh_type lev rngv in
             let name = generate_output_identifier Local rngv x in
-            (tyx, pre.tyenv |> Typeenv.add x (lift tyx) name, name)
+            (tyx, pre.tyenv |> Typeenv.add_val x (lift tyx) name, name)
       in
       let tyrecv = fresh_type lev (Range.dummy "do-recv") in
       unify ty1 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tyx));
@@ -365,6 +375,22 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       in
       (tyret, ICase(e0, ibracc |> Alist.to_list))
 
+  | LetPatIn(utpat, utast1, utast2) ->
+      let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in
+      let (typat, ipat, bindmap) = typecheck_pattern pre utpat in
+      unify ty1 typat;
+      let tyenv =
+        BindingMap.fold (fun x (ty, name, _) tyenv ->
+          let pty = generalize pre.level ty in
+          tyenv |> Typeenv.add_val x pty name
+        ) bindmap pre.tyenv
+      in
+      let (ty2, e2) = typecheck { pre with tyenv } utast2 in
+      BindingMap.iter (fun x (_, _, rng) ->
+        check_properly_used tyenv (rng, x)
+      ) bindmap;
+      (ty2, ICase(e1, [ IBranch(ipat, None, e2) ]))
+
 
 and typecheck_case_branch (pre : pre) =
   typecheck_branch_scheme (fun ty1 _ tyret ->
@@ -381,8 +407,8 @@ and typecheck_receive_branch (pre : pre) =
 and typecheck_branch_scheme unifyk (pre : pre) typatexp tyret (Branch(pat, utast0opt, utast1)) : branch =
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
   let tyenv =
-    BindingMap.fold (fun x (ty, name) tyenv ->
-      tyenv |> Typeenv.add x (lift ty) name
+    BindingMap.fold (fun x (ty, name, _) tyenv ->
+      tyenv |> Typeenv.add_val x (lift ty) name
     ) bindmap pre.tyenv
   in
   let pre = { pre with tyenv } in
@@ -395,6 +421,9 @@ and typecheck_branch_scheme unifyk (pre : pre) typatexp tyret (Branch(pat, utast
     )
   in
   let (ty1, e1) = typecheck pre utast1 in
+  BindingMap.iter (fun x (_, _, rng) ->
+    check_properly_used tyenv (rng, x)
+  ) bindmap;
   unifyk ty1 typatexp tyret;
   IBranch(ipat, e0opt, e1)
 
@@ -414,7 +443,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
   | PVar(x) ->
       let ty = fresh_type pre.level rng in
       let name = generate_output_identifier Local rng x in
-      (ty, IPVar(name), BindingMap.singleton x (ty, name))
+      (ty, IPVar(name), BindingMap.singleton x (ty, name, rng))
 
   | PWildCard ->
       let ty = fresh_type pre.level rng in
@@ -451,18 +480,18 @@ and typecheck_let (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier)
   let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in
   let pty1 = generalize pre.level ty1 in
   let name = generate_output_identifier scope rngv x in
-  (pre.tyenv |> Typeenv.add x pty1 name, name, e1)
+  (pre.tyenv |> Typeenv.add_val x pty1 name, name, e1)
 
 
 and typecheck_letrec (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast * poly_type =
   let lev = pre.level in
   let tyf = fresh_type (lev + 1) rngv in
   let name = generate_output_identifier scope rngv x in
-  let tyenvsub = pre.tyenv |> Typeenv.add x (lift tyf) name in
+  let tyenvsub = pre.tyenv |> Typeenv.add_val x (lift tyf) name in
   let (ty1, e1) = typecheck { level = lev + 1; tyenv = tyenvsub } utast1 in
   unify ty1 tyf;
   let ptyf = generalize lev tyf in
-  (pre.tyenv |> Typeenv.add x ptyf name, name, e1, ptyf)
+  (pre.tyenv |> Typeenv.add_val x ptyf name, name, e1, ptyf)
 
 
 let main (utdecls : untyped_declaration list) : Typeenv.t * declaration list =

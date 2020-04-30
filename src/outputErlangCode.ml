@@ -57,6 +57,12 @@ let rec stringify_ast (ast : ast) =
       let s2 = stringify_ast ast2 in
       Printf.sprintf "begin %s = %s, %s end" sname s1 s2
 
+  | ICase(ast1, [ IBranch(ipat, None, ast2) ]) ->
+      let spat = stringify_pattern ipat in
+      let s1 = stringify_ast ast1 in
+      let s2 = stringify_ast ast2 in
+      Printf.sprintf "begin %s = %s, %s end" spat s1 s2
+
   | ICase(ast0, branches) ->
       let s0 = stringify_ast ast0 in
       let sbrs = branches |> List.map stringify_branch in

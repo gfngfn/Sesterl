@@ -46,7 +46,7 @@ let initial_type_environment =
   let op = OutputIdentifier.global_operator in
   let normal = OutputIdentifier.global in
   List.fold_left (fun tyenv (x, ty, name) ->
-    tyenv |> Typeenv.add x ty name
+    tyenv |> Typeenv.add_val x ty name
   ) Typeenv.empty [
     ("&&", tylogic, op "and");
     ("||", tylogic, op "or" );
