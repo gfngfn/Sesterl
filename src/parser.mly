@@ -42,7 +42,7 @@ main:
 decls:
   | dec=dectop; tail=decls {
         let (_, ident, isrec, e1) = dec in
-        ValDecl(isrec, ident, e1) :: tail
+        DeclVal(isrec, ident, e1) :: tail
       }
   | EOI { [] }
 ;

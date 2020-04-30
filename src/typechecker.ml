@@ -508,7 +508,7 @@ let main (utdecls : untyped_declaration list) : Typeenv.t * declaration list =
   let (tyenv, declacc) =
     utdecls |> List.fold_left (fun (tyenv, declacc) utdecl ->
       match utdecl with
-      | ValDecl(isrec, binder, utast) ->
+      | DeclVal(isrec, binder, utast) ->
           let (tyenv, name, e) =
             if isrec then
               let (tyenv, name, e, _) =

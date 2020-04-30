@@ -62,7 +62,7 @@ and untyped_pattern_main =
 [@@deriving show { with_path = false; } ]
 
 type untyped_declaration =
-  | ValDecl of bool * binder * untyped_ast
+  | DeclVal of bool * binder * untyped_ast
 [@@deriving show { with_path = false; } ]
 
 type base_type =
