@@ -56,7 +56,7 @@ let initial_type_environment =
     ("<" , tycomp , op "<"  );
     (">" , tycomp , op ">"  );
     ("*" , tyarith, op "*"  );
-    ("/" , tyarith, op "/"  );
+    ("/" , tyarith, op "div");
     ("+" , tyarith, op "+"  );
     ("-" , tyarith, op "-"  );
 
