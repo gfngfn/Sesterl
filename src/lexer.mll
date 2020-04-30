@@ -37,7 +37,13 @@ rule token = parse
           | "end"     -> END(pos)
           | "case"    -> CASE(pos)
           | "of"      -> OF(pos)
+          | "type"    -> TYPE(pos)
           | _         -> IDENT(pos, s)
+      }
+  | constructor {
+        let s = Lexing.lexeme lexbuf in
+        let pos = Range.from_lexbuf lexbuf in
+        CTOR(pos, s)
       }
   | ("0" | nzdigit (digit*) | ("0x" | "0X") hex+) {
         let s = Lexing.lexeme lexbuf in

@@ -102,3 +102,9 @@ let find_constructor (ctornm : constructor_name) (tyenv : t) =
   tyenv.constructors |> ConstructorMap.find_opt ctornm |> Option.map (fun entry ->
     (entry.belongs, entry.constructor_id, entry.type_variables, entry.parameter_types)
   )
+
+
+let find_type (tynm : type_name) (tyenv : t) =
+  tyenv.types |> TypeMap.find_opt tynm |> Option.map (fun entry ->
+    (entry.type_id, TypeParameterAssoc.length entry.type_parameters)
+  )

@@ -13,6 +13,7 @@ module Make(Key : EQ) : sig
   val add_last : elem -> 'v -> 'v t -> 'v t
   val find_opt : elem -> 'v t -> 'v option
   val fold_left : ('a -> elem -> 'v -> 'a) -> 'a -> 'v t -> 'a
+  val length : 'v t -> int
 end
   with type elem = Key.t
 = struct
@@ -54,5 +55,9 @@ end
 
   let fold_left f init assoc =
     List.fold_left (fun acc (k, v) -> f acc k v) init assoc
+
+
+  let length =
+    List.length
 
 end

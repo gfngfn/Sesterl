@@ -10,6 +10,8 @@ exception BoundMoreThanOnceInPattern of Range.t * identifier
 exception UnboundTypeParameter       of Range.t * type_variable_name
 exception UndefinedConstructor       of Range.t * constructor_name
 exception InvalidNumberOfConstructorArguments of Range.t * constructor_name * int * int
+exception UndefinedTypeName                   of Range.t * type_name
+exception InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
 
 
 module BindingMap = Map.Make(String)
@@ -29,12 +31,15 @@ type scope =
   | Global
 
 
-let make_bound_to_free_map (lev : int) (typaramassoc : type_parameter_assoc) : (mono_type_var ref) BoundIDMap.t =
-  typaramassoc |> TypeParameterAssoc.fold_left (fun bidmap tyvar bid ->
-    let fid = FreeID.fresh lev in
-    let mtv = ref (Free(fid)) in
-    bidmap |> BoundIDMap.add bid mtv
-  ) BoundIDMap.empty
+let make_bound_to_free_map (lev : int) (typaramassoc : type_parameter_assoc) : mono_type list * (mono_type_var ref) BoundIDMap.t =
+  let (tyargacc, bfmap) =
+    typaramassoc |> TypeParameterAssoc.fold_left (fun (tyargacc, bfmap) tyvar bid ->
+      let fid = FreeID.fresh lev in
+      let mtv = ref (Free(fid)) in
+      (Alist.extend tyargacc (Range.dummy "constructor-arg", TypeVar(mtv)), bfmap |> BoundIDMap.add bid mtv)
+    ) (Alist.empty, BoundIDMap.empty)
+  in
+  (Alist.to_list tyargacc, bfmap)
 
 
 let (&&&) res1 res2 =
@@ -419,20 +424,18 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
 
         | Some(tyid, ctorid, typaramassoc, ptys) ->
             let lev = pre.level in
-            let bfmap = make_bound_to_free_map lev typaramassoc in
+            let (tyargs, bfmap) = make_bound_to_free_map lev typaramassoc in
             begin
               try
-                let tyes =
+                let es =
                   List.fold_left2 (fun acc pty utast ->
                     let ty_expected = instantiate_by_map bfmap lev pty in
                     let (ty, e) = typecheck pre utast in
                     unify ty ty_expected;
-                    Alist.extend acc (ty, e)
+                    Alist.extend acc e
                   ) Alist.empty ptys utastargs |> Alist.to_list
                 in
-                let tys = tyes |> List.map fst in
-                let es = tyes |> List.map snd in
-                let ty = (rng, VariantType(tyid, tys)) in
+                let ty = (rng, VariantType(tyid, tyargs)) in
                 let e = IConstructor(ctorid, es) in
                 (ty, e)
               with
@@ -555,25 +558,47 @@ let make_type_parameter_assoc (typarams : type_variable_name list) : type_parame
 
 let decode_manual_type (tyenv : Typeenv.t) (typaramassoc : type_parameter_assoc) (mty : manual_type) : poly_type =
   let rec aux (rng, mtymain) =
-    match mtymain with
-    | MBaseType(bty) ->
-        (rng, BaseType(bty))
+    let tymain =
+      match mtymain with
+      | MTypeName(tynm, mtyargs) ->
+          let ptyargs = mtyargs |> List.map aux in
+          begin
+            match tyenv |> Typeenv.find_type tynm with
+            | None ->
+                begin
+                  match (tynm, ptyargs) with
+                  | ("unit", [])    -> BaseType(UnitType)
+                  | ("bool", [])    -> BaseType(BoolType)
+                  | ("int", [])     -> BaseType(IntType)
+                  | ("list", [pty]) -> ListType(pty)
+                  | _               -> raise (UndefinedTypeName(rng, tynm))
+                end
 
-    | MFuncType(mtydoms, mtycod) ->
-        (rng, FuncType(List.map aux mtydoms, aux mtycod))
+            | Some(tyid, len_expected) ->
+                let len_actual = List.length ptyargs in
+                if len_actual = len_expected then
+                  VariantType(tyid, ptyargs)
+                else
+                  raise (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
+          end
 
-    | MProductType(mtys) ->
-        (rng, ProductType(TupleList.map aux mtys))
+      | MFuncType(mtydoms, mtycod) ->
+          FuncType(List.map aux mtydoms, aux mtycod)
 
-    | MTypeVar(typaram) ->
-        begin
-          match typaramassoc |> TypeParameterAssoc.find_opt typaram with
-          | None ->
-              raise (UnboundTypeParameter(rng, typaram))
+      | MProductType(mtys) ->
+          ProductType(TupleList.map aux mtys)
 
-          | Some(bid) ->
-              (rng, TypeVar(Bound(bid)))
-        end
+      | MTypeVar(typaram) ->
+          begin
+            match typaramassoc |> TypeParameterAssoc.find_opt typaram with
+            | None ->
+                raise (UnboundTypeParameter(rng, typaram))
+
+            | Some(bid) ->
+                TypeVar(Bound(bid))
+          end
+    in
+    (rng, tymain)
   in
   aux mty
 
@@ -605,7 +630,7 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
           in
           (tyenv, Alist.extend bindacc (IBindVal(name, e)))
 
-      | BindType(tynm, typarams, ctorbrs) ->
+      | BindType((_, tynm), typarams, ctorbrs) ->
           let tyid = TypeID.fresh tynm in
           let typaramassoc = make_type_parameter_assoc typarams in
           let ctorbrmap = make_constructor_branch_map tyenv typaramassoc ctorbrs in

@@ -39,7 +39,7 @@ type base_type =
 type manual_type = manual_type_main ranged
 
 and manual_type_main =
-  | MBaseType    of base_type
+  | MTypeName    of type_name * manual_type list
   | MFuncType    of manual_type list * manual_type
   | MProductType of manual_type TupleList.t
   | MTypeVar     of type_variable_name
@@ -96,7 +96,7 @@ type constructor_branch =
 
 type untyped_binding =
   | BindVal  of bool * binder * untyped_ast
-  | BindType of type_name * type_variable_name list * constructor_branch list
+  | BindType of type_name ranged * type_variable_name list * constructor_branch list
 [@@deriving show { with_path = false; } ]
 
 type 'a typ =
@@ -332,8 +332,15 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
         Printf.sprintf "list(%s)" s0
 
     | VariantType(tyid, tyargs) ->
-        let ss = tyargs |> List.map aux in
-        Format.asprintf "%a(%s)" TypeID.pp tyid (String.concat ", " ss)
+        begin
+          match tyargs with
+          | [] ->
+              Format.asprintf "%a" TypeID.pp tyid
+
+          | _ :: _ ->
+              let ss = tyargs |> List.map aux in
+              Format.asprintf "%a(%s)" TypeID.pp tyid (String.concat ", " ss)
+        end
 
   and aux_effect (Effect(ty)) =
     let s = aux ty in
