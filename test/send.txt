@@ -1,11 +1,17 @@
 
-type option =
+type option($a) =
   | None
-  | Some(bool)
+  | Some($a)
 
+type tree($a) =
+| Node($a, list(tree($a)))
 
-let f(x) =
+let f(p) =
+  let (x, y) = p in
   Some(x)
+
+let leaf(x) =
+  Node(x, [])
 
 
 let reverse_list(xs) =
