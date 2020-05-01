@@ -10,7 +10,7 @@
   * [ ] `monitor`/`demonitor`
   * [ ] `link`/`unlink`
 * [x] Principal type inference
-* [ ] Type annotation
+* [x] Type annotation
 * [x] Output Erlang code
 * [ ] FFI
 * [ ] Data types
@@ -22,6 +22,7 @@
   * [x] Pattern matching
 * [ ] Mutual recursion by generalized `letrec`-expressions
 * [x] Pattern matching by generalized `let`-expressions
+* [ ] Module system
 
 ## References
 
