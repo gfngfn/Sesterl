@@ -69,10 +69,13 @@ let add_local_type_parameter (typaramassoc : type_parameter_assoc) (pre : pre) :
   { pre with local_type_parameters = localtyparams }
 
 
-let make_type_parameter_assoc (lev : int) (typarams : (type_variable_name ranged) list) : type_parameter_assoc =
-  typarams |> List.fold_left (fun assoc (_, typaram) ->
+let make_type_parameter_assoc (lev : int) (tyvarnms : (type_variable_name ranged) list) : type_parameter_assoc =
+  tyvarnms |> List.fold_left (fun assoc (_, tyvarnm) ->
     let mbbid = MustBeBoundID.fresh lev in
-    assoc |> TypeParameterAssoc.add_last typaram mbbid
+(*
+    Format.printf "MUST-BE-BOUND %s : L%d %a\n" tyvarnm lev MustBeBoundID.pp mbbid;  (* for debug *)
+*)
+    assoc |> TypeParameterAssoc.add_last tyvarnm mbbid
   ) TypeParameterAssoc.empty
 
 
