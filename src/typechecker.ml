@@ -37,11 +37,19 @@ type scope =
   | Global of int
 
 
-let make_bound_to_free_map (lev : int) (typaramassoc : type_parameter_assoc) : mono_type list * (mono_type_var ref) BoundIDMap.t =
+type pre = {
+  level : int;
+  tyenv : Typeenv.t;
+  local_type_parameters : local_type_parameter_map;
+}
+
+
+let make_bound_to_free_map (lev : int) (typarams : BoundID.t list) : mono_type list * mono_type_var BoundIDMap.t =
   let (tyargacc, bfmap) =
-    typaramassoc |> TypeParameterAssoc.fold_left (fun (tyargacc, bfmap) tyvar bid ->
+    typarams |> List.fold_left (fun (tyargacc, bfmap) bid ->
       let fid = FreeID.fresh lev in
-      let mtv = ref (Free(fid)) in
+      let mtvu = ref (Free(fid)) in
+      let mtv = Updatable(mtvu) in
       let ty = (Range.dummy "constructor-arg", TypeVar(mtv)) in
 (*
       Format.printf "BTOF L%d %a\n" lev pp_mono_type ty;  (* for debug *)
@@ -52,7 +60,25 @@ let make_bound_to_free_map (lev : int) (typaramassoc : type_parameter_assoc) : m
   (Alist.to_list tyargacc, bfmap)
 
 
-let decode_manual_type (tyenv : Typeenv.t) (typaramassoc : type_parameter_assoc) (mty : manual_type) : poly_type =
+let add_local_type_parameter (typaramassoc : type_parameter_assoc) (pre : pre) : pre =
+  let localtyparams =
+    typaramassoc |> TypeParameterAssoc.fold_left (fun map tyvar mbbid ->
+      map |> TypeParameterMap.add tyvar mbbid
+    ) pre.local_type_parameters
+  in
+  { pre with local_type_parameters = localtyparams }
+
+
+let make_type_parameter_assoc (lev : int) (typarams : (type_variable_name ranged) list) : type_parameter_assoc =
+  typarams |> List.fold_left (fun assoc (_, typaram) ->
+    let mbbid = MustBeBoundID.fresh lev in
+    assoc |> TypeParameterAssoc.add_last typaram mbbid
+  ) TypeParameterAssoc.empty
+
+
+let decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
+  let tyenv = pre.tyenv in
+  let typarams = pre.local_type_parameters in
   let rec aux (rng, mtymain) =
     let tymain =
       match mtymain with
@@ -86,12 +112,12 @@ let decode_manual_type (tyenv : Typeenv.t) (typaramassoc : type_parameter_assoc)
 
       | MTypeVar(typaram) ->
           begin
-            match typaramassoc |> TypeParameterAssoc.find_opt typaram with
+            match typarams |> TypeParameterMap.find_opt typaram with
             | None ->
                 raise (UnboundTypeParameter(rng, typaram))
 
-            | Some(bid) ->
-                TypeVar(Bound(bid))
+            | Some(mbbid) ->
+                TypeVar(MustBeBound(mbbid))
           end
     in
     (rng, tymain)
@@ -136,7 +162,7 @@ let iletrecin name_outer name_inner e1 e2 =
       assert false
 
 
-let occurs fid ty =
+let occurs (fid : FreeID.t) (ty : mono_type) : bool =
   let lev = FreeID.get_level fid in
   let rec aux (_, tymain) =
     match tymain with
@@ -168,10 +194,10 @@ let occurs fid ty =
     | PidType(pidty) ->
         aux_pid_type pidty
 
-    | TypeVar({contents = Link(ty)}) ->
+    | TypeVar(Updatable{contents = Link(ty)}) ->
         aux ty
 
-    | TypeVar({contents = Free(fidx)}) ->
+    | TypeVar(Updatable{contents = Free(fidx)}) ->
         if FreeID.equal fid fidx then true else
           begin
             FreeID.update_level fidx lev;
@@ -180,6 +206,9 @@ let occurs fid ty =
 *)
             false
           end
+
+    | TypeVar(MustBeBound(_)) ->
+        false
 
   and aux_effect (Effect(ty)) =
     aux ty
@@ -193,19 +222,22 @@ let occurs fid ty =
   aux ty
 
 
-let unify tyact tyexp =
+let unify (tyact : mono_type) (tyexp : mono_type) : unit =
 (*
   Format.printf "UNIFY %a =?= %a\n" pp_mono_type tyact pp_mono_type tyexp; (* for debug *)
 *)
-  let rec aux ty1 ty2 =
+  let rec aux (ty1 : mono_type) (ty2 : mono_type) : unification_result =
     let (_, ty1main) = ty1 in
     let (_, ty2main) = ty2 in
     match (ty1main, ty2main) with
-    | (TypeVar({contents = Link(ty1l)}), _) ->
+    | (TypeVar(Updatable{contents = Link(ty1l)}), _) ->
         aux ty1l ty2
 
-    | (_, TypeVar({contents = Link(ty2l)})) ->
+    | (_, TypeVar(Updatable{contents = Link(ty2l)})) ->
         aux ty1 ty2l
+
+    | (TypeVar(MustBeBound(mbbid1)), TypeVar(MustBeBound(mbbid2))) ->
+        if MustBeBoundID.equal mbbid1 mbbid2 then Consistent else Contradiction
 
     | (BaseType(bt1), BaseType(bt2)) ->
         if bt1 = bt2 then Consistent else Contradiction
@@ -235,32 +267,32 @@ let unify tyact tyexp =
         else
           Contradiction
 
-    | (TypeVar({contents = Free(fid1)} as tvref1), TypeVar({contents = Free(fid2)})) ->
+    | (TypeVar(Updatable({contents = Free(fid1)} as mtvu1)), TypeVar(Updatable{contents = Free(fid2)})) ->
         let () =
           if FreeID.equal fid1 fid2 then () else
             begin
-              tvref1 := Link(ty2);  (* -- not `Free(fid2)`! -- *)
+              mtvu1 := Link(ty2);  (* -- not `Free(fid2)`! -- *)
             end
         in
         Consistent
 
-    | (TypeVar({contents = Free(fid1)} as tvref1), _) ->
+    | (TypeVar(Updatable({contents = Free(fid1)} as mtvu1)), _) ->
         let b = occurs fid1 ty2 in
         if b then
           Inclusion(fid1)
         else
           begin
-            tvref1 := Link(ty2);
+            mtvu1 := Link(ty2);
             Consistent
           end
 
-    | (_, TypeVar({contents = Free(fid2)} as tvref2)) ->
+    | (_, TypeVar(Updatable({contents = Free(fid2)} as mtvu2))) ->
         let b = occurs fid2 ty1 in
         if b then
           Inclusion(fid2)
         else
           begin
-            tvref2 := Link(ty1);
+            mtvu2 := Link(ty1);
             Consistent
           end
 
@@ -290,16 +322,10 @@ let unify tyact tyexp =
   | Inclusion(fid) -> raise (InclusionError(fid, tyact, tyexp))
 
 
-type pre = {
-  level : int;
-  tyenv : Typeenv.t;
-}
-
-
-let fresh_type ?name:nameopt lev rng =
+let fresh_type ?name:nameopt (lev : int) (rng : Range.t) : mono_type =
   let fid = FreeID.fresh lev in
-  let tvref = ref (Free(fid)) in
-  let ty = (rng, TypeVar(tvref)) in
+  let mtvu = ref (Free(fid)) in
+  let ty = (rng, TypeVar(Updatable(mtvu))) in
 (*
   let name = nameopt |> Option.map (fun x -> x ^ " : ") |> Option.value ~default:"" in
   Format.printf "GEN %sL%d %a\n" name lev pp_mono_type ty;  (* for debug *)
@@ -334,18 +360,16 @@ let decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) :
       fresh_type ~name:x pre.level rng
 
   | Some(mty) ->
-      let typaramassoc = TypeParameterAssoc.empty in
-        (* temporary; may support explicit type variables in the future *)
-      instantiate pre.level (decode_manual_type pre.tyenv typaramassoc mty)
+      decode_manual_type pre mty
 
 
-let add_parameters_to_type_environment (pre : pre) (binders : binder list) =
+let add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typeenv.t * mono_type list * name list =
   let (tyenv, nameacc, tydomacc) =
-    List.fold_left (fun (tyenv, nameacc, tydomacc) (((rngv, x), _) as binder) ->
+    List.fold_left (fun (tyenv, nameacc, ptydomacc) (((rngv, x), _) as binder) ->
       let tydom = decode_type_annotation_or_fresh pre binder in
       let ptydom = lift tydom in
       let name = generate_output_identifier Local rngv x in
-      (tyenv |> Typeenv.add_val x ptydom name, Alist.extend nameacc name, Alist.extend tydomacc tydom)
+      (tyenv |> Typeenv.add_val x ptydom name, Alist.extend nameacc name, Alist.extend ptydomacc tydom)
     ) (pre.tyenv, Alist.empty, Alist.empty) binders
   in
   let names = nameacc |> Alist.to_list in
@@ -374,7 +398,9 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       end
 
   | Lambda(binders, utast0) ->
-      let (tyenv, tydoms, names) = add_parameters_to_type_environment pre binders in
+      let (tyenv, tydoms, names) =
+        add_parameters_to_type_environment pre binders
+      in
       let (tycod, e0) = typecheck { pre with tyenv } utast0 in
       let ty = (rng, FuncType(tydoms, tycod)) in
       (ty, ilambda names e0)
@@ -520,9 +546,9 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name
   | None ->
       raise (UndefinedConstructor(rng, ctornm))
 
-  | Some(tyid, ctorid, typaramassoc, ptys) ->
+  | Some(tyid, ctorid, typarams, ptys) ->
       let lev = pre.level in
-      let (tyargs, bfmap) = make_bound_to_free_map lev typaramassoc in
+      let (tyargs, bfmap) = make_bound_to_free_map lev typarams in
       let tys_expected = ptys |> List.map (instantiate_by_map bfmap lev) in
       (tyid, ctorid, tyargs, tys_expected)
 
@@ -628,29 +654,27 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
 
 and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : Typeenv.t * name * ast =
   let (rngv, x) = letbind.vb_identifier in
-  let (ty1, e1) =
-    let params = letbind.vb_parameters in
-    let utast0 = letbind.vb_body in
-    let pre = { pre with level = pre.level + 1 } in
-    let (tyenv, typarams, names) = add_parameters_to_type_environment pre params in
-    let (ty0, e0) = typecheck { pre with tyenv } utast0 in
-    let () =
-      match letbind.vb_return_type with
-      | None ->
-          ()
+  let params = letbind.vb_parameters in
+  let utast0 = letbind.vb_body in
 
-      | Some(mty) ->
-          let ty_expected =
-            let typaramassoc = TypeParameterAssoc.empty in  (* temporary *)
-            let pty = decode_manual_type tyenv typaramassoc mty in
-            instantiate pre.level pty
-          in
-          unify ty0 ty_expected
+  let levS = pre.level + 1 in
+  let pre =
+    let assoc = make_type_parameter_assoc levS letbind.vb_forall in
+    { pre with level = levS } |> add_local_type_parameter assoc in
+      (* -- add local type parameters at level `levS` -- *)
+
+    let (tyenv, tys, names) =
+      add_parameters_to_type_environment pre params
     in
-    let ty1 = (rngv, FuncType(typarams, ty0)) in
+    let (ty0, e0) = typecheck { pre with tyenv } utast0 in
+
+    letbind.vb_return_type |> Option.map (fun mty0 ->
+      let ty0_expected = decode_manual_type pre mty0 in
+      unify ty0 ty0_expected
+    ) |> Option.value ~default:();
+    let ty1 = (rngv, FuncType(tys, ty0)) in
     let e1 = ILambda(None, names, e0) in
-    (ty1, e1)
-  in
+
   let pty1 = generalize pre.level ty1 in
   let name = generate_output_identifier scope rngv x in
   (pre.tyenv |> Typeenv.add_val x pty1 name, name, e1)
@@ -661,24 +685,18 @@ and typecheck_letrec (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifi
   let tyf = fresh_type ~name:x (lev + 1) rngv in
   let name = generate_output_identifier scope rngv x in
   let tyenvsub = pre.tyenv |> Typeenv.add_val x (lift tyf) name in
-  let (ty1, e1) = typecheck { level = lev + 1; tyenv = tyenvsub } utast1 in
+  let (ty1, e1) = typecheck { pre with level = lev + 1; tyenv = tyenvsub } utast1 in
   unify ty1 tyf;
   let ptyf = generalize lev tyf in
   (pre.tyenv |> Typeenv.add_val x ptyf name, name, e1, ptyf)
 
 
-let make_type_parameter_assoc (typarams : (type_variable_name ranged) list) : type_parameter_assoc =
-  typarams |> List.fold_left (fun map (_, typaram) ->
-    let bid = BoundID.fresh () in
-    map |> TypeParameterAssoc.add_last typaram bid
-  ) TypeParameterAssoc.empty
-
-
-let make_constructor_branch_map (tyenv : Typeenv.t) (typaramassoc : type_parameter_assoc) (ctorbrs : constructor_branch list) =
+let make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) =
   ctorbrs |> List.fold_left (fun ctormap ctorbr ->
     match ctorbr with
     | ConstructorBranch(ctornm, mtyargs) ->
-        let ptyargs = mtyargs |> List.map (decode_manual_type tyenv typaramassoc) in
+        let tyargs = mtyargs |> List.map (decode_manual_type pre) in
+        let ptyargs = tyargs |> List.map (generalize pre.level) in
         let ctorid = ConstructorID.make ctornm in
         ctormap |> ConstructorBranchMap.add ctornm (ctorid, ptyargs)
   ) ConstructorBranchMap.empty
@@ -692,28 +710,46 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
       | BindVal(isrec, valbind) ->
           let params = valbind.vb_parameters in
           let arity = List.length params in
+          let pre =
+            {
+              level                 = 0;
+              tyenv                 = tyenv;
+              local_type_parameters = TypeParameterMap.empty;
+            }
+          in
           let (tyenv, name, e) =
             if isrec then
               let ident  = valbind.vb_identifier in
               let utast0 = valbind.vb_body in
               let utast1 = (Range.dummy "bind-val", Lambda(params, utast0)) in
               let (tyenv, name, e, _) =
-                typecheck_letrec (Global(arity)) { level = 0; tyenv = tyenv } ident utast1
+                typecheck_letrec (Global(arity)) pre ident utast1
               in
               (tyenv, name, e)
             else
-              typecheck_let (Global(arity)) { level = 0; tyenv = tyenv } valbind
+              typecheck_let (Global(arity)) pre valbind
           in
           (tyenv, Alist.extend bindacc (IBindVal(name, e)))
 
       | BindType((_, tynm), typarams, ctorbrs) ->
           let tyid = TypeID.fresh tynm in
-          let typaramassoc = make_type_parameter_assoc typarams in
+          let pre =
+            {
+              level                 = 0;
+              tyenv                 = tyenv;
+              local_type_parameters = TypeParameterMap.empty;
+            }
+          in
+          let typaramassoc = make_type_parameter_assoc 1 typarams in
+          let typarams =
+            typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound
+          in
+          let pre = pre |> add_local_type_parameter typaramassoc in
           let ctorbrmap =
             let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm tyid (List.length typarams) in
-            make_constructor_branch_map tyenv typaramassoc ctorbrs
+            make_constructor_branch_map { pre with tyenv } ctorbrs
           in
-          (tyenv |> Typeenv.add_type tynm tyid typaramassoc ctorbrmap, bindacc)
+          (tyenv |> Typeenv.add_type tynm tyid typarams ctorbrmap, bindacc)
 
     ) (tyenv, Alist.empty)
   in

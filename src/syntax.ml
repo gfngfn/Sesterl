@@ -127,14 +127,18 @@ and 'a effect =
 and 'a pid_type =
   | Pid of 'a typ
 
-type mono_type_var =
+type mono_type_var_updatable =
   | Free of FreeID.t
   | Link of mono_type
 
-and mono_type = (mono_type_var ref) typ
+and mono_type_var =
+  | Updatable   of mono_type_var_updatable ref
+  | MustBeBound of MustBeBoundID.t
+
+and mono_type = mono_type_var typ
 
 type poly_type_var =
-  | Mono  of mono_type_var ref
+  | Mono  of mono_type_var
   | Bound of BoundID.t
 
 type poly_type = poly_type_var typ
@@ -144,9 +148,10 @@ module FreeIDHashTable = Hashtbl.Make(FreeID)
 
 (* --
 Arguments:
-+ `pred`: A predicate for free IDs. Given a free ID, it returns whether it should be bound or not.
++ `levpred`: Given a level of free/must-be-bound ID,
+  this predicate returns whether it should be bound or not.
 -- *)
-let lift_scheme (rngf : Range.t -> Range.t) (pred : FreeID.t -> bool) (ty : mono_type) : poly_type =
+let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_type) : poly_type =
 
   let fidht = FreeIDHashTable.create 32 in
 
@@ -166,13 +171,24 @@ let lift_scheme (rngf : Range.t -> Range.t) (pred : FreeID.t -> bool) (ty : mono
     | BaseType(bty) ->
         (rngf rng, BaseType(bty))
 
-    | TypeVar({contents = Link(ty)}) ->
+    | TypeVar(Updatable{contents = Link(ty)}) ->
         aux ty
 
-    | TypeVar({contents = Free(fid)} as mtv) ->
+    | TypeVar(Updatable{contents = Free(fid)} as mtv) ->
         let ptv =
-          if pred fid then
-            Bound(intern fid)
+          if levpred (FreeID.get_level fid) then
+            let bid = intern fid in
+            Bound(bid)
+          else
+            Mono(mtv)
+        in
+        (rngf rng, TypeVar(ptv))
+
+    | TypeVar(MustBeBound(mbbid) as mtv) ->
+        let ptv =
+          if levpred (MustBeBoundID.get_level mbbid) then
+            let bid = MustBeBoundID.to_bound mbbid in
+            Bound(bid)
           else
             Mono(mtv)
         in
@@ -217,10 +233,8 @@ let lift_scheme (rngf : Range.t -> Range.t) (pred : FreeID.t -> bool) (ty : mono
 let generalize (lev : int) (ty : mono_type) : poly_type =
   lift_scheme
     (fun _ -> Range.dummy "erased")
-    (fun fid ->
-      let levx = FreeID.get_level fid in
-      lev < levx
-    ) ty
+    (fun levx -> lev < levx)
+    ty
 
 
 (* --
@@ -235,7 +249,7 @@ module BoundIDHashTable = Hashtbl.Make(BoundID)
 module BoundIDMap = Map.Make(BoundID)
 
 
-let instantiate_scheme intern lev pty =
+let instantiate_scheme (intern : BoundID.t -> mono_type_var) (lev : int) (pty : poly_type) : mono_type =
 
   let rec aux (rng, ptymain) =
     match ptymain with
@@ -289,19 +303,19 @@ let instantiate (lev : int) (pty : poly_type) : mono_type =
     (* -- a hash table is created at every (non-partial) call of `instantiate` -- *)
   let intern bid =
     match BoundIDHashTable.find_opt bidht bid with
-    | Some(mtv) ->
-        mtv
+    | Some(mtvu) ->
+        Updatable(mtvu)
 
     | None ->
         let fid = FreeID.fresh lev in
-        let mtv = ref (Free(fid)) in
-        BoundIDHashTable.add bidht bid mtv;
-        mtv
+        let mtvu = ref (Free(fid)) in
+        BoundIDHashTable.add bidht bid mtvu;
+        Updatable(mtvu)
   in
   instantiate_scheme intern lev pty
 
 
-let instantiate_by_map (bfmap : (mono_type_var ref) BoundIDMap.t) =
+let instantiate_by_map (bfmap : mono_type_var BoundIDMap.t) =
   let intern bid =
     match bfmap |> BoundIDMap.find_opt bid with
     | None      -> assert false
@@ -372,18 +386,28 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
   aux ty
 
 
-and show_mono_type_var_scheme showty tvref =
-  match !tvref with
+and show_mono_type_var_scheme showty (mtv : mono_type_var) =
+  match mtv with
+  | MustBeBound(mbbid) -> Format.asprintf "%a" MustBeBoundID.pp mbbid
+  | Updatable(mtvu)    -> show_mono_type_var_updatable_ref_scheme showty mtvu
+
+
+and show_mono_type_var_updatable_ref_scheme showty (mtvu : mono_type_var_updatable ref) =
+  match !mtvu with
   | Link(ty)  -> showty (show_mono_type_var_scheme showty) ty
   | Free(fid) -> Format.asprintf "%a" FreeID.pp fid
 
 
-let show_mono_type_var_ref =
+let show_mono_type_var_updatable_ref =
+  show_mono_type_var_updatable_ref_scheme show_mono_type_scheme
+
+
+let show_mono_type_var =
   show_mono_type_var_scheme show_mono_type_scheme
 
 
-let show_mono_type =
-  show_mono_type_scheme show_mono_type_var_ref
+let show_mono_type : mono_type -> string =
+  show_mono_type_scheme show_mono_type_var
 
 
 let pp_mono_type ppf ty =
@@ -391,11 +415,11 @@ let pp_mono_type ppf ty =
 
 
 let show_poly_type_var = function
-  | Bound(bid)  -> Format.asprintf "%a" BoundID.pp bid
-  | Mono(tvref) -> show_mono_type_var_ref tvref
+  | Bound(bid) -> Format.asprintf "%a" BoundID.pp bid
+  | Mono(mtv)  -> show_mono_type_var mtv
 
 
-let show_poly_type =
+let show_poly_type : poly_type -> string =
   show_mono_type_scheme show_poly_type_var
 
 
@@ -445,4 +469,8 @@ type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorBran
 
 module TypeParameterAssoc = AssocList.Make(String)
 
-type type_parameter_assoc = BoundID.t TypeParameterAssoc.t
+type type_parameter_assoc = MustBeBoundID.t TypeParameterAssoc.t
+
+module TypeParameterMap = Map.Make(String)
+
+type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
