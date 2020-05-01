@@ -75,6 +75,7 @@ and untyped_ast_main =
 and untyped_let_binding = {
   vb_identifier : identifier ranged;
   vb_parameters : binder list;
+  vb_return_type : manual_type option;
   vb_body       : untyped_ast;
 }
 

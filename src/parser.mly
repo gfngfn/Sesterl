@@ -59,21 +59,23 @@ typaramssub:
   | typaram=TYPARAM; COMMA; tail=typaramssub { typaram :: tail }
 ;
 bindvaltop:
-  | tok=LET; ident=IDENT; LPAREN; params=params; RPAREN; DEFEQ; e0=exprlet {
+  | tok=LET; ident=IDENT; LPAREN; params=params; RPAREN; tyannot=tyannot; DEFEQ; e0=exprlet {
         let valbinding =
           {
             vb_identifier = ident;
             vb_parameters = params;
+            vb_return_type = tyannot;
             vb_body       = e0;
           }
         in
         (tok, false, valbinding)
       }
-  | tok=LETREC; ident=IDENT; LPAREN; params=params; RPAREN; DEFEQ; e0=exprlet {
+  | tok=LETREC; ident=IDENT; LPAREN; params=params; tyannot=tyannot; RPAREN; DEFEQ; e0=exprlet {
         let valbinding =
           {
             vb_identifier = ident;
             vb_parameters = params;
+            vb_return_type = tyannot;
             vb_body       = e0;
           }
         in

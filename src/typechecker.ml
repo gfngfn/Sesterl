@@ -392,16 +392,10 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let ibranches = [ IBranch(IPBool(true), None, e1); IBranch(IPBool(false), None, e2) ] in
       (ty1, ICase(e0, ibranches))
 
-  | LetIn(valbind, utast2) ->
-      let (ident, utast1) =
-        let ident = valbind.vb_identifier in
-        let params = valbind.vb_parameters in
-        let utast0 = valbind.vb_body in
-        (ident, (Range.dummy "let-local", Lambda(params, utast0)))
-      in
-      let (tyenv, name, e1) = typecheck_let Local pre ident utast1 in
+  | LetIn(letbind, utast2) ->
+      let (tyenv, name, e1) = typecheck_let Local pre letbind in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
-      check_properly_used tyenv ident;
+      check_properly_used tyenv letbind.vb_identifier;
       (ty2, ILetIn(name, e1, e2))
 
   | LetRecIn(((_, x) as ident), utast1, utast2) ->
@@ -627,7 +621,13 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
       end
 
 
-and typecheck_let (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast =
+and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : Typeenv.t * name * ast =
+  let (rngv, x) = letbind.vb_identifier in
+  let utast1 =
+    let params = letbind.vb_parameters in
+    let utast0 = letbind.vb_body in
+    (Range.dummy "typecheck_let", Lambda(params, utast0))
+  in
   let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in
   let pty1 = generalize pre.level ty1 in
   let name = generate_output_identifier scope rngv x in
@@ -668,19 +668,19 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
     utbinds |> List.fold_left (fun (tyenv, bindacc) utdecl ->
       match utdecl with
       | BindVal(isrec, valbind) ->
-          let ident  = valbind.vb_identifier in
           let params = valbind.vb_parameters in
-          let utast0 = valbind.vb_body in
           let arity = List.length params in
-          let utast1 = (Range.dummy "bind-val", Lambda(params, utast0)) in
           let (tyenv, name, e) =
             if isrec then
+              let ident  = valbind.vb_identifier in
+              let utast0 = valbind.vb_body in
+              let utast1 = (Range.dummy "bind-val", Lambda(params, utast0)) in
               let (tyenv, name, e, _) =
                 typecheck_letrec (Global(arity)) { level = 0; tyenv = tyenv } ident utast1
               in
               (tyenv, name, e)
             else
-              typecheck_let (Global(arity)) { level = 0; tyenv = tyenv } ident utast1
+              typecheck_let (Global(arity)) { level = 0; tyenv = tyenv } valbind
           in
           (tyenv, Alist.extend bindacc (IBindVal(name, e)))
 
