@@ -22,7 +22,7 @@
     (rng, Apply((rngop, Var(vop)), [e1; e2]))
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON
+%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC
 %token<Range.t * string> IDENT CTOR TYPARAM BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
@@ -32,6 +32,8 @@
 %type<Syntax.untyped_binding list> main
 %type<Syntax.manual_type> ty
 %type<Syntax.binder list> params
+%type<Syntax.untyped_let_binding> bindvalsingle
+%type<Range.t * Syntax.rec_or_nonrec> bindvaltop
 
 %%
 main:
@@ -45,8 +47,8 @@ bindtop:
         BindType(ident, typarams, ctorbrs)
       }
   | bindval=bindvaltop {
-        let (_, isrec, valbinding) = bindval in
-        BindVal(isrec, valbinding)
+        let (_, valbinding) = bindval in
+        BindVal(valbinding)
       }
 ;
 typarams:
@@ -59,29 +61,25 @@ typaramssub:
   | typaram=TYPARAM; COMMA; tail=typaramssub { typaram :: tail }
 ;
 bindvaltop:
-  | tok=LET; ident=IDENT; bids=typarams; LPAREN; params=params; RPAREN; tyannot=tyannot; DEFEQ; e0=exprlet {
-        let valbinding =
-          {
-            vb_identifier = ident;
-            vb_forall     = bids;
-            vb_parameters = params;
-            vb_return_type = tyannot;
-            vb_body       = e0;
-          }
-        in
-        (tok, false, valbinding)
+  | tok=LET; valbinding=bindvalsingle {
+        (tok, NonRec(valbinding))
       }
-  | tok=LETREC; ident=IDENT; bids=typarams; LPAREN; params=params; tyannot=tyannot; RPAREN; DEFEQ; e0=exprlet {
-        let valbinding =
-          {
-            vb_identifier = ident;
-            vb_forall     = bids;
-            vb_parameters = params;
-            vb_return_type = tyannot;
-            vb_body       = e0;
-          }
-        in
-        (tok, true, valbinding)
+  | tok=LETREC; valbinding=bindvalsingle; tail=list(recbinds) {
+        (tok, Rec(valbinding :: tail))
+      }
+;
+recbinds:
+  | ANDREC; valbinding=bindvalsingle { valbinding }
+;
+bindvalsingle:
+  | ident=IDENT; bids=typarams; LPAREN; params=params; RPAREN; tyannot=tyannot; DEFEQ; e0=exprlet {
+        {
+          vb_identifier = ident;
+          vb_forall     = bids;
+          vb_parameters = params;
+          vb_return_type = tyannot;
+          vb_body       = e0;
+        }
       }
 ;
 ctorbranch:
@@ -105,12 +103,9 @@ tyannot:
 ;
 exprlet:
   | bindval=bindvaltop; IN; e2=exprlet {
-        let (tokL, isrec, valbind) = bindval in
+        let (tokL, valbind) = bindval in
         let rng = make_range (Token(tokL)) (Ranged(e2)) in
-        if isrec then
-          (rng, LetRecIn(valbind, e2))
-        else
-          (rng, LetIn(valbind, e2))
+        (rng, LetIn(valbind, e2))
       }
   | tokL=LET; pat=patcons; DEFEQ; e1=exprlet; IN; e2=exprlet {
         let rng = make_range (Token(tokL)) (Ranged(e2)) in
