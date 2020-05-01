@@ -50,8 +50,8 @@ bindtop:
       }
 ;
 typarams:
-  |                                     { [] }
-  | LPAREN; typarams=typaramssub RPAREN { typarams }
+  |                                       { [] }
+  | LSQUARE; typarams=typaramssub RSQUARE { typarams }
 ;
 typaramssub:
   |                                          { [] }
@@ -59,10 +59,11 @@ typaramssub:
   | typaram=TYPARAM; COMMA; tail=typaramssub { typaram :: tail }
 ;
 bindvaltop:
-  | tok=LET; ident=IDENT; LPAREN; params=params; RPAREN; tyannot=tyannot; DEFEQ; e0=exprlet {
+  | tok=LET; ident=IDENT; bids=typarams; LPAREN; params=params; RPAREN; tyannot=tyannot; DEFEQ; e0=exprlet {
         let valbinding =
           {
             vb_identifier = ident;
+            vb_forall     = bids;
             vb_parameters = params;
             vb_return_type = tyannot;
             vb_body       = e0;
@@ -70,10 +71,11 @@ bindvaltop:
         in
         (tok, false, valbinding)
       }
-  | tok=LETREC; ident=IDENT; LPAREN; params=params; tyannot=tyannot; RPAREN; DEFEQ; e0=exprlet {
+  | tok=LETREC; ident=IDENT; bids=typarams; LPAREN; params=params; tyannot=tyannot; RPAREN; DEFEQ; e0=exprlet {
         let valbinding =
           {
             vb_identifier = ident;
+            vb_forall     = bids;
             vb_parameters = params;
             vb_return_type = tyannot;
             vb_body       = e0;
@@ -281,7 +283,7 @@ tybot:
         let (rng, tynm) = ident in
         (rng, MTypeName(tynm, []))
       }
-  | ident=IDENT; LPAREN; mtyargs=tys; tokR=RPAREN {
+  | ident=IDENT; LSQUARE; mtyargs=tys; tokR=RSQUARE {
         let (tokL, tynm) = ident in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, MTypeName(tynm, mtyargs))
