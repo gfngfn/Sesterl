@@ -475,32 +475,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       (ty2, ILetIn(name, e1, e2))
 
   | LetIn(Rec(letbinds), utast2) ->
-      (* -- register type variables and names for output corresponding to bound names
-            before traversing definitions -- *)
-      let (tupleacc, tyenv) =
-        letbinds |> List.fold_left (fun (tupleacc, tyenv) letbind ->
-          let (rngv, x) = letbind.vb_identifier in
-          let name_inner = generate_output_identifier Local rngv x in
-          let levS = pre.level + 1 in
-          let tyf = fresh_type ~name:x levS rngv in
-          let tyenv = tyenv |> Typeenv.add_val x (lift tyf) name_inner in
-          (Alist.extend tupleacc (letbind, name_inner, tyf), tyenv)
-        ) (Alist.empty, pre.tyenv)
-      in
-      let (bindacc, tyenv) =
-        tupleacc |> Alist.to_list |> List.fold_left (fun (bindacc, tyenv) (letbind, name_inner, tyf) ->
-          let (tyenv, e1, pty) = typecheck_letrec_single { pre with tyenv } letbind name_inner tyf in
-          let name_outer = OutputIdentifier.fresh () in
-          let (_, x) as ident = letbind.vb_identifier in
-          (Alist.extend bindacc (x, pty, name_outer, name_inner, e1), tyenv)
-        ) (Alist.empty, tyenv)
-      in
-      let binds = bindacc |> Alist.to_list in
-      let tyenv =
-        binds |> List.fold_left (fun tyenv (x, pty, name_outer, _, _) ->
-          tyenv |> Typeenv.add_val x pty name_outer
-        ) tyenv
-      in
+      let (tyenv, binds) = typecheck_letrec_mutual pre letbinds in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       (ty2, iletrecin binds e2)
 
@@ -748,6 +723,41 @@ and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : 
   let pty1 = generalize pre.level ty1 in
   let name = generate_output_identifier scope rngv x in
   (pre.tyenv |> Typeenv.add_val x pty1 name, name, e1)
+
+
+and typecheck_letrec_mutual (pre : pre) (letbinds : untyped_let_binding list) =
+
+  (* -- register type variables and names for output corresponding to bound names
+        before traversing definitions -- *)
+  let (tupleacc, tyenv) =
+    letbinds |> List.fold_left (fun (tupleacc, tyenv) letbind ->
+      let (rngv, x) = letbind.vb_identifier in
+      let name_inner = generate_output_identifier Local rngv x in
+      let levS = pre.level + 1 in
+      let tyf = fresh_type ~name:x levS rngv in
+      let tyenv = tyenv |> Typeenv.add_val x (lift tyf) name_inner in
+      (Alist.extend tupleacc (letbind, name_inner, tyf), tyenv)
+    ) (Alist.empty, pre.tyenv)
+  in
+
+  let (bindacc, tyenv) =
+    tupleacc |> Alist.to_list |> List.fold_left (fun (bindacc, tyenv) (letbind, name_inner, tyf) ->
+      let (tyenv, e1, pty) = typecheck_letrec_single { pre with tyenv } letbind name_inner tyf in
+      let name_outer = OutputIdentifier.fresh () in
+      let (_, x) as ident = letbind.vb_identifier in
+      (Alist.extend bindacc (x, pty, name_outer, name_inner, e1), tyenv)
+    ) (Alist.empty, tyenv)
+  in
+  let binds = bindacc |> Alist.to_list in
+
+  (* -- after type checking all bindings,
+        update names for output and types -- *)
+  let tyenv =
+    binds |> List.fold_left (fun tyenv (x, pty, name_outer, _, _) ->
+      tyenv |> Typeenv.add_val x pty name_outer
+    ) tyenv
+  in
+  (tyenv, binds)
 
 
 and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (name_inner : name) (tyf : mono_type) : Typeenv.t * ast * poly_type =
