@@ -687,13 +687,16 @@ and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : 
 
 
 and typecheck_letrec (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast * poly_type =
-  let lev = pre.level in
-  let tyf = fresh_type ~name:x (lev + 1) rngv in
   let name = generate_output_identifier scope rngv x in
-  let tyenvsub = pre.tyenv |> Typeenv.add_val x (lift tyf) name in
-  let (ty1, e1) = typecheck { pre with level = lev + 1; tyenv = tyenvsub } utast1 in
-  unify ty1 tyf;
-  let ptyf = generalize lev tyf in
+  let (ty1, e1) =
+    let levS = pre.level + 1 in
+    let tyf = fresh_type ~name:x levS rngv in
+    let tyenv = pre.tyenv |> Typeenv.add_val x (lift tyf) name in
+    let (ty1, e1) = typecheck { pre with level = levS; tyenv = tyenv } utast1 in
+    unify ty1 tyf;
+    (ty1, e1)
+  in
+  let ptyf = generalize pre.level ty1 in
   (pre.tyenv |> Typeenv.add_val x ptyf name, name, e1, ptyf)
 
 
