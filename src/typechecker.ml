@@ -80,6 +80,9 @@ let make_type_parameter_assoc (lev : int) (tyvarnms : (type_variable_name ranged
 
 
 let decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
+  let invalid rng tynm ~expect:len_expected ~actual:len_actual =
+    raise (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
+  in
   let tyenv = pre.tyenv in
   let typarams = pre.local_type_parameters in
   let rec aux (rng, mtymain) =
@@ -87,24 +90,28 @@ let decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
       match mtymain with
       | MTypeName(tynm, mtyargs) ->
           let ptyargs = mtyargs |> List.map aux in
+          let len_actual = List.length ptyargs in
           begin
             match tyenv |> Typeenv.find_type tynm with
             | None ->
                 begin
                   match (tynm, ptyargs) with
                   | ("unit", [])    -> BaseType(UnitType)
+                  | ("unit", _)     -> invalid rng "unit" ~expect:0 ~actual:len_actual
                   | ("bool", [])    -> BaseType(BoolType)
+                  | ("bool", _)     -> invalid rng "bool" ~expect:0 ~actual:len_actual
                   | ("int", [])     -> BaseType(IntType)
+                  | ("int", _)      -> invalid rng "int" ~expect:0 ~actual:len_actual
                   | ("list", [pty]) -> ListType(pty)
+                  | ("list", _)     -> invalid rng "list" ~expect:1 ~actual:len_actual
                   | _               -> raise (UndefinedTypeName(rng, tynm))
                 end
 
             | Some(tyid, len_expected) ->
-                let len_actual = List.length ptyargs in
                 if len_actual = len_expected then
                   VariantType(tyid, ptyargs)
                 else
-                  raise (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
+                  invalid rng tynm ~expect:len_expected ~actual:len_actual
           end
 
       | MFuncType(mtydoms, mtycod) ->
