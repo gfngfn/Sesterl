@@ -657,12 +657,13 @@ and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : 
   let params = letbind.vb_parameters in
   let utast0 = letbind.vb_body in
 
-  let levS = pre.level + 1 in
-  let pre =
-    let assoc = make_type_parameter_assoc levS letbind.vb_forall in
-    { pre with level = levS } |> add_local_type_parameter assoc in
-      (* -- add local type parameters at level `levS` -- *)
-
+  let (ty0, e0, tys, names) =
+    let levS = pre.level + 1 in
+    let pre =
+      let assoc = make_type_parameter_assoc levS letbind.vb_forall in
+      { pre with level = levS } |> add_local_type_parameter assoc
+        (* -- add local type parameters at level `levS` -- *)
+    in
     let (tyenv, tys, names) =
       add_parameters_to_type_environment pre params
     in
@@ -672,8 +673,10 @@ and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : 
       let ty0_expected = decode_manual_type pre mty0 in
       unify ty0 ty0_expected
     ) |> Option.value ~default:();
-    let ty1 = (rngv, FuncType(tys, ty0)) in
-    let e1 = ILambda(None, names, e0) in
+    (ty0, e0, tys, names)
+  in
+  let ty1 = (rngv, FuncType(tys, ty0)) in
+  let e1 = ILambda(None, names, e0) in
 
   let pty1 = generalize pre.level ty1 in
   let name = generate_output_identifier scope rngv x in
