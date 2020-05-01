@@ -432,9 +432,10 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       check_properly_used tyenv letbind.vb_identifier;
       (ty2, ILetIn(name, e1, e2))
 
-  | LetRecIn(((_, x) as ident), utast1, utast2) ->
-      let (tyenv, name_inner, e1, pty) = typecheck_letrec Local pre ident utast1 in
+  | LetRecIn(letbind, utast2) ->
+      let (tyenv, name_inner, e1, pty) = typecheck_letrec Local pre letbind in
       let name_outer = OutputIdentifier.fresh () in
+      let (_, x) as ident = letbind.vb_identifier in
       let tyenv = tyenv |> Typeenv.add_val x pty name_outer in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       check_properly_used tyenv ident;
@@ -686,18 +687,36 @@ and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : 
   (pre.tyenv |> Typeenv.add_val x pty1 name, name, e1)
 
 
-and typecheck_letrec (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast * poly_type =
-  let name = generate_output_identifier scope rngv x in
-  let (ty1, e1) =
-    let levS = pre.level + 1 in
-    let tyf = fresh_type ~name:x levS rngv in
-    let tyenv = pre.tyenv |> Typeenv.add_val x (lift tyf) name in
-    let (ty1, e1) = typecheck { pre with level = levS; tyenv = tyenv } utast1 in
-    unify ty1 tyf;
-    (ty1, e1)
+and typecheck_letrec (scope : scope) (pre : pre) (letbind : untyped_let_binding) : Typeenv.t * name * ast * poly_type =
+  let (rngv, x) = letbind.vb_identifier in
+  let params = letbind.vb_parameters in
+  let utast0 = letbind.vb_body in
+
+
+  let name_inner = generate_output_identifier scope rngv x in
+  let levS = pre.level + 1 in
+  let tyf = fresh_type ~name:x levS rngv in
+  let (ty0, e0, tys, names) =
+    let tyenv = pre.tyenv |> Typeenv.add_val x (lift tyf) name_inner in
+    let pre =
+      let assoc = make_type_parameter_assoc levS letbind.vb_forall in
+      { pre with level = levS; tyenv = tyenv } |> add_local_type_parameter assoc
+    in
+    let (tyenv, tys, names) =
+      add_parameters_to_type_environment pre params
+    in
+    let (ty0, e0) = typecheck { pre with tyenv } utast0 in
+    letbind.vb_return_type |> Option.map (fun mty0 ->
+      let ty0_expected = decode_manual_type pre mty0 in
+      unify ty0 ty0_expected;
+    ) |> Option.value ~default:();
+    (ty0, e0, tys, names)
   in
+  let ty1 = (rngv, FuncType(tys, ty0)) in
+  let e1 = ILambda(None, names, e0) in
+  unify ty1 tyf;
   let ptyf = generalize pre.level ty1 in
-  (pre.tyenv |> Typeenv.add_val x ptyf name, name, e1, ptyf)
+  (pre.tyenv |> Typeenv.add_val x ptyf name_inner, name_inner, e1, ptyf)
 
 
 let make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) =
@@ -728,11 +747,8 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
           in
           let (tyenv, name, e) =
             if isrec then
-              let ident  = valbind.vb_identifier in
-              let utast0 = valbind.vb_body in
-              let utast1 = (Range.dummy "bind-val", Lambda(params, utast0)) in
               let (tyenv, name, e, _) =
-                typecheck_letrec (Global(arity)) pre ident utast1
+                typecheck_letrec (Global(arity)) pre valbind
               in
               (tyenv, name, e)
             else

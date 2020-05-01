@@ -62,7 +62,7 @@ and untyped_ast_main =
   | Apply       of untyped_ast * untyped_ast list
   | If          of untyped_ast * untyped_ast * untyped_ast
   | LetIn       of untyped_let_binding * untyped_ast
-  | LetRecIn    of identifier ranged * untyped_ast * untyped_ast
+  | LetRecIn    of untyped_let_binding * untyped_ast
   | LetPatIn    of untyped_pattern * untyped_ast * untyped_ast
   | Do          of binder option * untyped_ast * untyped_ast
   | Receive     of untyped_branch list
