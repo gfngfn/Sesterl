@@ -45,8 +45,8 @@ bindtop:
         BindType(ident, typarams, ctorbrs)
       }
   | bindval=bindvaltop {
-        let (_, isrec, ident, params, e0) = bindval in
-        BindVal(isrec, ident, params, e0)
+        let (_, isrec, valbinding) = bindval in
+        BindVal(isrec, valbinding)
       }
 ;
 typarams:
@@ -59,11 +59,25 @@ typaramssub:
   | typaram=TYPARAM; COMMA; tail=typaramssub { typaram :: tail }
 ;
 bindvaltop:
-  | tok=LET; ident=IDENT; LPAREN; params=params; RPAREN; DEFEQ; e1=exprlet {
-        (tok, false, ident, params, e1)
+  | tok=LET; ident=IDENT; LPAREN; params=params; RPAREN; DEFEQ; e0=exprlet {
+        let valbinding =
+          {
+            vb_identifier = ident;
+            vb_parameters = params;
+            vb_body       = e0;
+          }
+        in
+        (tok, false, valbinding)
       }
-  | tok=LETREC; ident=IDENT; LPAREN; params=params; RPAREN; DEFEQ; e1=exprlet {
-        (tok, true, ident, params, e1)
+  | tok=LETREC; ident=IDENT; LPAREN; params=params; RPAREN; DEFEQ; e0=exprlet {
+        let valbinding =
+          {
+            vb_identifier = ident;
+            vb_parameters = params;
+            vb_body       = e0;
+          }
+        in
+        (tok, true, valbinding)
       }
 ;
 ctorbranch:
@@ -87,13 +101,16 @@ tyannot:
 ;
 exprlet:
   | bindval=bindvaltop; IN; e2=exprlet {
-        let (tokL, isrec, ident, params, e0) = bindval in
-        let e1 = (Range.dummy "bind-val-local", Lambda(params, e0)) in
+        let (tokL, isrec, valbind) = bindval in
         let rng = make_range (Token(tokL)) (Ranged(e2)) in
         if isrec then
+          let ident  = valbind.vb_identifier in
+          let params = valbind.vb_parameters in
+          let e0     = valbind.vb_body in
+          let e1 = (Range.dummy "bind-val-local", Lambda(params, e0)) in
           (rng, LetRecIn(ident, e1, e2))
         else
-          (rng, LetIn(ident, e1, e2))
+          (rng, LetIn(valbind, e2))
       }
   | tokL=LET; pat=patcons; DEFEQ; e1=exprlet; IN; e2=exprlet {
         let rng = make_range (Token(tokL)) (Ranged(e2)) in

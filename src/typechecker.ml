@@ -392,7 +392,13 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let ibranches = [ IBranch(IPBool(true), None, e1); IBranch(IPBool(false), None, e2) ] in
       (ty1, ICase(e0, ibranches))
 
-  | LetIn(ident, utast1, utast2) ->
+  | LetIn(valbind, utast2) ->
+      let (ident, utast1) =
+        let ident = valbind.vb_identifier in
+        let params = valbind.vb_parameters in
+        let utast0 = valbind.vb_body in
+        (ident, (Range.dummy "let-local", Lambda(params, utast0)))
+      in
       let (tyenv, name, e1) = typecheck_let Local pre ident utast1 in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       check_properly_used tyenv ident;
@@ -661,17 +667,20 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
   let (tyenv, bindacc) =
     utbinds |> List.fold_left (fun (tyenv, bindacc) utdecl ->
       match utdecl with
-      | BindVal(isrec, binder, params, utast0) ->
+      | BindVal(isrec, valbind) ->
+          let ident  = valbind.vb_identifier in
+          let params = valbind.vb_parameters in
+          let utast0 = valbind.vb_body in
           let arity = List.length params in
           let utast1 = (Range.dummy "bind-val", Lambda(params, utast0)) in
           let (tyenv, name, e) =
             if isrec then
               let (tyenv, name, e, _) =
-                typecheck_letrec (Global(arity)) { level = 0; tyenv = tyenv } binder utast1
+                typecheck_letrec (Global(arity)) { level = 0; tyenv = tyenv } ident utast1
               in
               (tyenv, name, e)
             else
-              typecheck_let (Global(arity)) { level = 0; tyenv = tyenv } binder utast1
+              typecheck_let (Global(arity)) { level = 0; tyenv = tyenv } ident utast1
           in
           (tyenv, Alist.extend bindacc (IBindVal(name, e)))
 

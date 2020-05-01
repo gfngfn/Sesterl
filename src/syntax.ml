@@ -61,7 +61,7 @@ and untyped_ast_main =
   | Lambda      of binder list * untyped_ast
   | Apply       of untyped_ast * untyped_ast list
   | If          of untyped_ast * untyped_ast * untyped_ast
-  | LetIn       of identifier ranged * untyped_ast * untyped_ast
+  | LetIn       of untyped_let_binding * untyped_ast
   | LetRecIn    of identifier ranged * untyped_ast * untyped_ast
   | LetPatIn    of untyped_pattern * untyped_ast * untyped_ast
   | Do          of binder option * untyped_ast * untyped_ast
@@ -71,6 +71,12 @@ and untyped_ast_main =
   | ListCons    of untyped_ast * untyped_ast
   | Case        of untyped_ast * untyped_branch list
   | Constructor of constructor_name * untyped_ast list
+
+and untyped_let_binding = {
+  vb_identifier : identifier ranged;
+  vb_parameters : binder list;
+  vb_body       : untyped_ast;
+}
 
 and untyped_branch =
   | Branch of untyped_pattern * untyped_ast option * untyped_ast
@@ -96,8 +102,8 @@ type constructor_branch =
 [@@deriving show { with_path = false; } ]
 
 type untyped_binding =
-  | BindVal  of bool * identifier ranged * binder list * untyped_ast
-  | BindType of type_name ranged * (type_variable_name ranged) list * constructor_branch list
+  | BindVal    of bool * untyped_let_binding
+  | BindType   of type_name ranged * (type_variable_name ranged) list * constructor_branch list
 [@@deriving show { with_path = false; } ]
 
 type 'a typ =
