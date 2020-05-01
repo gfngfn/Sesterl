@@ -17,7 +17,7 @@ let bintree_of_int(n: int): bintree[int] =
   aux(1, n)
 
 let reverse_list[$a](xs: list[$a]): list[$a] =
-  letrec aux(rev, xs) =
+  letrec aux(rev: list[$a], xs: list[$a]) =
     case xs of
     | []        -> rev
     | x :: tail -> aux(x :: rev, tail)
@@ -34,7 +34,7 @@ letrec wait_all(n: int) =
         let _ = print_debug(msg) in
         wait_all(n - 1)
     end
-/*
+
 letrec spawn_all(acc, n: int) =
   if n <= 0 then
     return(reverse_list(acc))
@@ -51,4 +51,3 @@ let main() =
   do pids <- spawn_all([], m) in
   let _ = print_debug(pids) in
   wait_all(m)
-*/
