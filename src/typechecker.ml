@@ -628,12 +628,29 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
 
 and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : Typeenv.t * name * ast =
   let (rngv, x) = letbind.vb_identifier in
-  let utast1 =
+  let (ty1, e1) =
     let params = letbind.vb_parameters in
     let utast0 = letbind.vb_body in
-    (Range.dummy "typecheck_let", Lambda(params, utast0))
+    let pre = { pre with level = pre.level + 1 } in
+    let (tyenv, typarams, names) = add_parameters_to_type_environment pre params in
+    let (ty0, e0) = typecheck { pre with tyenv } utast0 in
+    let () =
+      match letbind.vb_return_type with
+      | None ->
+          ()
+
+      | Some(mty) ->
+          let ty_expected =
+            let typaramassoc = TypeParameterAssoc.empty in  (* temporary *)
+            let pty = decode_manual_type tyenv typaramassoc mty in
+            instantiate pre.level pty
+          in
+          unify ty0 ty_expected
+    in
+    let ty1 = (rngv, FuncType(typarams, ty0)) in
+    let e1 = ILambda(None, names, e0) in
+    (ty1, e1)
   in
-  let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in
   let pty1 = generalize pre.level ty1 in
   let name = generate_output_identifier scope rngv x in
   (pre.tyenv |> Typeenv.add_val x pty1 name, name, e1)

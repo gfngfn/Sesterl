@@ -3,7 +3,7 @@ type bintree($a) =
   | Node($a, bintree($a), bintree($a))
   | Empty
 
-let bintree_of_int(n: int) =
+let bintree_of_int(n: int): bintree(int) =
   letrec aux(top, n) =
   if n <= 0 then
     Empty
