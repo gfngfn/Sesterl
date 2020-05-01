@@ -24,12 +24,6 @@ let pp_identifier ppf s =
   Format.fprintf ppf "\"%s\"" s
 
 
-type binder = identifier ranged
-
-let pp_binder ppf (_, s) =
-  pp_identifier ppf s
-
-
 type base_type =
   | IntType
   | BoolType
@@ -45,6 +39,12 @@ and manual_type_main =
   | MTypeVar     of type_variable_name
 [@@deriving show { with_path = false; } ]
 
+type binder = identifier ranged * manual_type option
+
+let pp_binder ppf ((_, s), _) =
+  pp_identifier ppf s
+
+
 type base_constant =
   | Unit
   | Bool of bool
@@ -56,21 +56,28 @@ type untyped_ast =
 [@printer (fun ppf (_, utastmain) -> pp_untyped_ast_main ppf utastmain)]
 
 and untyped_ast_main =
-  | BaseConst of base_constant
-  | Var      of identifier
-  | Lambda   of binder list * untyped_ast
-  | Apply    of untyped_ast * untyped_ast list
-  | If       of untyped_ast * untyped_ast * untyped_ast
-  | LetIn    of binder * untyped_ast * untyped_ast
-  | LetRecIn of binder * untyped_ast * untyped_ast
-  | LetPatIn of untyped_pattern * untyped_ast * untyped_ast
-  | Do       of binder option * untyped_ast * untyped_ast
-  | Receive  of untyped_branch list
-  | Tuple    of untyped_ast TupleList.t
+  | BaseConst   of base_constant
+  | Var         of identifier
+  | Lambda      of binder list * untyped_ast
+  | Apply       of untyped_ast * untyped_ast list
+  | If          of untyped_ast * untyped_ast * untyped_ast
+  | LetIn       of untyped_let_binding * untyped_ast
+  | LetRecIn    of identifier ranged * untyped_ast * untyped_ast
+  | LetPatIn    of untyped_pattern * untyped_ast * untyped_ast
+  | Do          of binder option * untyped_ast * untyped_ast
+  | Receive     of untyped_branch list
+  | Tuple       of untyped_ast TupleList.t
   | ListNil
-  | ListCons of untyped_ast * untyped_ast
-  | Case     of untyped_ast * untyped_branch list
+  | ListCons    of untyped_ast * untyped_ast
+  | Case        of untyped_ast * untyped_branch list
   | Constructor of constructor_name * untyped_ast list
+
+and untyped_let_binding = {
+  vb_identifier : identifier ranged;
+  vb_parameters : binder list;
+  vb_return_type : manual_type option;
+  vb_body       : untyped_ast;
+}
 
 and untyped_branch =
   | Branch of untyped_pattern * untyped_ast option * untyped_ast
@@ -81,13 +88,13 @@ and untyped_pattern =
 
 and untyped_pattern_main =
   | PUnit
-  | PBool     of bool
-  | PInt      of int
-  | PVar      of identifier
+  | PBool        of bool
+  | PInt         of int
+  | PVar         of identifier
   | PWildCard
   | PListNil
-  | PListCons of untyped_pattern * untyped_pattern
-  | PTuple    of untyped_pattern TupleList.t
+  | PListCons    of untyped_pattern * untyped_pattern
+  | PTuple       of untyped_pattern TupleList.t
   | PConstructor of constructor_name * untyped_pattern list
 [@@deriving show { with_path = false; } ]
 
@@ -96,8 +103,8 @@ type constructor_branch =
 [@@deriving show { with_path = false; } ]
 
 type untyped_binding =
-  | BindVal  of bool * binder * (identifier ranged) list * untyped_ast
-  | BindType of type_name ranged * (type_variable_name ranged) list * constructor_branch list
+  | BindVal    of bool * untyped_let_binding
+  | BindType   of type_name ranged * (type_variable_name ranged) list * constructor_branch list
 [@@deriving show { with_path = false; } ]
 
 type 'a typ =

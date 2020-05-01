@@ -3,12 +3,12 @@ open MyUtil
 open Syntax
 
 
-exception UnboundVariable            of Range.t * identifier
-exception ContradictionError         of mono_type * mono_type
-exception InclusionError             of FreeID.t * mono_type * mono_type
-exception BoundMoreThanOnceInPattern of Range.t * identifier
-exception UnboundTypeParameter       of Range.t * type_variable_name
-exception UndefinedConstructor       of Range.t * constructor_name
+exception UnboundVariable                     of Range.t * identifier
+exception ContradictionError                  of mono_type * mono_type
+exception InclusionError                      of FreeID.t * mono_type * mono_type
+exception BoundMoreThanOnceInPattern          of Range.t * identifier
+exception UnboundTypeParameter                of Range.t * type_variable_name
+exception UndefinedConstructor                of Range.t * constructor_name
 exception InvalidNumberOfConstructorArguments of Range.t * constructor_name * int * int
 exception UndefinedTypeName                   of Range.t * type_name
 exception InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
@@ -50,6 +50,53 @@ let make_bound_to_free_map (lev : int) (typaramassoc : type_parameter_assoc) : m
     ) (Alist.empty, BoundIDMap.empty)
   in
   (Alist.to_list tyargacc, bfmap)
+
+
+let decode_manual_type (tyenv : Typeenv.t) (typaramassoc : type_parameter_assoc) (mty : manual_type) : poly_type =
+  let rec aux (rng, mtymain) =
+    let tymain =
+      match mtymain with
+      | MTypeName(tynm, mtyargs) ->
+          let ptyargs = mtyargs |> List.map aux in
+          begin
+            match tyenv |> Typeenv.find_type tynm with
+            | None ->
+                begin
+                  match (tynm, ptyargs) with
+                  | ("unit", [])    -> BaseType(UnitType)
+                  | ("bool", [])    -> BaseType(BoolType)
+                  | ("int", [])     -> BaseType(IntType)
+                  | ("list", [pty]) -> ListType(pty)
+                  | _               -> raise (UndefinedTypeName(rng, tynm))
+                end
+
+            | Some(tyid, len_expected) ->
+                let len_actual = List.length ptyargs in
+                if len_actual = len_expected then
+                  VariantType(tyid, ptyargs)
+                else
+                  raise (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
+          end
+
+      | MFuncType(mtydoms, mtycod) ->
+          FuncType(List.map aux mtydoms, aux mtycod)
+
+      | MProductType(mtys) ->
+          ProductType(TupleList.map aux mtys)
+
+      | MTypeVar(typaram) ->
+          begin
+            match typaramassoc |> TypeParameterAssoc.find_opt typaram with
+            | None ->
+                raise (UnboundTypeParameter(rng, typaram))
+
+            | Some(bid) ->
+                TypeVar(Bound(bid))
+          end
+    in
+    (rng, tymain)
+  in
+  aux mty
 
 
 let (&&&) res1 res2 =
@@ -281,6 +328,31 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   | Bool(b) -> (rng, BaseType(BoolType))
 
 
+let decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) : mono_type =
+  match tyannot with
+  | None ->
+      fresh_type ~name:x pre.level rng
+
+  | Some(mty) ->
+      let typaramassoc = TypeParameterAssoc.empty in
+        (* temporary; may support explicit type variables in the future *)
+      instantiate pre.level (decode_manual_type pre.tyenv typaramassoc mty)
+
+
+let add_parameters_to_type_environment (pre : pre) (binders : binder list) =
+  let (tyenv, nameacc, tydomacc) =
+    List.fold_left (fun (tyenv, nameacc, tydomacc) (((rngv, x), _) as binder) ->
+      let tydom = decode_type_annotation_or_fresh pre binder in
+      let ptydom = lift tydom in
+      let name = generate_output_identifier Local rngv x in
+      (tyenv |> Typeenv.add_val x ptydom name, Alist.extend nameacc name, Alist.extend tydomacc tydom)
+    ) (pre.tyenv, Alist.empty, Alist.empty) binders
+  in
+  let names = nameacc |> Alist.to_list in
+  let tydoms = tydomacc |> Alist.to_list in
+  (tyenv, tydoms, names)
+
+
 let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   match utastmain with
   | BaseConst(bc) ->
@@ -302,16 +374,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       end
 
   | Lambda(binders, utast0) ->
-      let (tyenv, nameacc, tydomacc) =
-        List.fold_left (fun (tyenv, nameacc, tydomacc) (rngv, x) ->
-          let tydom = fresh_type ~name:x pre.level rngv in
-          let ptydom = lift tydom in
-          let name = generate_output_identifier Local rngv x in
-          (tyenv |> Typeenv.add_val x ptydom name, Alist.extend nameacc name, Alist.extend tydomacc tydom)
-        ) (pre.tyenv, Alist.empty, Alist.empty) binders
-      in
-      let names = nameacc |> Alist.to_list in
-      let tydoms = tydomacc |> Alist.to_list in
+      let (tyenv, tydoms, names) = add_parameters_to_type_environment pre binders in
       let (tycod, e0) = typecheck { pre with tyenv } utast0 in
       let ty = (rng, FuncType(tydoms, tycod)) in
       (ty, ilambda names e0)
@@ -334,10 +397,10 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let ibranches = [ IBranch(IPBool(true), None, e1); IBranch(IPBool(false), None, e2) ] in
       (ty1, ICase(e0, ibranches))
 
-  | LetIn(ident, utast1, utast2) ->
-      let (tyenv, name, e1) = typecheck_let Local pre ident utast1 in
+  | LetIn(letbind, utast2) ->
+      let (tyenv, name, e1) = typecheck_let Local pre letbind in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
-      check_properly_used tyenv ident;
+      check_properly_used tyenv letbind.vb_identifier;
       (ty2, ILetIn(name, e1, e2))
 
   | LetRecIn(((_, x) as ident), utast1, utast2) ->
@@ -356,8 +419,8 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
         | None ->
             ((Range.dummy "do-unit", BaseType(UnitType)), pre.tyenv, OutputIdentifier.unused)
 
-        | Some(rngv, x) ->
-            let tyx = fresh_type ~name:x lev rngv in
+        | Some(((rngv, x), _) as binder) ->
+            let tyx = decode_type_annotation_or_fresh pre binder in
             let name = generate_output_identifier Local rngv x in
             (tyx, pre.tyenv |> Typeenv.add_val x (lift tyx) name, name)
       in
@@ -563,8 +626,31 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
       end
 
 
-and typecheck_let (scope : scope) (pre : pre) ((rngv, x) : Range.t * identifier) (utast1 : untyped_ast) : Typeenv.t * name * ast =
-  let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in
+and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : Typeenv.t * name * ast =
+  let (rngv, x) = letbind.vb_identifier in
+  let (ty1, e1) =
+    let params = letbind.vb_parameters in
+    let utast0 = letbind.vb_body in
+    let pre = { pre with level = pre.level + 1 } in
+    let (tyenv, typarams, names) = add_parameters_to_type_environment pre params in
+    let (ty0, e0) = typecheck { pre with tyenv } utast0 in
+    let () =
+      match letbind.vb_return_type with
+      | None ->
+          ()
+
+      | Some(mty) ->
+          let ty_expected =
+            let typaramassoc = TypeParameterAssoc.empty in  (* temporary *)
+            let pty = decode_manual_type tyenv typaramassoc mty in
+            instantiate pre.level pty
+          in
+          unify ty0 ty_expected
+    in
+    let ty1 = (rngv, FuncType(typarams, ty0)) in
+    let e1 = ILambda(None, names, e0) in
+    (ty1, e1)
+  in
   let pty1 = generalize pre.level ty1 in
   let name = generate_output_identifier scope rngv x in
   (pre.tyenv |> Typeenv.add_val x pty1 name, name, e1)
@@ -588,53 +674,6 @@ let make_type_parameter_assoc (typarams : (type_variable_name ranged) list) : ty
   ) TypeParameterAssoc.empty
 
 
-let decode_manual_type (tyenv : Typeenv.t) (typaramassoc : type_parameter_assoc) (mty : manual_type) : poly_type =
-  let rec aux (rng, mtymain) =
-    let tymain =
-      match mtymain with
-      | MTypeName(tynm, mtyargs) ->
-          let ptyargs = mtyargs |> List.map aux in
-          begin
-            match tyenv |> Typeenv.find_type tynm with
-            | None ->
-                begin
-                  match (tynm, ptyargs) with
-                  | ("unit", [])    -> BaseType(UnitType)
-                  | ("bool", [])    -> BaseType(BoolType)
-                  | ("int", [])     -> BaseType(IntType)
-                  | ("list", [pty]) -> ListType(pty)
-                  | _               -> raise (UndefinedTypeName(rng, tynm))
-                end
-
-            | Some(tyid, len_expected) ->
-                let len_actual = List.length ptyargs in
-                if len_actual = len_expected then
-                  VariantType(tyid, ptyargs)
-                else
-                  raise (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
-          end
-
-      | MFuncType(mtydoms, mtycod) ->
-          FuncType(List.map aux mtydoms, aux mtycod)
-
-      | MProductType(mtys) ->
-          ProductType(TupleList.map aux mtys)
-
-      | MTypeVar(typaram) ->
-          begin
-            match typaramassoc |> TypeParameterAssoc.find_opt typaram with
-            | None ->
-                raise (UnboundTypeParameter(rng, typaram))
-
-            | Some(bid) ->
-                TypeVar(Bound(bid))
-          end
-    in
-    (rng, tymain)
-  in
-  aux mty
-
-
 let make_constructor_branch_map (tyenv : Typeenv.t) (typaramassoc : type_parameter_assoc) (ctorbrs : constructor_branch list) =
   ctorbrs |> List.fold_left (fun ctormap ctorbr ->
     match ctorbr with
@@ -650,17 +689,20 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
   let (tyenv, bindacc) =
     utbinds |> List.fold_left (fun (tyenv, bindacc) utdecl ->
       match utdecl with
-      | BindVal(isrec, binder, params, utast0) ->
+      | BindVal(isrec, valbind) ->
+          let params = valbind.vb_parameters in
           let arity = List.length params in
-          let utast1 = (Range.dummy "bind-val", Lambda(params, utast0)) in
           let (tyenv, name, e) =
             if isrec then
+              let ident  = valbind.vb_identifier in
+              let utast0 = valbind.vb_body in
+              let utast1 = (Range.dummy "bind-val", Lambda(params, utast0)) in
               let (tyenv, name, e, _) =
-                typecheck_letrec (Global(arity)) { level = 0; tyenv = tyenv } binder utast1
+                typecheck_letrec (Global(arity)) { level = 0; tyenv = tyenv } ident utast1
               in
               (tyenv, name, e)
             else
-              typecheck_let (Global(arity)) { level = 0; tyenv = tyenv } binder utast1
+              typecheck_let (Global(arity)) { level = 0; tyenv = tyenv } valbind
           in
           (tyenv, Alist.extend bindacc (IBindVal(name, e)))
 

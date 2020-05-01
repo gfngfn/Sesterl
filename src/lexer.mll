@@ -65,6 +65,7 @@ rule token = parse
   | "["  { LSQUARE(Range.from_lexbuf lexbuf) }
   | "]"  { RSQUARE(Range.from_lexbuf lexbuf) }
   | "::" { CONS(Range.from_lexbuf lexbuf) }
+  | ":"  { COLON(Range.from_lexbuf lexbuf) }
   | "/*" { comment (Range.from_lexbuf lexbuf) lexbuf; token lexbuf }
   | ("&" (nssymbol*)) { BINOP_AMP(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
   | ("|" (nssymbol+)) { BINOP_BAR(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
