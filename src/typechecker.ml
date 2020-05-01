@@ -819,31 +819,32 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
               local_type_parameters = TypeParameterMap.empty;
             }
           in
-          let (tyenv, name, e) =
+          begin
             match rec_or_nonrec with
             | Rec([]) ->
                 assert false
 
-            | Rec(valbind :: []) ->
-                let params = valbind.vb_parameters in
-                let arity = List.length params in
-                let (rngv, x) = valbind.vb_identifier in
-                let name = generate_output_identifier (Global(arity)) rngv x in
-                let tyf = fresh_type ~name:x 1 rngv in
-                let tyenv = tyenv |> Typeenv.add_val x (lift tyf) name in
-                let (tyenv, e, _) = typecheck_letrec_single { pre with tyenv } valbind name tyf in
-                (tyenv, name, e)
-
-            | Rec(_ :: _) ->
-                failwith "temporarily not supported"
+            | Rec(valbinds) ->
+                let namef valbind =
+                  let params = valbind.vb_parameters in
+                  let arity = List.length params in
+                  let (rngv, x) = valbind.vb_identifier in
+                  generate_output_identifier (Global(arity)) rngv x
+                in
+                let (tyenv, recbinds) = typecheck_letrec_mutual namef namef pre valbinds in
+                let binds =
+                  recbinds |> List.map (fun (_x, _pty, name, _, e) -> (IBindVal(name, e)))
+                in
+                (tyenv, Alist.append bindacc binds)
 
             | NonRec(valbind) ->
-                let params = valbind.vb_parameters in
-                let arity = List.length params in
-                typecheck_let (Global(arity)) pre valbind
-
-          in
-          (tyenv, Alist.extend bindacc (IBindVal(name, e)))
+                let (tyenv, name, e) =
+                  let params = valbind.vb_parameters in
+                  let arity = List.length params in
+                  typecheck_let (Global(arity)) pre valbind
+                in
+                (tyenv, Alist.extend bindacc (IBindVal(name, e)))
+          end
 
       | BindType((_, tynm), typarams, ctorbrs) ->
           let tyid = TypeID.fresh tynm in
