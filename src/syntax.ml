@@ -56,20 +56,20 @@ type untyped_ast =
 [@printer (fun ppf (_, utastmain) -> pp_untyped_ast_main ppf utastmain)]
 
 and untyped_ast_main =
-  | BaseConst of base_constant
-  | Var      of identifier
-  | Lambda   of binder list * untyped_ast
-  | Apply    of untyped_ast * untyped_ast list
-  | If       of untyped_ast * untyped_ast * untyped_ast
-  | LetIn    of identifier ranged * untyped_ast * untyped_ast
-  | LetRecIn of identifier ranged * untyped_ast * untyped_ast
-  | LetPatIn of untyped_pattern * untyped_ast * untyped_ast
-  | Do       of binder option * untyped_ast * untyped_ast
-  | Receive  of untyped_branch list
-  | Tuple    of untyped_ast TupleList.t
+  | BaseConst   of base_constant
+  | Var         of identifier
+  | Lambda      of binder list * untyped_ast
+  | Apply       of untyped_ast * untyped_ast list
+  | If          of untyped_ast * untyped_ast * untyped_ast
+  | LetIn       of identifier ranged * untyped_ast * untyped_ast
+  | LetRecIn    of identifier ranged * untyped_ast * untyped_ast
+  | LetPatIn    of untyped_pattern * untyped_ast * untyped_ast
+  | Do          of binder option * untyped_ast * untyped_ast
+  | Receive     of untyped_branch list
+  | Tuple       of untyped_ast TupleList.t
   | ListNil
-  | ListCons of untyped_ast * untyped_ast
-  | Case     of untyped_ast * untyped_branch list
+  | ListCons    of untyped_ast * untyped_ast
+  | Case        of untyped_ast * untyped_branch list
   | Constructor of constructor_name * untyped_ast list
 
 and untyped_branch =
@@ -81,13 +81,13 @@ and untyped_pattern =
 
 and untyped_pattern_main =
   | PUnit
-  | PBool     of bool
-  | PInt      of int
-  | PVar      of identifier
+  | PBool        of bool
+  | PInt         of int
+  | PVar         of identifier
   | PWildCard
   | PListNil
-  | PListCons of untyped_pattern * untyped_pattern
-  | PTuple    of untyped_pattern TupleList.t
+  | PListCons    of untyped_pattern * untyped_pattern
+  | PTuple       of untyped_pattern TupleList.t
   | PConstructor of constructor_name * untyped_pattern list
 [@@deriving show { with_path = false; } ]
 
