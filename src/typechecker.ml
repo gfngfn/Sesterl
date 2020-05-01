@@ -339,6 +339,20 @@ let decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) :
       instantiate pre.level (decode_manual_type pre.tyenv typaramassoc mty)
 
 
+let add_parameters_to_type_environment (pre : pre) (binders : binder list) =
+  let (tyenv, nameacc, tydomacc) =
+    List.fold_left (fun (tyenv, nameacc, tydomacc) (((rngv, x), _) as binder) ->
+      let tydom = decode_type_annotation_or_fresh pre binder in
+      let ptydom = lift tydom in
+      let name = generate_output_identifier Local rngv x in
+      (tyenv |> Typeenv.add_val x ptydom name, Alist.extend nameacc name, Alist.extend tydomacc tydom)
+    ) (pre.tyenv, Alist.empty, Alist.empty) binders
+  in
+  let names = nameacc |> Alist.to_list in
+  let tydoms = tydomacc |> Alist.to_list in
+  (tyenv, tydoms, names)
+
+
 let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   match utastmain with
   | BaseConst(bc) ->
@@ -360,16 +374,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       end
 
   | Lambda(binders, utast0) ->
-      let (tyenv, nameacc, tydomacc) =
-        List.fold_left (fun (tyenv, nameacc, tydomacc) (((rngv, x), _) as binder) ->
-          let tydom = decode_type_annotation_or_fresh pre binder in
-          let ptydom = lift tydom in
-          let name = generate_output_identifier Local rngv x in
-          (tyenv |> Typeenv.add_val x ptydom name, Alist.extend nameacc name, Alist.extend tydomacc tydom)
-        ) (pre.tyenv, Alist.empty, Alist.empty) binders
-      in
-      let names = nameacc |> Alist.to_list in
-      let tydoms = tydomacc |> Alist.to_list in
+      let (tyenv, tydoms, names) = add_parameters_to_type_environment pre binders in
       let (tycod, e0) = typecheck { pre with tyenv } utast0 in
       let ty = (rng, FuncType(tydoms, tycod)) in
       (ty, ilambda names e0)
