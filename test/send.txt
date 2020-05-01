@@ -3,7 +3,7 @@ type bintree($a) =
   | Node($a, bintree($a), bintree($a))
   | Empty
 
-let bintree_of_int(n) =
+let bintree_of_int(n: int) =
   letrec aux(top, n) =
   if n <= 0 then
     Empty
@@ -25,7 +25,7 @@ let reverse_list(xs) =
   in
   aux([], xs)
 
-letrec wait_all(n) =
+letrec wait_all(n: int) =
   if n <= 0 then
     return(())
   else
@@ -35,7 +35,7 @@ letrec wait_all(n) =
         wait_all(n - 1)
     end
 
-letrec spawn_all(acc, n) =
+letrec spawn_all(acc, n: int) =
   if n <= 0 then
     return(reverse_list(acc))
   else

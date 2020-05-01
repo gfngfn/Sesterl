@@ -22,7 +22,7 @@
     (rng, Apply((rngop, Var(vop)), [e1; e2]))
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE
+%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON
 %token<Range.t * string> IDENT CTOR TYPARAM BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
@@ -31,6 +31,7 @@
 %start main
 %type<Syntax.untyped_binding list> main
 %type<Syntax.manual_type> ty
+%type<Syntax.binder list> params
 
 %%
 main:
@@ -76,9 +77,13 @@ ctorbranch:
       }
 ;
 params:
-  |                                 { [] }
-  | ident=IDENT;                    { ident :: [] }
-  | ident=IDENT; COMMA; tail=params { ident :: tail }
+  |                                                  { [] }
+  | ident=IDENT; tyannot=tyannot                     { (ident, tyannot) :: [] }
+  | ident=IDENT; tyannot=tyannot; COMMA; tail=params { (ident, tyannot) :: tail }
+;
+tyannot:
+  |               { None }
+  | COLON; mty=ty { Some(mty) }
 ;
 exprlet:
   | bindval=bindvaltop; IN; e2=exprlet {
@@ -98,9 +103,9 @@ exprlet:
         let rng = make_range (Token(tokL)) (Ranged(e2)) in
         (rng, If(e0, e1, e2))
       }
-  | tokL=DO; ident=IDENT; REVARROW; e1=exprlet; IN; e2=exprlet {
+  | tokL=DO; ident=IDENT; tyannot=tyannot; REVARROW; e1=exprlet; IN; e2=exprlet {
         let rng = make_range (Token(tokL)) (Ranged(e2)) in
-        (rng, Do(Some(ident), e1, e2))
+        (rng, Do(Some((ident, tyannot)), e1, e2))
       }
   | tokL=DO; e1=exprlet; IN; e2=exprlet {
         let rng = make_range (Token(tokL)) (Ranged(e2)) in

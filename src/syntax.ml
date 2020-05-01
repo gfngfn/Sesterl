@@ -24,12 +24,6 @@ let pp_identifier ppf s =
   Format.fprintf ppf "\"%s\"" s
 
 
-type binder = identifier ranged
-
-let pp_binder ppf (_, s) =
-  pp_identifier ppf s
-
-
 type base_type =
   | IntType
   | BoolType
@@ -44,6 +38,12 @@ and manual_type_main =
   | MProductType of manual_type TupleList.t
   | MTypeVar     of type_variable_name
 [@@deriving show { with_path = false; } ]
+
+type binder = identifier ranged * manual_type option
+
+let pp_binder ppf ((_, s), _) =
+  pp_identifier ppf s
+
 
 type base_constant =
   | Unit
@@ -61,8 +61,8 @@ and untyped_ast_main =
   | Lambda   of binder list * untyped_ast
   | Apply    of untyped_ast * untyped_ast list
   | If       of untyped_ast * untyped_ast * untyped_ast
-  | LetIn    of binder * untyped_ast * untyped_ast
-  | LetRecIn of binder * untyped_ast * untyped_ast
+  | LetIn    of identifier ranged * untyped_ast * untyped_ast
+  | LetRecIn of identifier ranged * untyped_ast * untyped_ast
   | LetPatIn of untyped_pattern * untyped_ast * untyped_ast
   | Do       of binder option * untyped_ast * untyped_ast
   | Receive  of untyped_branch list
@@ -96,7 +96,7 @@ type constructor_branch =
 [@@deriving show { with_path = false; } ]
 
 type untyped_binding =
-  | BindVal  of bool * binder * (identifier ranged) list * untyped_ast
+  | BindVal  of bool * identifier ranged * binder list * untyped_ast
   | BindType of type_name ranged * (type_variable_name ranged) list * constructor_branch list
 [@@deriving show { with_path = false; } ]
 
