@@ -167,7 +167,7 @@ let iletpatin (ipat : pattern) (e1 : ast) (e2 : ast) : ast =
   ICase(e1, [ IBranch(ipat, None, e2) ])
 
 
-let iletrecin_single (name_outer, name_inner, e1) (e2 : ast) : ast =
+let iletrecin_single (_, _, name_outer, name_inner, e1) (e2 : ast) : ast =
   match e1 with
   | ILambda(None, names, e0) ->
       ILetIn(name_outer, ILambda(Some(name_inner), names, e0), e2)
@@ -176,18 +176,23 @@ let iletrecin_single (name_outer, name_inner, e1) (e2 : ast) : ast =
       assert false
 
 
-let iletrecin_multiple (binds : (name * name * ast) TupleList.t) (e2 : ast) : ast =
+let iletrecin_multiple (binds : (identifier * poly_type * name * name * ast) TupleList.t) (e2 : ast) : ast =
   let ipat_inner_tuple =
-    IPTuple(binds |> TupleList.map (fun (_, name_inner, _) -> IPVar(name_inner)))
+    IPTuple(binds |> TupleList.map (fun (_, _, _, name_inner, _) -> IPVar(name_inner)))
   in
   let name_for_whole_rec = OutputIdentifier.fresh () in
   let tuple_entries =
-    binds |> TupleList.map (fun (name_outer, name_inner, e1) ->
-      iletpatin ipat_inner_tuple (IApply(name_for_whole_rec, [])) e1
+    binds |> TupleList.map (fun (_, _, name_outer, name_inner, e1) ->
+      match e1 with
+      | ILambda(None, names, e0) ->
+          ILambda(None, names, iletpatin ipat_inner_tuple (IApply(name_for_whole_rec, [])) e0)
+
+      | _ ->
+          assert false
     )
   in
   let ipat_outer_tuple =
-    IPTuple(binds |> TupleList.map (fun (name_outer, _, _) -> IPVar(name_outer)))
+    IPTuple(binds |> TupleList.map (fun (_, _, name_outer, _, _) -> IPVar(name_outer)))
   in
   iletpatin
     ipat_outer_tuple
@@ -195,7 +200,7 @@ let iletrecin_multiple (binds : (name * name * ast) TupleList.t) (e2 : ast) : as
     e2
 
 
-let iletrecin (binds : (name * name * ast) list) (e2 : ast) : ast =
+let iletrecin (binds : (identifier * poly_type * name * name * ast) list) (e2 : ast) : ast =
   match binds with
   | []                     -> assert false
   | [bind]                 -> iletrecin_single bind e2
@@ -487,12 +492,17 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
           let (tyenv, e1, pty) = typecheck_letrec_single { pre with tyenv } letbind name_inner tyf in
           let name_outer = OutputIdentifier.fresh () in
           let (_, x) as ident = letbind.vb_identifier in
-          let tyenv = tyenv |> Typeenv.add_val x pty name_outer in
-          (Alist.extend bindacc (name_outer, name_inner, e1), tyenv)
+          (Alist.extend bindacc (x, pty, name_outer, name_inner, e1), tyenv)
         ) (Alist.empty, tyenv)
       in
+      let binds = bindacc |> Alist.to_list in
+      let tyenv =
+        binds |> List.fold_left (fun tyenv (x, pty, name_outer, _, _) ->
+          tyenv |> Typeenv.add_val x pty name_outer
+        ) tyenv
+      in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
-      (ty2, iletrecin (Alist.to_list bindacc) e2)
+      (ty2, iletrecin binds e2)
 
   | Do(identopt, utast1, utast2) ->
       let lev = pre.level in
