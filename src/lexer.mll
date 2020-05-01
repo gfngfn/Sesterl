@@ -24,6 +24,7 @@ rule token = parse
           match s with
           | "let"     -> LET(pos)
           | "letrec"  -> LETREC(pos)
+          | "andrec"  -> ANDREC(pos)
           | "in"      -> IN(pos)
           | "fun"     -> LAMBDA(pos)
           | "if"      -> IF(pos)

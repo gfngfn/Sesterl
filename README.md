@@ -14,13 +14,14 @@
 * [x] Output Erlang code
 * [ ] FFI
 * [ ] Data types
+  * [ ] Type synonyms
   * [ ] Strings/Binaries
   * [x] Product types
   * [x] Lists
   * [ ] Records
   * [x] User-defined ADTs
   * [x] Pattern matching
-* [ ] Mutual recursion by generalized `letrec`-expressions
+* [x] Mutual recursion by generalized `letrec`-expressions
 * [x] Pattern matching by generalized `let`-expressions
 * [ ] Module system
 
