@@ -1,9 +1,9 @@
 
-type bintree($a) =
-  | Node($a, bintree($a), bintree($a))
+type bintree[$a] =
+  | Node($a, bintree[$a], bintree[$a])
   | Empty
 
-let bintree_of_int(n: int): bintree(int) =
+let bintree_of_int(n: int): bintree[int] =
   letrec aux(top, n) =
   if n <= 0 then
     Empty
@@ -16,8 +16,8 @@ let bintree_of_int(n: int): bintree(int) =
   in
   aux(1, n)
 
-let reverse_list(xs) =
-  letrec aux(rev, xs) =
+let reverse_list[$a](xs: list[$a]): list[$a] =
+  letrec aux(rev: list[$a], xs: list[$a]) =
     case xs of
     | []        -> rev
     | x :: tail -> aux(x :: rev, tail)
@@ -25,14 +25,14 @@ let reverse_list(xs) =
   in
   aux([], xs)
 
-letrec wait_all(n: int) =
+letrec wait_all[$b](r: $b, n: int) =
   if n <= 0 then
-    return(())
+    return(r)
   else
     receive
     | msg ->
         let _ = print_debug(msg) in
-        wait_all(n - 1)
+        wait_all(r, n - 1)
     end
 
 letrec spawn_all(acc, n: int) =
@@ -50,4 +50,4 @@ let main() =
   let m = 10 in
   do pids <- spawn_all([], m) in
   let _ = print_debug(pids) in
-  wait_all(m)
+  wait_all((), m)

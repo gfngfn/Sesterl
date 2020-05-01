@@ -108,11 +108,7 @@ exprlet:
         let (tokL, isrec, valbind) = bindval in
         let rng = make_range (Token(tokL)) (Ranged(e2)) in
         if isrec then
-          let ident  = valbind.vb_identifier in
-          let params = valbind.vb_parameters in
-          let e0     = valbind.vb_body in
-          let e1 = (Range.dummy "bind-val-local", Lambda(params, e0)) in
-          (rng, LetRecIn(ident, e1, e2))
+          (rng, LetRecIn(valbind, e2))
         else
           (rng, LetIn(valbind, e2))
       }

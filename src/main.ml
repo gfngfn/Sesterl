@@ -49,3 +49,32 @@ let () =
       Format.printf "%a: this pattern binds '%s' more than once.\n"
         Range.pp rng
         x
+
+  | Typechecker.UnboundTypeParameter(rng, tyvar) ->
+      Format.printf "%a: unbound type variable '$%s'\n"
+        Range.pp rng
+        tyvar
+
+  | Typechecker.UndefinedConstructor(rng, ctor) ->
+      Format.printf "%a: undefined constructor '%s'\n"
+        Range.pp rng
+        ctor
+
+  | Typechecker.InvalidNumberOfConstructorArguments(rng, ctor, len_expected, len_actual) ->
+      Format.printf "%a: constructor '%s' expects %d argument(s), but is here applied to %d argument(s)\n"
+        Range.pp rng
+        ctor
+        len_expected
+        len_actual
+
+  | Typechecker.UndefinedTypeName(rng, tynm) ->
+      Format.printf "%a: undefined type or type constructor '%s'"
+        Range.pp rng
+        tynm
+
+  | Typechecker.InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual) ->
+      Format.printf "%a: type constructor '%s' expects %d argument(s), but is here applied to %d argument(s)\n"
+        Range.pp rng
+        tynm
+        len_expected
+        len_actual

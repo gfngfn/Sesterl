@@ -19,7 +19,7 @@ type type_entry =
     }
   | Defined of {
       type_id         : TypeID.t;
-      type_parameters : type_parameter_assoc;
+      type_parameters : BoundID.t list;
       branches        : constructor_branch_map;
     }
 
@@ -28,7 +28,7 @@ module ConstructorMap = Map.Make(String)
 type constructor_entry = {
   belongs         : TypeID.t;
   constructor_id  : ConstructorID.t;
-  type_variables  : type_parameter_assoc;
+  type_variables  : BoundID.t list;
   parameter_types : poly_type list;
 }
 
@@ -76,12 +76,12 @@ let fold_val f tyenv acc =
   VarMap.fold (fun x entry acc -> f x entry.typ acc) tyenv.vals acc
 
 
-let add_type (tynm : type_name) (tyid : TypeID.t) (typaramassoc : type_parameter_assoc) (brmap : constructor_branch_map) (tyenv : t) : t =
+let add_type (tynm : type_name) (tyid : TypeID.t) (typarams : BoundID.t list) (brmap : constructor_branch_map) (tyenv : t) : t =
   let typesnew =
     let entry =
       Defined{
         type_id         = tyid;
-        type_parameters = typaramassoc;
+        type_parameters = typarams;
         branches        = brmap;
       }
     in
@@ -93,7 +93,7 @@ let add_type (tynm : type_name) (tyid : TypeID.t) (typaramassoc : type_parameter
         {
           belongs         = tyid;
           constructor_id  = ctorid;
-          type_variables  = typaramassoc;
+          type_variables  = typarams;
           parameter_types = ptys;
         }
       in
@@ -122,5 +122,5 @@ let find_constructor (ctornm : constructor_name) (tyenv : t) =
 let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * int) option =
   tyenv.types |> TypeMap.find_opt tynm |> Option.map (function
   | Defining(record) -> (record.type_id, record.number_of_parameters)
-  | Defined(record)  -> (record.type_id, TypeParameterAssoc.length record.type_parameters)
+  | Defined(record)  -> (record.type_id, List.length record.type_parameters)
   )
