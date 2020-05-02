@@ -11,7 +11,7 @@ let stringify_base_constant (bc : base_constant) =
   | Bool(true)  -> "true"
   | Bool(false) -> "false"
   | Int(n)      -> string_of_int n
-  | BinaryByString(s) -> Printf.sprintf "<<\"%s\">>" s
+  | BinaryByString(s) -> Printf.sprintf "<<\"%s\">>" (String.escaped s)
   | BinaryByInts(ns)  -> Printf.sprintf "<<%s>>" (ns |> List.map string_of_int |> String.concat ", ")
 
 

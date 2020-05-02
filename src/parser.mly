@@ -27,6 +27,7 @@
 %token<Range.t * string> IDENT CTOR TYPARAM BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
+%token<Range.t * string> STRING
 %token EOI
 
 %start main
@@ -224,6 +225,11 @@ exprbot:
   | tokL=LTLT; ns=bytes tokR=gtgt {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, BinaryByList(ns))
+      }
+  | tokL=LTLT; strlit=STRING; tokR=gtgt {
+        let (_, s) = strlit in
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, BaseConst(BinaryByString(s)))
       }
 ;
 bytes:

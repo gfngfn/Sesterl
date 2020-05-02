@@ -24,8 +24,11 @@ let () =
   | UnidentifiedToken(rng, s) ->
       Format.printf "%a: unidentified token '%s'\n" Range.pp rng s
 
-  | SeeEndOfFileInComment(rng) ->
-      Format.printf "%a: unclosed comment\n" Range.pp rng
+  | SeeEndOfFileInComment(rngL) ->
+      Format.printf "%a: unclosed comment begins here\n" Range.pp rngL
+
+  | SeeEndOfFileInStringLiteral(rngL) ->
+      Format.printf "%a: unclosed string literal begins here\n" Range.pp rngL
 
   | Typechecker.UnboundVariable(rng, x) ->
       Format.printf "%a: unbound variable '%s'\n" Range.pp rng x

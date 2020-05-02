@@ -92,8 +92,21 @@ rule token = parse
   | "->"              { ARROW(Range.from_lexbuf lexbuf) }
   | ("-" (nssymbol*)) { BINOP_MINUS(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
 
+  | "\"" {
+      let posL = Range.from_lexbuf lexbuf in
+      let strbuf = Buffer.create 128 in
+      let (s, posR) = string posL strbuf lexbuf in
+      STRING(Range.unite posL posR, s)
+    }
+
   | eof  { EOI }
   | _ as c { raise (UnidentifiedToken(Range.from_lexbuf lexbuf, String.make 1 c)) }
+
+and string posL strbuf = parse
+  | "\\\"" { Buffer.add_char strbuf '"'; string posL strbuf lexbuf }
+  | "\""   { let posR = Range.from_lexbuf lexbuf in (Buffer.contents strbuf, posR) }
+  | eof    { raise (SeeEndOfFileInStringLiteral(posL)) }
+  | _ as c { Buffer.add_char strbuf c; string posL strbuf lexbuf }
 
 and comment rng = parse
   | "/*" { comment (Range.from_lexbuf lexbuf) lexbuf; comment rng lexbuf }

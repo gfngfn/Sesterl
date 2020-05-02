@@ -1,6 +1,7 @@
 
 exception UnidentifiedToken     of Range.t * string
 exception SeeEndOfFileInComment of Range.t
+exception SeeEndOfFileInStringLiteral of Range.t
 
 
 type 'a ranged = Range.t * 'a
