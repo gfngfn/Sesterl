@@ -133,7 +133,7 @@ and 'a typ_main =
   | TypeVar     of 'a
   | ProductType of ('a typ) TupleList.t
   | ListType    of 'a typ
-  | VariantType of TypeID.t * ('a typ) list
+  | DataType    of TypeID.t * ('a typ) list
 
 and 'a effect =
   | Effect of 'a typ
@@ -226,8 +226,8 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
     | ListType(ty0) ->
         (rngf rng, ListType(aux ty0))
 
-    | VariantType(tyid, tyargs) ->
-        (rngf rng, VariantType(tyid, tyargs |> List.map aux))
+    | DataType(tyid, tyargs) ->
+        (rngf rng, DataType(tyid, tyargs |> List.map aux))
 
   and aux_effect (Effect(ty)) =
     let pty = aux ty in
@@ -263,7 +263,7 @@ module BoundIDHashTable = Hashtbl.Make(BoundID)
 module BoundIDMap = Map.Make(BoundID)
 
 
-let instantiate_scheme (intern : BoundID.t -> mono_type_var) (lev : int) (pty : poly_type) : mono_type =
+let instantiate_scheme (intern : Range.t -> BoundID.t -> mono_type) (pty : poly_type) : mono_type =
 
   let rec aux (rng, ptymain) =
     match ptymain with
@@ -274,8 +274,7 @@ let instantiate_scheme (intern : BoundID.t -> mono_type_var) (lev : int) (pty : 
         (rng, TypeVar(mtv))
 
     | TypeVar(Bound(bid)) ->
-        let mtv = intern bid in
-        (rng, TypeVar(mtv))
+        intern rng bid
 
     | FuncType(ptydoms, ptycod) ->
         let tydoms = ptydoms |> List.map aux in
@@ -298,8 +297,8 @@ let instantiate_scheme (intern : BoundID.t -> mono_type_var) (lev : int) (pty : 
     | ListType(pty0) ->
         (rng, ListType(aux pty0))
 
-    | VariantType(tyid, ptyargs) ->
-        (rng, VariantType(tyid, ptyargs |> List.map aux))
+    | DataType(tyid, ptyargs) ->
+        (rng, DataType(tyid, ptyargs |> List.map aux))
 
   and aux_effect (Effect(pty)) =
     let ty = aux pty in
@@ -315,25 +314,37 @@ let instantiate_scheme (intern : BoundID.t -> mono_type_var) (lev : int) (pty : 
 let instantiate (lev : int) (pty : poly_type) : mono_type =
   let bidht = BoundIDHashTable.create 32 in
     (* -- a hash table is created at every (non-partial) call of `instantiate` -- *)
-  let intern bid =
-    match BoundIDHashTable.find_opt bidht bid with
-    | Some(mtvu) ->
-        Updatable(mtvu)
+  let intern rng bid =
+    let mtv =
+      match BoundIDHashTable.find_opt bidht bid with
+      | Some(mtvu) ->
+          Updatable(mtvu)
 
-    | None ->
-        let fid = FreeID.fresh lev in
-        let mtvu = ref (Free(fid)) in
-        BoundIDHashTable.add bidht bid mtvu;
-        Updatable(mtvu)
+      | None ->
+          let fid = FreeID.fresh lev in
+          let mtvu = ref (Free(fid)) in
+          BoundIDHashTable.add bidht bid mtvu;
+          Updatable(mtvu)
+    in
+    (rng, TypeVar(mtv))
   in
-  instantiate_scheme intern lev pty
+  instantiate_scheme intern pty
 
 
 let instantiate_by_map (bfmap : mono_type_var BoundIDMap.t) =
-  let intern bid =
+  let intern rng bid =
     match bfmap |> BoundIDMap.find_opt bid with
     | None      -> assert false
-    | Some(mtv) -> mtv
+    | Some(mtv) -> (rng, TypeVar(mtv))
+  in
+  instantiate_scheme intern
+
+
+let substitute (substmap : mono_type BoundIDMap.t) =
+  let intern _ bid =
+    match substmap |> BoundIDMap.find_opt bid with
+    | None     -> assert false
+    | Some(ty) -> ty
   in
   instantiate_scheme intern
 
@@ -380,7 +391,7 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
         let s0 = aux ty0 in
         Printf.sprintf "list<%s>" s0
 
-    | VariantType(tyid, tyargs) ->
+    | DataType(tyid, tyargs) ->
         begin
           match tyargs with
           | [] ->

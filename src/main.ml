@@ -98,7 +98,7 @@ let main fpath_in fpath_out =
   | Typechecker.CyclicSynonymTypeDefinition(tyidents) ->
       Format.printf "cyclic type definitions:\n";
       tyidents |> List.iter (fun (rng, tynm) ->
-        Format.printf "%s (%a)" tynm Range.pp rng
+        Format.printf "%s (%a)\n" tynm Range.pp rng
       )
 
 
