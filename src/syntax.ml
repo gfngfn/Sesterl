@@ -1,6 +1,6 @@
 
-exception UnidentifiedToken     of Range.t * string
-exception SeeEndOfFileInComment of Range.t
+exception UnidentifiedToken           of Range.t * string
+exception SeeEndOfFileInComment       of Range.t
 exception SeeEndOfFileInStringLiteral of Range.t
 
 
@@ -49,8 +49,8 @@ let pp_binder ppf ((_, s), _) =
 
 type base_constant =
   | Unit
-  | Bool of bool
-  | Int  of int
+  | Bool           of bool
+  | Int            of int
   | BinaryByString of string
   | BinaryByInts   of int list
 [@@deriving show { with_path = false; } ]
@@ -60,20 +60,20 @@ type untyped_ast =
 [@printer (fun ppf (_, utastmain) -> pp_untyped_ast_main ppf utastmain)]
 
 and untyped_ast_main =
-  | BaseConst   of base_constant
-  | Var         of identifier
-  | Lambda      of binder list * untyped_ast
-  | Apply       of untyped_ast * untyped_ast list
-  | If          of untyped_ast * untyped_ast * untyped_ast
-  | LetIn       of rec_or_nonrec * untyped_ast
-  | LetPatIn    of untyped_pattern * untyped_ast * untyped_ast
-  | Do          of binder option * untyped_ast * untyped_ast
-  | Receive     of untyped_branch list
-  | Tuple       of untyped_ast TupleList.t
+  | BaseConst    of base_constant
+  | Var          of identifier
+  | Lambda       of binder list * untyped_ast
+  | Apply        of untyped_ast * untyped_ast list
+  | If           of untyped_ast * untyped_ast * untyped_ast
+  | LetIn        of rec_or_nonrec * untyped_ast
+  | LetPatIn     of untyped_pattern * untyped_ast * untyped_ast
+  | Do           of binder option * untyped_ast * untyped_ast
+  | Receive      of untyped_branch list
+  | Tuple        of untyped_ast TupleList.t
   | ListNil
-  | ListCons    of untyped_ast * untyped_ast
-  | Case        of untyped_ast * untyped_branch list
-  | Constructor of constructor_name * untyped_ast list
+  | ListCons     of untyped_ast * untyped_ast
+  | Case         of untyped_ast * untyped_branch list
+  | Constructor  of constructor_name * untyped_ast list
   | BinaryByList of (int ranged) list
 
 and rec_or_nonrec =
@@ -337,9 +337,9 @@ let overwrite_range_of_type (type a) (rng : Range.t) ((_, tymain) : a typ) : a t
 
 
 let show_base_type = function
-  | UnitType -> "unit"
-  | BoolType -> "bool"
-  | IntType  -> "int"
+  | UnitType   -> "unit"
+  | BoolType   -> "bool"
+  | IntType    -> "int"
   | BinaryType -> "binary"
 
 
