@@ -11,8 +11,8 @@ let reverse_map(f, xs) =
 let sum(ns) =
   foldl(fun(m, n) -> m + n, 0, ns)
 
-type tree($a) =
-  | Node($a, list(tree($a)))
+type tree<$a> =
+  | Node($a, list<tree<$a>>)
 
 let leaf(x) =
   Node(x, [])
@@ -23,6 +23,12 @@ letrec tree_size(tr) =
   | []     -> 1
   | _ :: _ -> 1 + sum(reverse_map(tree_size, children))
   end
+
+type oddlist<$a> =
+  | OddCons($a, evenlist<$a>)
+andrec evenlist<$b> =
+  | Nil
+  | EvenCons($b, oddlist<$b>)
 
 let main() =
   let tr =
@@ -37,4 +43,8 @@ let main() =
       ])
     ])
   in
-  tree_size(tr)
+  let size = tree_size(tr) in
+  let _ = print_debug(size) in
+  let t = OddCons(3, Nil) in
+  let _ = print_debug(t) in
+  ()
