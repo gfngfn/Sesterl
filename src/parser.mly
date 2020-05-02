@@ -46,7 +46,7 @@ ident:
 ;
 bindtop:
   | TYPE; ident=IDENT; typarams=typarams; DEFEQ; ctorbrs=nonempty_list(ctorbranch) {
-        BindType(ident, typarams, ctorbrs)
+        BindType([(ident, typarams, BindVariant(ctorbrs))])
       }
   | bindval=bindvaltop {
         let (_, valbinding) = bindval in

@@ -868,25 +868,32 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
                 (tyenv, Alist.extend bindacc (IBindVal(name, e)))
           end
 
-      | BindType((_, tynm), typarams, ctorbrs) ->
-          let tyid = TypeID.fresh tynm in
-          let pre =
-            {
-              level                 = 0;
-              tyenv                 = tyenv;
-              local_type_parameters = TypeParameterMap.empty;
-            }
-          in
-          let typaramassoc = make_type_parameter_assoc 1 typarams in
-          let typarams =
-            typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound
-          in
-          let pre = pre |> add_local_type_parameter typaramassoc in
-          let ctorbrmap =
-            let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm tyid (List.length typarams) in
-            make_constructor_branch_map { pre with tyenv } ctorbrs
-          in
-          (tyenv |> Typeenv.add_type tynm tyid typarams ctorbrmap, bindacc)
+      | BindType(tybinds) ->
+          begin
+            match tybinds with
+            | ((_, tynm), typarams, BindVariant(ctorbrs)) :: [] ->
+                let tyid = TypeID.fresh tynm in
+                let pre =
+                  {
+                    level                 = 0;
+                    tyenv                 = tyenv;
+                    local_type_parameters = TypeParameterMap.empty;
+                  }
+                in
+                let typaramassoc = make_type_parameter_assoc 1 typarams in
+                let typarams =
+                  typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound
+                in
+                let pre = pre |> add_local_type_parameter typaramassoc in
+                let ctorbrmap =
+                  let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm tyid (List.length typarams) in
+                  make_constructor_branch_map { pre with tyenv } ctorbrs
+                in
+                (tyenv |> Typeenv.add_type tynm tyid typarams ctorbrmap, bindacc)
+
+            | _ ->
+                failwith "not yet supported"
+          end
 
     ) (tyenv, Alist.empty)
   in
