@@ -4,6 +4,7 @@
  (flags (-w -3 -bin-annot -thread))
  (libraries
     menhirLib
+    cmdliner
     )
  (preprocess
     (pps

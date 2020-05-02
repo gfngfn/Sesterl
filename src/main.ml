@@ -2,21 +2,17 @@
 open Syntax
 
 
-let main fname =
-  let inc = open_in fname in
-  let lexbuf = Lexing.from_channel inc in
-  let utdecls = ParserInterface.process lexbuf in
-  let (tyenv, decls) = Typechecker.main utdecls in
-  let scode = OutputErlangCode.main decls in
-  Format.printf "%s\n" scode;
-  Typeenv.fold_val (fun x pty () ->
-    Format.printf "%s : %a\n" x pp_poly_type pty
-  ) tyenv ()
-
-
-let () =
+let main fpath_in fpath_out =
   try
-    Arg.parse [] main ""
+    let inc = open_in fpath_in in
+    let lexbuf = Lexing.from_channel inc in
+    let utdecls = ParserInterface.process lexbuf in
+    let (tyenv, decls) = Typechecker.main utdecls in
+    let scode = OutputErlangCode.main decls in
+    Format.printf "%s\n" scode;
+    Typeenv.fold_val (fun x pty () ->
+      Format.printf "%s : %a\n" x pp_poly_type pty
+    ) tyenv ()
   with
   | ParserInterface.Error(rng) ->
       Format.printf "%a: syntax error\n" Range.pp rng
@@ -90,3 +86,31 @@ let () =
   | Typechecker.InvalidByte(rng) ->
       Format.printf "%a: invalid byte\n"
         Range.pp rng
+
+
+let flag_output =
+  let open Cmdliner in
+  let doc = "Specify output path." in
+  Arg.(required (opt (some string) None (info [ "o"; "output" ] ~docv:"OUTPUT" ~doc)))
+
+
+let arg_in =
+  let open Cmdliner in
+  Arg.(required (pos 0 (some file) None (info [])))
+
+
+let command_term : unit Cmdliner.Term.t =
+  let open Cmdliner in
+  Term.(const main $ arg_in $ flag_output)
+
+
+let command_info : Cmdliner.Term.info =
+  let open Cmdliner in
+  Term.info
+    ~version: "0.0.0"
+    "sesterl"
+
+
+let () =
+  let open Cmdliner in
+  Term.(exit (eval (command_term, command_info)))
