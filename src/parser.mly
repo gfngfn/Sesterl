@@ -54,8 +54,8 @@ bindtop:
       }
 ;
 typarams:
-  |                                       { [] }
-  | LSQUARE; typarams=typaramssub RSQUARE { typarams }
+  |                                         { [] }
+  | tylparen; typarams=typaramssub tyrparen { typarams }
 ;
 typaramssub:
   |                                          { [] }
@@ -303,7 +303,7 @@ tybot:
         let (rng, tynm) = ident in
         (rng, MTypeName(tynm, []))
       }
-  | ident=IDENT; LSQUARE; mtyargs=tys; tokR=RSQUARE {
+  | ident=IDENT; tylparen; mtyargs=tys; tokR=tyrparen {
         let (tokL, tynm) = ident in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, MTypeName(tynm, mtyargs))
@@ -312,4 +312,11 @@ tybot:
         let rng = make_range (Token(tokL)) (Ranged(mtycod)) in
         (rng, MFuncType(mtydoms, mtycod))
       }
+;
+tylparen:
+  | tok=LT_EXACT  { tok }
+;
+tyrparen:
+  | tok=GT_NOSPACE { tok }
+  | tok=GT_SPACES  { tok }
 ;
