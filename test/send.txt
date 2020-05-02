@@ -36,7 +36,7 @@ letrec wait_all<$b>(r: $b, n: int) =
         wait_all(r, n - 1)
     end
 
-letrec spawn_all<$m>(acc, n: int) =
+letrec spawn_all<$m>(acc, n: int): [(pid<$m>, bintree<int>)]list<pid<$m>> =
   if n <= 0 then
     return(reverse_list(acc))
   else
