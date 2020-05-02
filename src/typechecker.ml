@@ -306,7 +306,26 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
   aux ty
 
 
-let unify (tyact : mono_type) (tyexp : mono_type) : unit =
+let get_real_type (tyenv : Typeenv.t) (sid : TypeID.Synonym.t) (tyargs : mono_type list) : mono_type =
+  match tyenv |> Typeenv.find_synonym_type sid with
+  | None ->
+      assert false
+
+  | Some(typarams, ptyreal) ->
+      begin
+        try
+          let substmap =
+            List.fold_left2 (fun substmap typaram tyarg ->
+              substmap |> BoundIDMap.add typaram tyarg
+            ) BoundIDMap.empty typarams tyargs
+          in
+          substitute substmap ptyreal
+        with
+        | Invalid_argument(_) -> assert false
+      end
+
+
+let unify (tyenv : Typeenv.t) (tyact : mono_type) (tyexp : mono_type) : unit =
 (*
   Format.printf "UNIFY %a =?= %a\n" pp_mono_type tyact pp_mono_type tyexp; (* for debug *)
 *)
@@ -324,10 +343,12 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
         if MustBeBoundID.equal mbbid1 mbbid2 then Consistent else Contradiction
 
     | (DataType(TypeID.Synonym(sid1), tyargs1), _) ->
-        failwith "TODO: unify synonym type"
+        let ty1real = get_real_type tyenv sid1 tyargs1 in
+        aux ty1real ty2
 
     | (_, DataType(TypeID.Synonym(sid2), tyargs2)) ->
-        failwith "TODO: unify synonym type"
+        let ty2real = get_real_type tyenv sid2 tyargs2 in
+        aux ty1 ty2real
 
     | (BaseType(bt1), BaseType(bt2)) ->
         if bt1 = bt2 then Consistent else Contradiction
@@ -503,15 +524,15 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let tyargs = List.map fst tyeargs in
       let eargs = List.map snd tyeargs in
       let tyret = fresh_type pre.level rng in
-      unify tyfun (Range.dummy "Apply", FuncType(tyargs, tyret));
+      unify pre.tyenv tyfun (Range.dummy "Apply", FuncType(tyargs, tyret));
       (tyret, iapply efun eargs)
 
   | If(utast0, utast1, utast2) ->
       let (ty0, e0) = typecheck pre utast0 in
-      unify ty0 (Range.dummy "If", BaseType(BoolType));
+      unify pre.tyenv ty0 (Range.dummy "If", BaseType(BoolType));
       let (ty1, e1) = typecheck pre utast1 in
       let (ty2, e2) = typecheck pre utast2 in
-      unify ty1 ty2;
+      unify pre.tyenv ty1 ty2;
       let ibranches = [ IBranch(IPBool(true), None, e1); IBranch(IPBool(false), None, e2) ] in
       (ty1, ICase(e0, ibranches))
 
@@ -547,10 +568,10 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
             (tyx, pre.tyenv |> Typeenv.add_val x (lift tyx) name, name)
       in
       let tyrecv = fresh_type lev (Range.dummy "do-recv") in
-      unify ty1 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tyx));
+      unify tyenv ty1 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tyx));
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       let tysome = fresh_type lev (Range.dummy "do-some") in
-      unify ty2 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tysome));
+      unify tyenv ty2 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tysome));
       let e2 =
         ithunk (ILetIn(name, iforce e1, iforce e2))
       in
@@ -584,7 +605,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
   | ListCons(utast1, utast2) ->
       let (ty1, e1) = typecheck pre utast1 in
       let (ty2, e2) = typecheck pre utast2 in
-      unify ty2 (Range.dummy "list-cons", ListType(ty1));
+      unify pre.tyenv ty2 (Range.dummy "list-cons", ListType(ty1));
       (ty2, IListCons(e1, e2))
 
   | Case(utast0, branches) ->
@@ -602,7 +623,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
   | LetPatIn(utpat, utast1, utast2) ->
       let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in
       let (typat, ipat, bindmap) = typecheck_pattern pre utpat in
-      unify ty1 typat;
+      unify pre.tyenv ty1 typat;
       let tyenv =
         BindingMap.fold (fun x (ty, name, _) tyenv ->
           let pty = generalize pre.level ty in
@@ -622,7 +643,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
           let es =
             List.fold_left2 (fun acc ty_expected utast ->
               let (ty, e) = typecheck pre utast in
-              unify ty ty_expected;
+              unify pre.tyenv ty ty_expected;
               Alist.extend acc e
             ) Alist.empty tys_expected utastargs |> Alist.to_list
           in
@@ -654,23 +675,23 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name
   | Some(tyid, ctorid, typarams, ptys) ->
       let lev = pre.level in
       let (tyargs, bfmap) = make_bound_to_free_map lev typarams in
-      let tys_expected = ptys |> List.map (instantiate_by_map bfmap lev) in
+      let tys_expected = ptys |> List.map (instantiate_by_map bfmap) in
       (tyid, ctorid, tyargs, tys_expected)
 
 
 and typecheck_case_branch (pre : pre) =
   typecheck_branch_scheme (fun ty1 _ tyret ->
-    unify ty1 tyret
+    unify pre.tyenv ty1 tyret
   ) pre
 
 
 and typecheck_receive_branch (pre : pre) =
   typecheck_branch_scheme (fun ty1 typatexp tyret ->
-    unify ty1 (Range.dummy "branch", EffType(Effect(typatexp), tyret))
+    unify pre.tyenv ty1 (Range.dummy "branch", EffType(Effect(typatexp), tyret))
   ) pre
 
 
-and typecheck_branch_scheme unifyk (pre : pre) typatexp tyret (Branch(pat, utast0opt, utast1)) : branch =
+and typecheck_branch_scheme (unifyk : mono_type -> mono_type -> mono_type -> unit) (pre : pre) typatexp tyret (Branch(pat, utast0opt, utast1)) : branch =
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
   let tyenv =
     BindingMap.fold (fun x (ty, name, _) tyenv ->
@@ -678,11 +699,11 @@ and typecheck_branch_scheme unifyk (pre : pre) typatexp tyret (Branch(pat, utast
     ) bindmap pre.tyenv
   in
   let pre = { pre with tyenv } in
-  unify typat typatexp;
+  unify tyenv typat typatexp;
   let e0opt =
     utast0opt |> Option.map (fun utast0 ->
       let (ty0, e0) = typecheck pre utast0 in
-      unify ty0 (Range.dummy "when", BaseType(BoolType));
+      unify tyenv ty0 (Range.dummy "when", BaseType(BoolType));
       e0
     )
   in
@@ -721,7 +742,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
       let (ty1, ipat1, bindmap1) = typecheck_pattern pre pat1 in
       let (ty2, ipat2, bindmap2) = typecheck_pattern pre pat2 in
       let bindmap = binding_map_union rng bindmap1 bindmap2 in
-      unify ty2 (Range.dummy "pattern-cons", ListType(ty1));
+      unify pre.tyenv ty2 (Range.dummy "pattern-cons", ListType(ty1));
       (ty2, IPListCons(ipat1, ipat2), bindmap)
 
   | PTuple(pats) ->
@@ -743,7 +764,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
           let (ipatacc, bindmap) =
             List.fold_left2 (fun (ipatacc, bindmapacc) ty_expected pat ->
               let (ty, ipat, bindmap) = typecheck_pattern pre pat in
-              unify ty ty_expected;
+              unify pre.tyenv ty ty_expected;
               (Alist.extend ipatacc ipat, binding_map_union rng bindmapacc bindmap)
             ) (Alist.empty, BindingMap.empty) tys_expected pats
           in
@@ -776,7 +797,7 @@ and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : 
 
     letbind.vb_return_type |> Option.map (fun mty0 ->
       let ty0_expected = decode_manual_type pre mty0 in
-      unify ty0 ty0_expected
+      unify tyenv ty0 ty0_expected
     ) |> Option.value ~default:();
     (ty0, e0, tys, names)
   in
@@ -840,13 +861,13 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (name_in
     let (ty0, e0) = typecheck { pre with tyenv } utast0 in
     letbind.vb_return_type |> Option.map (fun mty0 ->
       let ty0_expected = decode_manual_type pre mty0 in
-      unify ty0 ty0_expected;
+      unify tyenv ty0 ty0_expected;
     ) |> Option.value ~default:();
     (ty0, e0, tys, names)
   in
   let ty1 = (rngv, FuncType(tys, ty0)) in
   let e1 = ILambda(None, names, e0) in
-  unify ty1 tyf;
+  unify pre.tyenv ty1 tyf;
   let ptyf = generalize pre.level ty1 in
   (pre.tyenv |> Typeenv.add_val x ptyf name_inner, e1, ptyf)
 

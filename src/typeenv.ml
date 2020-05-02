@@ -141,3 +141,7 @@ let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * int) option =
   | DefinedVariant(record) -> (TypeID.Variant(record.id), List.length record.type_parameters)
   | DefinedSynonym(record) -> (TypeID.Synonym(record.id), List.length record.type_parameters)
   )
+
+
+let find_synonym_type (sid : TypeID.Synonym.t) (tyenv : t) : (BoundID.t list * poly_type) option =
+  failwith "TODO: find_synonym_type"

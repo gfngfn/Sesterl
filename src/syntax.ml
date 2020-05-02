@@ -263,7 +263,7 @@ module BoundIDHashTable = Hashtbl.Make(BoundID)
 module BoundIDMap = Map.Make(BoundID)
 
 
-let instantiate_scheme (intern : BoundID.t -> mono_type_var) (lev : int) (pty : poly_type) : mono_type =
+let instantiate_scheme (intern : Range.t -> BoundID.t -> mono_type) (pty : poly_type) : mono_type =
 
   let rec aux (rng, ptymain) =
     match ptymain with
@@ -274,8 +274,7 @@ let instantiate_scheme (intern : BoundID.t -> mono_type_var) (lev : int) (pty : 
         (rng, TypeVar(mtv))
 
     | TypeVar(Bound(bid)) ->
-        let mtv = intern bid in
-        (rng, TypeVar(mtv))
+        intern rng bid
 
     | FuncType(ptydoms, ptycod) ->
         let tydoms = ptydoms |> List.map aux in
@@ -315,25 +314,37 @@ let instantiate_scheme (intern : BoundID.t -> mono_type_var) (lev : int) (pty : 
 let instantiate (lev : int) (pty : poly_type) : mono_type =
   let bidht = BoundIDHashTable.create 32 in
     (* -- a hash table is created at every (non-partial) call of `instantiate` -- *)
-  let intern bid =
-    match BoundIDHashTable.find_opt bidht bid with
-    | Some(mtvu) ->
-        Updatable(mtvu)
+  let intern rng bid =
+    let mtv =
+      match BoundIDHashTable.find_opt bidht bid with
+      | Some(mtvu) ->
+          Updatable(mtvu)
 
-    | None ->
-        let fid = FreeID.fresh lev in
-        let mtvu = ref (Free(fid)) in
-        BoundIDHashTable.add bidht bid mtvu;
-        Updatable(mtvu)
+      | None ->
+          let fid = FreeID.fresh lev in
+          let mtvu = ref (Free(fid)) in
+          BoundIDHashTable.add bidht bid mtvu;
+          Updatable(mtvu)
+    in
+    (rng, TypeVar(mtv))
   in
-  instantiate_scheme intern lev pty
+  instantiate_scheme intern pty
 
 
 let instantiate_by_map (bfmap : mono_type_var BoundIDMap.t) =
-  let intern bid =
+  let intern rng bid =
     match bfmap |> BoundIDMap.find_opt bid with
     | None      -> assert false
-    | Some(mtv) -> mtv
+    | Some(mtv) -> (rng, TypeVar(mtv))
+  in
+  instantiate_scheme intern
+
+
+let substitute (substmap : mono_type BoundIDMap.t) =
+  let intern _ bid =
+    match substmap |> BoundIDMap.find_opt bid with
+    | None     -> assert false
+    | Some(ty) -> ty
   in
   instantiate_scheme intern
 
