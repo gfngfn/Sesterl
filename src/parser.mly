@@ -45,13 +45,24 @@ ident:
   | ident=IDENT { ident }
 ;
 bindtop:
-  | TYPE; ident=IDENT; typarams=typarams; DEFEQ; ctorbrs=nonempty_list(ctorbranch) {
-        BindType([(ident, typarams, BindVariant(ctorbrs))])
+  | TYPE; tybind=bindtypesingle; tybinds=list(bindtypesub) {
+        BindType(tybind :: tybinds)
       }
   | bindval=bindvaltop {
         let (_, valbinding) = bindval in
         BindVal(valbinding)
       }
+;
+bindtypesingle:
+  | ident=IDENT; typarams=typarams; DEFEQ; ctorbrs=nonempty_list(ctorbranch) {
+        (ident, typarams, BindVariant(ctorbrs))
+      }
+  | ident=IDENT; typarams=typarams; DEFEQ; mty=ty {
+        (ident, typarams, BindSynonym(mty))
+      }
+;
+bindtypesub:
+  | ANDREC; tybind=bindtypesingle { tybind }
 ;
 typarams:
   |                                         { [] }
