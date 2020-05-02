@@ -17,10 +17,15 @@ type type_entry =
       type_id              : TypeID.t;
       number_of_parameters : int;
     }
-  | Defined of {
+  | DefinedVariant of {
       type_id         : TypeID.t;
       type_parameters : BoundID.t list;
       branches        : constructor_branch_map;
+    }
+  | DefinedSynonym of {
+      type_id         : TypeID.t;
+      type_parameters : BoundID.t list;
+      real_type       : poly_type;
     }
 
 module ConstructorMap = Map.Make(String)
@@ -76,10 +81,10 @@ let fold_val f tyenv acc =
   VarMap.fold (fun x entry acc -> f x entry.typ acc) tyenv.vals acc
 
 
-let add_type (tynm : type_name) (tyid : TypeID.t) (typarams : BoundID.t list) (brmap : constructor_branch_map) (tyenv : t) : t =
+let add_variant_type (tynm : type_name) (tyid : TypeID.t) (typarams : BoundID.t list) (brmap : constructor_branch_map) (tyenv : t) : t =
   let typesnew =
     let entry =
-      Defined{
+      DefinedVariant{
         type_id         = tyid;
         type_parameters = typarams;
         branches        = brmap;
@@ -103,6 +108,17 @@ let add_type (tynm : type_name) (tyid : TypeID.t) (typarams : BoundID.t list) (b
   { tyenv with types = typesnew; constructors = ctorsnew }
 
 
+let add_synonym_type (tynm : type_name) (tyid : TypeID.t) (typarams : BoundID.t list) (ptyreal : poly_type) (tyenv : t) : t =
+  let entry =
+    DefinedSynonym{
+      type_id         = tyid;
+      type_parameters = typarams;
+      real_type       = ptyreal
+    }
+  in
+  { tyenv with types = tyenv.types |> TypeMap.add tynm entry }
+
+
 let add_type_for_recursion (tynm : type_name) (tyid : TypeID.t) (paramlen : int) (tyenv : t) : t =
   let entry =
     Defining{
@@ -121,6 +137,7 @@ let find_constructor (ctornm : constructor_name) (tyenv : t) =
 
 let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * int) option =
   tyenv.types |> TypeMap.find_opt tynm |> Option.map (function
-  | Defining(record) -> (record.type_id, record.number_of_parameters)
-  | Defined(record)  -> (record.type_id, List.length record.type_parameters)
+  | Defining(record)       -> (record.type_id, record.number_of_parameters)
+  | DefinedVariant(record) -> (record.type_id, List.length record.type_parameters)
+  | DefinedSynonym(record) -> (record.type_id, List.length record.type_parameters)
   )

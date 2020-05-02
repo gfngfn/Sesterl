@@ -14,6 +14,7 @@ exception UndefinedTypeName                   of Range.t * type_name
 exception InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
 exception TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
 exception InvalidByte                         of Range.t
+exception CyclicSynonymTypeDefinition         of (type_name ranged) list
 
 
 module BindingMap = Map.Make(String)
@@ -83,7 +84,12 @@ let make_type_parameter_assoc (lev : int) (tyvarnms : (type_variable_name ranged
   ) TypeParameterAssoc.empty
 
 
-let decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
+module TypeIDHashSet = Hashtbl.Make(TypeID)
+
+module TypeIDSet = Set.Make(TypeID)
+
+
+let decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_type) : mono_type =
   let invalid rng tynm ~expect:len_expected ~actual:len_actual =
     raise (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
   in
@@ -117,7 +123,10 @@ let decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
 
             | Some(tyid, len_expected) ->
                 if len_actual = len_expected then
-                  VariantType(tyid, ptyargs)
+                  begin
+                    k tyid;
+                    VariantType(tyid, ptyargs)
+                  end
                 else
                   invalid rng tynm ~expect:len_expected ~actual:len_actual
           end
@@ -144,6 +153,25 @@ let decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
     (rng, tymain)
   in
   aux mty
+
+
+let decode_manual_type : pre -> manual_type -> mono_type =
+  decode_manual_type_scheme (fun _ -> ())
+
+
+let decode_manual_type_and_get_dependency (pre : pre) (mty : manual_type) : mono_type * TypeIDSet.t =
+  let hashset = TypeIDHashSet.create 32 in
+    (* -- a hash set is created on every (non-partial) call -- *)
+  let k tyid =
+    TypeIDHashSet.add hashset tyid ()
+  in
+  let ty = decode_manual_type_scheme k pre mty in
+  let dependencies =
+    TypeIDHashSet.fold (fun tyid () set ->
+      set |> TypeIDSet.add tyid
+    ) hashset TypeIDSet.empty
+  in
+  (ty, dependencies)
 
 
 let (&&&) res1 res2 =
@@ -868,8 +896,18 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
                 (tyenv, Alist.extend bindacc (IBindVal(name, e)))
           end
 
-      | BindType((_, tynm), typarams, ctorbrs) ->
-          let tyid = TypeID.fresh tynm in
+      | BindType([]) ->
+          assert false
+
+      | BindType((_ :: _) as tybinds) ->
+          let (tupleacc, graph, tyenv) =
+            tybinds |> List.fold_left (fun (bindacc, graph, tyenv) (((_, tynm) as tyident, typarams, _) as tybinds) ->
+              let tyid = TypeID.fresh tynm in
+              let graph = graph |> DependencyGraph.add_vertex tyid tyident in
+              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm tyid (List.length typarams) in
+              (Alist.extend bindacc (tybinds, tyid), graph, tyenv)
+            ) (Alist.empty, DependencyGraph.empty, tyenv)
+          in
           let pre =
             {
               level                 = 0;
@@ -877,16 +915,37 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
               local_type_parameters = TypeParameterMap.empty;
             }
           in
-          let typaramassoc = make_type_parameter_assoc 1 typarams in
-          let typarams =
-            typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound
+          let (graph, tyenv) =
+            tupleacc |> Alist.to_list |> List.fold_left (fun (graph, tyenv) (tybind, tyid) ->
+              let ((_, tynm), typarams, syn_or_vnt) = tybind in
+              let typaramassoc = make_type_parameter_assoc 1 typarams in
+              let typarams =
+                typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound
+              in
+              let pre = pre |> add_local_type_parameter typaramassoc in
+              match syn_or_vnt with
+              | BindVariant(ctorbrs) ->
+                  let ctorbrmap =
+                    make_constructor_branch_map { pre with tyenv } ctorbrs
+                  in
+                  (graph, tyenv |> Typeenv.add_variant_type tynm tyid typarams ctorbrmap)
+
+              | BindSynonym(mtyreal) ->
+                  let (tyreal, dependencies) = decode_manual_type_and_get_dependency pre mtyreal in
+                  let ptyreal = generalize pre.level tyreal in
+                  let graph =
+                    graph |> TypeIDSet.fold (fun tyiddep graph ->
+                      graph |> DependencyGraph.add_edge tyid tyiddep
+                    ) dependencies
+                  in
+                  (graph, tyenv |> Typeenv.add_synonym_type tynm tyid typarams ptyreal)
+            ) (graph, tyenv)
           in
-          let pre = pre |> add_local_type_parameter typaramassoc in
-          let ctorbrmap =
-            let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm tyid (List.length typarams) in
-            make_constructor_branch_map { pre with tyenv } ctorbrs
-          in
-          (tyenv |> Typeenv.add_type tynm tyid typarams ctorbrmap, bindacc)
+          if DependencyGraph.has_cycle graph then
+            let tyidents = tybinds |> List.map (fun (tyident, _, _) -> tyident) in
+            raise (CyclicSynonymTypeDefinition(tyidents))
+          else
+            (tyenv, bindacc)
 
     ) (tyenv, Alist.empty)
   in

@@ -15,6 +15,14 @@ let fresh =
   )
 
 
+let hash =
+  Hashtbl.hash
+
+
+let compare tyid1 tyid2 =
+  tyid2.number - tyid1.number
+
+
 let equal tyid1 tyid2 =
   tyid1.number = tyid2.number
 

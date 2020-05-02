@@ -112,9 +112,14 @@ type constructor_branch =
   | ConstructorBranch of constructor_name * manual_type list
 [@@deriving show { with_path = false; } ]
 
+type synonym_or_variant =
+  | BindSynonym of manual_type
+  | BindVariant of constructor_branch list
+[@@deriving show { with_path = false; } ]
+
 type untyped_binding =
   | BindVal    of rec_or_nonrec
-  | BindType   of type_name ranged * (type_variable_name ranged) list * constructor_branch list
+  | BindType   of (type_name ranged * (type_variable_name ranged) list * synonym_or_variant) list
 [@@deriving show { with_path = false; } ]
 
 type 'a typ =
