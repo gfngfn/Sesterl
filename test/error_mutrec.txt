@@ -1,0 +1,9 @@
+
+type foo =
+  (int, bar)
+
+andrec baz<$a> =
+  | Baz(foo, bar)
+
+andrec bar =
+  (bool, baz<foo>)
