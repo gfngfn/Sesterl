@@ -110,6 +110,8 @@ let decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                   | ("binary", _)   -> invalid rng "binary" ~expect:0 ~actual:len_actual
                   | ("list", [pty]) -> ListType(pty)
                   | ("list", _)     -> invalid rng "list" ~expect:1 ~actual:len_actual
+                  | ("pid", [ty])   -> PidType(Pid(ty))
+                  | ("pid", _)      -> invalid rng "pid" ~expect:1 ~actual:len_actual
                   | _               -> raise (UndefinedTypeName(rng, tynm))
                 end
 
