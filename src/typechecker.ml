@@ -941,9 +941,11 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
                   (graph, tyenv |> Typeenv.add_synonym_type tynm tyid typarams ptyreal)
             ) (graph, tyenv)
           in
-          match DependencyGraph.find_cycle graph with
-          | Some(vertices) -> raise (CyclicSynonymTypeDefinition(vertices |> List.map snd))
-          | None           -> (tyenv, bindacc)
+          if DependencyGraph.has_cycle graph then
+            let tyidents = tybinds |> List.map (fun (tyident, _, _) -> tyident) in
+            raise (CyclicSynonymTypeDefinition(tyidents))
+          else
+            (tyenv, bindacc)
 
     ) (tyenv, Alist.empty)
   in

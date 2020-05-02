@@ -5,6 +5,7 @@
  (libraries
     menhirLib
     cmdliner
+    ocamlgraph
     )
  (preprocess
     (pps
