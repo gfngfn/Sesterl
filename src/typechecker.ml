@@ -932,8 +932,9 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
               local_type_parameters = TypeParameterMap.empty;
             }
           in
+          let syns = synacc |> Alist.to_list in
           let (graph, tyenv) =
-            synacc |> Alist.to_list |> List.fold_left (fun (graph, tyenv) syn ->
+            syns |> List.fold_left (fun (graph, tyenv) syn ->
               let ((_, tynm), typarams, mtyreal, sid) = syn in
               let typaramassoc = make_type_parameter_assoc 1 typarams in
               let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
@@ -963,7 +964,7 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
             ) tyenv
           in
           if DependencyGraph.has_cycle graph then
-            let tyidents = tybinds |> List.map (fun (tyident, _, _) -> tyident) in
+            let tyidents = syns |> List.map (fun (tyident, _, _, _) -> tyident) in
             raise (CyclicSynonymTypeDefinition(tyidents))
           else
             (tyenv, bindacc)
