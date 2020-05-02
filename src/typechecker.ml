@@ -125,7 +125,7 @@ let decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_t
                 if len_actual = len_expected then
                   begin
                     k tyid;
-                    VariantType(tyid, ptyargs)
+                    DataType(tyid, ptyargs)
                   end
                 else
                   invalid rng tynm ~expect:len_expected ~actual:len_actual
@@ -266,7 +266,7 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     | ListType(ty) ->
         aux ty
 
-    | VariantType(tyid, tyargs) ->
+    | DataType(tyid, tyargs) ->
         aux_list tyargs
 
     | EffType(eff, ty0) ->
@@ -323,6 +323,12 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
     | (TypeVar(MustBeBound(mbbid1)), TypeVar(MustBeBound(mbbid2))) ->
         if MustBeBoundID.equal mbbid1 mbbid2 then Consistent else Contradiction
 
+    | (DataType(TypeID.Synonym(sid1), tyargs1), _) ->
+        failwith "TODO: unify synonym type"
+
+    | (_, DataType(TypeID.Synonym(sid2), tyargs2)) ->
+        failwith "TODO: unify synonym type"
+
     | (BaseType(bt1), BaseType(bt2)) ->
         if bt1 = bt2 then Consistent else Contradiction
 
@@ -345,8 +351,8 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
     | (ListType(ty1), ListType(ty2)) ->
         aux ty1 ty2
 
-    | (VariantType(tyid1, tyargs1), VariantType(tyid2, tyargs2)) ->
-        if TypeID.equal tyid1 tyid2 then
+    | (DataType(TypeID.Variant(vid1), tyargs1), DataType(TypeID.Variant(vid2), tyargs2)) ->
+        if TypeID.Variant.equal vid1 vid2 then
           aux_list tyargs1 tyargs2
         else
           Contradiction
@@ -610,7 +616,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       (ty2, iletpatin ipat e1 e2)
 
   | Constructor(ctornm, utastargs) ->
-      let (tyid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng ctornm in
+      let (vid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng ctornm in
       begin
         try
           let es =
@@ -620,7 +626,7 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
               Alist.extend acc e
             ) Alist.empty tys_expected utastargs |> Alist.to_list
           in
-          let ty = (rng, VariantType(tyid, tyargs)) in
+          let ty = (rng, DataType(TypeID.Variant(vid), tyargs)) in
           let e = IConstructor(ctorid, es) in
           (ty, e)
         with
@@ -731,7 +737,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
       (ty, IPTuple(ipats), bindmap)
 
   | PConstructor(ctornm, pats) ->
-      let (tyid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng ctornm in
+      let (vid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng ctornm in
       begin
         try
           let (ipatacc, bindmap) =
@@ -741,7 +747,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
               (Alist.extend ipatacc ipat, binding_map_union rng bindmapacc bindmap)
             ) (Alist.empty, BindingMap.empty) tys_expected pats
           in
-          let ty = (rng, VariantType(tyid, tyargs)) in
+          let ty = (rng, DataType(TypeID.Variant(vid), tyargs)) in
           (ty, IPConstructor(ctorid, Alist.to_list ipatacc), bindmap)
         with
         | Invalid_argument(_) ->
@@ -900,13 +906,24 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
           assert false
 
       | BindType((_ :: _) as tybinds) ->
-          let (tupleacc, graph, tyenv) =
-            tybinds |> List.fold_left (fun (bindacc, graph, tyenv) (((_, tynm) as tyident, typarams, _) as tybinds) ->
-              let tyid = TypeID.fresh tynm in
-              let graph = graph |> DependencyGraph.add_vertex tyid tyident in
-              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm tyid (List.length typarams) in
-              (Alist.extend bindacc (tybinds, tyid), graph, tyenv)
-            ) (Alist.empty, DependencyGraph.empty, tyenv)
+          let (synacc, vntacc, graph, tyenv) =
+            tybinds |> List.fold_left (fun (synacc, vntacc, graph, tyenv) (tyident, typarams, syn_or_vnt) ->
+              let (_, tynm) = tyident in
+              let arity = List.length typarams in
+              match syn_or_vnt with
+              | BindSynonym(synbind) ->
+                  let sid = TypeID.Synonym.fresh tynm in
+                  let graph = graph |> DependencyGraph.add_vertex sid tyident in
+                  let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Synonym(sid)) arity in
+                  let synacc = Alist.extend synacc (tyident, typarams, synbind, sid) in
+                  (synacc, vntacc, graph, tyenv)
+
+              | BindVariant(vntbind) ->
+                  let vid = TypeID.Variant.fresh tynm in
+                  let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Variant(vid)) arity in
+                  let vntacc = Alist.extend vntacc (tyident, typarams, vntbind, vid) in
+                  (synacc, vntacc, graph, tyenv)
+            ) (Alist.empty, Alist.empty, DependencyGraph.empty, tyenv)
           in
           let pre =
             {
@@ -916,30 +933,34 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
             }
           in
           let (graph, tyenv) =
-            tupleacc |> Alist.to_list |> List.fold_left (fun (graph, tyenv) (tybind, tyid) ->
-              let ((_, tynm), typarams, syn_or_vnt) = tybind in
+            synacc |> Alist.to_list |> List.fold_left (fun (graph, tyenv) syn ->
+              let ((_, tynm), typarams, mtyreal, sid) = syn in
               let typaramassoc = make_type_parameter_assoc 1 typarams in
-              let typarams =
-                typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound
-              in
+              let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
               let pre = pre |> add_local_type_parameter typaramassoc in
-              match syn_or_vnt with
-              | BindVariant(ctorbrs) ->
-                  let ctorbrmap =
-                    make_constructor_branch_map { pre with tyenv } ctorbrs
-                  in
-                  (graph, tyenv |> Typeenv.add_variant_type tynm tyid typarams ctorbrmap)
-
-              | BindSynonym(mtyreal) ->
-                  let (tyreal, dependencies) = decode_manual_type_and_get_dependency pre mtyreal in
-                  let ptyreal = generalize pre.level tyreal in
-                  let graph =
-                    graph |> TypeIDSet.fold (fun tyiddep graph ->
-                      graph |> DependencyGraph.add_edge tyid tyiddep
-                    ) dependencies
-                  in
-                  (graph, tyenv |> Typeenv.add_synonym_type tynm tyid typarams ptyreal)
+              let (tyreal, dependencies) = decode_manual_type_and_get_dependency pre mtyreal in
+              let ptyreal = generalize pre.level tyreal in
+              let graph =
+                graph |> TypeIDSet.fold (fun tyiddep graph ->
+                  match tyiddep with
+                  | TypeID.Synonym(siddep) -> graph |> DependencyGraph.add_edge sid siddep
+                  | TypeID.Variant(_)      -> graph
+                ) dependencies
+              in
+              (graph, tyenv |> Typeenv.add_synonym_type tynm sid typarams ptyreal)
             ) (graph, tyenv)
+          in
+          let tyenv =
+            vntacc |> Alist.to_list |> List.fold_left (fun tyenv vnt ->
+              let ((_, tynm), typarams, ctorbrs, vid) = vnt in
+              let typaramassoc = make_type_parameter_assoc 1 typarams in
+              let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
+              let pre = pre |> add_local_type_parameter typaramassoc in
+              let ctorbrmap =
+                make_constructor_branch_map { pre with tyenv } ctorbrs
+              in
+              tyenv |> Typeenv.add_variant_type tynm vid typarams ctorbrmap
+            ) tyenv
           in
           if DependencyGraph.has_cycle graph then
             let tyidents = tybinds |> List.map (fun (tyident, _, _) -> tyident) in

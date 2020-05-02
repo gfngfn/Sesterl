@@ -133,7 +133,7 @@ and 'a typ_main =
   | TypeVar     of 'a
   | ProductType of ('a typ) TupleList.t
   | ListType    of 'a typ
-  | VariantType of TypeID.t * ('a typ) list
+  | DataType    of TypeID.t * ('a typ) list
 
 and 'a effect =
   | Effect of 'a typ
@@ -226,8 +226,8 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
     | ListType(ty0) ->
         (rngf rng, ListType(aux ty0))
 
-    | VariantType(tyid, tyargs) ->
-        (rngf rng, VariantType(tyid, tyargs |> List.map aux))
+    | DataType(tyid, tyargs) ->
+        (rngf rng, DataType(tyid, tyargs |> List.map aux))
 
   and aux_effect (Effect(ty)) =
     let pty = aux ty in
@@ -298,8 +298,8 @@ let instantiate_scheme (intern : BoundID.t -> mono_type_var) (lev : int) (pty : 
     | ListType(pty0) ->
         (rng, ListType(aux pty0))
 
-    | VariantType(tyid, ptyargs) ->
-        (rng, VariantType(tyid, ptyargs |> List.map aux))
+    | DataType(tyid, ptyargs) ->
+        (rng, DataType(tyid, ptyargs |> List.map aux))
 
   and aux_effect (Effect(pty)) =
     let ty = aux pty in
@@ -380,7 +380,7 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
         let s0 = aux ty0 in
         Printf.sprintf "list<%s>" s0
 
-    | VariantType(tyid, tyargs) ->
+    | DataType(tyid, tyargs) ->
         begin
           match tyargs with
           | [] ->

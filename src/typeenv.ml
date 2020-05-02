@@ -18,12 +18,12 @@ type type_entry =
       number_of_parameters : int;
     }
   | DefinedVariant of {
-      type_id         : TypeID.t;
+      id              : TypeID.Variant.t;
       type_parameters : BoundID.t list;
       branches        : constructor_branch_map;
     }
   | DefinedSynonym of {
-      type_id         : TypeID.t;
+      id              : TypeID.Synonym.t;
       type_parameters : BoundID.t list;
       real_type       : poly_type;
     }
@@ -31,7 +31,7 @@ type type_entry =
 module ConstructorMap = Map.Make(String)
 
 type constructor_entry = {
-  belongs         : TypeID.t;
+  belongs         : TypeID.Variant.t;
   constructor_id  : ConstructorID.t;
   type_variables  : BoundID.t list;
   parameter_types : poly_type list;
@@ -81,11 +81,11 @@ let fold_val f tyenv acc =
   VarMap.fold (fun x entry acc -> f x entry.typ acc) tyenv.vals acc
 
 
-let add_variant_type (tynm : type_name) (tyid : TypeID.t) (typarams : BoundID.t list) (brmap : constructor_branch_map) (tyenv : t) : t =
+let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : BoundID.t list) (brmap : constructor_branch_map) (tyenv : t) : t =
   let typesnew =
     let entry =
       DefinedVariant{
-        type_id         = tyid;
+        id              = vid;
         type_parameters = typarams;
         branches        = brmap;
       }
@@ -96,7 +96,7 @@ let add_variant_type (tynm : type_name) (tyid : TypeID.t) (typarams : BoundID.t 
     ConstructorBranchMap.fold (fun ctornm (ctorid, ptys) ctors ->
       let entry =
         {
-          belongs         = tyid;
+          belongs         = vid;
           constructor_id  = ctorid;
           type_variables  = typarams;
           parameter_types = ptys;
@@ -108,10 +108,10 @@ let add_variant_type (tynm : type_name) (tyid : TypeID.t) (typarams : BoundID.t 
   { tyenv with types = typesnew; constructors = ctorsnew }
 
 
-let add_synonym_type (tynm : type_name) (tyid : TypeID.t) (typarams : BoundID.t list) (ptyreal : poly_type) (tyenv : t) : t =
+let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (typarams : BoundID.t list) (ptyreal : poly_type) (tyenv : t) : t =
   let entry =
     DefinedSynonym{
-      type_id         = tyid;
+      id              = sid;
       type_parameters = typarams;
       real_type       = ptyreal
     }
@@ -138,6 +138,6 @@ let find_constructor (ctornm : constructor_name) (tyenv : t) =
 let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * int) option =
   tyenv.types |> TypeMap.find_opt tynm |> Option.map (function
   | Defining(record)       -> (record.type_id, record.number_of_parameters)
-  | DefinedVariant(record) -> (record.type_id, List.length record.type_parameters)
-  | DefinedSynonym(record) -> (record.type_id, List.length record.type_parameters)
+  | DefinedVariant(record) -> (TypeID.Variant(record.id), List.length record.type_parameters)
+  | DefinedSynonym(record) -> (TypeID.Synonym(record.id), List.length record.type_parameters)
   )
