@@ -25,7 +25,7 @@ let reverse_list<$a>(xs: list<$a>): list<$a> =
   in
   aux([], xs)
 
-letrec wait_all<$b>(r: list<list<$b>>, n: int) =
+letrec wait_all<$b>(r: $b, n: int) =
   if n <= 0 then
     let _ = print_debug(<<"\"end!\"">>) in
     return(r)
@@ -36,12 +36,12 @@ letrec wait_all<$b>(r: list<list<$b>>, n: int) =
         wait_all(r, n - 1)
     end
 
-letrec spawn_all(acc, n: int) =
+letrec spawn_all<$m>(acc, n: int): [(pid<$m>, bintree<int>)]list<pid<$m>> =
   if n <= 0 then
     return(reverse_list(acc))
   else
     do parent <- self in
-    do pid <- spawn(
+    do pid: pid<$m> <- spawn(
       do me <- self in
       send(parent, (me, bintree_of_int(n)))
     ) in
@@ -51,4 +51,4 @@ let main() =
   let m = 10 in
   do pids <- spawn_all([], m) in
   let _ = print_debug(pids) in
-  wait_all([], m)
+  wait_all((), m)

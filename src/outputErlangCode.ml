@@ -7,10 +7,10 @@ let unit_atom = "ok"
 
 let stringify_base_constant (bc : base_constant) =
   match bc with
-  | Unit        -> unit_atom
-  | Bool(true)  -> "true"
-  | Bool(false) -> "false"
-  | Int(n)      -> string_of_int n
+  | Unit              -> unit_atom
+  | Bool(true)        -> "true"
+  | Bool(false)       -> "false"
+  | Int(n)            -> string_of_int n
   | BinaryByString(s) -> Printf.sprintf "<<\"%s\">>" (String.escaped s)
   | BinaryByInts(ns)  -> Printf.sprintf "<<%s>>" (ns |> List.map string_of_int |> String.concat ", ")
 
@@ -39,6 +39,8 @@ let output_single name =
         ) |> String.concat ", "
       in
       Printf.sprintf "(fun(%s) -> %s(%s) end)" sparam s sparam
+        (* -- perform the eta expansion for global function names
+              in order to avoid being confused with atoms -- *)
 
   | _ ->
       assert false
@@ -84,6 +86,7 @@ let rec stringify_ast (ast : ast) =
       Printf.sprintf "begin %s = %s, %s end" sname s1 s2
 
   | ICase(ast1, [ IBranch(ipat, None, ast2) ]) ->
+    (* -- slight optimization of case-expressions into pattern-matching let-expressions -- *)
       let spat = stringify_pattern ipat in
       let s1 = stringify_ast ast1 in
       let s2 = stringify_ast ast2 in

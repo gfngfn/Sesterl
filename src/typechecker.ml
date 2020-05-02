@@ -108,8 +108,10 @@ let decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                   | ("int", _)      -> invalid rng "int" ~expect:0 ~actual:len_actual
                   | ("binary", [])  -> BaseType(BinaryType)
                   | ("binary", _)   -> invalid rng "binary" ~expect:0 ~actual:len_actual
-                  | ("list", [pty]) -> ListType(pty)
+                  | ("list", [ty])  -> ListType(ty)
                   | ("list", _)     -> invalid rng "list" ~expect:1 ~actual:len_actual
+                  | ("pid", [ty])   -> PidType(Pid(ty))
+                  | ("pid", _)      -> invalid rng "pid" ~expect:1 ~actual:len_actual
                   | _               -> raise (UndefinedTypeName(rng, tynm))
                 end
 
@@ -125,6 +127,9 @@ let decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
 
       | MProductType(mtys) ->
           ProductType(TupleList.map aux mtys)
+
+      | MEffType(mty1, mty2) ->
+          EffType(Effect(aux mty1), aux mty2)
 
       | MTypeVar(typaram) ->
           begin
