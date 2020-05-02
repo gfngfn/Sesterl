@@ -12,6 +12,7 @@ exception UndefinedConstructor                of Range.t * constructor_name
 exception InvalidNumberOfConstructorArguments of Range.t * constructor_name * int * int
 exception UndefinedTypeName                   of Range.t * type_name
 exception InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
+exception TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
 
 
 module BindingMap = Map.Make(String)
@@ -70,12 +71,14 @@ let add_local_type_parameter (typaramassoc : type_parameter_assoc) (pre : pre) :
 
 
 let make_type_parameter_assoc (lev : int) (tyvarnms : (type_variable_name ranged) list) : type_parameter_assoc =
-  tyvarnms |> List.fold_left (fun assoc (_, tyvarnm) ->
+  tyvarnms |> List.fold_left (fun assoc (rng, tyvarnm) ->
     let mbbid = MustBeBoundID.fresh lev in
 (*
     Format.printf "MUST-BE-BOUND %s : L%d %a\n" tyvarnm lev MustBeBoundID.pp mbbid;  (* for debug *)
 *)
-    assoc |> TypeParameterAssoc.add_last tyvarnm mbbid
+    match assoc |> TypeParameterAssoc.add_last tyvarnm mbbid with
+    | None        -> raise (TypeParameterBoundMoreThanOnce(rng, tyvarnm))
+    | Some(assoc) -> assoc
   ) TypeParameterAssoc.empty
 
 

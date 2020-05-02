@@ -78,3 +78,8 @@ let () =
         tynm
         len_expected
         len_actual
+
+  | Typechecker.TypeParameterBoundMoreThanOnce(rng, tyvar) ->
+      Format.printf "%a: type variable '%s' is bound more than once\n"
+        Range.pp rng
+        tyvar

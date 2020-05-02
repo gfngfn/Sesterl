@@ -10,7 +10,7 @@ module Make(Key : EQ) : sig
   type elem
   type 'v t
   val empty : 'v t
-  val add_last : elem -> 'v -> 'v t -> 'v t
+  val add_last : elem -> 'v -> 'v t -> ('v t) option
   val find_opt : elem -> 'v t -> 'v option
   val fold_left : ('a -> elem -> 'v -> 'a) -> 'a -> 'v t -> 'a
   val values : 'v t -> 'v list
@@ -31,12 +31,11 @@ end
     let rec aux acc xs =
       match xs with
       | [] ->
-          List.rev ((k, v) :: acc)
+          Some(List.rev ((k, v) :: acc))
 
       | ((kx, _) as x) :: tail ->
           if Key.equal k kx then
-            invalid_arg "AssocList.Make(_).add_last"
-              (* temporary; should raise an error about duplicate type parameter names *)
+            None
           else
             aux (x :: acc) tail
     in
