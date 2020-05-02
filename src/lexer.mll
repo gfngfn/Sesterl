@@ -77,6 +77,8 @@ rule token = parse
   | ("/" (nssymbol*)) { BINOP_DIVIDES(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
   | ("+" (nssymbol*)) { BINOP_PLUS(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
   | ("-" (nssymbol*)) { BINOP_MINUS(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+  | (">" (space | break)+) { GT_SPACES(Range.from_lexbuf lexbuf) }
+  | ">"                    { GT_NOSPACE(Range.from_lexbuf lexbuf) }
   | eof  { EOI }
   | _ as c { raise (UnidentifiedToken(Range.from_lexbuf lexbuf, String.make 1 c)) }
 
