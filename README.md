@@ -19,7 +19,7 @@
   * [x] Lists
   * [x] User-defined ADTs
   * [x] Pattern matching
-  * [ ] Type synonyms
+  * [x] Type synonyms
   * [ ] Records
 * [x] Mutual recursion by generalized `letrec`-expressions
 * [x] Pattern matching by generalized `let`-expressions
