@@ -38,6 +38,7 @@ and manual_type_main =
   | MTypeName    of type_name * manual_type list
   | MFuncType    of manual_type list * manual_type
   | MProductType of manual_type TupleList.t
+  | MEffType     of manual_type * manual_type
   | MTypeVar     of type_variable_name
 [@@deriving show { with_path = false; } ]
 

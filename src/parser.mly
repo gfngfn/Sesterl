@@ -312,6 +312,17 @@ tybot:
         let rng = make_range (Token(tokL)) (Ranged(mtycod)) in
         (rng, MFuncType(mtydoms, mtycod))
       }
+  | tokL=LPAREN; mty1=ty; COMMA; mty2=ty; mtys=list(tytuplesub) tokR=RPAREN {
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, MProductType(TupleList.make mty1 mty2 mtys))
+      }
+  | tokL=LSQUARE; mty1=ty; RSQUARE; mty2=ty {
+        let rng = make_range (Token(tokL)) (Ranged(mty2)) in
+        (rng, MEffType(mty1, mty2))
+      }
+;
+tytuplesub:
+  | COMMA; mty=ty; { mty }
 ;
 tylparen:
   | tok=LT_EXACT  { tok }

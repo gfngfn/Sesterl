@@ -128,6 +128,9 @@ let decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
       | MProductType(mtys) ->
           ProductType(TupleList.map aux mtys)
 
+      | MEffType(mty1, mty2) ->
+          EffType(Effect(aux mty1), aux mty2)
+
       | MTypeVar(typaram) ->
           begin
             match typarams |> TypeParameterMap.find_opt typaram with
