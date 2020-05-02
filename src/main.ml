@@ -83,3 +83,7 @@ let () =
       Format.printf "%a: type variable '%s' is bound more than once\n"
         Range.pp rng
         tyvar
+
+  | Typechecker.InvalidByte(rng) ->
+      Format.printf "%a: invalid byte\n"
+        Range.pp rng

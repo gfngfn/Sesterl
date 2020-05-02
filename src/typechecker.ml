@@ -13,6 +13,7 @@ exception InvalidNumberOfConstructorArguments of Range.t * constructor_name * in
 exception UndefinedTypeName                   of Range.t * type_name
 exception InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
 exception TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
+exception InvalidByte                         of Range.t
 
 
 module BindingMap = Map.Make(String)
@@ -402,7 +403,8 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   | Unit    -> ((rng, BaseType(UnitType)))
   | Int(n)  -> (rng, BaseType(IntType))
   | Bool(b) -> (rng, BaseType(BoolType))
-  | Binary(s) -> (rng, BaseType(BinaryType))
+  | BinaryByString(_)
+  | BinaryByInts(_)   -> (rng, BaseType(BinaryType))
 
 
 let decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) : mono_type =
@@ -594,6 +596,15 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
             let len_actual = List.length utastargs in
             raise (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
       end
+
+  | BinaryByList(nrs) ->
+      let ns =
+        nrs |> List.map (fun (rngn, n) ->
+          if 0 <= n && n <= 255 then n else
+            raise (InvalidByte(rngn))
+        )
+      in
+      ((rng, BaseType(BinaryType)), IBaseConst(BinaryByInts(ns)))
 
 
 and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name) =

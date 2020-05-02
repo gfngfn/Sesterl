@@ -11,5 +11,6 @@ exception InvalidNumberOfConstructorArguments of Range.t * constructor_name * in
 exception UndefinedTypeName                   of Range.t * type_name
 exception InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
 exception TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
+exception InvalidByte                         of Range.t
 
 val main : untyped_binding list -> Typeenv.t * binding list

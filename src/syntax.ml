@@ -50,7 +50,8 @@ type base_constant =
   | Unit
   | Bool of bool
   | Int  of int
-  | Binary of string
+  | BinaryByString of string
+  | BinaryByInts   of int list
 [@@deriving show { with_path = false; } ]
 
 type untyped_ast =
@@ -72,6 +73,7 @@ and untyped_ast_main =
   | ListCons    of untyped_ast * untyped_ast
   | Case        of untyped_ast * untyped_branch list
   | Constructor of constructor_name * untyped_ast list
+  | BinaryByList of (int ranged) list
 
 and rec_or_nonrec =
   | NonRec of untyped_let_binding
