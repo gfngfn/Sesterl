@@ -105,6 +105,8 @@ let decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                   | ("bool", _)     -> invalid rng "bool" ~expect:0 ~actual:len_actual
                   | ("int", [])     -> BaseType(IntType)
                   | ("int", _)      -> invalid rng "int" ~expect:0 ~actual:len_actual
+                  | ("binary", [])  -> BaseType(BinaryType)
+                  | ("binary", _)   -> invalid rng "binary" ~expect:0 ~actual:len_actual
                   | ("list", [pty]) -> ListType(pty)
                   | ("list", _)     -> invalid rng "list" ~expect:1 ~actual:len_actual
                   | _               -> raise (UndefinedTypeName(rng, tynm))
@@ -400,6 +402,7 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   | Unit    -> ((rng, BaseType(UnitType)))
   | Int(n)  -> (rng, BaseType(IntType))
   | Bool(b) -> (rng, BaseType(BoolType))
+  | Binary(s) -> (rng, BaseType(BinaryType))
 
 
 let decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) : mono_type =

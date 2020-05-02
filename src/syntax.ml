@@ -28,6 +28,7 @@ type base_type =
   | IntType
   | BoolType
   | UnitType
+  | BinaryType
 [@@deriving show { with_path = false; } ]
 
 type manual_type = manual_type_main ranged
@@ -49,6 +50,7 @@ type base_constant =
   | Unit
   | Bool of bool
   | Int  of int
+  | Binary of string
 [@@deriving show { with_path = false; } ]
 
 type untyped_ast =
@@ -335,6 +337,7 @@ let show_base_type = function
   | UnitType -> "unit"
   | BoolType -> "bool"
   | IntType  -> "int"
+  | BinaryType -> "binary"
 
 
 let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
@@ -355,7 +358,7 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
 
     | PidType(pidty) ->
         let spid = aux_pid_type pidty in
-        "pid(" ^ spid ^ ")"
+        "pid[" ^ spid ^ "]"
 
     | TypeVar(tv) ->
         showtv tv
@@ -366,7 +369,7 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
 
     | ListType(ty0) ->
         let s0 = aux ty0 in
-        Printf.sprintf "list(%s)" s0
+        Printf.sprintf "list[%s]" s0
 
     | VariantType(tyid, tyargs) ->
         begin
@@ -376,12 +379,12 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
 
           | _ :: _ ->
               let ss = tyargs |> List.map aux in
-              Format.asprintf "%a(%s)" TypeID.pp tyid (String.concat ", " ss)
+              Format.asprintf "%a[%s]" TypeID.pp tyid (String.concat ", " ss)
         end
 
   and aux_effect (Effect(ty)) =
     let s = aux ty in
-    "[" ^ s ^ "]"
+    "<" ^ s ^ ">"
 
   and aux_pid_type (Pid(ty)) =
     aux ty
