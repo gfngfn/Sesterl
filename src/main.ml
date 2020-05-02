@@ -7,9 +7,17 @@ let main fpath_in fpath_out =
     let inc = open_in fpath_in in
     let lexbuf = Lexing.from_channel inc in
     let utdecls = ParserInterface.process lexbuf in
+    close_in inc;
     let (tyenv, decls) = Typechecker.main utdecls in
-    let scode = OutputErlangCode.main decls in
-    Format.printf "%s\n" scode;
+    let scode =
+      let modname =
+        Filename.remove_extension (Filename.basename fpath_out)
+      in
+      OutputErlangCode.main modname decls
+    in
+    let outc = open_out fpath_out in
+    output_string outc scode;
+    close_out outc;
     Typeenv.fold_val (fun x pty () ->
       Format.printf "%s : %a\n" x pp_poly_type pty
     ) tyenv ()

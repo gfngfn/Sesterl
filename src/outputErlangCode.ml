@@ -191,11 +191,11 @@ let stringify_declaration (bind : binding) =
       end
 
 
-let main (binds : binding list) =
+let main (modname : string) (binds : binding list) : string =
   let sbinds = binds |> List.map stringify_declaration in
   let lines =
     List.append [
-      "-module(autogen).";
+      Printf.sprintf "-module(%s)." modname;
       "-export([main/0]).";
       "thunk_return(X) -> fun() -> X end.";
       "thunk_spawn(X) -> fun() -> erlang:spawn(X) end.";
