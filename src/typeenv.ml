@@ -76,7 +76,7 @@ let fold_val f tyenv acc =
   VarMap.fold (fun x entry acc -> f x entry.typ acc) tyenv.vals acc
 
 
-let add_type (tynm : type_name) (tyid : TypeID.t) (typarams : BoundID.t list) (brmap : constructor_branch_map) (tyenv : t) : t =
+let add_variant_type (tynm : type_name) (tyid : TypeID.t) (typarams : BoundID.t list) (brmap : constructor_branch_map) (tyenv : t) : t =
   let typesnew =
     let entry =
       Defined{
@@ -101,6 +101,10 @@ let add_type (tynm : type_name) (tyid : TypeID.t) (typarams : BoundID.t list) (b
     ) brmap tyenv.constructors
   in
   { tyenv with types = typesnew; constructors = ctorsnew }
+
+
+let add_synonym_type (tynm : type_name) (tyid : TypeID.t) (typarams : BoundID.t list) (ptyreal : poly_type) (tyenv : t) : t =
+  failwith "add_synonym_type: TODO"
 
 
 let add_type_for_recursion (tynm : type_name) (tyid : TypeID.t) (paramlen : int) (tyenv : t) : t =
