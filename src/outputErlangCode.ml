@@ -39,6 +39,8 @@ let output_single name =
         ) |> String.concat ", "
       in
       Printf.sprintf "(fun(%s) -> %s(%s) end)" sparam s sparam
+        (* -- perform the eta expansion for global function names
+              in order to avoid being confused with atoms -- *)
 
   | _ ->
       assert false
