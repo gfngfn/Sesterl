@@ -12,5 +12,6 @@ exception UndefinedTypeName                   of Range.t * type_name
 exception InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
 exception TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
 exception InvalidByte                         of Range.t
+exception CyclicSynonymTypeDefinition         of (type_name ranged) list
 
 val main : untyped_binding list -> Typeenv.t * binding list

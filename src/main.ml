@@ -95,6 +95,12 @@ let main fpath_in fpath_out =
       Format.printf "%a: invalid byte\n"
         Range.pp rng
 
+  | Typechecker.CyclicSynonymTypeDefinition(tyidents) ->
+      Format.printf "cyclic type definitions:\n";
+      tyidents |> List.iter (fun (rng, tynm) ->
+        Format.printf "%s (%a)" tynm Range.pp rng
+      )
+
 
 let flag_output =
   let open Cmdliner in
