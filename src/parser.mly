@@ -23,9 +23,11 @@
 %}
 
 %token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC
+%token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
 %token<Range.t * string> IDENT CTOR TYPARAM BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
+%token<Range.t * string> STRING
 %token EOI
 
 %start main
@@ -52,8 +54,8 @@ bindtop:
       }
 ;
 typarams:
-  |                                       { [] }
-  | LSQUARE; typarams=typaramssub RSQUARE { typarams }
+  |                                         { [] }
+  | tylparen; typarams=typaramssub tyrparen { typarams }
 ;
 typaramssub:
   |                                          { [] }
@@ -150,9 +152,18 @@ exprlor:
 ;
 exprcomp:
   | e1=exprcons; op=BINOP_EQ; e2=exprcomp { binary e1 op e2 }
-  | e1=exprcons; op=BINOP_LT; e2=exprcomp { binary e1 op e2 }
-  | e1=exprcons; op=BINOP_GT; e2=exprcomp { binary e1 op e2 }
+  | e1=exprcons; op=oplt;     e2=exprcomp { binary e1 op e2 }
+  | e1=exprcons; op=opgt;     e2=exprcomp { binary e1 op e2 }
   | e=exprcons                            { e }
+;
+oplt:
+  | op=BINOP_LT  { op }
+  | rng=LT_EXACT { (rng, "<") }
+;
+opgt:
+  | op=BINOP_GT    { op }
+  | rng=GT_SPACES  { (rng, ">") }
+  | rng=GT_NOSPACE { (rng, ">") }
 ;
 exprcons:
   | e1=exprtimes; CONS; e2=exprcons {
@@ -211,6 +222,24 @@ exprbot:
         let (rng, ctornm) = ctor in
         (rng, Constructor(ctornm, []))
       }
+  | tokL=LTLT; ns=bytes tokR=gtgt {
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, BinaryByList(ns))
+      }
+  | tokL=LTLT; strlit=STRING; tokR=gtgt {
+        let (_, s) = strlit in
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, BaseConst(BinaryByString(s)))
+      }
+;
+bytes:
+  |                            { [] }
+  | tok=INT                    { tok :: [] }
+  | tok=INT; COMMA; tail=bytes { tok :: tail }
+;
+gtgt:
+  | GT_NOSPACE; tokR=GT_NOSPACE { tokR }
+  | GT_NOSPACE; tokR=GT_SPACES  { tokR }
 ;
 tuplesub:
   COMMA; e=exprlet { e }
@@ -274,7 +303,7 @@ tybot:
         let (rng, tynm) = ident in
         (rng, MTypeName(tynm, []))
       }
-  | ident=IDENT; LSQUARE; mtyargs=tys; tokR=RSQUARE {
+  | ident=IDENT; tylparen; mtyargs=tys; tokR=tyrparen {
         let (tokL, tynm) = ident in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, MTypeName(tynm, mtyargs))
@@ -283,4 +312,11 @@ tybot:
         let rng = make_range (Token(tokL)) (Ranged(mtycod)) in
         (rng, MFuncType(mtydoms, mtycod))
       }
+;
+tylparen:
+  | tok=LT_EXACT  { tok }
+;
+tyrparen:
+  | tok=GT_NOSPACE { tok }
+  | tok=GT_SPACES  { tok }
 ;

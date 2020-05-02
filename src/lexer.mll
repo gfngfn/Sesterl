@@ -13,7 +13,7 @@ let small = ['a'-'z']
 let latin = (small | capital)
 let identifier = (small (digit | latin | "_")*)
 let constructor = (capital (digit | latin | "_")*)
-let nssymbol = ['&' '|' '=' '<' '>' '/' '+' '-']
+let nssymbol = ['&' '|' '=' '/' '+' '-']
 
 rule token = parse
   | space { token lexbuf }
@@ -57,28 +57,56 @@ rule token = parse
       }
   | "_"  { UNDERSCORE(Range.from_lexbuf lexbuf) }
   | ","  { COMMA(Range.from_lexbuf lexbuf) }
-  | "="  { DEFEQ(Range.from_lexbuf lexbuf) }
-  | "|"  { BAR(Range.from_lexbuf lexbuf) }
-  | "->" { ARROW(Range.from_lexbuf lexbuf) }
-  | "<-" { REVARROW(Range.from_lexbuf lexbuf) }
   | "("  { LPAREN(Range.from_lexbuf lexbuf) }
   | ")"  { RPAREN(Range.from_lexbuf lexbuf) }
   | "["  { LSQUARE(Range.from_lexbuf lexbuf) }
   | "]"  { RSQUARE(Range.from_lexbuf lexbuf) }
+
   | "::" { CONS(Range.from_lexbuf lexbuf) }
   | ":"  { COLON(Range.from_lexbuf lexbuf) }
-  | "/*" { comment (Range.from_lexbuf lexbuf) lexbuf; token lexbuf }
+
   | ("&" (nssymbol*)) { BINOP_AMP(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+
+  | "|"               { BAR(Range.from_lexbuf lexbuf) }
   | ("|" (nssymbol+)) { BINOP_BAR(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+
+  | "="               { DEFEQ(Range.from_lexbuf lexbuf) }
   | ("=" (nssymbol+)) { BINOP_EQ(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
-  | ("<" (nssymbol+)) { BINOP_LT(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
-  | (">" (nssymbol+)) { BINOP_GT(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+
+  | "<-"                   { REVARROW(Range.from_lexbuf lexbuf) }
+  | "<<"                   { LTLT(Range.from_lexbuf lexbuf) }
+  | "<"                    { LT_EXACT(Range.from_lexbuf lexbuf) }
+  | ("<" (nssymbol+))      { BINOP_LT(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+
+  | (">" (space | break)+) { GT_SPACES(Range.from_lexbuf lexbuf) }
+  | ">"                    { GT_NOSPACE(Range.from_lexbuf lexbuf) }
+  | (">" (nssymbol+))      { BINOP_GT(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+
   | ("*" (nssymbol*)) { BINOP_TIMES(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+
+  | "/*"              { comment (Range.from_lexbuf lexbuf) lexbuf; token lexbuf }
   | ("/" (nssymbol*)) { BINOP_DIVIDES(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+
   | ("+" (nssymbol*)) { BINOP_PLUS(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+
+  | "->"              { ARROW(Range.from_lexbuf lexbuf) }
   | ("-" (nssymbol*)) { BINOP_MINUS(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+
+  | "\"" {
+      let posL = Range.from_lexbuf lexbuf in
+      let strbuf = Buffer.create 128 in
+      let (s, posR) = string posL strbuf lexbuf in
+      STRING(Range.unite posL posR, s)
+    }
+
   | eof  { EOI }
   | _ as c { raise (UnidentifiedToken(Range.from_lexbuf lexbuf, String.make 1 c)) }
+
+and string posL strbuf = parse
+  | "\\\"" { Buffer.add_char strbuf '"'; string posL strbuf lexbuf }
+  | "\""   { let posR = Range.from_lexbuf lexbuf in (Buffer.contents strbuf, posR) }
+  | eof    { raise (SeeEndOfFileInStringLiteral(posL)) }
+  | _ as c { Buffer.add_char strbuf c; string posL strbuf lexbuf }
 
 and comment rng = parse
   | "/*" { comment (Range.from_lexbuf lexbuf) lexbuf; comment rng lexbuf }
