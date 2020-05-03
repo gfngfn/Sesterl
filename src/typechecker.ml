@@ -16,6 +16,7 @@ exception TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
 exception InvalidByte                         of Range.t
 exception CyclicSynonymTypeDefinition         of (type_name ranged) list
 exception UnboundModuleName                   of Range.t * module_name
+exception NotOfStructureType                  of Range.t
 
 
 module BindingMap = Map.Make(String)
@@ -1030,11 +1031,31 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : (BoundIDSet.
   | ModBinds(utbinds) ->
       let (abssigr, ibinds) = typecheck_binding_list tyenv utbinds in
       let (bidset, sigr) = abssigr in
-      let absmodsig = (bidset, ConcRecord(sigr)) in
+      let absmodsig = (bidset, ConcStructure(sigr)) in
       (absmodsig, IStructure(ibinds))
 
   | ModProjMod(utmod, modident) ->
-      failwith "TODO: ModProjMod"
+      let (absmodsig, e) = typecheck_module tyenv utmod in
+      let (bidset, modsig) = absmodsig in
+      begin
+        match modsig with
+        | ConcFunctor(_) ->
+            let (rng, _) = utmod in
+            raise (NotOfStructureType(rng))
+
+        | ConcStructure(sigr) ->
+            let (rng, m) = modident in
+            begin
+              match sigr |> SigRecord.find_module m with
+              | None ->
+                  raise (UnboundModuleName(rng, m))
+
+              | Some(modsigp, name) ->
+                  let absmodsigp = (bidset, modsigp) in
+                  let ep = IAccess(e, name) in
+                  (absmodsigp, ep)
+            end
+      end
 
   | _ ->
       failwith "TODO: typecheck_module"

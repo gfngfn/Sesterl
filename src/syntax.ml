@@ -518,8 +518,8 @@ type 'r concrete_signature_ =
   | ConcModule   of 'r module_signature_
 
 and 'r module_signature_ =
-  | ConcRecord   of 'r
-  | ConcFunctor  of BoundIDSet.t * 'r concrete_signature_ * 'r abstract_signature_
+  | ConcStructure of 'r
+  | ConcFunctor   of BoundIDSet.t * 'r concrete_signature_ * 'r abstract_signature_
 
 and 'r abstract_signature_ =
   BoundIDSet.t * 'r concrete_signature_
@@ -549,7 +549,7 @@ type single_type_binding =
 type signature_record = {
   sr_vals    : (poly_type * name) IdentifierMap.t;
   sr_types   : (BoundID.t list * single_type_binding) TypeNameMap.t;
-  sr_modules : (signature_record module_signature_) ModuleNameMap.t;
+  sr_modules : (signature_record module_signature_ * name) ModuleNameMap.t;
 }
 
 type concrete_signature = signature_record concrete_signature_
@@ -580,6 +580,7 @@ and ast =
   | IListCons  of ast * ast
   | IConstructor of ConstructorID.t * ast list
   | IStructure   of binding list
+  | IAccess      of ast * name
 
 and branch =
   | IBranch of pattern * ast option * ast
@@ -610,6 +611,10 @@ module SigRecord = struct
 
 
   let add_module (modnm : module_name) (modsig : module_signature) (name : name) (sigr : t) : t =
-    { sigr with sr_modules = sigr.sr_modules |> ModuleNameMap.add modnm modsig }
+    { sigr with sr_modules = sigr.sr_modules |> ModuleNameMap.add modnm (modsig, name) }
+
+
+  let find_module (modnm : module_name) (sigr : t) : (module_signature * name) option =
+    sigr.sr_modules |> ModuleNameMap.find_opt modnm
 
 end

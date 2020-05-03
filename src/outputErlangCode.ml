@@ -128,6 +128,9 @@ let rec stringify_ast (ast : ast) =
   | IStructure(ibinds) ->
       failwith "TODO: IStructure"
 
+  | IAccess(e0, name) ->
+      failwith "TODO: IAccess"
+
 
 and stringify_branch (br : branch) =
   match br with
