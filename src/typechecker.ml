@@ -890,7 +890,7 @@ let make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorBranchMap.empty
 
 
-let typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : abstract_signature =
+let typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : BoundIDSet.t * module_signature =
   failwith "TODO: typecheck_signature"
 
 
@@ -1057,8 +1057,24 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : (BoundIDSet.
             end
       end
 
-  | _ ->
-      failwith "TODO: typecheck_module"
+  | ModFunctor(modident, utsigdom, utmod0) ->
+      let absmodsigdom = typecheck_signature tyenv utsigdom in
+      let (bidset, modsigdom) = absmodsigdom in
+      let name = OutputIdentifier.fresh () in
+      let (absmodsigcod, e0) =
+        let (_, m) = modident in
+        let tyenv = tyenv |> Typeenv.add_module m modsigdom name in
+        typecheck_module tyenv utmod0
+      in
+      let absmodsig = (BoundIDSet.empty, ConcFunctor(bidset, modsigdom, absmodsigcod)) in
+      let e = ILambda(None, [name], e0) in
+      (absmodsig, e)
+
+  | ModApply(modident1, modident2) ->
+      failwith "TODO: ModApply"
+
+  | ModCoerce(modident0, utsig) ->
+      failwith "TODO: ModCoerce"
 
 
 and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : (BoundIDSet.t * SigRecord.t) * binding list =

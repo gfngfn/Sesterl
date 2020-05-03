@@ -510,20 +510,20 @@ module TypeParameterMap = Map.Make(String)
 type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
 module BoundIDSet = Set.Make(BoundID)
-
+(*
 type 'r concrete_signature_ =
   | AtomicPoly   of poly_type
   | AtomicKinded of poly_type * kind
   | AtomicAbs    of 'r abstract_signature_
   | ConcModule   of 'r module_signature_
-
-and 'r module_signature_ =
+*)
+type 'r module_signature_ =
   | ConcStructure of 'r
-  | ConcFunctor   of BoundIDSet.t * 'r concrete_signature_ * 'r abstract_signature_
-
+  | ConcFunctor   of BoundIDSet.t * 'r module_signature_ * (BoundIDSet.t * 'r module_signature_)
+(*
 and 'r abstract_signature_ =
   BoundIDSet.t * 'r concrete_signature_
-
+*)
 module IdentifierMap = Map.Make(String)
 
 module TypeNameMap = Map.Make(String)
@@ -551,13 +551,13 @@ type signature_record = {
   sr_types   : (BoundID.t list * single_type_binding) TypeNameMap.t;
   sr_modules : (signature_record module_signature_ * name) ModuleNameMap.t;
 }
-
+(*
 type concrete_signature = signature_record concrete_signature_
-
+*)
 type module_signature = signature_record module_signature_
-
+(*
 type abstract_signature = signature_record abstract_signature_
-
+*)
 type val_binding =
   | INonRec of (identifier * name * poly_type * ast)
   | IRec    of (identifier * name * poly_type * ast) list
