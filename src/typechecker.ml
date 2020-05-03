@@ -537,7 +537,10 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       (ty1, ICase(e0, ibranches))
 
   | LetIn(NonRec(letbind), utast2) ->
-      let (tyenv, name, e1) = typecheck_let Local pre letbind in
+      let (pty, name, e1) = typecheck_let Local pre letbind in
+      let tyenv =
+        let (_, x) = letbind.vb_identifier in
+        pre.tyenv |> Typeenv.add_val x pty name in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       check_properly_used tyenv letbind.vb_identifier;
       (ty2, ILetIn(name, e1, e2))
@@ -778,7 +781,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
       end
 
 
-and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : Typeenv.t * name * ast =
+and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : poly_type * name * ast =
   let (rngv, x) = letbind.vb_identifier in
   let params = letbind.vb_parameters in
   let utast0 = letbind.vb_body in
@@ -806,7 +809,7 @@ and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : 
 
   let pty1 = generalize pre.level ty1 in
   let name = generate_output_identifier scope rngv x in
-  (pre.tyenv |> Typeenv.add_val x pty1 name, name, e1)
+  (pty1, name, e1)
 
 
 and typecheck_letrec_mutual (name_inner_f : untyped_let_binding -> name) (name_outer_f : untyped_let_binding -> name) (pre : pre) (letbinds : untyped_let_binding list) =
@@ -912,11 +915,14 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : Typee
             (tyenv, ibinds)
 
         | NonRec(valbind) ->
-            let (tyenv, name, e) =
+            let (pty, name, e) =
               let params = valbind.vb_parameters in
               let arity = List.length params in
               typecheck_let (Global(arity)) pre valbind
             in
+            let tyenv =
+              let (_, x) = valbind.vb_identifier in
+              tyenv |> Typeenv.add_val x pty name in
             (tyenv, [ IBindVal(name, e) ])
       end
 
