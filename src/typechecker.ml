@@ -15,6 +15,7 @@ exception InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
 exception TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
 exception InvalidByte                         of Range.t
 exception CyclicSynonymTypeDefinition         of (type_name ranged) list
+exception UnboundModuleName                   of Range.t * module_name
 
 
 module BindingMap = Map.Make(String)
@@ -1003,7 +1004,21 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
 
 
 and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : abstract_signature * ast =
-  failwith "TODO: typecheck_module"
+  let (rng, utmodmain) = utmod in
+  match utmodmain with
+  | ModVar(m) ->
+      begin
+        match tyenv |> Typeenv.find_module_opt m with
+        | None ->
+            raise (UnboundModuleName(rng, m))
+
+        | Some(concsig, name) ->
+            let abssig = (BoundIDSet.empty, concsig) in
+            (abssig, IVar(name))
+      end
+
+  | _ ->
+      failwith "TODO: typecheck_module"
 
 
 and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : abstract_signature =

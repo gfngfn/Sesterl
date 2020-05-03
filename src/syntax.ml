@@ -129,7 +129,10 @@ and untyped_pattern_main =
 [@@deriving show { with_path = false; } ]
 
 and untyped_module =
-  | ModVar     of module_name ranged
+  untyped_module_main ranged
+
+and untyped_module_main =
+  | ModVar     of module_name
   | ModBinds   of untyped_binding list
   | ModProj    of untyped_module * module_name ranged
   | ModFunctor of module_name ranged * untyped_signature * untyped_module
