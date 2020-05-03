@@ -540,12 +540,14 @@ module TargetLabel = String  (* temporary *)
 
 module TargetRecord = Map.Make(TargetLabel)
 
+module BoundIDSet = Set.Make(BoundID)
+
 type concrete_signature =
   | AtomicPoly   of poly_type
   | AtomicKinded of poly_type * kind
   | AtomicAbs    of abstract_signature
   | ConcRecord   of concrete_signature TargetRecord.t
-  | ConcFunctor  of BoundID.t list * concrete_signature * abstract_signature
+  | ConcFunctor  of BoundIDSet.t * concrete_signature * abstract_signature
 
 and abstract_signature =
-  BoundID.t list * concrete_signature
+  BoundIDSet.t * concrete_signature
