@@ -1019,6 +1019,15 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : abstract_sig
             (abssig, IVar(name))
       end
 
+  | ModBinds(binds) ->
+      failwith "TODO: ModBinds"
+
+  | ModProjMod(utmod, modident) ->
+      failwith "TODO: ModProjMod"
+
+  | ModProjVal(utmod, ident) ->
+      failwith "TODO: ModProjVal"
+
   | _ ->
       failwith "TODO: typecheck_module"
 

@@ -134,7 +134,8 @@ and untyped_module =
 and untyped_module_main =
   | ModVar     of module_name
   | ModBinds   of untyped_binding list
-  | ModProj    of untyped_module * module_name ranged
+  | ModProjMod of untyped_module * module_name ranged
+  | ModProjVal of untyped_module * identifier ranged
   | ModFunctor of module_name ranged * untyped_signature * untyped_module
   | ModApply   of module_name ranged * module_name ranged
   | ModCoerce  of module_name ranged * untyped_signature
@@ -545,23 +546,44 @@ module TargetRecord = Map.Make(TargetLabel)
 
 module BoundIDSet = Set.Make(BoundID)
 
-type concrete_signature =
+type 'r concrete_signature_ =
   | AtomicPoly   of poly_type
   | AtomicKinded of poly_type * kind
-  | AtomicAbs    of abstract_signature
-  | ConcRecord   of concrete_signature TargetRecord.t
-  | ConcFunctor  of BoundIDSet.t * concrete_signature * abstract_signature
+  | AtomicAbs    of 'r abstract_signature_
+  | ConcModule   of 'r module_signature_
 
-and abstract_signature =
-  BoundIDSet.t * concrete_signature
+and 'r module_signature_ =
+  | ConcRecord   of 'r
+  | ConcFunctor  of BoundIDSet.t * 'r concrete_signature_ * 'r abstract_signature_
 
-type val_binding =
-  | INonRec of (identifier * name * poly_type * ast)
-  | IRec    of (identifier * name * poly_type * ast) list
+and 'r abstract_signature_ =
+  BoundIDSet.t * 'r concrete_signature_
+
+module IdentifierMap = Map.Make(String)
+
+module TypeNameMap = Map.Make(String)
+
+module ModuleNameMap = Map.Make(String)
 
 type single_type_binding =
   | IVariant of TypeID.Variant.t * constructor_branch_map
   | ISynonym of TypeID.Synonym.t * poly_type
+
+type signature_record = {
+  sr_vals    : (poly_type * name) IdentifierMap.t;
+  sr_types   : single_type_binding TypeNameMap.t;
+  sr_modules : (signature_record module_signature_) ModuleNameMap.t;
+}
+
+type concrete_signature = signature_record concrete_signature_
+
+type module_signature = signature_record module_signature_
+
+type abstract_signature = signature_record abstract_signature_
+
+type val_binding =
+  | INonRec of (identifier * name * poly_type * ast)
+  | IRec    of (identifier * name * poly_type * ast) list
 
 type binding =
   | IBindVal    of val_binding
