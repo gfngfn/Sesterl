@@ -125,6 +125,9 @@ let rec stringify_ast (ast : ast) =
             Printf.sprintf "{%s, %s}" sctor (String.concat ", " ss)
       end
 
+  | IStructure(ibinds) ->
+      failwith "TODO: IStructure"
+
 
 and stringify_branch (br : branch) =
   match br with

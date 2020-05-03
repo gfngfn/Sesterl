@@ -493,35 +493,6 @@ let pp_poly_type ppf pty =
 type name = OutputIdentifier.t
 [@@deriving show { with_path = false; } ]
 
-type pattern =
-  | IPUnit
-  | IPBool of bool
-  | IPInt  of int
-  | IPVar  of name
-  | IPWildCard
-  | IPListNil
-  | IPListCons of pattern * pattern
-  | IPTuple    of pattern TupleList.t
-  | IPConstructor of ConstructorID.t * pattern list
-[@@deriving show { with_path = false; } ]
-
-type ast =
-  | IBaseConst of base_constant
-  | IVar       of name
-  | ILambda    of name option * name list * ast
-  | IApply     of name * ast list
-  | ILetIn     of name * ast * ast
-  | ICase      of ast * branch list
-  | IReceive   of branch list
-  | ITuple     of ast TupleList.t
-  | IListNil
-  | IListCons  of ast * ast
-  | IConstructor of ConstructorID.t * ast list
-
-and branch =
-  | IBranch of pattern * ast option * ast
-[@@deriving show { with_path = false; } ]
-
 module ConstructorBranchMap = Map.Make(String)
 
 type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorBranchMap.t
@@ -559,6 +530,18 @@ module TypeNameMap = Map.Make(String)
 
 module ModuleNameMap = Map.Make(String)
 
+type pattern =
+  | IPUnit
+  | IPBool of bool
+  | IPInt  of int
+  | IPVar  of name
+  | IPWildCard
+  | IPListNil
+  | IPListCons of pattern * pattern
+  | IPTuple    of pattern TupleList.t
+  | IPConstructor of ConstructorID.t * pattern list
+[@@deriving show { with_path = false; } ]
+
 type single_type_binding =
   | IVariant of TypeID.Variant.t * constructor_branch_map
   | ISynonym of TypeID.Synonym.t * poly_type
@@ -579,11 +562,27 @@ type val_binding =
   | INonRec of (identifier * name * poly_type * ast)
   | IRec    of (identifier * name * poly_type * ast) list
 
-type binding =
+and binding =
   | IBindVal    of val_binding
   | IBindType   of (type_name * BoundID.t list * single_type_binding) list
   | IBindModule of module_name * name * module_signature * ast
 
+and ast =
+  | IBaseConst of base_constant
+  | IVar       of name
+  | ILambda    of name option * name list * ast
+  | IApply     of name * ast list
+  | ILetIn     of name * ast * ast
+  | ICase      of ast * branch list
+  | IReceive   of branch list
+  | ITuple     of ast TupleList.t
+  | IListNil
+  | IListCons  of ast * ast
+  | IConstructor of ConstructorID.t * ast list
+  | IStructure   of binding list
+
+and branch =
+  | IBranch of pattern * ast option * ast
 
 module SigRecord = struct
 

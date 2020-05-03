@@ -1027,8 +1027,11 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : (BoundIDSet.
             (absmodsig, IVar(name))
       end
 
-  | ModBinds(binds) ->
-      failwith "TODO: ModBinds"
+  | ModBinds(utbinds) ->
+      let (abssigr, ibinds) = typecheck_binding_list tyenv utbinds in
+      let (bidset, sigr) = abssigr in
+      let absmodsig = (bidset, ConcRecord(sigr)) in
+      (absmodsig, IStructure(ibinds))
 
   | ModProjMod(utmod, modident) ->
       failwith "TODO: ModProjMod"
@@ -1037,7 +1040,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : (BoundIDSet.
       failwith "TODO: typecheck_module"
 
 
-let typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : (BoundIDSet.t * SigRecord.t) * binding list =
+and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : (BoundIDSet.t * SigRecord.t) * binding list =
   let (tyenv, bidsetacc, sigr, ibindacc) =
     utbinds |> List.fold_left (fun (tyenv, bidsetacc, sigr, ibindacc) utbind ->
       let (bidset, ibind) = typecheck_binding tyenv utbind in
