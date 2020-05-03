@@ -20,10 +20,21 @@ type constructor_name = string
 type type_variable_name = string
 [@@deriving show { with_path = false; } ]
 
+type module_name = string
+[@@deriving show { with_path = false; } ]
+
+type signature_name = string
+[@@deriving show { with_path = false; } ]
+
 
 let pp_identifier ppf s =
   Format.fprintf ppf "\"%s\"" s
 
+
+type kind =
+  | UnivKind
+  | ArrowKind of kind list * kind
+[@@deriving show { with_path = false; } ]
 
 type base_type =
   | IntType
@@ -47,6 +58,15 @@ type binder = identifier ranged * manual_type option
 let pp_binder ppf ((_, s), _) =
   pp_identifier ppf s
 
+
+type constructor_branch =
+  | ConstructorBranch of constructor_name * manual_type list
+[@@deriving show { with_path = false; } ]
+
+type synonym_or_variant =
+  | BindSynonym of manual_type
+  | BindVariant of constructor_branch list
+[@@deriving show { with_path = false; } ]
 
 type base_constant =
   | Unit
@@ -108,18 +128,32 @@ and untyped_pattern_main =
   | PConstructor of constructor_name * untyped_pattern list
 [@@deriving show { with_path = false; } ]
 
-type constructor_branch =
-  | ConstructorBranch of constructor_name * manual_type list
-[@@deriving show { with_path = false; } ]
+and untyped_module =
+  | ModVar     of module_name ranged
+  | ModBinds   of untyped_binding list
+  | ModProj    of untyped_module * module_name ranged
+  | ModFunctor of module_name ranged * untyped_signature * untyped_module
+  | ModApply   of module_name ranged * module_name ranged
+  | ModCoerce  of module_name ranged * untyped_signature
 
-type synonym_or_variant =
-  | BindSynonym of manual_type
-  | BindVariant of constructor_branch list
-[@@deriving show { with_path = false; } ]
-
-type untyped_binding =
+and untyped_binding =
   | BindVal    of rec_or_nonrec
   | BindType   of (type_name ranged * (type_variable_name ranged) list * synonym_or_variant) list
+  | BindModule of module_name ranged * untyped_module
+  | BindSig    of signature_name ranged * untyped_signature
+
+and untyped_signature =
+  | SigPath    of untyped_module
+  | SigDecls   of untyped_declaration list
+  | SigFunctor of module_name ranged * untyped_signature * untyped_signature
+  | SigWith    of untyped_signature * (module_name ranged) list * manual_type
+
+and untyped_declaration =
+  | DeclVal        of identifier ranged * manual_type
+  | DeclTypeTrans  of type_name ranged * manual_type
+  | DeclTypeOpaque of type_name ranged * kind
+  | DeclModule     of module_name ranged * untyped_signature
+  | DeclSig        of signature_name ranged * untyped_signature
 [@@deriving show { with_path = false; } ]
 
 type 'a typ =
@@ -502,10 +536,6 @@ module TypeParameterMap = Map.Make(String)
 type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
 
-type kind =
-  | UnivKind
-  | ArrowKind of kind list * kind
-
 module TargetLabel = String  (* temporary *)
 
 module TargetRecord = Map.Make(TargetLabel)
@@ -513,9 +543,9 @@ module TargetRecord = Map.Make(TargetLabel)
 type concrete_signature =
   | AtomicPoly   of poly_type
   | AtomicKinded of poly_type * kind
-  | AtomicSig    of abstract_signature
-  | ModRecord    of concrete_signature TargetRecord.t
-  | Functor      of BoundID.t list * concrete_signature * abstract_signature
+  | AtomicAbs    of abstract_signature
+  | ConcRecord   of concrete_signature TargetRecord.t
+  | ConcFunctor  of BoundID.t list * concrete_signature * abstract_signature
 
 and abstract_signature =
   BoundID.t list * concrete_signature

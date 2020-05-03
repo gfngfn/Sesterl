@@ -990,6 +990,12 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
           else
             (tyenv, bindacc)
 
+      | BindModule(modident, modbind) ->
+          failwith "TODO: BindModule"
+
+      | BindSig(sigident, sigbind) ->
+          failwith "TODO: BindSig"
+
     ) (tyenv, Alist.empty)
   in
   (tyenv, bindacc |> Alist.to_list)
