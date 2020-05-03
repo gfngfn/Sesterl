@@ -144,6 +144,7 @@ and untyped_binding =
   | BindType   of (type_name ranged * (type_variable_name ranged) list * synonym_or_variant) list
   | BindModule of module_name ranged * untyped_module
   | BindSig    of signature_name ranged * untyped_signature
+  | BindInclude of untyped_module
 
 and untyped_signature =
   | SigPath    of untyped_module
@@ -551,13 +552,11 @@ type signature_record = {
   sr_types   : (BoundID.t list * single_type_binding) TypeNameMap.t;
   sr_modules : (signature_record module_signature_ * name) ModuleNameMap.t;
 }
-(*
-type concrete_signature = signature_record concrete_signature_
-*)
+
 type module_signature = signature_record module_signature_
-(*
-type abstract_signature = signature_record abstract_signature_
-*)
+
+type 'a abstracted = BoundIDSet.t * 'a
+
 type val_binding =
   | INonRec of (identifier * name * poly_type * ast)
   | IRec    of (identifier * name * poly_type * ast) list
@@ -566,6 +565,7 @@ and binding =
   | IBindVal    of val_binding
   | IBindType   of (type_name * BoundID.t list * single_type_binding) list
   | IBindModule of module_name * name * module_signature * ast
+  | IBindInclude of ast * module_signature
 
 and ast =
   | IBaseConst of base_constant

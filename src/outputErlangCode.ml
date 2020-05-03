@@ -206,6 +206,9 @@ let stringify_declaration (bind : binding) : string list =
   | IBindModule(_, name, _, e) ->
       failwith "TODO: IBindModule"
 
+  | IBindInclude(_) ->
+      failwith "TODO: IInclude"
+
 
 let main (modname : string) (binds : binding list) : string =
   let sbinds = binds |> List.map stringify_declaration |> List.concat in

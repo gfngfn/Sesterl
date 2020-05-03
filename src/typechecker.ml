@@ -890,11 +890,11 @@ let make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorBranchMap.empty
 
 
-let typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : BoundIDSet.t * module_signature =
+let typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
   failwith "TODO: typecheck_signature"
 
 
-let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : BoundIDSet.t * binding =
+let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : binding abstracted =
   match utbind with
   | BindVal(rec_or_nonrec) ->
       let pre =
@@ -1001,20 +1001,33 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : Bound
       else
         (BoundIDSet.empty, IBindType(Alist.to_list tybindacc))
 
-  | BindModule(modident, modbind) ->
+  | BindModule(modident, utmod) ->
       let (_, m) = modident in
-      let (absmodsig, e) = typecheck_module tyenv modbind in
+      let (absmodsig, e) = typecheck_module tyenv utmod in
       let (bidset, modsig) = absmodsig in
       let name = OutputIdentifier.fresh () in
         (* temporary; it may be appropriate to generate name from `m` *)
       (bidset, IBindModule(m, name, modsig, e))
+
+  | BindInclude(utmod) ->
+      let (absmodsig, e) = typecheck_module tyenv utmod in
+      let (bidset, modsig) = absmodsig in
+      begin
+        match modsig with
+        | ConcFunctor(_) ->
+            let (rng, _) = utmod in
+            raise (NotOfStructureType(rng))
+
+        | ConcStructure(sigr) ->
+            (bidset, IBindInclude(e, modsig))
+      end
 
   | BindSig(sigident, sigbind) ->
       let _abssig = typecheck_signature tyenv sigbind in
       failwith "TODO: BindSig"
 
 
-and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : (BoundIDSet.t * module_signature) * ast =
+and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signature abstracted * ast =
   let (rng, utmodmain) = utmod in
   match utmodmain with
   | ModVar(m) ->
@@ -1061,6 +1074,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : (BoundIDSet.
       let absmodsigdom = typecheck_signature tyenv utsigdom in
       let (bidset, modsigdom) = absmodsigdom in
       let name = OutputIdentifier.fresh () in
+        (* temporary; it may be appropriate to generate name from `m` *)
       let (absmodsigcod, e0) =
         let (_, m) = modident in
         let tyenv = tyenv |> Typeenv.add_module m modsigdom name in
@@ -1077,7 +1091,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : (BoundIDSet.
       failwith "TODO: ModCoerce"
 
 
-and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : (BoundIDSet.t * SigRecord.t) * binding list =
+and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : SigRecord.t abstracted * binding list =
   let (tyenv, bidsetacc, sigr, ibindacc) =
     utbinds |> List.fold_left (fun (tyenv, bidsetacc, sigr, ibindacc) utbind ->
       let (bidset, ibind) = typecheck_binding tyenv utbind in
@@ -1115,6 +1129,9 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
             let tyenv = tyenv |> Typeenv.add_module m modsig name in
             let sigr = sigr |> SigRecord.add_module m modsig name in
             (tyenv, sigr)
+
+        | IBindInclude(_) ->
+            failwith "TODO: IInclude"
       in
       (tyenv, BoundIDSet.union bidsetacc bidset, sigr, Alist.extend ibindacc ibind)
     ) (tyenv, BoundIDSet.empty, SigRecord.empty, Alist.empty)
@@ -1151,6 +1168,9 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
 
         | IBindModule(m, name, abssig, _) ->
             tyenv |> Typeenv.add_module m abssig name
+
+        | IBindInclude(_) ->
+            failwith "TODO: IInclude"
       in
       (tyenv, Alist.extend ibindacc ibind)
     ) (tyenv, Alist.empty)
