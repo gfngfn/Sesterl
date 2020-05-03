@@ -125,6 +125,12 @@ let rec stringify_ast (ast : ast) =
             Printf.sprintf "{%s, %s}" sctor (String.concat ", " ss)
       end
 
+  | IStructure(ibinds) ->
+      failwith "TODO: IStructure"
+
+  | IAccess(e0, name) ->
+      failwith "TODO: IAccess"
+
 
 and stringify_branch (br : branch) =
   match br with
@@ -175,24 +181,37 @@ and stringify_pattern (ipat : pattern) =
       end
 
 
-let stringify_declaration (bind : binding) =
-  match bind with
-  | IBindVal(namefun, ast) ->
-      begin
-        match ast with
-        | ILambda(None, nameparams, ast0) ->
-            let sfun = output_global namefun in
-            let sparams = nameparams |> List.map output_local in
-            let s0 = stringify_ast ast0 in
-            Printf.sprintf "%s(%s) -> %s." sfun (String.concat ", " sparams) s0
+let stringify_declaration (bind : binding) : string list =
+  let val_single (_, namefun, _, ast) =
+    match ast with
+    | ILambda(None, nameparams, ast0) ->
+        let sfun = output_global namefun in
+        let sparams = nameparams |> List.map output_local in
+        let s0 = stringify_ast ast0 in
+        Printf.sprintf "%s(%s) -> %s." sfun (String.concat ", " sparams) s0
 
-        | _ ->
-            assert false
-      end
+    | _ ->
+        assert false
+  in
+  match bind with
+  | IBindVal(INonRec(valbind)) ->
+      [ val_single valbind ]
+
+  | IBindVal(IRec(valbinds)) ->
+      valbinds |> List.map val_single
+
+  | IBindType(_) ->
+      []
+
+  | IBindModule(_, name, _, e) ->
+      failwith "TODO: IBindModule"
+
+  | IBindInclude(_) ->
+      failwith "TODO: IInclude"
 
 
 let main (modname : string) (binds : binding list) : string =
-  let sbinds = binds |> List.map stringify_declaration in
+  let sbinds = binds |> List.map stringify_declaration |> List.concat in
   let lines =
     List.append [
       Printf.sprintf "-module(%s)." modname;

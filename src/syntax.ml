@@ -20,10 +20,21 @@ type constructor_name = string
 type type_variable_name = string
 [@@deriving show { with_path = false; } ]
 
+type module_name = string
+[@@deriving show { with_path = false; } ]
+
+type signature_name = string
+[@@deriving show { with_path = false; } ]
+
 
 let pp_identifier ppf s =
   Format.fprintf ppf "\"%s\"" s
 
+
+type kind =
+  | UnivKind
+  | ArrowKind of kind list * kind
+[@@deriving show { with_path = false; } ]
 
 type base_type =
   | IntType
@@ -47,6 +58,15 @@ type binder = identifier ranged * manual_type option
 let pp_binder ppf ((_, s), _) =
   pp_identifier ppf s
 
+
+type constructor_branch =
+  | ConstructorBranch of constructor_name * manual_type list
+[@@deriving show { with_path = false; } ]
+
+type synonym_or_variant =
+  | BindSynonym of manual_type
+  | BindVariant of constructor_branch list
+[@@deriving show { with_path = false; } ]
 
 type base_constant =
   | Unit
@@ -108,18 +128,36 @@ and untyped_pattern_main =
   | PConstructor of constructor_name * untyped_pattern list
 [@@deriving show { with_path = false; } ]
 
-type constructor_branch =
-  | ConstructorBranch of constructor_name * manual_type list
-[@@deriving show { with_path = false; } ]
+and untyped_module =
+  untyped_module_main ranged
 
-type synonym_or_variant =
-  | BindSynonym of manual_type
-  | BindVariant of constructor_branch list
-[@@deriving show { with_path = false; } ]
+and untyped_module_main =
+  | ModVar     of module_name
+  | ModBinds   of untyped_binding list
+  | ModProjMod of untyped_module * module_name ranged
+  | ModFunctor of module_name ranged * untyped_signature * untyped_module
+  | ModApply   of module_name ranged * module_name ranged
+  | ModCoerce  of module_name ranged * untyped_signature
 
-type untyped_binding =
+and untyped_binding =
   | BindVal    of rec_or_nonrec
   | BindType   of (type_name ranged * (type_variable_name ranged) list * synonym_or_variant) list
+  | BindModule of module_name ranged * untyped_module
+  | BindSig    of signature_name ranged * untyped_signature
+  | BindInclude of untyped_module
+
+and untyped_signature =
+  | SigPath    of untyped_module
+  | SigDecls   of untyped_declaration list
+  | SigFunctor of module_name ranged * untyped_signature * untyped_signature
+  | SigWith    of untyped_signature * (module_name ranged) list * manual_type
+
+and untyped_declaration =
+  | DeclVal        of identifier ranged * manual_type
+  | DeclTypeTrans  of type_name ranged * manual_type
+  | DeclTypeOpaque of type_name ranged * kind
+  | DeclModule     of module_name ranged * untyped_signature
+  | DeclSig        of signature_name ranged * untyped_signature
 [@@deriving show { with_path = false; } ]
 
 type 'a typ =
@@ -456,6 +494,43 @@ let pp_poly_type ppf pty =
 type name = OutputIdentifier.t
 [@@deriving show { with_path = false; } ]
 
+module ConstructorBranchMap = Map.Make(String)
+
+type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorBranchMap.t
+
+let pp_constructor_branch_map ppf _ =
+  Format.fprintf ppf "<constructor-branch-map>"
+
+
+module TypeParameterAssoc = AssocList.Make(String)
+
+type type_parameter_assoc = MustBeBoundID.t TypeParameterAssoc.t
+
+module TypeParameterMap = Map.Make(String)
+
+type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
+
+module BoundIDSet = Set.Make(BoundID)
+(*
+type 'r concrete_signature_ =
+  | AtomicPoly   of poly_type
+  | AtomicKinded of poly_type * kind
+  | AtomicAbs    of 'r abstract_signature_
+  | ConcModule   of 'r module_signature_
+*)
+type 'r module_signature_ =
+  | ConcStructure of 'r
+  | ConcFunctor   of BoundIDSet.t * 'r module_signature_ * (BoundIDSet.t * 'r module_signature_)
+(*
+and 'r abstract_signature_ =
+  BoundIDSet.t * 'r concrete_signature_
+*)
+module IdentifierMap = Map.Make(String)
+
+module TypeNameMap = Map.Make(String)
+
+module ModuleNameMap = Map.Make(String)
+
 type pattern =
   | IPUnit
   | IPBool of bool
@@ -468,7 +543,31 @@ type pattern =
   | IPConstructor of ConstructorID.t * pattern list
 [@@deriving show { with_path = false; } ]
 
-type ast =
+type single_type_binding =
+  | IVariant of TypeID.Variant.t * constructor_branch_map
+  | ISynonym of TypeID.Synonym.t * poly_type
+
+type signature_record = {
+  sr_vals    : (poly_type * name) IdentifierMap.t;
+  sr_types   : (BoundID.t list * single_type_binding) TypeNameMap.t;
+  sr_modules : (signature_record module_signature_ * name) ModuleNameMap.t;
+}
+
+type module_signature = signature_record module_signature_
+
+type 'a abstracted = BoundIDSet.t * 'a
+
+type val_binding =
+  | INonRec of (identifier * name * poly_type * ast)
+  | IRec    of (identifier * name * poly_type * ast) list
+
+and binding =
+  | IBindVal    of val_binding
+  | IBindType   of (type_name * BoundID.t list * single_type_binding) list
+  | IBindModule of module_name * name * module_signature * ast
+  | IBindInclude of ast * module_signature
+
+and ast =
   | IBaseConst of base_constant
   | IVar       of name
   | ILambda    of name option * name list * ast
@@ -480,23 +579,61 @@ type ast =
   | IListNil
   | IListCons  of ast * ast
   | IConstructor of ConstructorID.t * ast list
+  | IStructure   of binding list
+  | IAccess      of ast * name
 
 and branch =
   | IBranch of pattern * ast option * ast
-[@@deriving show { with_path = false; } ]
 
-type binding =
-  | IBindVal of name * ast
-[@@deriving show { with_path = false; } ]
+module SigRecord = struct
 
-module ConstructorBranchMap = Map.Make(String)
+  type t = signature_record
 
-type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorBranchMap.t
 
-module TypeParameterAssoc = AssocList.Make(String)
+  let empty =
+    {
+      sr_vals    = IdentifierMap.empty;
+      sr_types   = TypeNameMap.empty;
+      sr_modules = ModuleNameMap.empty;
+    }
 
-type type_parameter_assoc = MustBeBoundID.t TypeParameterAssoc.t
 
-module TypeParameterMap = Map.Make(String)
+  let add_val (x : identifier) (pty : poly_type) (name : name) (sigr : t) : t =
+    { sigr with sr_vals = sigr.sr_vals |> IdentifierMap.add x (pty, name) }
 
-type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
+
+  let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (typarams : BoundID.t list) (ptyreal : poly_type) (sigr : t) : t =
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (typarams, ISynonym(sid, ptyreal)) }
+
+
+  let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrs : constructor_branch_map) (sigr : t) : t =
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (typarams, IVariant(vid, ctorbrs)) }
+
+
+  let add_module (modnm : module_name) (modsig : module_signature) (name : name) (sigr : t) : t =
+    { sigr with sr_modules = sigr.sr_modules |> ModuleNameMap.add modnm (modsig, name) }
+
+
+  let find_module (modnm : module_name) (sigr : t) : (module_signature * name) option =
+    sigr.sr_modules |> ModuleNameMap.find_opt modnm
+
+
+  let fold (type a)
+      ~v:(fv : identifier -> poly_type * name -> a -> a)
+      ~t:(ft : type_name -> BoundID.t list * single_type_binding -> a -> a)
+      ~m:(fm : module_name -> module_signature * name -> a -> a)
+      (init : a) (sigr : t) : a =
+    init
+      |> IdentifierMap.fold fv sigr.sr_vals
+      |> TypeNameMap.fold ft sigr.sr_types
+      |> ModuleNameMap.fold fm sigr.sr_modules
+
+
+  let overwrite (superior : t) (inferior : t) : t =
+    let left _ x y = Some(x) in
+    let sr_vals    = IdentifierMap.union left superior.sr_vals    inferior.sr_vals in
+    let sr_types   = IdentifierMap.union left superior.sr_types   inferior.sr_types in
+    let sr_modules = IdentifierMap.union left superior.sr_modules inferior.sr_modules in
+    { sr_vals; sr_types; sr_modules }
+
+end

@@ -14,4 +14,4 @@ exception TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
 exception InvalidByte                         of Range.t
 exception CyclicSynonymTypeDefinition         of (type_name ranged) list
 
-val main : untyped_binding list -> Typeenv.t * binding list
+val main : untyped_binding list -> SigRecord.t abstracted * binding list

@@ -145,3 +145,11 @@ let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * int) option =
 
 let find_synonym_type (sid : TypeID.Synonym.t) (tyenv : t) : (BoundID.t list * poly_type) option =
   failwith "TODO: find_synonym_type"
+
+
+let add_module (m : module_name) (abssig : module_signature) (name : name) (tyenv : t) : t =
+  failwith "TODO: add_module"
+
+
+let find_module_opt (m : module_name) (tyenv : t) : (module_signature * name) option =
+  failwith "TODO: find_module_opt"

@@ -15,6 +15,8 @@ exception InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
 exception TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
 exception InvalidByte                         of Range.t
 exception CyclicSynonymTypeDefinition         of (type_name ranged) list
+exception UnboundModuleName                   of Range.t * module_name
+exception NotOfStructureType                  of Range.t
 
 
 module BindingMap = Map.Make(String)
@@ -537,7 +539,10 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       (ty1, ICase(e0, ibranches))
 
   | LetIn(NonRec(letbind), utast2) ->
-      let (tyenv, name, e1) = typecheck_let Local pre letbind in
+      let (pty, name, e1) = typecheck_let Local pre letbind in
+      let tyenv =
+        let (_, x) = letbind.vb_identifier in
+        pre.tyenv |> Typeenv.add_val x pty name in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       check_properly_used tyenv letbind.vb_identifier;
       (ty2, ILetIn(name, e1, e2))
@@ -550,8 +555,15 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
       let name_outer_f _ =
         OutputIdentifier.fresh ()
       in
-      let (tyenv, binds) = typecheck_letrec_mutual name_inner_f name_outer_f pre letbinds in
-      let (ty2, e2) = typecheck { pre with tyenv } utast2 in
+      let binds = typecheck_letrec_mutual name_inner_f name_outer_f pre letbinds in
+      let (ty2, e2) =
+        let tyenv =
+          binds |> List.fold_left (fun tyenv (x, pty, name_outer, _, _) ->
+            tyenv |> Typeenv.add_val x pty name_outer
+          ) pre.tyenv
+        in
+        typecheck { pre with tyenv } utast2
+      in
       (ty2, iletrecin binds e2)
 
   | Do(identopt, utast1, utast2) ->
@@ -778,7 +790,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
       end
 
 
-and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : Typeenv.t * name * ast =
+and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : poly_type * name * ast =
   let (rngv, x) = letbind.vb_identifier in
   let params = letbind.vb_parameters in
   let utast0 = letbind.vb_body in
@@ -806,10 +818,10 @@ and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : 
 
   let pty1 = generalize pre.level ty1 in
   let name = generate_output_identifier scope rngv x in
-  (pre.tyenv |> Typeenv.add_val x pty1 name, name, e1)
+  (pty1, name, e1)
 
 
-and typecheck_letrec_mutual (name_inner_f : untyped_let_binding -> name) (name_outer_f : untyped_let_binding -> name) (pre : pre) (letbinds : untyped_let_binding list) =
+and typecheck_letrec_mutual (name_inner_f : untyped_let_binding -> name) (name_outer_f : untyped_let_binding -> name) (pre : pre) (letbinds : untyped_let_binding list) : (identifier * poly_type * name * name * ast) list =
 
   (* -- register type variables and names for output corresponding to bound names
         before traversing definitions -- *)
@@ -826,25 +838,20 @@ and typecheck_letrec_mutual (name_inner_f : untyped_let_binding -> name) (name_o
 
   let (bindacc, tyenv) =
     tupleacc |> Alist.to_list |> List.fold_left (fun (bindacc, tyenv) (letbind, name_inner, tyf) ->
-      let (tyenv, e1, pty) = typecheck_letrec_single { pre with tyenv } letbind name_inner tyf in
+      let (pty, e1) = typecheck_letrec_single { pre with tyenv } letbind name_inner tyf in
+      let tyenv =
+        let (_, x) = letbind.vb_identifier in
+        tyenv |> Typeenv.add_val x pty name_inner
+      in
       let name_outer = name_outer_f letbind in
       let (_, x) as ident = letbind.vb_identifier in
       (Alist.extend bindacc (x, pty, name_outer, name_inner, e1), tyenv)
     ) (Alist.empty, tyenv)
   in
-  let binds = bindacc |> Alist.to_list in
-
-  (* -- after type checking all bindings,
-        update names for output and types -- *)
-  let tyenv =
-    binds |> List.fold_left (fun tyenv (x, pty, name_outer, _, _) ->
-      tyenv |> Typeenv.add_val x pty name_outer
-    ) tyenv
-  in
-  (tyenv, binds)
+  bindacc |> Alist.to_list
 
 
-and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (name_inner : name) (tyf : mono_type) : Typeenv.t * ast * poly_type =
+and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (name_inner : name) (tyf : mono_type) : poly_type * ast =
   let (rngv, x) = letbind.vb_identifier in
   let params = letbind.vb_parameters in
   let utast0 = letbind.vb_body in
@@ -869,7 +876,7 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (name_in
   let e1 = ILambda(None, names, e0) in
   unify pre.tyenv ty1 tyf;
   let ptyf = generalize pre.level ty1 in
-  (pre.tyenv |> Typeenv.add_val x ptyf name_inner, e1, ptyf)
+  (ptyf, e1)
 
 
 let make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) =
@@ -883,113 +890,246 @@ let make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorBranchMap.empty
 
 
-let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
-  let tyenv = Primitives.initial_type_environment in
-  let (tyenv, bindacc) =
-    utbinds |> List.fold_left (fun (tyenv, bindacc) utdecl ->
-      match utdecl with
-      | BindVal(rec_or_nonrec) ->
-          let pre =
-            {
-              level                 = 0;
-              tyenv                 = tyenv;
-              local_type_parameters = TypeParameterMap.empty;
-            }
+let typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
+  failwith "TODO: typecheck_signature"
+
+
+let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding =
+  match utbind with
+  | BindVal(rec_or_nonrec) ->
+      let pre =
+        {
+          level                 = 0;
+          tyenv                 = tyenv;
+          local_type_parameters = TypeParameterMap.empty;
+        }
+      in
+      let (sigr, i_rec_or_nonrec) =
+        match rec_or_nonrec with
+        | Rec([]) ->
+            assert false
+
+        | Rec(valbinds) ->
+            let namef valbind =
+              let params = valbind.vb_parameters in
+              let arity = List.length params in
+              let (rngv, x) = valbind.vb_identifier in
+              generate_output_identifier (Global(arity)) rngv x
+            in
+            let recbinds = typecheck_letrec_mutual namef namef pre valbinds in
+            let (sigr, irecbindacc) =
+              recbinds |> List.fold_left (fun (sigr, irecbindacc) (x, pty, name_outer, _, e) ->
+                let sigr = sigr |> SigRecord.add_val x pty name_outer in
+                let irecbindacc = Alist.extend irecbindacc (x, name_outer, pty, e) in
+                (sigr, irecbindacc)
+              ) (SigRecord.empty, Alist.empty)
+            in
+            (sigr, IRec(Alist.to_list irecbindacc))
+
+        | NonRec(valbind) ->
+            let (pty, name, e) =
+              let params = valbind.vb_parameters in
+              let arity = List.length params in
+              typecheck_let (Global(arity)) pre valbind
+            in
+            let (_, x) = valbind.vb_identifier in
+            let sigr = SigRecord.empty |> SigRecord.add_val x pty name in
+            (sigr, INonRec(x, name, pty, e))
+      in
+      ((BoundIDSet.empty, sigr), IBindVal(i_rec_or_nonrec))
+
+
+  | BindType([]) ->
+      assert false
+
+  | BindType((_ :: _) as tybinds) ->
+      let (synacc, vntacc, graph, tyenv) =
+        tybinds |> List.fold_left (fun (synacc, vntacc, graph, tyenv) (tyident, typarams, syn_or_vnt) ->
+          let (_, tynm) = tyident in
+          let arity = List.length typarams in
+          match syn_or_vnt with
+          | BindSynonym(synbind) ->
+              let sid = TypeID.Synonym.fresh tynm in
+              let graph = graph |> DependencyGraph.add_vertex sid tyident in
+              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Synonym(sid)) arity in
+              let synacc = Alist.extend synacc (tyident, typarams, synbind, sid) in
+              (synacc, vntacc, graph, tyenv)
+
+          | BindVariant(vntbind) ->
+              let vid = TypeID.Variant.fresh tynm in
+              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Variant(vid)) arity in
+              let vntacc = Alist.extend vntacc (tyident, typarams, vntbind, vid) in
+              (synacc, vntacc, graph, tyenv)
+        ) (Alist.empty, Alist.empty, DependencyGraph.empty, tyenv)
+      in
+      let pre =
+        {
+          level                 = 0;
+          tyenv                 = tyenv;
+          local_type_parameters = TypeParameterMap.empty;
+        }
+      in
+      let syns = synacc |> Alist.to_list in
+      let (graph, sigr, tybindacc) =
+        syns |> List.fold_left (fun (graph, sigr, tybindacc) syn ->
+          let ((_, tynm), typarams, mtyreal, sid) = syn in
+          let typaramassoc = make_type_parameter_assoc 1 typarams in
+          let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
+          let pre = pre |> add_local_type_parameter typaramassoc in
+          let (tyreal, dependencies) = decode_manual_type_and_get_dependency pre mtyreal in
+          let ptyreal = generalize pre.level tyreal in
+          let graph =
+            graph |> TypeIDSet.fold (fun tyiddep graph ->
+              match tyiddep with
+              | TypeID.Synonym(siddep) -> graph |> DependencyGraph.add_edge sid siddep
+              | TypeID.Variant(_)      -> graph
+            ) dependencies
           in
-          begin
-            match rec_or_nonrec with
-            | Rec([]) ->
-                assert false
-
-            | Rec(valbinds) ->
-                let namef valbind =
-                  let params = valbind.vb_parameters in
-                  let arity = List.length params in
-                  let (rngv, x) = valbind.vb_identifier in
-                  generate_output_identifier (Global(arity)) rngv x
-                in
-                let (tyenv, recbinds) = typecheck_letrec_mutual namef namef pre valbinds in
-                let binds =
-                  recbinds |> List.map (fun (_x, _pty, name, _, e) -> (IBindVal(name, e)))
-                in
-                (tyenv, Alist.append bindacc binds)
-
-            | NonRec(valbind) ->
-                let (tyenv, name, e) =
-                  let params = valbind.vb_parameters in
-                  let arity = List.length params in
-                  typecheck_let (Global(arity)) pre valbind
-                in
-                (tyenv, Alist.extend bindacc (IBindVal(name, e)))
-          end
-
-      | BindType([]) ->
-          assert false
-
-      | BindType((_ :: _) as tybinds) ->
-          let (synacc, vntacc, graph, tyenv) =
-            tybinds |> List.fold_left (fun (synacc, vntacc, graph, tyenv) (tyident, typarams, syn_or_vnt) ->
-              let (_, tynm) = tyident in
-              let arity = List.length typarams in
-              match syn_or_vnt with
-              | BindSynonym(synbind) ->
-                  let sid = TypeID.Synonym.fresh tynm in
-                  let graph = graph |> DependencyGraph.add_vertex sid tyident in
-                  let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Synonym(sid)) arity in
-                  let synacc = Alist.extend synacc (tyident, typarams, synbind, sid) in
-                  (synacc, vntacc, graph, tyenv)
-
-              | BindVariant(vntbind) ->
-                  let vid = TypeID.Variant.fresh tynm in
-                  let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Variant(vid)) arity in
-                  let vntacc = Alist.extend vntacc (tyident, typarams, vntbind, vid) in
-                  (synacc, vntacc, graph, tyenv)
-            ) (Alist.empty, Alist.empty, DependencyGraph.empty, tyenv)
+          let tybindacc = Alist.extend tybindacc (tynm, typarams, ISynonym(sid, ptyreal)) in
+          let sigr = sigr |> SigRecord.add_synonym_type tynm sid typarams ptyreal in
+          (graph, sigr, tybindacc)
+        ) (graph, SigRecord.empty, Alist.empty)
+      in
+      let (sigr, tybindacc) =
+        vntacc |> Alist.to_list |> List.fold_left (fun (sigr, tybindacc) vnt ->
+          let ((_, tynm), typarams, ctorbrs, vid) = vnt in
+          let typaramassoc = make_type_parameter_assoc 1 typarams in
+          let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
+          let pre = pre |> add_local_type_parameter typaramassoc in
+          let ctorbrmap =
+            make_constructor_branch_map { pre with tyenv } ctorbrs
           in
-          let pre =
-            {
-              level                 = 0;
-              tyenv                 = tyenv;
-              local_type_parameters = TypeParameterMap.empty;
-            }
-          in
-          let syns = synacc |> Alist.to_list in
-          let (graph, tyenv) =
-            syns |> List.fold_left (fun (graph, tyenv) syn ->
-              let ((_, tynm), typarams, mtyreal, sid) = syn in
-              let typaramassoc = make_type_parameter_assoc 1 typarams in
-              let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
-              let pre = pre |> add_local_type_parameter typaramassoc in
-              let (tyreal, dependencies) = decode_manual_type_and_get_dependency pre mtyreal in
-              let ptyreal = generalize pre.level tyreal in
-              let graph =
-                graph |> TypeIDSet.fold (fun tyiddep graph ->
-                  match tyiddep with
-                  | TypeID.Synonym(siddep) -> graph |> DependencyGraph.add_edge sid siddep
-                  | TypeID.Variant(_)      -> graph
-                ) dependencies
-              in
-              (graph, tyenv |> Typeenv.add_synonym_type tynm sid typarams ptyreal)
-            ) (graph, tyenv)
-          in
-          let tyenv =
-            vntacc |> Alist.to_list |> List.fold_left (fun tyenv vnt ->
-              let ((_, tynm), typarams, ctorbrs, vid) = vnt in
-              let typaramassoc = make_type_parameter_assoc 1 typarams in
-              let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
-              let pre = pre |> add_local_type_parameter typaramassoc in
-              let ctorbrmap =
-                make_constructor_branch_map { pre with tyenv } ctorbrs
-              in
-              tyenv |> Typeenv.add_variant_type tynm vid typarams ctorbrmap
-            ) tyenv
-          in
-          if DependencyGraph.has_cycle graph then
-            let tyidents = syns |> List.map (fun (tyident, _, _, _) -> tyident) in
-            raise (CyclicSynonymTypeDefinition(tyidents))
-          else
-            (tyenv, bindacc)
+          let tybindacc = Alist.extend tybindacc (tynm, typarams, IVariant(vid, ctorbrmap)) in
+          let sigr = sigr |> SigRecord.add_variant_type tynm vid typarams ctorbrmap in
+          (sigr, tybindacc)
+        ) (sigr, tybindacc)
+      in
+      if DependencyGraph.has_cycle graph then
+        let tyidents = syns |> List.map (fun (tyident, _, _, _) -> tyident) in
+        raise (CyclicSynonymTypeDefinition(tyidents))
+      else
+        ((BoundIDSet.empty, sigr), IBindType(Alist.to_list tybindacc))
 
-    ) (tyenv, Alist.empty)
+  | BindModule(modident, utmod) ->
+      let (_, m) = modident in
+      let (absmodsig, e) = typecheck_module tyenv utmod in
+      let (bidset, modsig) = absmodsig in
+      let name = OutputIdentifier.fresh () in
+        (* temporary; it may be appropriate to generate name from `m` *)
+      let sigr = SigRecord.empty |> SigRecord.add_module m modsig name in
+      ((bidset, sigr), IBindModule(m, name, modsig, e))
+
+  | BindInclude(utmod) ->
+      let (absmodsig, e) = typecheck_module tyenv utmod in
+      let (bidset, modsig) = absmodsig in
+      begin
+        match modsig with
+        | ConcFunctor(_) ->
+            let (rng, _) = utmod in
+            raise (NotOfStructureType(rng))
+
+        | ConcStructure(sigr) ->
+            ((bidset, sigr), IBindInclude(e, modsig))
+      end
+
+  | BindSig(sigident, sigbind) ->
+      let _abssig = typecheck_signature tyenv sigbind in
+      failwith "TODO: BindSig"
+
+
+and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signature abstracted * ast =
+  let (rng, utmodmain) = utmod in
+  match utmodmain with
+  | ModVar(m) ->
+      begin
+        match tyenv |> Typeenv.find_module_opt m with
+        | None ->
+            raise (UnboundModuleName(rng, m))
+
+        | Some(modsig, name) ->
+            let absmodsig = (BoundIDSet.empty, modsig) in
+            (absmodsig, IVar(name))
+      end
+
+  | ModBinds(utbinds) ->
+      let (abssigr, ibinds) = typecheck_binding_list tyenv utbinds in
+      let (bidset, sigr) = abssigr in
+      let absmodsig = (bidset, ConcStructure(sigr)) in
+      (absmodsig, IStructure(ibinds))
+
+  | ModProjMod(utmod, modident) ->
+      let (absmodsig, e) = typecheck_module tyenv utmod in
+      let (bidset, modsig) = absmodsig in
+      begin
+        match modsig with
+        | ConcFunctor(_) ->
+            let (rng, _) = utmod in
+            raise (NotOfStructureType(rng))
+
+        | ConcStructure(sigr) ->
+            let (rng, m) = modident in
+            begin
+              match sigr |> SigRecord.find_module m with
+              | None ->
+                  raise (UnboundModuleName(rng, m))
+
+              | Some(modsigp, name) ->
+                  let absmodsigp = (bidset, modsigp) in
+                  let ep = IAccess(e, name) in
+                  (absmodsigp, ep)
+            end
+      end
+
+  | ModFunctor(modident, utsigdom, utmod0) ->
+      let absmodsigdom = typecheck_signature tyenv utsigdom in
+      let (bidset, modsigdom) = absmodsigdom in
+      let name = OutputIdentifier.fresh () in
+        (* temporary; it may be appropriate to generate name from `m` *)
+      let (absmodsigcod, e0) =
+        let (_, m) = modident in
+        let tyenv = tyenv |> Typeenv.add_module m modsigdom name in
+        typecheck_module tyenv utmod0
+      in
+      let absmodsig = (BoundIDSet.empty, ConcFunctor(bidset, modsigdom, absmodsigcod)) in
+      let e = ILambda(None, [name], e0) in
+      (absmodsig, e)
+
+  | ModApply(modident1, modident2) ->
+      failwith "TODO: ModApply"
+
+  | ModCoerce(modident0, utsig) ->
+      failwith "TODO: ModCoerce"
+
+
+and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : SigRecord.t abstracted * binding list =
+  let (tyenv, bidsetacc, sigracc, ibindacc) =
+    utbinds |> List.fold_left (fun (tyenv, bidsetacc, sigracc, ibindacc) utbind ->
+      let (abssigr, ibind) = typecheck_binding tyenv utbind in
+      let (bidset, sigr) = abssigr in
+      let tyenv =
+        sigr |> SigRecord.fold
+          ~v:(fun x (pty, name) ->
+            Typeenv.add_val x pty name
+          )
+          ~t:(fun tynm (typarams, i_syn_or_vnt) ->
+            match i_syn_or_vnt with
+            | ISynonym(sid, ptyreal) -> Typeenv.add_synonym_type tynm sid typarams ptyreal
+            | IVariant(vid, ctorbrs) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
+          )
+          ~m:(fun modnm (modsig, name) ->
+            Typeenv.add_module modnm modsig name
+          )
+          tyenv
+      in
+      let bidsetacc = BoundIDSet.union bidsetacc bidset in
+      let sigracc = sigracc |> SigRecord.overwrite sigr in
+      let ibindacc = Alist.extend ibindacc ibind in
+      (tyenv, bidsetacc, sigracc, ibindacc)
+    ) (tyenv, BoundIDSet.empty, SigRecord.empty, Alist.empty)
   in
-  (tyenv, bindacc |> Alist.to_list)
+  ((bidsetacc, sigracc), Alist.to_list ibindacc)
+
+
+let main (utbinds : untyped_binding list) : SigRecord.t abstracted * binding list =
+  let tyenv = Primitives.initial_type_environment in
+  typecheck_binding_list tyenv utbinds
