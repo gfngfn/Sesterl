@@ -500,3 +500,22 @@ type type_parameter_assoc = MustBeBoundID.t TypeParameterAssoc.t
 module TypeParameterMap = Map.Make(String)
 
 type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
+
+
+type kind =
+  | UnivKind
+  | ArrowKind of kind list * kind
+
+module TargetLabel = String  (* temporary *)
+
+module TargetRecord = Map.Make(TargetLabel)
+
+type concrete_signature =
+  | AtomicPoly   of poly_type
+  | AtomicKinded of poly_type * kind
+  | AtomicSig    of abstract_signature
+  | ModRecord    of concrete_signature TargetRecord.t
+  | Functor      of BoundID.t list * concrete_signature * abstract_signature
+
+and abstract_signature =
+  BoundID.t list * concrete_signature
