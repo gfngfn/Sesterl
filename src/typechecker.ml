@@ -889,7 +889,11 @@ let make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorBranchMap.empty
 
 
-let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : binding =
+let typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : abstract_signature =
+  failwith "TODO: typecheck_signature"
+
+
+let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : BoundIDSet.t * binding =
   match utbind with
   | BindVal(rec_or_nonrec) ->
       let pre =
@@ -899,7 +903,7 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
           local_type_parameters = TypeParameterMap.empty;
         }
       in
-      begin
+      let i_rec_or_nonrec =
         match rec_or_nonrec with
         | Rec([]) ->
             assert false
@@ -915,7 +919,7 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
             let irecbinds =
               recbinds |> List.map (fun (x, pty, name_outer, _, e) -> (x, name_outer, pty, e))
             in
-            IBindVal(IRec(irecbinds))
+            IRec(irecbinds)
 
         | NonRec(valbind) ->
             let (pty, name, e) =
@@ -924,8 +928,10 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
               typecheck_let (Global(arity)) pre valbind
             in
             let (_, x) = valbind.vb_identifier in
-            IBindVal(INonRec(x, name, pty, e))
-      end
+            INonRec(x, name, pty, e)
+      in
+      (BoundIDSet.empty, IBindVal(i_rec_or_nonrec))
+
 
   | BindType([]) ->
       assert false
@@ -992,20 +998,22 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
         let tyidents = syns |> List.map (fun (tyident, _, _, _) -> tyident) in
         raise (CyclicSynonymTypeDefinition(tyidents))
       else
-        IBindType(Alist.to_list tybindacc)
+        (BoundIDSet.empty, IBindType(Alist.to_list tybindacc))
 
   | BindModule(modident, modbind) ->
       let (_, m) = modident in
-      let (abssig, e) = typecheck_module tyenv modbind in
-      let name = OutputIdentifier.fresh () in  (* temporary *)
-      IBindModule(m, name, abssig, e)
+      let (absmodsig, e) = typecheck_module tyenv modbind in
+      let (bidset, modsig) = absmodsig in
+      let name = OutputIdentifier.fresh () in
+        (* temporary; it may be appropriate to generate name from `m` *)
+      (bidset, IBindModule(m, name, modsig, e))
 
   | BindSig(sigident, sigbind) ->
       let _abssig = typecheck_signature tyenv sigbind in
       failwith "TODO: BindSig"
 
 
-and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : abstract_signature * ast =
+and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : (BoundIDSet.t * module_signature) * ast =
   let (rng, utmodmain) = utmod in
   match utmodmain with
   | ModVar(m) ->
@@ -1014,9 +1022,9 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : abstract_sig
         | None ->
             raise (UnboundModuleName(rng, m))
 
-        | Some(concsig, name) ->
-            let abssig = (BoundIDSet.empty, concsig) in
-            (abssig, IVar(name))
+        | Some(modsig, name) ->
+            let absmodsig = (BoundIDSet.empty, modsig) in
+            (absmodsig, IVar(name))
       end
 
   | ModBinds(binds) ->
@@ -1025,22 +1033,60 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : abstract_sig
   | ModProjMod(utmod, modident) ->
       failwith "TODO: ModProjMod"
 
-  | ModProjVal(utmod, ident) ->
-      failwith "TODO: ModProjVal"
-
   | _ ->
       failwith "TODO: typecheck_module"
 
 
-and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : abstract_signature =
-  failwith "TODO: typecheck_signature"
+let typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : SigRecord.t * binding list =
+  let (tyenv, sigr, ibindacc) =
+    utbinds |> List.fold_left (fun (tyenv, sigr, ibindacc) utbind ->
+      let (bidset, ibind) = typecheck_binding tyenv utbind in
+      let (tyenv, sigr) =
+        match ibind with
+        | IBindVal(IRec(valbinds)) ->
+            valbinds |> List.fold_left (fun (tyenv, sigr) (x, name, pty, e) ->
+              let tyenv = tyenv |> Typeenv.add_val x pty name in
+              let sigr = sigr |> SigRecord.add_val x pty name in
+              (tyenv, sigr)
+            ) (tyenv, sigr)
+
+        | IBindVal(INonRec(valbind)) ->
+            let (x, name, pty, _) = valbind in
+            let tyenv = tyenv |> Typeenv.add_val x pty name in
+            let sigr = sigr |> SigRecord.add_val x pty name in
+            (tyenv, sigr)
+
+        | IBindType(tybinds) ->
+            tybinds |> List.fold_left (fun (tyenv, sigr) tybind ->
+              let (tynm, typarams, i_syn_or_vnt) = tybind in
+              match i_syn_or_vnt with
+              | ISynonym(sid, ptyreal) ->
+                  let tyenv = tyenv |> Typeenv.add_synonym_type tynm sid typarams ptyreal in
+                  let sigr = sigr |> SigRecord.add_synonym_type tynm sid typarams ptyreal in
+                  (tyenv, sigr)
+
+              | IVariant(vid, ctorbrs) ->
+                  let tyenv = tyenv |> Typeenv.add_variant_type tynm vid typarams ctorbrs in
+                  let sigr = sigr |> SigRecord.add_variant_type tynm vid typarams ctorbrs in
+                  (tyenv, sigr)
+            ) (tyenv, sigr)
+
+        | IBindModule(m, name, modsig, _) ->
+            let tyenv = tyenv |> Typeenv.add_module m modsig name in
+            let sigr = sigr |> SigRecord.add_module m modsig name in
+            (tyenv, sigr)
+      in
+      (tyenv, sigr, Alist.extend ibindacc ibind)
+    ) (tyenv, SigRecord.empty, Alist.empty)
+  in
+  (sigr, Alist.to_list ibindacc)
 
 
 let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
   let tyenv = Primitives.initial_type_environment in
   let (tyenv, ibindacc) =
     utbinds |> List.fold_left (fun (tyenv, ibindacc) utbind ->
-      let ibind = typecheck_binding tyenv utbind in
+      let (bidset, ibind) = typecheck_binding tyenv utbind in
       let tyenv =
         match ibind with
         | IBindVal(IRec(valbinds)) ->

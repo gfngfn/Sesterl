@@ -25,6 +25,6 @@ val find_type : type_name -> t -> (TypeID.t * int) option
 
 val find_synonym_type : TypeID.Synonym.t -> t -> (BoundID.t list * poly_type) option
 
-val add_module : module_name -> abstract_signature -> name -> t -> t
+val add_module : module_name -> module_signature -> name -> t -> t
 
-val find_module_opt : module_name -> t -> (concrete_signature * name) option
+val find_module_opt : module_name -> t -> (module_signature * name) option

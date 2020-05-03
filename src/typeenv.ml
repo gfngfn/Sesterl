@@ -147,9 +147,9 @@ let find_synonym_type (sid : TypeID.Synonym.t) (tyenv : t) : (BoundID.t list * p
   failwith "TODO: find_synonym_type"
 
 
-let add_module (m : module_name) (abssig : abstract_signature) (name : name) (tyenv : t) : t =
+let add_module (m : module_name) (abssig : module_signature) (name : name) (tyenv : t) : t =
   failwith "TODO: add_module"
 
 
-let find_module_opt (m : module_name) (tyenv : t) : (concrete_signature * name) option =
+let find_module_opt (m : module_name) (tyenv : t) : (module_signature * name) option =
   failwith "TODO: find_module_opt"

@@ -135,7 +135,6 @@ and untyped_module_main =
   | ModVar     of module_name
   | ModBinds   of untyped_binding list
   | ModProjMod of untyped_module * module_name ranged
-  | ModProjVal of untyped_module * identifier ranged
   | ModFunctor of module_name ranged * untyped_signature * untyped_module
   | ModApply   of module_name ranged * module_name ranged
   | ModCoerce  of module_name ranged * untyped_signature
@@ -539,11 +538,6 @@ module TypeParameterMap = Map.Make(String)
 
 type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
-
-module TargetLabel = String  (* temporary *)
-
-module TargetRecord = Map.Make(TargetLabel)
-
 module BoundIDSet = Set.Make(BoundID)
 
 type 'r concrete_signature_ =
@@ -571,7 +565,7 @@ type single_type_binding =
 
 type signature_record = {
   sr_vals    : (poly_type * name) IdentifierMap.t;
-  sr_types   : single_type_binding TypeNameMap.t;
+  sr_types   : (BoundID.t list * single_type_binding) TypeNameMap.t;
   sr_modules : (signature_record module_signature_) ModuleNameMap.t;
 }
 
@@ -588,4 +582,35 @@ type val_binding =
 type binding =
   | IBindVal    of val_binding
   | IBindType   of (type_name * BoundID.t list * single_type_binding) list
-  | IBindModule of module_name * name * abstract_signature * ast
+  | IBindModule of module_name * name * module_signature * ast
+
+
+module SigRecord = struct
+
+  type t = signature_record
+
+
+  let empty =
+    {
+      sr_vals    = IdentifierMap.empty;
+      sr_types   = TypeNameMap.empty;
+      sr_modules = ModuleNameMap.empty;
+    }
+
+
+  let add_val (x : identifier) (pty : poly_type) (name : name) (sigr : t) : t =
+    { sigr with sr_vals = sigr.sr_vals |> IdentifierMap.add x (pty, name) }
+
+
+  let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (typarams : BoundID.t list) (ptyreal : poly_type) (sigr : t) : t =
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (typarams, ISynonym(sid, ptyreal)) }
+
+
+  let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrs : constructor_branch_map) (sigr : t) : t =
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (typarams, IVariant(vid, ctorbrs)) }
+
+
+  let add_module (modnm : module_name) (modsig : module_signature) (name : name) (sigr : t) : t =
+    { sigr with sr_modules = sigr.sr_modules |> ModuleNameMap.add modnm modsig }
+
+end
