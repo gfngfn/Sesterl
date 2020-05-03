@@ -1120,44 +1120,6 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
             Typeenv.add_module modnm modsig name
           )
           tyenv
-(*
-        match ibind with
-        | IBindVal(IRec(valbinds)) ->
-            valbinds |> List.fold_left (fun (tyenv, sigr) (x, name, pty, e) ->
-              let tyenv = tyenv |> Typeenv.add_val x pty name in
-              let sigr = sigr |> SigRecord.add_val x pty name in
-              (tyenv, sigr)
-            ) (tyenv, sigr)
-
-        | IBindVal(INonRec(valbind)) ->
-            let (x, name, pty, _) = valbind in
-            let tyenv = tyenv |> Typeenv.add_val x pty name in
-            let sigr = sigr |> SigRecord.add_val x pty name in
-            (tyenv, sigr)
-
-        | IBindType(tybinds) ->
-            tybinds |> List.fold_left (fun (tyenv, sigr) tybind ->
-              let (tynm, typarams, i_syn_or_vnt) = tybind in
-              match i_syn_or_vnt with
-              | ISynonym(sid, ptyreal) ->
-                  let tyenv = tyenv |> Typeenv.add_synonym_type tynm sid typarams ptyreal in
-                  let sigr = sigr |> SigRecord.add_synonym_type tynm sid typarams ptyreal in
-                  (tyenv, sigr)
-
-              | IVariant(vid, ctorbrs) ->
-                  let tyenv = tyenv |> Typeenv.add_variant_type tynm vid typarams ctorbrs in
-                  let sigr = sigr |> SigRecord.add_variant_type tynm vid typarams ctorbrs in
-                  (tyenv, sigr)
-            ) (tyenv, sigr)
-
-        | IBindModule(m, name, modsig, _) ->
-            let tyenv = tyenv |> Typeenv.add_module m modsig name in
-            let sigr = sigr |> SigRecord.add_module m modsig name in
-            (tyenv, sigr)
-
-        | IBindInclude(_) ->
-            failwith "TODO: IInclude"
-*)
       in
       let bidsetacc = BoundIDSet.union bidsetacc bidset in
       let sigracc = sigracc |> SigRecord.overwrite sigr in
@@ -1168,11 +1130,13 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
   ((bidsetacc, sigracc), Alist.to_list ibindacc)
 
 
-let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
+let main (utbinds : untyped_binding list) : SigRecord.t abstracted * binding list =
   let tyenv = Primitives.initial_type_environment in
+  typecheck_binding_list tyenv utbinds
+(*
   let (tyenv, ibindacc) =
     utbinds |> List.fold_left (fun (tyenv, ibindacc) utbind ->
-      let (bidset, ibind) = typecheck_binding tyenv utbind in
+      let (abssigr, ibind) = typecheck_binding tyenv utbind in
       let tyenv =
         match ibind with
         | IBindVal(IRec(valbinds)) ->
@@ -1205,3 +1169,4 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
     ) (tyenv, Alist.empty)
   in
   (tyenv, ibindacc |> Alist.to_list)
+*)

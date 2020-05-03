@@ -8,7 +8,7 @@ let main fpath_in fpath_out =
     let lexbuf = Lexing.from_channel inc in
     let utdecls = ParserInterface.process lexbuf in
     close_in inc;
-    let (tyenv, decls) = Typechecker.main utdecls in
+    let ((_, sigr), decls) = Typechecker.main utdecls in
     let scode =
       let modname =
         Filename.remove_extension (Filename.basename fpath_out)
@@ -18,9 +18,18 @@ let main fpath_in fpath_out =
     let outc = open_out fpath_out in
     output_string outc scode;
     close_out outc;
-    Typeenv.fold_val (fun x pty () ->
-      Format.printf "%s : %a\n" x pp_poly_type pty
-    ) tyenv ()
+    SigRecord.fold
+      ~v:(fun x (pty, _) () ->
+        Format.printf "val %s : %a\n" x pp_poly_type pty
+      )
+      ~t:(fun tynm (typarams, _) () ->
+        Format.printf "type %s :: %d\n" tynm (List.length typarams)
+      )
+      ~m:(fun modnm _ () ->
+        Format.printf "module %s\n" modnm
+      )
+      ()
+      sigr
   with
   | ParserInterface.Error(rng) ->
       Format.printf "%a: syntax error\n" Range.pp rng
