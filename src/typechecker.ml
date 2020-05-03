@@ -16,7 +16,8 @@ exception TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
 exception InvalidByte                         of Range.t
 exception CyclicSynonymTypeDefinition         of (type_name ranged) list
 exception UnboundModuleName                   of Range.t * module_name
-exception NotOfStructureType                  of Range.t
+exception NotOfStructureType                  of Range.t * module_signature
+exception NotOfFunctorType                    of Range.t * module_signature
 
 
 module BindingMap = Map.Make(String)
@@ -890,6 +891,20 @@ let make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorBranchMap.empty
 
 
+let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
+  match tyenv |> Typeenv.find_module_opt m with
+  | None    -> raise (UnboundModuleName(rng, m))
+  | Some(v) -> v
+
+
+let subtype_concrete_with_abstract (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : poly_type BoundIDMap.t =
+  failwith "TODO: subtype_concrete_with_abstract"
+
+
+let substitute_abstract (witnessmap : poly_type BoundIDMap.t) (absmodsig : module_signature abstracted) : module_signature abstracted =
+  failwith "TODO: substitute_abstract"
+
+
 let typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
   failwith "TODO: typecheck_signature"
 
@@ -937,7 +952,6 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRe
             (sigr, INonRec(x, name, pty, e))
       in
       ((BoundIDSet.empty, sigr), IBindVal(i_rec_or_nonrec))
-
 
   | BindType([]) ->
       assert false
@@ -1026,7 +1040,7 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRe
         match modsig with
         | ConcFunctor(_) ->
             let (rng, _) = utmod in
-            raise (NotOfStructureType(rng))
+            raise (NotOfStructureType(rng, modsig))
 
         | ConcStructure(sigr) ->
             ((bidset, sigr), IBindInclude(e, modsig))
@@ -1041,15 +1055,9 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
   let (rng, utmodmain) = utmod in
   match utmodmain with
   | ModVar(m) ->
-      begin
-        match tyenv |> Typeenv.find_module_opt m with
-        | None ->
-            raise (UnboundModuleName(rng, m))
-
-        | Some(modsig, name) ->
-            let absmodsig = (BoundIDSet.empty, modsig) in
-            (absmodsig, IVar(name))
-      end
+      let (modsig, name) = find_module tyenv (rng, m) in
+      let absmodsig = (BoundIDSet.empty, modsig) in
+      (absmodsig, IVar(name))
 
   | ModBinds(utbinds) ->
       let (abssigr, ibinds) = typecheck_binding_list tyenv utbinds in
@@ -1064,7 +1072,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
         match modsig with
         | ConcFunctor(_) ->
             let (rng, _) = utmod in
-            raise (NotOfStructureType(rng))
+            raise (NotOfStructureType(rng, modsig))
 
         | ConcStructure(sigr) ->
             let (rng, m) = modident in
@@ -1095,10 +1103,25 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       (absmodsig, e)
 
   | ModApply(modident1, modident2) ->
-      failwith "TODO: ModApply"
+      let (modsig1, name1) = find_module tyenv modident1 in
+      let (modsig2, name2) = find_module tyenv modident2 in
+      begin
+        match modsig1 with
+        | ConcStructure(_) ->
+            let (rng1, _) = modident1 in
+            raise (NotOfFunctorType(rng1, modsig1))
+
+        | ConcFunctor(bidset, modsigdom1, absmodsigcod1) ->
+            let witnessmap = subtype_concrete_with_abstract tyenv modsig2 (bidset, modsigdom1) in
+            let absmodsig = substitute_abstract witnessmap absmodsigcod1 in
+            (absmodsig, IApply(name1, [ IVar(name2) ]))
+      end
 
   | ModCoerce(modident0, utsig) ->
-      failwith "TODO: ModCoerce"
+      let (modsig0, name0) = find_module tyenv modident0 in
+      let absmodsig = typecheck_signature tyenv utsig in
+      let _ = subtype_concrete_with_abstract tyenv modsig0 absmodsig in
+      (absmodsig, IVar(name0))
 
 
 and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : SigRecord.t abstracted * binding list =

@@ -521,10 +521,7 @@ type 'r concrete_signature_ =
 type 'r module_signature_ =
   | ConcStructure of 'r
   | ConcFunctor   of BoundIDSet.t * 'r module_signature_ * (BoundIDSet.t * 'r module_signature_)
-(*
-and 'r abstract_signature_ =
-  BoundIDSet.t * 'r concrete_signature_
-*)
+
 module IdentifierMap = Map.Make(String)
 
 module TypeNameMap = Map.Make(String)
@@ -533,13 +530,13 @@ module ModuleNameMap = Map.Make(String)
 
 type pattern =
   | IPUnit
-  | IPBool of bool
-  | IPInt  of int
-  | IPVar  of name
+  | IPBool        of bool
+  | IPInt         of int
+  | IPVar         of name
   | IPWildCard
   | IPListNil
-  | IPListCons of pattern * pattern
-  | IPTuple    of pattern TupleList.t
+  | IPListCons    of pattern * pattern
+  | IPTuple       of pattern TupleList.t
   | IPConstructor of ConstructorID.t * pattern list
 [@@deriving show { with_path = false; } ]
 
@@ -562,22 +559,22 @@ type val_binding =
   | IRec    of (identifier * name * poly_type * ast) list
 
 and binding =
-  | IBindVal    of val_binding
-  | IBindType   of (type_name * BoundID.t list * single_type_binding) list
-  | IBindModule of module_name * name * module_signature * ast
+  | IBindVal     of val_binding
+  | IBindType    of (type_name * BoundID.t list * single_type_binding) list
+  | IBindModule  of module_name * name * module_signature * ast
   | IBindInclude of ast * module_signature
 
 and ast =
-  | IBaseConst of base_constant
-  | IVar       of name
-  | ILambda    of name option * name list * ast
-  | IApply     of name * ast list
-  | ILetIn     of name * ast * ast
-  | ICase      of ast * branch list
-  | IReceive   of branch list
-  | ITuple     of ast TupleList.t
+  | IBaseConst   of base_constant
+  | IVar         of name
+  | ILambda      of name option * name list * ast
+  | IApply       of name * ast list
+  | ILetIn       of name * ast * ast
+  | ICase        of ast * branch list
+  | IReceive     of branch list
+  | ITuple       of ast TupleList.t
   | IListNil
-  | IListCons  of ast * ast
+  | IListCons    of ast * ast
   | IConstructor of ConstructorID.t * ast list
   | IStructure   of binding list
   | IAccess      of ast * name
