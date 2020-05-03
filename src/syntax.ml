@@ -617,4 +617,23 @@ module SigRecord = struct
   let find_module (modnm : module_name) (sigr : t) : (module_signature * name) option =
     sigr.sr_modules |> ModuleNameMap.find_opt modnm
 
+
+  let fold (type a)
+      ~v:(fv : identifier -> poly_type * name -> a -> a)
+      ~t:(ft : type_name -> BoundID.t list * single_type_binding -> a -> a)
+      ~m:(fm : module_name -> module_signature * name -> a -> a)
+      (init : a) (sigr : t) : a =
+    init
+      |> IdentifierMap.fold fv sigr.sr_vals
+      |> TypeNameMap.fold ft sigr.sr_types
+      |> ModuleNameMap.fold fm sigr.sr_modules
+
+
+  let overwrite (superior : t) (inferior : t) : t =
+    let left _ x y = Some(x) in
+    let sr_vals    = IdentifierMap.union left superior.sr_vals    inferior.sr_vals in
+    let sr_types   = IdentifierMap.union left superior.sr_types   inferior.sr_types in
+    let sr_modules = IdentifierMap.union left superior.sr_modules inferior.sr_modules in
+    { sr_vals; sr_types; sr_modules }
+
 end

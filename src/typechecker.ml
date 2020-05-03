@@ -894,7 +894,7 @@ let typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
   failwith "TODO: typecheck_signature"
 
 
-let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : binding abstracted =
+let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding =
   match utbind with
   | BindVal(rec_or_nonrec) ->
       let pre =
@@ -904,7 +904,7 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
           local_type_parameters = TypeParameterMap.empty;
         }
       in
-      let i_rec_or_nonrec =
+      let (sigr, i_rec_or_nonrec) =
         match rec_or_nonrec with
         | Rec([]) ->
             assert false
@@ -917,10 +917,14 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
               generate_output_identifier (Global(arity)) rngv x
             in
             let recbinds = typecheck_letrec_mutual namef namef pre valbinds in
-            let irecbinds =
-              recbinds |> List.map (fun (x, pty, name_outer, _, e) -> (x, name_outer, pty, e))
+            let (sigr, irecbindacc) =
+              recbinds |> List.fold_left (fun (sigr, irecbindacc) (x, pty, name_outer, _, e) ->
+                let sigr = sigr |> SigRecord.add_val x pty name_outer in
+                let irecbindacc = Alist.extend irecbindacc (x, name_outer, pty, e) in
+                (sigr, irecbindacc)
+              ) (SigRecord.empty, Alist.empty)
             in
-            IRec(irecbinds)
+            (sigr, IRec(Alist.to_list irecbindacc))
 
         | NonRec(valbind) ->
             let (pty, name, e) =
@@ -929,9 +933,10 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
               typecheck_let (Global(arity)) pre valbind
             in
             let (_, x) = valbind.vb_identifier in
-            INonRec(x, name, pty, e)
+            let sigr = SigRecord.empty |> SigRecord.add_val x pty name in
+            (sigr, INonRec(x, name, pty, e))
       in
-      (BoundIDSet.empty, IBindVal(i_rec_or_nonrec))
+      ((BoundIDSet.empty, sigr), IBindVal(i_rec_or_nonrec))
 
 
   | BindType([]) ->
@@ -965,8 +970,8 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
         }
       in
       let syns = synacc |> Alist.to_list in
-      let (graph, tybindacc) =
-        syns |> List.fold_left (fun (graph, tybindacc) syn ->
+      let (graph, sigr, tybindacc) =
+        syns |> List.fold_left (fun (graph, sigr, tybindacc) syn ->
           let ((_, tynm), typarams, mtyreal, sid) = syn in
           let typaramassoc = make_type_parameter_assoc 1 typarams in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
@@ -980,11 +985,13 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
               | TypeID.Variant(_)      -> graph
             ) dependencies
           in
-          (graph, Alist.extend tybindacc (tynm, typarams, ISynonym(sid, ptyreal)))
-        ) (graph, Alist.empty)
+          let tybindacc = Alist.extend tybindacc (tynm, typarams, ISynonym(sid, ptyreal)) in
+          let sigr = sigr |> SigRecord.add_synonym_type tynm sid typarams ptyreal in
+          (graph, sigr, tybindacc)
+        ) (graph, SigRecord.empty, Alist.empty)
       in
-      let tybindacc =
-        vntacc |> Alist.to_list |> List.fold_left (fun tybindacc vnt ->
+      let (sigr, tybindacc) =
+        vntacc |> Alist.to_list |> List.fold_left (fun (sigr, tybindacc) vnt ->
           let ((_, tynm), typarams, ctorbrs, vid) = vnt in
           let typaramassoc = make_type_parameter_assoc 1 typarams in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
@@ -992,14 +999,16 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
           let ctorbrmap =
             make_constructor_branch_map { pre with tyenv } ctorbrs
           in
-          Alist.extend tybindacc (tynm, typarams, IVariant(vid, ctorbrmap))
-        ) tybindacc
+          let tybindacc = Alist.extend tybindacc (tynm, typarams, IVariant(vid, ctorbrmap)) in
+          let sigr = sigr |> SigRecord.add_variant_type tynm vid typarams ctorbrmap in
+          (sigr, tybindacc)
+        ) (sigr, tybindacc)
       in
       if DependencyGraph.has_cycle graph then
         let tyidents = syns |> List.map (fun (tyident, _, _, _) -> tyident) in
         raise (CyclicSynonymTypeDefinition(tyidents))
       else
-        (BoundIDSet.empty, IBindType(Alist.to_list tybindacc))
+        ((BoundIDSet.empty, sigr), IBindType(Alist.to_list tybindacc))
 
   | BindModule(modident, utmod) ->
       let (_, m) = modident in
@@ -1007,7 +1016,8 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
       let (bidset, modsig) = absmodsig in
       let name = OutputIdentifier.fresh () in
         (* temporary; it may be appropriate to generate name from `m` *)
-      (bidset, IBindModule(m, name, modsig, e))
+      let sigr = SigRecord.empty |> SigRecord.add_module m modsig name in
+      ((bidset, sigr), IBindModule(m, name, modsig, e))
 
   | BindInclude(utmod) ->
       let (absmodsig, e) = typecheck_module tyenv utmod in
@@ -1019,7 +1029,7 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
             raise (NotOfStructureType(rng))
 
         | ConcStructure(sigr) ->
-            (bidset, IBindInclude(e, modsig))
+            ((bidset, sigr), IBindInclude(e, modsig))
       end
 
   | BindSig(sigident, sigbind) ->
@@ -1092,10 +1102,25 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
 
 
 and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : SigRecord.t abstracted * binding list =
-  let (tyenv, bidsetacc, sigr, ibindacc) =
-    utbinds |> List.fold_left (fun (tyenv, bidsetacc, sigr, ibindacc) utbind ->
-      let (bidset, ibind) = typecheck_binding tyenv utbind in
-      let (tyenv, sigr) =
+  let (tyenv, bidsetacc, sigracc, ibindacc) =
+    utbinds |> List.fold_left (fun (tyenv, bidsetacc, sigracc, ibindacc) utbind ->
+      let (abssigr, ibind) = typecheck_binding tyenv utbind in
+      let (bidset, sigr) = abssigr in
+      let tyenv =
+        sigr |> SigRecord.fold
+          ~v:(fun x (pty, name) ->
+            Typeenv.add_val x pty name
+          )
+          ~t:(fun tynm (typarams, i_syn_or_vnt) ->
+            match i_syn_or_vnt with
+            | ISynonym(sid, ptyreal) -> Typeenv.add_synonym_type tynm sid typarams ptyreal
+            | IVariant(vid, ctorbrs) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
+          )
+          ~m:(fun modnm (modsig, name) ->
+            Typeenv.add_module modnm modsig name
+          )
+          tyenv
+(*
         match ibind with
         | IBindVal(IRec(valbinds)) ->
             valbinds |> List.fold_left (fun (tyenv, sigr) (x, name, pty, e) ->
@@ -1132,11 +1157,15 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
 
         | IBindInclude(_) ->
             failwith "TODO: IInclude"
+*)
       in
-      (tyenv, BoundIDSet.union bidsetacc bidset, sigr, Alist.extend ibindacc ibind)
+      let bidsetacc = BoundIDSet.union bidsetacc bidset in
+      let sigracc = sigracc |> SigRecord.overwrite sigr in
+      let ibindacc = Alist.extend ibindacc ibind in
+      (tyenv, bidsetacc, sigracc, ibindacc)
     ) (tyenv, BoundIDSet.empty, SigRecord.empty, Alist.empty)
   in
-  ((bidsetacc, sigr), Alist.to_list ibindacc)
+  ((bidsetacc, sigracc), Alist.to_list ibindacc)
 
 
 let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
