@@ -1037,9 +1037,9 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : (BoundIDSet.
       failwith "TODO: typecheck_module"
 
 
-let typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : SigRecord.t * binding list =
-  let (tyenv, sigr, ibindacc) =
-    utbinds |> List.fold_left (fun (tyenv, sigr, ibindacc) utbind ->
+let typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : (BoundIDSet.t * SigRecord.t) * binding list =
+  let (tyenv, bidsetacc, sigr, ibindacc) =
+    utbinds |> List.fold_left (fun (tyenv, bidsetacc, sigr, ibindacc) utbind ->
       let (bidset, ibind) = typecheck_binding tyenv utbind in
       let (tyenv, sigr) =
         match ibind with
@@ -1076,10 +1076,10 @@ let typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
             let sigr = sigr |> SigRecord.add_module m modsig name in
             (tyenv, sigr)
       in
-      (tyenv, sigr, Alist.extend ibindacc ibind)
-    ) (tyenv, SigRecord.empty, Alist.empty)
+      (tyenv, BoundIDSet.union bidsetacc bidset, sigr, Alist.extend ibindacc ibind)
+    ) (tyenv, BoundIDSet.empty, SigRecord.empty, Alist.empty)
   in
-  (sigr, Alist.to_list ibindacc)
+  ((bidsetacc, sigr), Alist.to_list ibindacc)
 
 
 let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
