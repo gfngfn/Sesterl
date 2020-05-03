@@ -995,8 +995,10 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : bindi
         IBindType(Alist.to_list tybindacc)
 
   | BindModule(modident, modbind) ->
-      let (_abssig, _e) = typecheck_module tyenv modbind in
-      failwith "TODO: BindModule"
+      let (_, m) = modident in
+      let (abssig, e) = typecheck_module tyenv modbind in
+      let name = OutputIdentifier.fresh () in  (* temporary *)
+      IBindModule(m, name, abssig, e)
 
   | BindSig(sigident, sigbind) ->
       let _abssig = typecheck_signature tyenv sigbind in
@@ -1038,7 +1040,7 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
             ) tyenv
 
         | IBindVal(INonRec(valbind)) ->
-            let (x, name, pty, e) = valbind in
+            let (x, name, pty, _) = valbind in
             tyenv |> Typeenv.add_val x pty name
 
         | IBindType(tybinds) ->
@@ -1051,6 +1053,9 @@ let main (utbinds : untyped_binding list) : Typeenv.t * binding list =
               | IVariant(vid, ctorbrs) ->
                   tyenv |> Typeenv.add_variant_type tynm vid typarams ctorbrs
             ) tyenv
+
+        | IBindModule(m, name, abssig, _) ->
+            tyenv |> Typeenv.add_module m abssig name
       in
       (tyenv, Alist.extend ibindacc ibind)
     ) (tyenv, Alist.empty)

@@ -530,21 +530,6 @@ let pp_constructor_branch_map ppf _ =
   Format.fprintf ppf "<constructor-branch-map>"
 
 
-type val_binding =
-  | INonRec of (identifier * name * poly_type * ast)
-  | IRec    of (identifier * name * poly_type * ast) list
-[@@deriving show { with_path = false; } ]
-
-type single_type_binding =
-  | IVariant of TypeID.Variant.t * constructor_branch_map
-  | ISynonym of TypeID.Synonym.t * poly_type
-[@@deriving show { with_path = false; } ]
-
-type binding =
-  | IBindVal  of val_binding
-  | IBindType of (type_name * BoundID.t list * single_type_binding) list
-[@@deriving show { with_path = false; } ]
-
 module TypeParameterAssoc = AssocList.Make(String)
 
 type type_parameter_assoc = MustBeBoundID.t TypeParameterAssoc.t
@@ -569,3 +554,16 @@ type concrete_signature =
 
 and abstract_signature =
   BoundIDSet.t * concrete_signature
+
+type val_binding =
+  | INonRec of (identifier * name * poly_type * ast)
+  | IRec    of (identifier * name * poly_type * ast) list
+
+type single_type_binding =
+  | IVariant of TypeID.Variant.t * constructor_branch_map
+  | ISynonym of TypeID.Synonym.t * poly_type
+
+type binding =
+  | IBindVal    of val_binding
+  | IBindType   of (type_name * BoundID.t list * single_type_binding) list
+  | IBindModule of module_name * name * abstract_signature * ast
