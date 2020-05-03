@@ -1118,7 +1118,10 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       end
 
   | ModCoerce(modident0, utsig) ->
-      failwith "TODO: ModCoerce"
+      let (modsig0, name0) = find_module tyenv modident0 in
+      let absmodsig = typecheck_signature tyenv utsig in
+      let _ = subtype_concrete_with_abstract tyenv modsig0 absmodsig in
+      (absmodsig, IVar(name0))
 
 
 and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : SigRecord.t abstracted * binding list =
