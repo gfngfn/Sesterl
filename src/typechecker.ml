@@ -938,7 +938,6 @@ let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRe
       in
       ((BoundIDSet.empty, sigr), IBindVal(i_rec_or_nonrec))
 
-
   | BindType([]) ->
       assert false
 
