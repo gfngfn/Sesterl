@@ -1055,15 +1055,9 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
   let (rng, utmodmain) = utmod in
   match utmodmain with
   | ModVar(m) ->
-      begin
-        match tyenv |> Typeenv.find_module_opt m with
-        | None ->
-            raise (UnboundModuleName(rng, m))
-
-        | Some(modsig, name) ->
-            let absmodsig = (BoundIDSet.empty, modsig) in
-            (absmodsig, IVar(name))
-      end
+      let (modsig, name) = find_module tyenv (rng, m) in
+      let absmodsig = (BoundIDSet.empty, modsig) in
+      (absmodsig, IVar(name))
 
   | ModBinds(utbinds) ->
       let (abssigr, ibinds) = typecheck_binding_list tyenv utbinds in
