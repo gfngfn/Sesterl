@@ -664,10 +664,10 @@ module SigRecord = struct
       ~s:(fs : signature_name -> module_signature abstracted -> a -> a)
       (init : a) (sigr : t) : a =
     init
-      |> IdentifierMap.fold fv sigr.sr_vals
-      |> TypeNameMap.fold ft sigr.sr_types
-      |> ModuleNameMap.fold fm sigr.sr_modules
       |> SignatureNameMap.fold fs sigr.sr_sigs
+      |> ModuleNameMap.fold fm sigr.sr_modules
+      |> TypeNameMap.fold ft sigr.sr_types
+      |> IdentifierMap.fold fv sigr.sr_vals
 
 
   let map
