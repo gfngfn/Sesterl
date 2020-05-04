@@ -583,9 +583,9 @@ type val_binding =
 and binding =
   | IBindVal     of val_binding
   | IBindType
-  | IBindModule  of module_name * name * module_signature * ast
+  | IBindModule  of name * ast
   | IBindSig
-  | IBindInclude of ast * module_signature
+  | IBindInclude of ast
 
 and ast =
   | IBaseConst   of base_constant

@@ -203,7 +203,7 @@ let stringify_binding (bind : binding) : string list =
   | IBindType ->
       []
 
-  | IBindModule(_, name, _, e) ->
+  | IBindModule(name, e) ->
       failwith "TODO: IBindModule"
 
   | IBindSig ->

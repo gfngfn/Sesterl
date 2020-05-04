@@ -1227,7 +1227,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       let name = OutputIdentifier.fresh () in
         (* temporary; it may be appropriate to generate name from `m` *)
       let sigr = SigRecord.empty |> SigRecord.add_module m modsig name in
-      ((oidset, sigr), IBindModule(m, name, modsig, e))
+      ((oidset, sigr), IBindModule(name, e))
 
   | BindInclude(utmod) ->
       let (absmodsig, e) = typecheck_module tyenv utmod in
@@ -1239,7 +1239,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             raise (NotOfStructureType(rng, modsig))
 
         | ConcStructure(sigr) ->
-            ((oidset, sigr), IBindInclude(e, modsig))
+            ((oidset, sigr), IBindInclude(e))
       end
 
   | BindSig(sigident, sigbind) ->
