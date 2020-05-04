@@ -517,7 +517,7 @@ module TypeParameterMap = Map.Make(String)
 
 type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
-module BoundIDSet = Set.Make(BoundID)
+module BoundIDSet = Set.Make(OpaqueID)
 (*
 type 'r concrete_signature_ =
   | AtomicPoly   of poly_type
@@ -550,8 +550,6 @@ type pattern =
 type single_type_binding =
   | IVariant of TypeID.Variant.t * constructor_branch_map
   | ISynonym of TypeID.Synonym.t * poly_type
-
-module OpaqueID = BoundID  (* temporary *)
 
 type type_opacity =
   | Transparent of BoundID.t list * single_type_binding
