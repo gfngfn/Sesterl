@@ -901,8 +901,29 @@ let substitute_abstract (witnessmap : poly_type BoundIDMap.t) (absmodsig : modul
   failwith "TODO: substitute_abstract"
 
 
+let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Typeenv.t) : Typeenv.t =
+  sigr |> SigRecord.fold
+    ~v:(fun x (pty, name) ->
+      Typeenv.add_val x pty name
+    )
+    ~t:(fun tynm tyopacity ->
+      match tyopacity with
+      | Transparent(typarams, ISynonym(sid, ptyreal)) -> Typeenv.add_synonym_type tynm sid typarams ptyreal
+      | Transparent(typarams, IVariant(vid, ctorbrs)) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
+      | Opaque(kind, oid)                             -> Typeenv.add_opaque_type tynm oid kind
+    )
+    ~m:(fun modnm (modsig, name) ->
+      Typeenv.add_module modnm modsig name
+    )
+    ~s:(fun signm absmodsig ->
+      Typeenv.add_signature signm absmodsig
+    )
+    tyenv
+
+
 let rec typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
-  match utdecl with
+  let (rng, utdeclmain) = utdecl in
+  match utdeclmain with
   | DeclVal(ident, tyvaridents, mty) ->
       let (_, x) = ident in
       let typaramassoc = make_type_parameter_assoc 1 tyvaridents in
@@ -947,6 +968,19 @@ let rec typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration)
         | ConcStructure(sigr) ->
             (oidset, sigr)
       end
+
+
+and typecheck_declaration_list (tyenv : Typeenv.t) (utdecls : untyped_declaration list) : SigRecord.t abstracted =
+  let (oidsetacc, sigracc, _) =
+    utdecls |> List.fold_left (fun (oidsetacc, sigracc, tyenv) ((rng, _) as utdecl) ->
+      let (oidset, sigr) = typecheck_declaration tyenv utdecl in
+      let oidsetacc = OpaqueIDSet.union oidsetacc oidset in
+      let sigracc = SigRecord.disjoint_union rng sigracc sigracc in
+      let tyenv = tyenv |> update_type_environment_by_signature_record sigr in
+      (oidsetacc, sigracc, tyenv)
+    ) (OpaqueIDSet.empty, SigRecord.empty, tyenv)
+  in
+  (oidsetacc, sigracc)
 
 
 and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
@@ -1235,22 +1269,7 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
     utbinds |> List.fold_left (fun (tyenv, oidsetacc, sigracc, ibindacc) utbind ->
       let (abssigr, ibind) = typecheck_binding tyenv utbind in
       let (oidset, sigr) = abssigr in
-      let tyenv =
-        sigr |> SigRecord.fold
-          ~v:(fun x (pty, name) ->
-            Typeenv.add_val x pty name
-          )
-          ~t:(fun tynm tyopacity ->
-            match tyopacity with
-            | Transparent(typarams, ISynonym(sid, ptyreal)) -> Typeenv.add_synonym_type tynm sid typarams ptyreal
-            | Transparent(typarams, IVariant(vid, ctorbrs)) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
-            | Opaque(kind, oid)                             -> Typeenv.add_opaque_type tynm oid kind
-          )
-          ~m:(fun modnm (modsig, name) ->
-            Typeenv.add_module modnm modsig name
-          )
-          tyenv
-      in
+      let tyenv = tyenv |> update_type_environment_by_signature_record sigr in
       let oidsetacc = OpaqueIDSet.union oidsetacc oidset in
       let sigracc = sigracc |> SigRecord.overwrite sigr in
       let ibindacc = Alist.extend ibindacc ibind in

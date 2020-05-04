@@ -33,6 +33,9 @@ let main fpath_in fpath_out =
       ~m:(fun modnm _ () ->
         Format.printf "module %s\n" modnm
       )
+      ~s:(fun signm _ () ->
+        Format.printf "signature %s\n" signm
+      )
       ()
       sigr
   with

@@ -2,6 +2,7 @@
 exception UnidentifiedToken           of Range.t * string
 exception SeeEndOfFileInComment       of Range.t
 exception SeeEndOfFileInStringLiteral of Range.t
+exception ConflictInSignature         of Range.t * string
 
 
 type 'a ranged = Range.t * 'a
@@ -159,6 +160,9 @@ and untyped_signature_main =
   | SigWith    of untyped_signature * (module_name ranged) list * type_name ranged * manual_type
 
 and untyped_declaration =
+  untyped_declaration_main ranged
+
+and untyped_declaration_main =
   | DeclVal        of identifier ranged * (type_variable_name ranged) list * manual_type
   | DeclTypeTrans  of type_name ranged * manual_type
   | DeclTypeOpaque of type_name ranged * manual_kind
@@ -642,11 +646,13 @@ module SigRecord = struct
       ~v:(fv : identifier -> poly_type * name -> a -> a)
       ~t:(ft : type_name -> type_opacity -> a -> a)
       ~m:(fm : module_name -> module_signature * name -> a -> a)
+      ~s:(fs : signature_name -> module_signature abstracted -> a -> a)
       (init : a) (sigr : t) : a =
     init
       |> IdentifierMap.fold fv sigr.sr_vals
       |> TypeNameMap.fold ft sigr.sr_types
       |> ModuleNameMap.fold fm sigr.sr_modules
+      |> SignatureNameMap.fold fs sigr.sr_sigs
 
 
   let overwrite (superior : t) (inferior : t) : t =
@@ -655,6 +661,15 @@ module SigRecord = struct
     let sr_types   = TypeNameMap.union      left superior.sr_types   inferior.sr_types in
     let sr_modules = ModuleNameMap.union    left superior.sr_modules inferior.sr_modules in
     let sr_sigs    = SignatureNameMap.union left superior.sr_sigs    inferior.sr_sigs in
+    { sr_vals; sr_types; sr_modules; sr_sigs }
+
+
+  let disjoint_union (rng : Range.t) (sigr1 : t) (sigr2 : t) : t =
+    let conflict s _ _ = raise (ConflictInSignature(rng, s)) in
+    let sr_vals    = IdentifierMap.union    conflict sigr1.sr_vals    sigr2.sr_vals in
+    let sr_types   = TypeNameMap.union      conflict sigr1.sr_types   sigr2.sr_types in
+    let sr_modules = ModuleNameMap.union    conflict sigr1.sr_modules sigr2.sr_modules in
+    let sr_sigs    = SignatureNameMap.union conflict sigr1.sr_sigs    sigr2.sr_sigs in
     { sr_vals; sr_types; sr_modules; sr_sigs }
 
 end
