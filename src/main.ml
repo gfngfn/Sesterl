@@ -22,8 +22,13 @@ let main fpath_in fpath_out =
       ~v:(fun x (pty, _) () ->
         Format.printf "val %s : %a\n" x pp_poly_type pty
       )
-      ~t:(fun tynm (typarams, _) () ->
-        Format.printf "type %s :: %d\n" tynm (List.length typarams)
+      ~t:(fun tynm tyopacity () ->
+        match tyopacity with
+        | Transparent(typarams, _) ->
+            Format.printf "type %s :: %d = ...\n" tynm (List.length typarams)
+
+        | Opaque(kind, _) ->
+            Format.printf "type %s :: %d\n" tynm kind
       )
       ~m:(fun modnm _ () ->
         Format.printf "module %s\n" modnm

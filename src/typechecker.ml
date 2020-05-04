@@ -912,12 +912,14 @@ let rec typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration)
       (BoundIDSet.empty, sigr)
 
   | DeclTypeTrans(tyident, mty) ->
-(*
-      let pty = decode_manual_type tyenv mty in
-*)
       failwith "TODO: DeclTypeTrans"
+        (* -- maybe should handle mutually recursive types -- *)
 
-  | DeclTypeOpaque(tyident, kd) ->
+  | DeclTypeOpaque(tyident, mkd) ->
+      let (_, tynm) = tyident in
+      let kd = mkd in
+      let bid = BoundID.fresh () in
+      let _sigr = SigRecord.empty |> SigRecord.add_opaque_type tynm kd bid in
       failwith "TODO: DeclTypeOpaque"
 
   | DeclModule(modident, utsig) ->
@@ -1202,10 +1204,11 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
           ~v:(fun x (pty, name) ->
             Typeenv.add_val x pty name
           )
-          ~t:(fun tynm (typarams, i_syn_or_vnt) ->
-            match i_syn_or_vnt with
-            | ISynonym(sid, ptyreal) -> Typeenv.add_synonym_type tynm sid typarams ptyreal
-            | IVariant(vid, ctorbrs) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
+          ~t:(fun tynm tyopacity ->
+            match tyopacity with
+            | Transparent(typarams, ISynonym(sid, ptyreal)) -> Typeenv.add_synonym_type tynm sid typarams ptyreal
+            | Transparent(typarams, IVariant(vid, ctorbrs)) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
+            | Opaque(kind, oid)                             -> Typeenv.add_opaque_type tynm oid kind
           )
           ~m:(fun modnm (modsig, name) ->
             Typeenv.add_module modnm modsig name

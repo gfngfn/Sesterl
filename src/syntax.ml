@@ -31,11 +31,6 @@ let pp_identifier ppf s =
   Format.fprintf ppf "\"%s\"" s
 
 
-type kind =
-  | UnivKind
-  | ArrowKind of kind list * kind
-[@@deriving show { with_path = false; } ]
-
 type base_type =
   | IntType
   | BoolType
@@ -52,6 +47,13 @@ and manual_type_main =
   | MEffType     of manual_type * manual_type
   | MTypeVar     of type_variable_name
 [@@deriving show { with_path = false; } ]
+
+type manual_kind = int
+  (* -- order-0 or order-1 kind only; just tracks arity -- *)
+[@@deriving show { with_path = false; } ]
+
+type kind = int
+  (* -- as `manual_kind`, this type handles order-0 or order-1 kind only -- *)
 
 type binder = identifier ranged * manual_type option
 
@@ -159,7 +161,7 @@ and untyped_signature_main =
 and untyped_declaration =
   | DeclVal        of identifier ranged * (type_variable_name ranged) list * manual_type
   | DeclTypeTrans  of type_name ranged * manual_type
-  | DeclTypeOpaque of type_name ranged * kind
+  | DeclTypeOpaque of type_name ranged * manual_kind
   | DeclModule     of module_name ranged * untyped_signature
   | DeclSig        of signature_name ranged * untyped_signature
   | DeclInclude    of untyped_signature
@@ -549,9 +551,15 @@ type single_type_binding =
   | IVariant of TypeID.Variant.t * constructor_branch_map
   | ISynonym of TypeID.Synonym.t * poly_type
 
+module OpaqueID = BoundID  (* temporary *)
+
+type type_opacity =
+  | Transparent of BoundID.t list * single_type_binding
+  | Opaque      of kind * OpaqueID.t
+
 type signature_record = {
   sr_vals    : (poly_type * name) IdentifierMap.t;
-  sr_types   : (BoundID.t list * single_type_binding) TypeNameMap.t;
+  sr_types   : type_opacity TypeNameMap.t;
   sr_modules : (signature_record module_signature_ * name) ModuleNameMap.t;
 }
 
@@ -605,11 +613,15 @@ module SigRecord = struct
 
 
   let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (typarams : BoundID.t list) (ptyreal : poly_type) (sigr : t) : t =
-    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (typarams, ISynonym(sid, ptyreal)) }
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(typarams, ISynonym(sid, ptyreal))) }
 
 
   let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrs : constructor_branch_map) (sigr : t) : t =
-    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (typarams, IVariant(vid, ctorbrs)) }
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(typarams, IVariant(vid, ctorbrs))) }
+
+
+  let add_opaque_type (tynm : type_name) (kd : kind) (oid : OpaqueID.t) (sigr : t) : t =
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Opaque(kd, oid)) }
 
 
   let add_module (modnm : module_name) (modsig : module_signature) (name : name) (sigr : t) : t =
@@ -622,7 +634,7 @@ module SigRecord = struct
 
   let fold (type a)
       ~v:(fv : identifier -> poly_type * name -> a -> a)
-      ~t:(ft : type_name -> BoundID.t list * single_type_binding -> a -> a)
+      ~t:(ft : type_name -> type_opacity -> a -> a)
       ~m:(fm : module_name -> module_signature * name -> a -> a)
       (init : a) (sigr : t) : a =
     init

@@ -119,6 +119,10 @@ let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (typarams : Bou
   { tyenv with types = tyenv.types |> TypeMap.add tynm entry }
 
 
+let add_opaque_type (tynm : type_name) (oid : OpaqueID.t) (kind : kind) (tyenv : t) : t =
+  failwith "TODO: add_opaque_type"
+
+
 let add_type_for_recursion (tynm : type_name) (tyid : TypeID.t) (paramlen : int) (tyenv : t) : t =
   let entry =
     Defining{
