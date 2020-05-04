@@ -10,27 +10,33 @@ type val_entry = {
   mutable is_used : bool;
 }
 
-module TypeMap = Map.Make(String)
+module TypeNameMap = Map.Make(String)
 
 type type_entry =
-  | Defining of {
-      type_id              : TypeID.t;
-      number_of_parameters : int;
-    }
-  | DefinedVariant of {
-      id              : TypeID.Variant.t;
-      type_parameters : BoundID.t list;
-      branches        : constructor_branch_map;
-    }
-  | DefinedSynonym of {
-      id              : TypeID.Synonym.t;
-      type_parameters : BoundID.t list;
-      real_type       : poly_type;
-    }
-  | DefinedOpaque of {
-      id   : OpaqueID.t;
-      kind : kind;
-    }
+  | Defining       of TypeID.t
+  | DefinedVariant of TypeID.Variant.t
+  | DefinedSynonym of TypeID.Synonym.t
+  | DefinedOpaque  of TypeID.Opaque.t
+
+module SynonymMap = Map.Make(TypeID.Synonym)
+
+type synonym_entry = {
+  s_type_parameters : BoundID.t list;
+  s_real_type       : poly_type;
+}
+
+module VariantMap = Map.Make(TypeID.Variant)
+
+type variant_entry = {
+  v_type_parameters : BoundID.t list;
+  v_branches        : constructor_branch_map;
+}
+
+module OpaqueMap = Map.Make(TypeID.Opaque)
+
+type opaque_entry = {
+  o_kind : kind;
+}
 
 module ConstructorMap = Map.Make(String)
 
@@ -42,15 +48,21 @@ type constructor_entry = {
 }
 
 type t = {
-  vals  : val_entry VarMap.t;
-  types : type_entry TypeMap.t;
+  vals         : val_entry VarMap.t;
+  type_names   : (type_entry * int) TypeNameMap.t;
+  variants     : variant_entry VariantMap.t;
+  synonyms     : synonym_entry SynonymMap.t;
+  opaques      : opaque_entry OpaqueMap.t;
   constructors : constructor_entry ConstructorMap.t;
 }
 
 
 let empty = {
-  vals  = VarMap.empty;
-  types = TypeMap.empty;
+  vals         = VarMap.empty;
+  type_names   = TypeNameMap.empty;
+  variants     = VariantMap.empty;
+  synonyms     = SynonymMap.empty;
+  opaques      = OpaqueMap.empty;
   constructors = ConstructorMap.empty;
 }
 
@@ -86,17 +98,13 @@ let fold_val f tyenv acc =
 
 
 let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : BoundID.t list) (brmap : constructor_branch_map) (tyenv : t) : t =
-  let typesnew =
-    let entry =
-      DefinedVariant{
-        id              = vid;
-        type_parameters = typarams;
-        branches        = brmap;
-      }
-    in
-    tyenv.types |> TypeMap.add tynm entry
+  let ventry =
+    {
+      v_type_parameters = typarams;
+      v_branches        = brmap;
+    }
   in
-  let ctorsnew =
+  let ctors =
     ConstructorBranchMap.fold (fun ctornm (ctorid, ptys) ctors ->
       let entry =
         {
@@ -109,38 +117,44 @@ let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : Bou
       ctors |> ConstructorMap.add ctornm entry
     ) brmap tyenv.constructors
   in
-  { tyenv with types = typesnew; constructors = ctorsnew }
+  let arity = List.length typarams in
+  { tyenv with
+    type_names   = tyenv.type_names |> TypeNameMap.add tynm (DefinedVariant(vid), arity);
+    variants     = tyenv.variants |> VariantMap.add vid ventry;
+    constructors = ctors;
+  }
 
 
 let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (typarams : BoundID.t list) (ptyreal : poly_type) (tyenv : t) : t =
-  let entry =
-    DefinedSynonym{
-      id              = sid;
-      type_parameters = typarams;
-      real_type       = ptyreal
+  let sentry =
+    {
+      s_type_parameters = typarams;
+      s_real_type       = ptyreal
     }
   in
-  { tyenv with types = tyenv.types |> TypeMap.add tynm entry }
+  let arity = List.length typarams in
+  { tyenv with
+    type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedSynonym(sid), arity);
+    synonyms   = tyenv.synonyms |> SynonymMap.add sid sentry;
+  }
 
 
 let add_opaque_type (tynm : type_name) (oid : OpaqueID.t) (kind : kind) (tyenv : t) : t =
-  let entry =
-    DefinedOpaque{
-      id   = oid;
-      kind = kind;
+  let oentry =
+    {
+      o_kind = kind;
     }
   in
-  { tyenv with types = tyenv.types |> TypeMap.add tynm entry }
+  { tyenv with
+    type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedOpaque(oid), kind);
+    opaques    = tyenv.opaques |> OpaqueMap.add oid oentry;
+  }
 
 
-let add_type_for_recursion (tynm : type_name) (tyid : TypeID.t) (paramlen : int) (tyenv : t) : t =
-  let entry =
-    Defining{
-      type_id              = tyid;
-      number_of_parameters = paramlen;
-    }
-  in
-  { tyenv with types = tyenv.types |> TypeMap.add tynm entry }
+let add_type_for_recursion (tynm : type_name) (tyid : TypeID.t) (arity : int) (tyenv : t) : t =
+  { tyenv with
+    type_names = tyenv.type_names |> TypeNameMap.add tynm (Defining(tyid), arity);
+  }
 
 
 let find_constructor (ctornm : constructor_name) (tyenv : t) =
@@ -150,11 +164,12 @@ let find_constructor (ctornm : constructor_name) (tyenv : t) =
 
 
 let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * int) option =
-  tyenv.types |> TypeMap.find_opt tynm |> Option.map (function
-  | Defining(record)       -> (record.type_id, record.number_of_parameters)
-  | DefinedVariant(record) -> (TypeID.Variant(record.id), List.length record.type_parameters)
-  | DefinedSynonym(record) -> (TypeID.Synonym(record.id), List.length record.type_parameters)
-  | DefinedOpaque(record)  -> (TypeID.Opaque(record.id), record.kind)
+  tyenv.type_names |> TypeNameMap.find_opt tynm |> Option.map (fun (tyentry, arity) ->
+    match tyentry with
+    | Defining(tyid)      -> (tyid, arity)
+    | DefinedVariant(vid) -> (TypeID.Variant(vid), arity)
+    | DefinedSynonym(sid) -> (TypeID.Synonym(sid), arity)
+    | DefinedOpaque(oid)  -> (TypeID.Opaque(oid), arity)
   )
 
 
