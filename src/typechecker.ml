@@ -1217,7 +1217,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         let tyidents = syns |> List.map (fun (tyident, _, _, _) -> tyident) in
         raise (CyclicSynonymTypeDefinition(tyidents))
       else
-        ((OpaqueIDSet.empty, sigr), IBindType(Alist.to_list tybindacc))
+        ((OpaqueIDSet.empty, sigr), IBindType)
 
   | BindModule(modident, utmod) ->
       let (_, m) = modident in

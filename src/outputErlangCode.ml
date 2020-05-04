@@ -200,7 +200,7 @@ let stringify_declaration (bind : binding) : string list =
   | IBindVal(IRec(valbinds)) ->
       valbinds |> List.map val_single
 
-  | IBindType(_) ->
+  | IBindType ->
       []
 
   | IBindModule(_, name, _, e) ->
