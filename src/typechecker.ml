@@ -905,8 +905,26 @@ let substitute_abstract (witnessmap : poly_type BoundIDMap.t) (absmodsig : modul
   failwith "TODO: substitute_abstract"
 
 
-let typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
-  failwith "TODO: typecheck_signature"
+let rec typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
+  match utsig with
+  | SigPath(utmod) ->
+      failwith "TODO: SigPath"
+
+  | SigDecls(utdecls) ->
+      failwith "TODO: SigDecls"
+
+  | SigFunctor(modident, utsigdom, utsigcod) ->
+      let (bidset, sigdom) = typecheck_signature tyenv utsigdom in
+      let abssigcod =
+        let (_, m) = modident in
+        let name = OutputIdentifier.fresh () in
+        let tyenv = tyenv |> Typeenv.add_module m sigdom name in
+        typecheck_signature tyenv utsigcod
+      in
+      (BoundIDSet.empty, ConcFunctor(bidset, sigdom, abssigcod))
+
+  | SigWith(utsig0, modidents, tyident, mty) ->
+      failwith "TODO: SigWith"
 
 
 let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding =

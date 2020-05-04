@@ -150,7 +150,7 @@ and untyped_signature =
   | SigPath    of untyped_module
   | SigDecls   of untyped_declaration list
   | SigFunctor of module_name ranged * untyped_signature * untyped_signature
-  | SigWith    of untyped_signature * (module_name ranged) list * manual_type
+  | SigWith    of untyped_signature * (module_name ranged) list * type_name ranged * manual_type
 
 and untyped_declaration =
   | DeclVal        of identifier ranged * manual_type
