@@ -21,6 +21,7 @@ exception NotOfFunctorType                    of Range.t * module_signature
 exception NotAFunctorSignature                of Range.t * module_signature
 exception NotAStructureSignature              of Range.t * module_signature
 exception UnboundSignatureName                of Range.t * signature_name
+exception CannotRestrictTransparentType       of Range.t * BoundID.t list * single_type_binding
 
 
 module BindingMap = Map.Make(String)
@@ -893,11 +894,15 @@ let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
   | Some(v) -> v
 
 
-let subtype_concrete_with_abstract (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : poly_type BoundIDMap.t =
+let subtype_concrete_with_abstract (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : poly_type OpaqueIDMap.t =
   failwith "TODO: subtype_concrete_with_abstract"
 
 
-let substitute_abstract (witnessmap : poly_type BoundIDMap.t) (absmodsig : module_signature abstracted) : module_signature abstracted =
+let substitute_concrete (witnessmap : poly_type OpaqueIDMap.t) (modsig : module_signature) : module_signature =
+  failwith "TODO: substitute_concrete"
+
+
+let substitute_abstract (witnessmap : poly_type OpaqueIDMap.t) (absmodsig : module_signature abstracted) : module_signature abstracted =
   failwith "TODO: substitute_abstract"
 
 
@@ -1043,8 +1048,52 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
       in
       (OpaqueIDSet.empty, ConcFunctor(oidset, sigdom, abssigcod))
 
-  | SigWith(utsig0, modidents, tyident, mty) ->
-      failwith "TODO: SigWith"
+  | SigWith(utsig0, modidents, tyident1, tyvaridents, mty) ->
+      let (rng0, _) = utsig0 in
+      let absmodsig0 = typecheck_signature tyenv utsig0 in
+      let (oidset0, modsig0) = absmodsig0 in
+      let (rnglast, modsiglast) =
+        modidents |> List.fold_left (fun (rngpre, modsig) (rng, modnm) ->
+          match modsig with
+          | ConcFunctor(_) ->
+              raise (NotAStructureSignature(rngpre, modsig))
+
+          | ConcStructure(sigr) ->
+              begin
+                match sigr |> SigRecord.find_module modnm with
+                | None            -> raise (UnboundModuleName(rng, modnm))
+                | Some(modsig, _) -> (rng, modsig)
+              end
+        ) (rng0, modsig0)
+      in
+      let (rng1, tynm1) = tyident1 in
+      begin
+        match modsiglast with
+        | ConcFunctor(_) ->
+            raise (NotAStructureSignature(rnglast, modsiglast))
+
+        | ConcStructure(sigrlast) ->
+            begin
+              match sigrlast |> SigRecord.find_type tynm1 with
+              | None ->
+                  raise (UndefinedTypeName(rng1, tynm1))
+
+              | Some(Transparent(typarams, tytrans)) ->
+                  raise (CannotRestrictTransparentType(rng1, typarams, tytrans))
+
+              | Some(Opaque(kd, oid)) ->
+                  assert (oidset0 |> OpaqueIDSet.mem oid);
+                  let pty =
+                    let typaramassoc = make_type_parameter_assoc 1 tyvaridents in
+                    let localtyparams = TypeParameterMap.empty |> add_local_type_parameter typaramassoc in
+                    let ty = decode_manual_type tyenv localtyparams mty in
+                    generalize 0 ty
+                  in
+                  let modsigret = substitute_concrete (OpaqueIDMap.singleton oid pty) modsig0 in
+                  (oidset0 |> OpaqueIDSet.remove oid, modsigret)
+
+            end
+      end
 
 
 and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding =

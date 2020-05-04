@@ -157,7 +157,7 @@ and untyped_signature_main =
   | SigPath    of untyped_module * signature_name ranged
   | SigDecls   of untyped_declaration list
   | SigFunctor of module_name ranged * untyped_signature * untyped_signature
-  | SigWith    of untyped_signature * (module_name ranged) list * type_name ranged * manual_type
+  | SigWith    of untyped_signature * (module_name ranged) list * type_name ranged * (type_variable_name ranged) list * manual_type
 
 and untyped_declaration =
   untyped_declaration_main ranged
@@ -522,6 +522,8 @@ module TypeParameterMap = Map.Make(String)
 type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
 module OpaqueIDSet = Set.Make(OpaqueID)
+
+module OpaqueIDMap = Map.Make(OpaqueID)
 (*
 type 'r concrete_signature_ =
   | AtomicPoly   of poly_type
@@ -624,6 +626,10 @@ module SigRecord = struct
 
   let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrs : constructor_branch_map) (sigr : t) : t =
     { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(typarams, IVariant(vid, ctorbrs))) }
+
+
+  let find_type (tynm : type_name) (sigr : t) : type_opacity option =
+    sigr.sr_types |> TypeNameMap.find_opt tynm
 
 
   let add_opaque_type (tynm : type_name) (oid : OpaqueID.t) (kd : kind) (sigr : t) : t =
