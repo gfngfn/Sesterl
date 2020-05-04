@@ -19,6 +19,7 @@ exception UnboundModuleName                   of Range.t * module_name
 exception NotOfStructureType                  of Range.t * module_signature
 exception NotOfFunctorType                    of Range.t * module_signature
 exception NotAFunctorSignature                of Range.t * module_signature
+exception UnboundSignatureName                of Range.t * signature_name
 
 
 module BindingMap = Map.Make(String)
@@ -954,7 +955,33 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
       failwith "TODO: SigVar"
 
   | SigPath(utmod, sigident) ->
-      failwith "TODO: SigPath"
+      let (absmodsig1, e) = typecheck_module tyenv utmod in
+      let (oidset1, modsig1) = absmodsig1 in
+      begin
+        match modsig1 with
+        | ConcFunctor(_) ->
+            let (rng1, _) = utmod in
+            raise (NotOfStructureType(rng1, modsig1))
+
+        | ConcStructure(sigr1) ->
+            let (rng2, signm2) = sigident in
+            begin
+              match sigr1 |> SigRecord.find_signature signm2 with
+              | None ->
+                  raise (UnboundSignatureName(rng2, signm2))
+
+              | Some(absmodsig2) ->
+                  absmodsig2
+                    (* QUESTION: which of the following is true?
+                       1. we may ignore `oidset1` here.
+                       2. we should assert that `oidset1` be empty.
+                       3. we should add `oidset1` to the return value.
+                       The typing rule (S-Path) in the original paper "F-ing modules"
+                       apparently seems conforming to 2.
+                       Currently we implement 1 here.
+                     *)
+            end
+      end
 
   | SigDecls(utdecls) ->
       failwith "TODO: SigDecls"
@@ -973,7 +1000,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
       failwith "TODO: SigWith"
 
 
-let rec typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding =
+and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding =
   match utbind with
   | BindVal(rec_or_nonrec) ->
       let pre =

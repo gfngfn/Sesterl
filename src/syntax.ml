@@ -535,6 +535,8 @@ module TypeNameMap = Map.Make(String)
 
 module ModuleNameMap = Map.Make(String)
 
+module SignatureNameMap = Map.Make(String)
+
 type pattern =
   | IPUnit
   | IPBool        of bool
@@ -555,15 +557,16 @@ type type_opacity =
   | Transparent of BoundID.t list * single_type_binding
   | Opaque      of kind * OpaqueID.t
 
+type 'a abstracted = OpaqueIDSet.t * 'a
+
 type signature_record = {
   sr_vals    : (poly_type * name) IdentifierMap.t;
   sr_types   : type_opacity TypeNameMap.t;
   sr_modules : (signature_record module_signature_ * name) ModuleNameMap.t;
+  sr_sigs    : ((signature_record module_signature_) abstracted) SignatureNameMap.t;
 }
 
 type module_signature = signature_record module_signature_
-
-type 'a abstracted = OpaqueIDSet.t * 'a
 
 type val_binding =
   | INonRec of (identifier * name * poly_type * ast)
@@ -603,6 +606,7 @@ module SigRecord = struct
       sr_vals    = IdentifierMap.empty;
       sr_types   = TypeNameMap.empty;
       sr_modules = ModuleNameMap.empty;
+      sr_sigs    = SignatureNameMap.empty;
     }
 
 
@@ -630,6 +634,10 @@ module SigRecord = struct
     sigr.sr_modules |> ModuleNameMap.find_opt modnm
 
 
+  let find_signature (signm : signature_name) (sigr : t) : (module_signature abstracted) option =
+    sigr.sr_sigs |> SignatureNameMap.find_opt signm
+
+
   let fold (type a)
       ~v:(fv : identifier -> poly_type * name -> a -> a)
       ~t:(ft : type_name -> type_opacity -> a -> a)
@@ -643,9 +651,10 @@ module SigRecord = struct
 
   let overwrite (superior : t) (inferior : t) : t =
     let left _ x y = Some(x) in
-    let sr_vals    = IdentifierMap.union left superior.sr_vals    inferior.sr_vals in
-    let sr_types   = IdentifierMap.union left superior.sr_types   inferior.sr_types in
-    let sr_modules = IdentifierMap.union left superior.sr_modules inferior.sr_modules in
-    { sr_vals; sr_types; sr_modules }
+    let sr_vals    = IdentifierMap.union    left superior.sr_vals    inferior.sr_vals in
+    let sr_types   = TypeNameMap.union      left superior.sr_types   inferior.sr_types in
+    let sr_modules = ModuleNameMap.union    left superior.sr_modules inferior.sr_modules in
+    let sr_sigs    = SignatureNameMap.union left superior.sr_sigs    inferior.sr_sigs in
+    { sr_vals; sr_types; sr_modules; sr_sigs }
 
 end
