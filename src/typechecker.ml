@@ -54,6 +54,32 @@ type pre = {
 }
 
 
+let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
+  match tyenv |> Typeenv.find_module_opt m with
+  | None    -> raise (UnboundModuleName(rng, m))
+  | Some(v) -> v
+
+
+let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Typeenv.t) : Typeenv.t =
+  sigr |> SigRecord.fold
+    ~v:(fun x (pty, name) ->
+      Typeenv.add_val x pty name
+    )
+    ~t:(fun tynm tyopacity ->
+      match tyopacity with
+      | Transparent(typarams, ISynonym(sid, ptyreal)) -> Typeenv.add_synonym_type tynm sid typarams ptyreal
+      | Transparent(typarams, IVariant(vid, ctorbrs)) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
+      | Opaque(kind, oid)                             -> Typeenv.add_opaque_type tynm oid kind
+    )
+    ~m:(fun modnm (modsig, name) ->
+      Typeenv.add_module modnm modsig name
+    )
+    ~s:(fun signm absmodsig ->
+      Typeenv.add_signature signm absmodsig
+    )
+    tyenv
+
+
 let make_bound_to_free_map (lev : int) (typarams : BoundID.t list) : mono_type list * mono_type_var BoundIDMap.t =
   let (tyargacc, bfmap) =
     typarams |> List.fold_left (fun (tyargacc, bfmap) bid ->
@@ -446,6 +472,7 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
           end
 
       | MModProjType(utmod, tyident) ->
+          let (_absmodsig, _e) = typecheck_module tyenv utmod in
           failwith "TODO: MModProjType"
     in
     (rng, tymain)
@@ -880,7 +907,7 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (name_in
   (ptyf, e1)
 
 
-let make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) =
+and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) =
   ctorbrs |> List.fold_left (fun ctormap ctorbr ->
     match ctorbr with
     | ConstructorBranch(ctornm, mtyargs) ->
@@ -891,17 +918,11 @@ let make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorBranchMap.empty
 
 
-let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
-  match tyenv |> Typeenv.find_module_opt m with
-  | None    -> raise (UnboundModuleName(rng, m))
-  | Some(v) -> v
-
-
-let subtype_concrete_with_abstract (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
+and subtype_concrete_with_abstract (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
   failwith "TODO: subtype_concrete_with_abstract"
 
 
-let rec substitute_concrete (wtmap : witness_map) (modsig : module_signature) : module_signature =
+and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : module_signature =
   match modsig with
   | ConcFunctor(oidset, modsigdom, absmodsigcod) ->
       let modsigdom = modsigdom |> substitute_concrete wtmap in
@@ -971,27 +992,7 @@ and substitute_poly_type (wtmap : witness_map) (pty : poly_type) : poly_type =
   aux pty
 
 
-let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Typeenv.t) : Typeenv.t =
-  sigr |> SigRecord.fold
-    ~v:(fun x (pty, name) ->
-      Typeenv.add_val x pty name
-    )
-    ~t:(fun tynm tyopacity ->
-      match tyopacity with
-      | Transparent(typarams, ISynonym(sid, ptyreal)) -> Typeenv.add_synonym_type tynm sid typarams ptyreal
-      | Transparent(typarams, IVariant(vid, ctorbrs)) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
-      | Opaque(kind, oid)                             -> Typeenv.add_opaque_type tynm oid kind
-    )
-    ~m:(fun modnm (modsig, name) ->
-      Typeenv.add_module modnm modsig name
-    )
-    ~s:(fun signm absmodsig ->
-      Typeenv.add_signature signm absmodsig
-    )
-    tyenv
-
-
-let rec typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
+and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
   let (_, utdeclmain) = utdecl in
   match utdeclmain with
   | DeclVal(ident, tyvaridents, mty) ->
