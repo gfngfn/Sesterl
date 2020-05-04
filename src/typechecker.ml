@@ -471,9 +471,34 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                 TypeVar(MustBeBound(mbbid))
           end
 
-      | MModProjType(utmod, tyident) ->
-          let (_absmodsig, _e) = typecheck_module tyenv utmod in
-          failwith "TODO: MModProjType"
+      | MModProjType(utmod1, tyident2, mtyargs) ->
+          let (rng2, tynm2) = tyident2 in
+          let (absmodsig1, _) = typecheck_module tyenv utmod1 in
+          let (_, modsig1) = absmodsig1 in
+          begin
+            match modsig1 with
+            | ConcFunctor(_) ->
+                let (rng1, _) = utmod1 in
+                raise (NotOfStructureType(rng1, modsig1))
+
+            | ConcStructure(sigr) ->
+                begin
+                  match sigr |> SigRecord.find_type tynm2 with
+                  | None ->
+                      raise (UndefinedTypeName(rng2, tynm2))
+
+                  | Some(tyopac) ->
+                      let tyargs = mtyargs |> List.map aux in
+                      let (tyid, arity) =
+                        match tyopac with
+                        | Opaque(kd, oid)                         -> (TypeID.Opaque(oid), kd)
+                        | Transparent(typarams, ISynonym(sid, _)) -> (TypeID.Synonym(sid), List.length typarams)
+                        | Transparent(typarams, IVariant(vid, _)) -> (TypeID.Variant(vid), List.length typarams)
+                      in
+                      assert (arity = List.length tyargs);
+                      DataType(tyid, tyargs)
+                end
+          end
     in
     (rng, tymain)
   in

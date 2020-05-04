@@ -62,7 +62,7 @@ and manual_type_main =
   | MProductType of manual_type TupleList.t
   | MEffType     of manual_type * manual_type
   | MTypeVar     of type_variable_name
-  | MModProjType of untyped_module * type_name ranged
+  | MModProjType of untyped_module * type_name ranged * manual_type list
 
 and binder = identifier ranged * manual_type option
 
