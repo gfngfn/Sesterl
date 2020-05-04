@@ -1242,8 +1242,10 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       end
 
   | BindSig(sigident, sigbind) ->
-      let _abssig = typecheck_signature tyenv sigbind in
-      failwith "TODO: BindSig"
+      let (_, signm) = sigident in
+      let absmodsig = typecheck_signature tyenv sigbind in
+      let sigr = SigRecord.empty |> SigRecord.add_signature signm absmodsig in
+      ((OpaqueIDSet.empty, sigr), IBindSig)
 
 
 and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signature abstracted * ast =

@@ -582,6 +582,7 @@ and binding =
   | IBindVal     of val_binding
   | IBindType    of (type_name * BoundID.t list * single_type_binding) list
   | IBindModule  of module_name * name * module_signature * ast
+  | IBindSig
   | IBindInclude of ast * module_signature
 
 and ast =

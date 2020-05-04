@@ -206,6 +206,9 @@ let stringify_declaration (bind : binding) : string list =
   | IBindModule(_, name, _, e) ->
       failwith "TODO: IBindModule"
 
+  | IBindSig ->
+      []
+
   | IBindInclude(_) ->
       failwith "TODO: IInclude"
 
