@@ -114,7 +114,7 @@ let make_type_parameter_assoc (lev : int) (tyvarnms : (type_variable_name ranged
   ) TypeParameterAssoc.empty
 
 
-module TypeIDHashSet = Hashtbl.Make(TypeID)
+module SynonymIDHashSet = Hashtbl.Make(TypeID.Synonym)
 
 module TypeIDSet = Set.Make(TypeID)
 
@@ -496,6 +496,7 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                         | Transparent(typarams, IVariant(vid, _)) -> (TypeID.Variant(vid), List.length typarams)
                       in
                       assert (arity = List.length tyargs);
+                      k tyid;
                       DataType(tyid, tyargs)
                 end
           end
@@ -509,17 +510,25 @@ and decode_manual_type (tyenv : Typeenv.t) : local_type_parameter_map -> manual_
   decode_manual_type_scheme (fun _ -> ()) tyenv
 
 
-and decode_manual_type_and_get_dependency (pre : pre) (mty : manual_type) : mono_type * TypeIDSet.t =
-  let hashset = TypeIDHashSet.create 32 in
+and decode_manual_type_and_get_dependency (vertices : SynonymIDSet.t) (pre : pre) (mty : manual_type) : mono_type * SynonymIDSet.t =
+  let hashset = SynonymIDHashSet.create 32 in
     (* -- a hash set is created on every (non-partial) call -- *)
   let k tyid =
-    TypeIDHashSet.add hashset tyid ()
+    match tyid with
+    | TypeID.Synonym(sid) ->
+        if vertices |> SynonymIDSet.mem sid then
+          SynonymIDHashSet.add hashset sid ()
+        else
+          ()
+
+    | _ ->
+        ()
   in
   let ty = decode_manual_type_scheme k pre.tyenv pre.local_type_parameters mty in
   let dependencies =
-    TypeIDHashSet.fold (fun tyid () set ->
-      set |> TypeIDSet.add tyid
-    ) hashset TypeIDSet.empty
+    SynonymIDHashSet.fold (fun sid () set ->
+      set |> SynonymIDSet.add sid
+    ) hashset SynonymIDSet.empty
   in
   (ty, dependencies)
 
@@ -1240,8 +1249,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       assert false
 
   | BindType((_ :: _) as tybinds) ->
-      let (synacc, vntacc, graph, tyenv) =
-        tybinds |> List.fold_left (fun (synacc, vntacc, graph, tyenv) (tyident, typarams, syn_or_vnt) ->
+      let (synacc, vntacc, vertices, graph, tyenv) =
+        tybinds |> List.fold_left (fun (synacc, vntacc, vertices, graph, tyenv) (tyident, typarams, syn_or_vnt) ->
           let (_, tynm) = tyident in
           let arity = List.length typarams in
           match syn_or_vnt with
@@ -1250,14 +1259,14 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
               let graph = graph |> DependencyGraph.add_vertex sid tyident in
               let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Synonym(sid)) arity in
               let synacc = Alist.extend synacc (tyident, typarams, synbind, sid) in
-              (synacc, vntacc, graph, tyenv)
+              (synacc, vntacc, vertices |> SynonymIDSet.add sid, graph, tyenv)
 
           | BindVariant(vntbind) ->
               let vid = TypeID.Variant.fresh tynm in
               let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Variant(vid)) arity in
               let vntacc = Alist.extend vntacc (tyident, typarams, vntbind, vid) in
-              (synacc, vntacc, graph, tyenv)
-        ) (Alist.empty, Alist.empty, DependencyGraph.empty, tyenv)
+              (synacc, vntacc, vertices, graph, tyenv)
+        ) (Alist.empty, Alist.empty, SynonymIDSet.empty, DependencyGraph.empty, tyenv)
       in
       let pre =
         {
@@ -1276,14 +1285,11 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             let localtyparams = pre.local_type_parameters |> add_local_type_parameter typaramassoc in
             { pre with local_type_parameters = localtyparams }
           in
-          let (tyreal, dependencies) = decode_manual_type_and_get_dependency pre mtyreal in
+          let (tyreal, dependencies) = decode_manual_type_and_get_dependency vertices pre mtyreal in
           let ptyreal = generalize pre.level tyreal in
           let graph =
-            graph |> TypeIDSet.fold (fun tyiddep graph ->
-              match tyiddep with
-              | TypeID.Synonym(siddep) -> graph |> DependencyGraph.add_edge sid siddep
-              | TypeID.Variant(_)      -> graph
-              | TypeID.Opaque(_)       -> graph
+            graph |> SynonymIDSet.fold (fun siddep graph ->
+              graph |> DependencyGraph.add_edge sid siddep
             ) dependencies
           in
           let tybindacc = Alist.extend tybindacc (tynm, typarams, ISynonym(sid, ptyreal)) in

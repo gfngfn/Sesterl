@@ -514,6 +514,8 @@ module TypeParameterMap = Map.Make(String)
 
 type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
+module SynonymIDSet = Set.Make(TypeID.Synonym)
+
 module OpaqueID = TypeID.Opaque
 
 module OpaqueIDSet = Set.Make(OpaqueID)
