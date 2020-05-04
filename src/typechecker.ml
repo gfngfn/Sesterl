@@ -989,7 +989,7 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
 
 
 let rec typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
-  let (rng, utdeclmain) = utdecl in
+  let (_, utdeclmain) = utdecl in
   match utdeclmain with
   | DeclVal(ident, tyvaridents, mty) ->
       let (_, x) = ident in
