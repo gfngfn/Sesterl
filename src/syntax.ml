@@ -147,7 +147,8 @@ and untyped_binding =
   | BindInclude of untyped_module
 
 and untyped_signature =
-  | SigPath    of untyped_module
+  | SigVar     of signature_name
+  | SigPath    of untyped_module * signature_name ranged
   | SigDecls   of untyped_declaration list
   | SigFunctor of module_name ranged * untyped_signature * untyped_signature
   | SigWith    of untyped_signature * (module_name ranged) list * type_name ranged * manual_type

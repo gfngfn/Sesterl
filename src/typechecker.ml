@@ -931,7 +931,10 @@ let rec typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration)
 
 and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
   match utsig with
-  | SigPath(utmod) ->
+  | SigVar(signm) ->
+      failwith "TODO: SigVar"
+
+  | SigPath(utmod, sigident) ->
       failwith "TODO: SigPath"
 
   | SigDecls(utdecls) ->
