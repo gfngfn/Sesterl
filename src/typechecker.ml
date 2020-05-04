@@ -935,7 +935,37 @@ and substitute_abstract (wtmap : witness_map) (absmodsig : module_signature abst
 
 
 and substitute_poly_type (wtmap : witness_map) (pty : poly_type) : poly_type =
-  failwith "TODO: substitute_poly_type"
+  let rec aux (rng, ptymain) =
+    let ptymain =
+      match ptymain with
+      | BaseType(_)               -> ptymain
+      | FuncType(ptydoms, ptycod) -> FuncType(ptydoms |> List.map aux, aux ptycod)
+      | PidType(ppid)             -> PidType(aux_pid ppid)
+      | EffType(peff, ptysub)     -> EffType(aux_effect peff, aux ptysub)
+      | TypeVar(_)                -> ptymain
+      | ProductType(ptys)         -> ProductType(ptys |> TupleList.map aux)
+      | ListType(ptysub)          -> ListType(aux ptysub)
+
+      | DataType(TypeID.Opaque(oid), ptyargs) ->
+          begin
+            match wtmap |> OpaqueIDMap.find_opt oid with
+            | None            -> ptymain
+            | Some(sid, _, _) -> DataType(TypeID.Synonym(sid), ptyargs)
+          end
+
+      | DataType(tyid, ptyargs) ->
+          DataType(tyid, ptyargs |> List.map aux)
+    in
+    (rng, ptymain)
+
+  and aux_pid = function
+    | Pid(pty) -> Pid(aux pty)
+
+  and aux_effect = function
+    | Effect(pty) -> Effect(aux pty)
+
+  in
+  aux pty
 
 
 let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Typeenv.t) : Typeenv.t =
