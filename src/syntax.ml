@@ -157,7 +157,7 @@ and untyped_signature_main =
   | SigWith    of untyped_signature * (module_name ranged) list * type_name ranged * manual_type
 
 and untyped_declaration =
-  | DeclVal        of identifier ranged * manual_type
+  | DeclVal        of identifier ranged * (type_variable_name ranged) list * manual_type
   | DeclTypeTrans  of type_name ranged * manual_type
   | DeclTypeOpaque of type_name ranged * kind
   | DeclModule     of module_name ranged * untyped_signature
