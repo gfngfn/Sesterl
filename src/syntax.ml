@@ -521,6 +521,8 @@ module TypeParameterMap = Map.Make(String)
 
 type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
+module OpaqueID = TypeID.Opaque
+
 module OpaqueIDSet = Set.Make(OpaqueID)
 
 module OpaqueIDMap = Map.Make(OpaqueID)

@@ -1189,6 +1189,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
               match tyiddep with
               | TypeID.Synonym(siddep) -> graph |> DependencyGraph.add_edge sid siddep
               | TypeID.Variant(_)      -> graph
+              | TypeID.Opaque(_)       -> graph
             ) dependencies
           in
           let tybindacc = Alist.extend tybindacc (tynm, typarams, ISynonym(sid, ptyreal)) in

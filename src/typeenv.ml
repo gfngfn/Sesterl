@@ -27,6 +27,10 @@ type type_entry =
       type_parameters : BoundID.t list;
       real_type       : poly_type;
     }
+  | DefinedOpaque of {
+      id   : OpaqueID.t;
+      kind : kind;
+    }
 
 module ConstructorMap = Map.Make(String)
 
@@ -120,7 +124,13 @@ let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (typarams : Bou
 
 
 let add_opaque_type (tynm : type_name) (oid : OpaqueID.t) (kind : kind) (tyenv : t) : t =
-  failwith "TODO: add_opaque_type"
+  let entry =
+    DefinedOpaque{
+      id   = oid;
+      kind = kind;
+    }
+  in
+  { tyenv with types = tyenv.types |> TypeMap.add tynm entry }
 
 
 let add_type_for_recursion (tynm : type_name) (tyid : TypeID.t) (paramlen : int) (tyenv : t) : t =
@@ -144,6 +154,7 @@ let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * int) option =
   | Defining(record)       -> (record.type_id, record.number_of_parameters)
   | DefinedVariant(record) -> (TypeID.Variant(record.id), List.length record.type_parameters)
   | DefinedSynonym(record) -> (TypeID.Synonym(record.id), List.length record.type_parameters)
+  | DefinedOpaque(record)  -> (TypeID.Opaque(record.id), record.kind)
   )
 
 
