@@ -695,3 +695,53 @@ module SigRecord = struct
     { sr_vals; sr_types; sr_modules; sr_sigs }
 
 end
+
+
+let pp_comma ppf () =
+  Format.fprintf ppf ", "
+
+
+let rec display_signature (depth : int) (modsig : module_signature) : unit =
+  let indent = String.make (depth * 2) ' ' in
+  match modsig with
+  | ConcStructure(sigr) ->
+      Format.printf "%ssig\n" indent;
+      display_structure (depth + 1) sigr;
+      Format.printf "%send\n" indent
+
+  | ConcFunctor(_oidset, _modsigdom, _absmodsigcod) ->
+      Format.printf "%s: fun ...\n" indent
+
+
+and display_structure (depth : int) (sigr : SigRecord.t) : unit =
+  let indent = String.make (depth * 2) ' ' in
+  sigr |> SigRecord.fold
+      ~v:(fun x (pty, _) () ->
+        Format.printf "%sval %s: %a\n" indent x pp_poly_type pty
+      )
+      ~t:(fun tynm tyopacity () ->
+        match tyopacity with
+        | Transparent(typarams, ISynonym(_sid, ptyreal)) ->
+            Format.printf "%stype %s<%a> = %a\n"
+              indent
+              tynm
+              (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
+              pp_poly_type ptyreal
+
+        | Transparent(typarams, IVariant(_vid, _ctorbrs)) ->
+            Format.printf "%stype %s<%a> = (variant)\n"
+              indent
+              tynm
+              (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
+
+        | Opaque(kind, _) ->
+            Format.printf "%stype %s:: %d\n" indent tynm kind
+      )
+      ~m:(fun modnm (modsig, _) () ->
+        Format.printf "%smodule %s:\n" indent modnm;
+        display_signature (depth + 1) modsig;
+      )
+      ~s:(fun signm _ () ->
+        Format.printf "signature %s\n" signm
+      )
+      ()

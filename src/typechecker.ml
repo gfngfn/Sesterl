@@ -1074,7 +1074,7 @@ and typecheck_declaration_list (tyenv : Typeenv.t) (utdecls : untyped_declaratio
     utdecls |> List.fold_left (fun (oidsetacc, sigracc, tyenv) ((rng, _) as utdecl) ->
       let (oidset, sigr) = typecheck_declaration tyenv utdecl in
       let oidsetacc = OpaqueIDSet.union oidsetacc oidset in
-      let sigracc = SigRecord.disjoint_union rng sigracc sigracc in
+      let sigracc = SigRecord.disjoint_union rng sigracc sigr in
       let tyenv = tyenv |> update_type_environment_by_signature_record sigr in
       (oidsetacc, sigracc, tyenv)
     ) (OpaqueIDSet.empty, SigRecord.empty, tyenv)
@@ -1387,6 +1387,10 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
         (* temporary; it may be appropriate to generate name from `m` *)
       let (absmodsigcod, e0) =
         let (_, m) = modident in
+(*
+        Printf.printf "MOD-FUNCTOR %s\n" m;  (* for debug *)
+        display_signature 0 modsigdom;  (* for debug *)
+*)
         let tyenv = tyenv |> Typeenv.add_module m modsigdom name in
         typecheck_module tyenv utmod0
       in
