@@ -51,6 +51,11 @@ let main fpath_in fpath_out =
   | SeeEndOfFileInStringLiteral(rngL) ->
       Format.printf "%a: unclosed string literal begins here\n" Range.pp rngL
 
+  | ConflictInSignature(rng, x) ->
+      Format.printf "%a: '%s' is already defined in the signature\n"
+        Range.pp rng
+        x
+
   | Typechecker.UnboundVariable(rng, x) ->
       Format.printf "%a: unbound variable '%s'\n" Range.pp rng x
 
@@ -117,6 +122,36 @@ let main fpath_in fpath_out =
       tyidents |> List.iter (fun (rng, tynm) ->
         Format.printf "%s (%a)\n" tynm Range.pp rng
       )
+
+  | Typechecker.UnboundModuleName(rng, modnm) ->
+      Format.printf "%a: unbound module name '%s'\n"
+        Range.pp rng
+        modnm
+
+  | Typechecker.NotOfStructureType(rng, modsig) ->
+      Format.printf "%a: this module expression is not of a structure signature\n"
+        Range.pp rng
+
+  | Typechecker.NotOfFunctorType(rng, modsig) ->
+      Format.printf "%a: this module expression is not of a functor signature\n"
+        Range.pp rng
+
+  | Typechecker.NotAStructureSignature(rng, modsig) ->
+      Format.printf "%a: this signature expression is not a structure\n"
+        Range.pp rng
+
+  | Typechecker.NotAFunctorSignature(rng, modsig) ->
+      Format.printf "%a: this signature expression is not a functor\n"
+        Range.pp rng
+
+  | Typechecker.UnboundSignatureName(rng, signm) ->
+      Format.printf "%a: unbound signature name '%s'\n"
+        Range.pp rng
+        signm
+
+  | Typechecker.CannotRestrictTransparentType(rng, typarams, syn_or_vnt) ->
+      Format.printf "%a: the specified type is already transparent\n"
+        Range.pp rng
 
 
 let flag_output =
