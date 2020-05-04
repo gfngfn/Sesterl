@@ -19,6 +19,7 @@ exception UnboundModuleName                   of Range.t * module_name
 exception NotOfStructureType                  of Range.t * module_signature
 exception NotOfFunctorType                    of Range.t * module_signature
 exception NotAFunctorSignature                of Range.t * module_signature
+exception NotAStructureSignature              of Range.t * module_signature
 exception UnboundSignatureName                of Range.t * signature_name
 
 
@@ -977,8 +978,12 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
               | None ->
                   raise (UnboundSignatureName(rng2, signm2))
 
-              | Some(absmodsig2) ->
-                  absmodsig2
+              | Some((_, modsig2) as absmodsig2) ->
+                  begin
+                    match modsig2 with
+                    | ConcFunctor(_)   -> raise (NotAStructureSignature(rng2, modsig2))
+                    | ConcStructure(_) -> absmodsig2
+                  end
                     (* Combining typing rules (P-Mod) and (S-Path)
                        in the original paper "F-ing modules" [Rossberg, Russo & Dreyer 2014],
                        we can ignore `oldset1` here.
