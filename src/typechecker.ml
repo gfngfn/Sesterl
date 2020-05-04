@@ -894,17 +894,48 @@ let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
   | Some(v) -> v
 
 
-let subtype_concrete_with_abstract (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : (BoundID.t list * poly_type) OpaqueIDMap.t =
+let subtype_concrete_with_abstract (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
   failwith "TODO: subtype_concrete_with_abstract"
 
 
-let substitute_concrete (witnessmap : (BoundID.t list * poly_type) OpaqueIDMap.t) (modsig : module_signature) : module_signature =
-  failwith "TODO: substitute_concrete"
+let rec substitute_concrete (wtmap : witness_map) (modsig : module_signature) : module_signature =
+    match modsig with
+    | ConcFunctor(oidset, modsigdom, absmodsigcod) ->
+        let modsigdom = modsigdom |> substitute_concrete wtmap in
+        let absmodsigcod = absmodsigcod |> substitute_abstract wtmap in
+        ConcFunctor(oidset, modsigdom, absmodsigcod)
+          (* -- Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. -- *)
+
+    | ConcStructure(sigr) ->
+        let sigr =
+          sigr |> SigRecord.map
+              ~v:(fun (pty, name) -> (substitute_poly_type wtmap pty, name))
+              ~t:(fun tyopac ->
+                match tyopac with
+                | Transparent(_) ->
+                    tyopac
+
+                | Opaque(kd, oid) ->
+                    begin
+                      match wtmap |> OpaqueIDMap.find_opt oid with
+                      | None                    -> tyopac
+                      | Some(sid, typarams, pty) -> Transparent(typarams, ISynonym(sid, pty))
+                    end
+              )
+              ~m:(fun (modsig, name) -> (substitute_concrete wtmap modsig, name))
+              ~s:(substitute_abstract wtmap)
+        in
+        ConcStructure(sigr)
 
 
-let substitute_abstract (witnessmap : (BoundID.t list * poly_type) OpaqueIDMap.t) (absmodsig : module_signature abstracted) : module_signature abstracted =
+and substitute_abstract (wtmap : witness_map) (absmodsig : module_signature abstracted) : module_signature abstracted =
   let (oidset, modsig) = absmodsig in
-  (oidset, substitute_concrete witnessmap modsig)
+  (oidset, substitute_concrete wtmap modsig)
+    (* -- Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. -- *)
+
+
+and substitute_poly_type (wtmap : witness_map) (pty : poly_type) : poly_type =
+  failwith "TODO: substitute_poly_type"
 
 
 let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Typeenv.t) : Typeenv.t =
@@ -1091,7 +1122,11 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                     generalize 0 ty
                   in
                   let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
-                  let modsigret = substitute_concrete (OpaqueIDMap.singleton oid (typarams, pty)) modsig0 in
+                  let modsigret =
+                    let sid = TypeID.Synonym.fresh tynm1 in
+                    let wtmap = OpaqueIDMap.singleton oid (sid, typarams, pty) in
+                    substitute_concrete wtmap modsig0
+                  in
                   (oidset0 |> OpaqueIDSet.remove oid, modsigret)
 
             end

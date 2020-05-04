@@ -605,6 +605,8 @@ and ast =
 and branch =
   | IBranch of pattern * ast option * ast
 
+type witness_map = (TypeID.Synonym.t * BoundID.t list * poly_type) OpaqueIDMap.t
+
 module SigRecord = struct
 
   type t = signature_record
@@ -666,6 +668,20 @@ module SigRecord = struct
       |> TypeNameMap.fold ft sigr.sr_types
       |> ModuleNameMap.fold fm sigr.sr_modules
       |> SignatureNameMap.fold fs sigr.sr_sigs
+
+
+  let map
+      ~v:(fv : poly_type * name -> poly_type * name)
+      ~t:(ft : type_opacity -> type_opacity)
+      ~m:(fm : module_signature * name -> module_signature * name)
+      ~s:(fs : module_signature abstracted -> module_signature abstracted)
+      (sigr : t) : t =
+    {
+      sr_vals    = sigr.sr_vals |> IdentifierMap.map fv;
+      sr_types   = sigr.sr_types |> TypeNameMap.map ft;
+      sr_modules = sigr.sr_modules |> ModuleNameMap.map fm;
+      sr_sigs    = sigr.sr_sigs |> SignatureNameMap.map fs;
+    }
 
 
   let overwrite (superior : t) (inferior : t) : t =
