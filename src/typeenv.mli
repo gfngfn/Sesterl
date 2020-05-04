@@ -30,3 +30,5 @@ val find_synonym_type : TypeID.Synonym.t -> t -> (BoundID.t list * poly_type) op
 val add_module : module_name -> module_signature -> name -> t -> t
 
 val find_module_opt : module_name -> t -> (module_signature * name) option
+
+val find_signature_opt : signature_name -> t -> (module_signature abstracted) option

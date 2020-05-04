@@ -952,7 +952,14 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
   let (rng, utsigmain) = utsig in
   match utsigmain with
   | SigVar(signm) ->
-      failwith "TODO: SigVar"
+      begin
+        match tyenv |> Typeenv.find_signature_opt signm with
+        | None ->
+            raise (UnboundSignatureName(rng, signm))
+
+        | Some(absmodsig) ->
+            absmodsig
+      end
 
   | SigPath(utmod, sigident) ->
       let (absmodsig1, e) = typecheck_module tyenv utmod in
