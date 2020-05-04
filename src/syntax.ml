@@ -517,7 +517,7 @@ module TypeParameterMap = Map.Make(String)
 
 type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
-module BoundIDSet = Set.Make(OpaqueID)
+module OpaqueIDSet = Set.Make(OpaqueID)
 (*
 type 'r concrete_signature_ =
   | AtomicPoly   of poly_type
@@ -527,7 +527,7 @@ type 'r concrete_signature_ =
 *)
 type 'r module_signature_ =
   | ConcStructure of 'r
-  | ConcFunctor   of BoundIDSet.t * 'r module_signature_ * (BoundIDSet.t * 'r module_signature_)
+  | ConcFunctor   of OpaqueIDSet.t * 'r module_signature_ * (OpaqueIDSet.t * 'r module_signature_)
 
 module IdentifierMap = Map.Make(String)
 
@@ -563,7 +563,7 @@ type signature_record = {
 
 type module_signature = signature_record module_signature_
 
-type 'a abstracted = BoundIDSet.t * 'a
+type 'a abstracted = OpaqueIDSet.t * 'a
 
 type val_binding =
   | INonRec of (identifier * name * poly_type * ast)
