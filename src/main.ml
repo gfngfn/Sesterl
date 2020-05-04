@@ -2,6 +2,52 @@
 open Syntax
 
 
+let rec display_signature (depth : int) (modsig : module_signature) : unit =
+  let indent = String.make (depth * 2) ' ' in
+  match modsig with
+  | ConcStructure(sigr) ->
+      Format.printf "%ssig\n" indent;
+      display_structure (depth + 1) sigr;
+      Format.printf "%send\n" indent
+
+  | ConcFunctor(_oidset, _modsigdom, _absmodsigcod) ->
+      Format.printf "%s: fun ...\n" indent
+
+
+and display_structure (depth : int) (sigr : SigRecord.t) : unit =
+  let indent = String.make (depth * 2) ' ' in
+  sigr |> SigRecord.fold
+      ~v:(fun x (pty, _) () ->
+        Format.printf "%sval %s : %a\n" indent x pp_poly_type pty
+      )
+      ~t:(fun tynm tyopacity () ->
+        match tyopacity with
+        | Transparent(typarams, ISynonym(_sid, ptyreal)) ->
+            Format.printf "%stype %s<%a> = %a\n"
+              indent
+              tynm
+              (Format.pp_print_list BoundID.pp) typarams
+              pp_poly_type ptyreal
+
+        | Transparent(typarams, IVariant(_vid, _ctorbrs)) ->
+            Format.printf "%stype %s<%a> = (variant)\n"
+              indent
+              tynm
+              (Format.pp_print_list BoundID.pp) typarams
+
+        | Opaque(kind, _) ->
+            Format.printf "%stype %s :: %d\n" indent tynm kind
+      )
+      ~m:(fun modnm (modsig, _) () ->
+        Format.printf "%smodule %s :\n" indent modnm;
+        display_signature (depth + 1) modsig;
+      )
+      ~s:(fun signm _ () ->
+        Format.printf "signature %s\n" signm
+      )
+      ()
+
+
 let main fpath_in fpath_out =
   try
     let inc = open_in fpath_in in
@@ -9,6 +55,7 @@ let main fpath_in fpath_out =
     let utdecls = ParserInterface.process lexbuf in
     close_in inc;
     let ((_, sigr), decls) = Typechecker.main utdecls in
+    display_structure 0 sigr;
     let scode =
       let modname =
         Filename.remove_extension (Filename.basename fpath_out)
@@ -18,26 +65,6 @@ let main fpath_in fpath_out =
     let outc = open_out fpath_out in
     output_string outc scode;
     close_out outc;
-    SigRecord.fold
-      ~v:(fun x (pty, _) () ->
-        Format.printf "val %s : %a\n" x pp_poly_type pty
-      )
-      ~t:(fun tynm tyopacity () ->
-        match tyopacity with
-        | Transparent(typarams, _) ->
-            Format.printf "type %s :: %d = ...\n" tynm (List.length typarams)
-
-        | Opaque(kind, _) ->
-            Format.printf "type %s :: %d\n" tynm kind
-      )
-      ~m:(fun modnm _ () ->
-        Format.printf "module %s\n" modnm
-      )
-      ~s:(fun signm _ () ->
-        Format.printf "signature %s\n" signm
-      )
-      ()
-      sigr
   with
   | ParserInterface.Error(rng) ->
       Format.printf "%a: syntax error\n" Range.pp rng
