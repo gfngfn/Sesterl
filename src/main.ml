@@ -2,6 +2,10 @@
 open Syntax
 
 
+let pp_comma ppf () =
+  Format.fprintf ppf ", "
+
+
 let rec display_signature (depth : int) (modsig : module_signature) : unit =
   let indent = String.make (depth * 2) ' ' in
   match modsig with
@@ -18,7 +22,7 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
   let indent = String.make (depth * 2) ' ' in
   sigr |> SigRecord.fold
       ~v:(fun x (pty, _) () ->
-        Format.printf "%sval %s : %a\n" indent x pp_poly_type pty
+        Format.printf "%sval %s: %a\n" indent x pp_poly_type pty
       )
       ~t:(fun tynm tyopacity () ->
         match tyopacity with
@@ -26,20 +30,20 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
             Format.printf "%stype %s<%a> = %a\n"
               indent
               tynm
-              (Format.pp_print_list BoundID.pp) typarams
+              (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
               pp_poly_type ptyreal
 
         | Transparent(typarams, IVariant(_vid, _ctorbrs)) ->
             Format.printf "%stype %s<%a> = (variant)\n"
               indent
               tynm
-              (Format.pp_print_list BoundID.pp) typarams
+              (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
 
         | Opaque(kind, _) ->
-            Format.printf "%stype %s :: %d\n" indent tynm kind
+            Format.printf "%stype %s:: %d\n" indent tynm kind
       )
       ~m:(fun modnm (modsig, _) () ->
-        Format.printf "%smodule %s :\n" indent modnm;
+        Format.printf "%smodule %s:\n" indent modnm;
         display_signature (depth + 1) modsig;
       )
       ~s:(fun signm _ () ->

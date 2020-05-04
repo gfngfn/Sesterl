@@ -178,7 +178,7 @@ sigexprbot:
         let (_, utsigmain) = utsig in
         (rng, utsigmain)
       }
-  | utmod=modexprbot; DOT; sigident=CTOR {
+  | LPAREN; utmod=modexprbot; DOT; sigident=CTOR; RPAREN {
         let rng = make_range (Ranged(utmod)) (Ranged(sigident)) in
         (rng, SigPath(utmod, sigident))
       }
