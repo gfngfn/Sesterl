@@ -903,7 +903,8 @@ let substitute_concrete (witnessmap : poly_type OpaqueIDMap.t) (modsig : module_
 
 
 let substitute_abstract (witnessmap : poly_type OpaqueIDMap.t) (absmodsig : module_signature abstracted) : module_signature abstracted =
-  failwith "TODO: substitute_abstract"
+  let (oidset, modsig) = absmodsig in
+  (oidset, substitute_concrete witnessmap modsig)
 
 
 let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Typeenv.t) : Typeenv.t =
