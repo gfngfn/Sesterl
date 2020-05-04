@@ -638,6 +638,10 @@ module SigRecord = struct
     sigr.sr_modules |> ModuleNameMap.find_opt modnm
 
 
+  let add_signature (signm : signature_name) (absmodsig : module_signature abstracted) (sigr : t) : t =
+    { sigr with sr_sigs = sigr.sr_sigs |> SignatureNameMap.add signm absmodsig }
+
+
   let find_signature (signm : signature_name) (sigr : t) : (module_signature abstracted) option =
     sigr.sr_sigs |> SignatureNameMap.find_opt signm
 

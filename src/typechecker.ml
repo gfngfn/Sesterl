@@ -954,7 +954,10 @@ let rec typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration)
       (oidset, sigr)
 
   | DeclSig(sigident, utsig) ->
-      failwith "TODO: DeclSig"
+      let (_, signm) = sigident in
+      let absmodsig = typecheck_signature tyenv utsig in
+      let sigr = SigRecord.empty |> SigRecord.add_signature signm absmodsig in
+      (OpaqueIDSet.empty, sigr)
 
   | DeclInclude(utsig) ->
       let absmodsig = typecheck_signature tyenv utsig in
@@ -1027,7 +1030,8 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
       end
 
   | SigDecls(utdecls) ->
-      failwith "TODO: SigDecls"
+      let (oidset, sigr) = typecheck_declaration_list tyenv utdecls in
+      (oidset, ConcStructure(sigr))
 
   | SigFunctor(modident, utsigdom, utsigcod) ->
       let (oidset, sigdom) = typecheck_signature tyenv utsigdom in
