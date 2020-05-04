@@ -147,6 +147,9 @@ and untyped_binding =
   | BindInclude of untyped_module
 
 and untyped_signature =
+  untyped_signature_main ranged
+
+and untyped_signature_main =
   | SigVar     of signature_name
   | SigPath    of untyped_module * signature_name ranged
   | SigDecls   of untyped_declaration list
@@ -159,6 +162,7 @@ and untyped_declaration =
   | DeclTypeOpaque of type_name ranged * kind
   | DeclModule     of module_name ranged * untyped_signature
   | DeclSig        of signature_name ranged * untyped_signature
+  | DeclInclude    of untyped_signature
 [@@deriving show { with_path = false; } ]
 
 type 'a typ =

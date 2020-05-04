@@ -18,6 +18,7 @@ exception CyclicSynonymTypeDefinition         of (type_name ranged) list
 exception UnboundModuleName                   of Range.t * module_name
 exception NotOfStructureType                  of Range.t * module_signature
 exception NotOfFunctorType                    of Range.t * module_signature
+exception NotAFunctorSignature                of Range.t * module_signature
 
 
 module BindingMap = Map.Make(String)
@@ -905,7 +906,7 @@ let substitute_abstract (witnessmap : poly_type BoundIDMap.t) (absmodsig : modul
   failwith "TODO: substitute_abstract"
 
 
-let rec typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) =
+let rec typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
   match utdecl with
   | DeclVal(ident, mty) ->
 (*
@@ -923,14 +924,33 @@ let rec typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration)
       failwith "TODO: DeclTypeOpaque"
 
   | DeclModule(modident, utsig) ->
-      failwith "TODO: DeclModule"
+      let (_, m) = modident in
+      let absmodsig = typecheck_signature tyenv utsig in
+      let (bidset, modsig) = absmodsig in
+      let name = OutputIdentifier.fresh () in
+      let sigr = SigRecord.empty |> SigRecord.add_module m modsig name in
+      (bidset, sigr)
 
   | DeclSig(sigident, utsig) ->
       failwith "TODO: DeclSig"
 
+  | DeclInclude(utsig) ->
+      let absmodsig = typecheck_signature tyenv utsig in
+      let (bidset, modsig) = absmodsig in
+      begin
+        match modsig with
+        | ConcFunctor(_) ->
+            let (rng, _) = utsig in
+            raise (NotAFunctorSignature(rng, modsig))
+
+        | ConcStructure(sigr) ->
+            (bidset, sigr)
+      end
+
 
 and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
-  match utsig with
+  let (rng, utsigmain) = utsig in
+  match utsigmain with
   | SigVar(signm) ->
       failwith "TODO: SigVar"
 
