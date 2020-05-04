@@ -899,33 +899,33 @@ let subtype_concrete_with_abstract (tyenv : Typeenv.t) (modsig1 : module_signatu
 
 
 let rec substitute_concrete (wtmap : witness_map) (modsig : module_signature) : module_signature =
-    match modsig with
-    | ConcFunctor(oidset, modsigdom, absmodsigcod) ->
-        let modsigdom = modsigdom |> substitute_concrete wtmap in
-        let absmodsigcod = absmodsigcod |> substitute_abstract wtmap in
-        ConcFunctor(oidset, modsigdom, absmodsigcod)
-          (* -- Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. -- *)
+  match modsig with
+  | ConcFunctor(oidset, modsigdom, absmodsigcod) ->
+      let modsigdom = modsigdom |> substitute_concrete wtmap in
+      let absmodsigcod = absmodsigcod |> substitute_abstract wtmap in
+      ConcFunctor(oidset, modsigdom, absmodsigcod)
+    (* -- Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. -- *)
 
-    | ConcStructure(sigr) ->
-        let sigr =
-          sigr |> SigRecord.map
-              ~v:(fun (pty, name) -> (substitute_poly_type wtmap pty, name))
-              ~t:(fun tyopac ->
-                match tyopac with
-                | Transparent(_) ->
-                    tyopac
+  | ConcStructure(sigr) ->
+      let sigr =
+        sigr |> SigRecord.map
+            ~v:(fun (pty, name) -> (substitute_poly_type wtmap pty, name))
+            ~t:(fun tyopac ->
+              match tyopac with
+              | Transparent(_) ->
+                  tyopac
 
-                | Opaque(kd, oid) ->
-                    begin
-                      match wtmap |> OpaqueIDMap.find_opt oid with
-                      | None                    -> tyopac
-                      | Some(sid, typarams, pty) -> Transparent(typarams, ISynonym(sid, pty))
-                    end
-              )
-              ~m:(fun (modsig, name) -> (substitute_concrete wtmap modsig, name))
-              ~s:(substitute_abstract wtmap)
-        in
-        ConcStructure(sigr)
+              | Opaque(kd, oid) ->
+                  begin
+                    match wtmap |> OpaqueIDMap.find_opt oid with
+                    | None                    -> tyopac
+                    | Some(sid, typarams, pty) -> Transparent(typarams, ISynonym(sid, pty))
+                  end
+            )
+            ~m:(fun (modsig, name) -> (substitute_concrete wtmap modsig, name))
+            ~s:(substitute_abstract wtmap)
+      in
+      ConcStructure(sigr)
 
 
 and substitute_abstract (wtmap : witness_map) (absmodsig : module_signature abstracted) : module_signature abstracted =
