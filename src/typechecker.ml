@@ -894,15 +894,15 @@ let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
   | Some(v) -> v
 
 
-let subtype_concrete_with_abstract (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : poly_type OpaqueIDMap.t =
+let subtype_concrete_with_abstract (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : (BoundID.t list * poly_type) OpaqueIDMap.t =
   failwith "TODO: subtype_concrete_with_abstract"
 
 
-let substitute_concrete (witnessmap : poly_type OpaqueIDMap.t) (modsig : module_signature) : module_signature =
+let substitute_concrete (witnessmap : (BoundID.t list * poly_type) OpaqueIDMap.t) (modsig : module_signature) : module_signature =
   failwith "TODO: substitute_concrete"
 
 
-let substitute_abstract (witnessmap : poly_type OpaqueIDMap.t) (absmodsig : module_signature abstracted) : module_signature abstracted =
+let substitute_abstract (witnessmap : (BoundID.t list * poly_type) OpaqueIDMap.t) (absmodsig : module_signature abstracted) : module_signature abstracted =
   let (oidset, modsig) = absmodsig in
   (oidset, substitute_concrete witnessmap modsig)
 
@@ -1084,13 +1084,14 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
 
               | Some(Opaque(kd, oid)) ->
                   assert (oidset0 |> OpaqueIDSet.mem oid);
+                  let typaramassoc = make_type_parameter_assoc 1 tyvaridents in
                   let pty =
-                    let typaramassoc = make_type_parameter_assoc 1 tyvaridents in
                     let localtyparams = TypeParameterMap.empty |> add_local_type_parameter typaramassoc in
                     let ty = decode_manual_type tyenv localtyparams mty in
                     generalize 0 ty
                   in
-                  let modsigret = substitute_concrete (OpaqueIDMap.singleton oid pty) modsig0 in
+                  let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
+                  let modsigret = substitute_concrete (OpaqueIDMap.singleton oid (typarams, pty)) modsig0 in
                   (oidset0 |> OpaqueIDSet.remove oid, modsigret)
 
             end
