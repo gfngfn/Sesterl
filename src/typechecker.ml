@@ -116,8 +116,6 @@ let make_type_parameter_assoc (lev : int) (tyvarnms : (type_variable_name ranged
 
 module SynonymIDHashSet = Hashtbl.Make(TypeID.Synonym)
 
-module TypeIDSet = Set.Make(TypeID)
-
 
 let (&&&) res1 res2 =
   match (res1, res2) with

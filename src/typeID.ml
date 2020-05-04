@@ -60,28 +60,6 @@ type t =
   | Opaque  of Opaque.t
 
 
-let hash =
-  Hashtbl.hash
-
-
-let compare tyid1 tyid2 =
-  match (tyid1, tyid2) with
-  | (Variant(vid1), Variant(vid2)) -> Variant.compare vid1 vid2
-  | (Variant(_)   , _            ) -> 1
-  | (Synonym(_)   , Variant(_)   ) -> -1
-  | (Synonym(sid1), Synonym(sid2)) -> Synonym.compare sid1 sid2
-  | (Synonym(_)   , Opaque(_))     -> 1
-  | (Opaque(oid1) , Opaque(oid2) ) -> Opaque.compare oid1 oid2
-  | (Opaque(_)    , _            ) -> -1
-
-
-let equal tyid1 tyid2 =
-  match (tyid1, tyid2) with
-  | (Variant(vid1), Variant(vid2)) -> Variant.equal vid1 vid2
-  | (Synonym(sid1), Synonym(sid2)) -> Synonym.equal sid1 sid2
-  | _                              -> false
-
-
 let pp ppf tyid =
   match tyid with
   | Variant(vid) -> Variant.pp ppf vid

@@ -30,7 +30,7 @@ let add_vertex (sid : TypeID.Synonym.t) (tyident : type_name ranged) (graph : t)
 
 let get_vertex_token map (sid : TypeID.Synonym.t) : GraphImpl.V.t =
   match map |> IDMap.find_opt sid with
-  | None            -> Format.printf "SID: %a\n" TypeID.Synonym.pp sid; assert false
+  | None            -> assert false
   | Some(_, vertex) -> vertex
 
 
