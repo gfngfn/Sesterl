@@ -92,6 +92,7 @@ and untyped_ast_main =
   | Case         of untyped_ast * untyped_branch list
   | Constructor  of constructor_name * untyped_ast list
   | BinaryByList of (int ranged) list
+  | ModProjVal   of untyped_module * identifier ranged
 
 and rec_or_nonrec =
   | NonRec of untyped_let_binding
@@ -618,6 +619,10 @@ module SigRecord = struct
 
   let add_val (x : identifier) (pty : poly_type) (name : name) (sigr : t) : t =
     { sigr with sr_vals = sigr.sr_vals |> IdentifierMap.add x (pty, name) }
+
+
+  let find_val (x : identifier) (sigr : t) : (poly_type * name) option =
+    sigr.sr_vals |> IdentifierMap.find_opt x
 
 
   let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (typarams : BoundID.t list) (ptyreal : poly_type) (sigr : t) : t =

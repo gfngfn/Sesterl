@@ -279,6 +279,10 @@ exprapp:
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, Constructor(ctornm, eargs))
       }
+  | utmod=modexprbot; DOT; ident=IDENT {
+        let rng = make_range (Ranged(utmod)) (Ranged(ident)) in
+        (rng, ModProjVal(utmod, ident))
+      }
   | e=exprbot { e }
 ;
 exprargs:

@@ -40,7 +40,7 @@ type unification_result =
   | Consistent
   | Contradiction
   | Inclusion of FreeID.t
-
+[@@deriving show { with_path = false; }]
 
 type scope =
   | Local
@@ -287,11 +287,23 @@ let unify (tyenv : Typeenv.t) (tyact : mono_type) (tyexp : mono_type) : unit =
 
     | (DataType(TypeID.Synonym(sid1), tyargs1), _) ->
         let ty1real = get_real_type tyenv sid1 tyargs1 in
+(*
+        Format.printf "UNIFY-SYN %a => %a =?= %a\n" TypeID.Synonym.pp sid1 pp_mono_type ty1real pp_mono_type ty2;  (* for debug *)
+*)
         aux ty1real ty2
 
     | (_, DataType(TypeID.Synonym(sid2), tyargs2)) ->
         let ty2real = get_real_type tyenv sid2 tyargs2 in
+(*
+        Format.printf "UNIFY-SYN %a =?= %a <= %a\n" pp_mono_type ty1 pp_mono_type ty2real TypeID.Synonym.pp sid2;  (* for debug *)
+*)
         aux ty1 ty2real
+
+    | (DataType(TypeID.Opaque(oid1), tyargs1), DataType(TypeID.Opaque(oid2), tyargs2)) ->
+        if TypeID.Opaque.equal oid1 oid2 then
+          aux_list tyargs1 tyargs2
+        else
+          Contradiction
 
     | (BaseType(bt1), BaseType(bt2)) ->
         if bt1 = bt2 then Consistent else Contradiction
@@ -739,6 +751,27 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         )
       in
       ((rng, BaseType(BinaryType)), IBaseConst(BinaryByInts(ns)))
+
+  | ModProjVal(utmod1, (rng2, x2)) ->
+      let (absmodsig, e1) = typecheck_module pre.tyenv utmod1 in
+      let (_oidset, modsig) = absmodsig in
+      begin
+        match modsig with
+        | ConcFunctor(_) ->
+            let (rng1, _) = utmod1 in
+            raise (NotOfStructureType(rng1, modsig))
+
+        | ConcStructure(sigr) ->
+            begin
+              match sigr |> SigRecord.find_val x2 with
+              | None ->
+                  raise (UnboundVariable(rng2, x2))
+
+              | Some((_, ptymain), name) ->
+                  let ty = instantiate pre.level (rng, ptymain) in
+                  (ty, IAccess(e1, name))
+            end
+      end
 
 
 and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name) =
@@ -1284,7 +1317,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             { pre with local_type_parameters = localtyparams }
           in
           let (tyreal, dependencies) = decode_manual_type_and_get_dependency vertices pre mtyreal in
-          let ptyreal = generalize pre.level tyreal in
+          let ptyreal = generalize 0 tyreal in
           let graph =
             graph |> SynonymIDSet.fold (fun siddep graph ->
               graph |> DependencyGraph.add_edge sid siddep
@@ -1292,6 +1325,9 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           in
           let tybindacc = Alist.extend tybindacc (tynm, typarams, ISynonym(sid, ptyreal)) in
           let sigr = sigr |> SigRecord.add_synonym_type tynm sid typarams ptyreal in
+(*
+          Format.printf "SYN %s %a <%d> = %a\n" tynm TypeID.Synonym.pp sid (List.length typarams) pp_poly_type ptyreal;  (* for debug *)
+*)
           (graph, sigr, tybindacc)
         ) (graph, SigRecord.empty, Alist.empty)
       in
