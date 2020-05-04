@@ -28,5 +28,6 @@ end
 
 module Map = fun(Elem: Ord) ->
   struct
-    type t<$a> = int
+    type elem = Elem.t
+    type t<$a> = list<(elem, $a)>
   end
