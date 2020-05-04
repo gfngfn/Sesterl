@@ -181,7 +181,7 @@ and stringify_pattern (ipat : pattern) =
       end
 
 
-let stringify_declaration (bind : binding) : string list =
+let stringify_binding (bind : binding) : string list =
   let val_single (_, namefun, _, ast) =
     match ast with
     | ILambda(None, nameparams, ast0) ->
@@ -200,18 +200,21 @@ let stringify_declaration (bind : binding) : string list =
   | IBindVal(IRec(valbinds)) ->
       valbinds |> List.map val_single
 
-  | IBindType(_) ->
+  | IBindType ->
       []
 
-  | IBindModule(_, name, _, e) ->
+  | IBindModule(name, e) ->
       failwith "TODO: IBindModule"
+
+  | IBindSig ->
+      []
 
   | IBindInclude(_) ->
       failwith "TODO: IInclude"
 
 
 let main (modname : string) (binds : binding list) : string =
-  let sbinds = binds |> List.map stringify_declaration |> List.concat in
+  let sbinds = binds |> List.map stringify_binding |> List.concat in
   let lines =
     List.append [
       Printf.sprintf "-module(%s)." modname;

@@ -39,6 +39,10 @@ rule token = parse
           | "case"    -> CASE(pos)
           | "of"      -> OF(pos)
           | "type"    -> TYPE(pos)
+          | "module"  -> MODULE(pos)
+          | "struct"  -> STRUCT(pos)
+          | "signature" -> SIGNATURE(pos)
+          | "sig"       -> SIG(pos)
           | _         -> IDENT(pos, s)
       }
   | ("$" (identifier as s)) {
@@ -55,6 +59,7 @@ rule token = parse
         let rng = Range.from_lexbuf lexbuf in
           INT(rng, int_of_string s)
       }
+  | "."  { DOT(Range.from_lexbuf lexbuf) }
   | "_"  { UNDERSCORE(Range.from_lexbuf lexbuf) }
   | ","  { COMMA(Range.from_lexbuf lexbuf) }
   | "("  { LPAREN(Range.from_lexbuf lexbuf) }

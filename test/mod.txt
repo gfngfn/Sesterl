@@ -1,0 +1,8 @@
+
+module List = struct
+
+  type t<$a> = list<$a>
+
+  let empty<$b>(): t<$b> = []
+
+end

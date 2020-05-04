@@ -52,9 +52,12 @@ module Variant = Internal
 
 module Synonym = Internal
 
+module Opaque = Internal
+
 type t =
   | Variant of Variant.t
   | Synonym of Synonym.t
+  | Opaque  of Opaque.t
 
 
 let hash =
@@ -64,9 +67,12 @@ let hash =
 let compare tyid1 tyid2 =
   match (tyid1, tyid2) with
   | (Variant(vid1), Variant(vid2)) -> Variant.compare vid1 vid2
-  | (Variant(_)   , Synonym(_)   ) -> 1
+  | (Variant(_)   , _            ) -> 1
   | (Synonym(_)   , Variant(_)   ) -> -1
   | (Synonym(sid1), Synonym(sid2)) -> Synonym.compare sid1 sid2
+  | (Synonym(_)   , Opaque(_))     -> 1
+  | (Opaque(oid1) , Opaque(oid2) ) -> Opaque.compare oid1 oid2
+  | (Opaque(_)    , _            ) -> -1
 
 
 let equal tyid1 tyid2 =
@@ -80,3 +86,4 @@ let pp ppf tyid =
   match tyid with
   | Variant(vid) -> Variant.pp ppf vid
   | Synonym(sid) -> Synonym.pp ppf sid
+  | Opaque(oid)  -> Opaque.pp ppf oid

@@ -2,6 +2,7 @@
 exception UnidentifiedToken           of Range.t * string
 exception SeeEndOfFileInComment       of Range.t
 exception SeeEndOfFileInStringLiteral of Range.t
+exception ConflictInSignature         of Range.t * string
 
 
 type 'a ranged = Range.t * 'a
@@ -31,11 +32,6 @@ let pp_identifier ppf s =
   Format.fprintf ppf "\"%s\"" s
 
 
-type kind =
-  | UnivKind
-  | ArrowKind of kind list * kind
-[@@deriving show { with_path = false; } ]
-
 type base_type =
   | IntType
   | BoolType
@@ -52,6 +48,13 @@ and manual_type_main =
   | MEffType     of manual_type * manual_type
   | MTypeVar     of type_variable_name
 [@@deriving show { with_path = false; } ]
+
+type manual_kind = int
+  (* -- order-0 or order-1 kind only; just tracks arity -- *)
+[@@deriving show { with_path = false; } ]
+
+type kind = int
+  (* -- as `manual_kind`, this type handles order-0 or order-1 kind only -- *)
 
 type binder = identifier ranged * manual_type option
 
@@ -147,17 +150,25 @@ and untyped_binding =
   | BindInclude of untyped_module
 
 and untyped_signature =
-  | SigPath    of untyped_module
+  untyped_signature_main ranged
+
+and untyped_signature_main =
+  | SigVar     of signature_name
+  | SigPath    of untyped_module * signature_name ranged
   | SigDecls   of untyped_declaration list
   | SigFunctor of module_name ranged * untyped_signature * untyped_signature
-  | SigWith    of untyped_signature * (module_name ranged) list * manual_type
+  | SigWith    of untyped_signature * (module_name ranged) list * type_name ranged * (type_variable_name ranged) list * manual_type
 
 and untyped_declaration =
-  | DeclVal        of identifier ranged * manual_type
+  untyped_declaration_main ranged
+
+and untyped_declaration_main =
+  | DeclVal        of identifier ranged * (type_variable_name ranged) list * manual_type
   | DeclTypeTrans  of type_name ranged * manual_type
-  | DeclTypeOpaque of type_name ranged * kind
+  | DeclTypeOpaque of type_name ranged * manual_kind
   | DeclModule     of module_name ranged * untyped_signature
   | DeclSig        of signature_name ranged * untyped_signature
+  | DeclInclude    of untyped_signature
 [@@deriving show { with_path = false; } ]
 
 type 'a typ =
@@ -510,7 +521,11 @@ module TypeParameterMap = Map.Make(String)
 
 type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
-module BoundIDSet = Set.Make(BoundID)
+module OpaqueID = TypeID.Opaque
+
+module OpaqueIDSet = Set.Make(OpaqueID)
+
+module OpaqueIDMap = Map.Make(OpaqueID)
 (*
 type 'r concrete_signature_ =
   | AtomicPoly   of poly_type
@@ -520,13 +535,15 @@ type 'r concrete_signature_ =
 *)
 type 'r module_signature_ =
   | ConcStructure of 'r
-  | ConcFunctor   of BoundIDSet.t * 'r module_signature_ * (BoundIDSet.t * 'r module_signature_)
+  | ConcFunctor   of OpaqueIDSet.t * 'r module_signature_ * (OpaqueIDSet.t * 'r module_signature_)
 
 module IdentifierMap = Map.Make(String)
 
 module TypeNameMap = Map.Make(String)
 
 module ModuleNameMap = Map.Make(String)
+
+module SignatureNameMap = Map.Make(String)
 
 type pattern =
   | IPUnit
@@ -544,15 +561,20 @@ type single_type_binding =
   | IVariant of TypeID.Variant.t * constructor_branch_map
   | ISynonym of TypeID.Synonym.t * poly_type
 
+type type_opacity =
+  | Transparent of BoundID.t list * single_type_binding
+  | Opaque      of kind * OpaqueID.t
+
+type 'a abstracted = OpaqueIDSet.t * 'a
+
 type signature_record = {
   sr_vals    : (poly_type * name) IdentifierMap.t;
-  sr_types   : (BoundID.t list * single_type_binding) TypeNameMap.t;
+  sr_types   : type_opacity TypeNameMap.t;
   sr_modules : (signature_record module_signature_ * name) ModuleNameMap.t;
+  sr_sigs    : ((signature_record module_signature_) abstracted) SignatureNameMap.t;
 }
 
 type module_signature = signature_record module_signature_
-
-type 'a abstracted = BoundIDSet.t * 'a
 
 type val_binding =
   | INonRec of (identifier * name * poly_type * ast)
@@ -560,9 +582,10 @@ type val_binding =
 
 and binding =
   | IBindVal     of val_binding
-  | IBindType    of (type_name * BoundID.t list * single_type_binding) list
-  | IBindModule  of module_name * name * module_signature * ast
-  | IBindInclude of ast * module_signature
+  | IBindType
+  | IBindModule  of name * ast
+  | IBindSig
+  | IBindInclude of ast
 
 and ast =
   | IBaseConst   of base_constant
@@ -582,6 +605,8 @@ and ast =
 and branch =
   | IBranch of pattern * ast option * ast
 
+type witness_map = (TypeID.Synonym.t * BoundID.t list * poly_type) OpaqueIDMap.t
+
 module SigRecord = struct
 
   type t = signature_record
@@ -592,6 +617,7 @@ module SigRecord = struct
       sr_vals    = IdentifierMap.empty;
       sr_types   = TypeNameMap.empty;
       sr_modules = ModuleNameMap.empty;
+      sr_sigs    = SignatureNameMap.empty;
     }
 
 
@@ -600,11 +626,19 @@ module SigRecord = struct
 
 
   let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (typarams : BoundID.t list) (ptyreal : poly_type) (sigr : t) : t =
-    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (typarams, ISynonym(sid, ptyreal)) }
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(typarams, ISynonym(sid, ptyreal))) }
 
 
   let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrs : constructor_branch_map) (sigr : t) : t =
-    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (typarams, IVariant(vid, ctorbrs)) }
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(typarams, IVariant(vid, ctorbrs))) }
+
+
+  let find_type (tynm : type_name) (sigr : t) : type_opacity option =
+    sigr.sr_types |> TypeNameMap.find_opt tynm
+
+
+  let add_opaque_type (tynm : type_name) (oid : OpaqueID.t) (kd : kind) (sigr : t) : t =
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Opaque(kd, oid)) }
 
 
   let add_module (modnm : module_name) (modsig : module_signature) (name : name) (sigr : t) : t =
@@ -615,22 +649,56 @@ module SigRecord = struct
     sigr.sr_modules |> ModuleNameMap.find_opt modnm
 
 
+  let add_signature (signm : signature_name) (absmodsig : module_signature abstracted) (sigr : t) : t =
+    { sigr with sr_sigs = sigr.sr_sigs |> SignatureNameMap.add signm absmodsig }
+
+
+  let find_signature (signm : signature_name) (sigr : t) : (module_signature abstracted) option =
+    sigr.sr_sigs |> SignatureNameMap.find_opt signm
+
+
   let fold (type a)
       ~v:(fv : identifier -> poly_type * name -> a -> a)
-      ~t:(ft : type_name -> BoundID.t list * single_type_binding -> a -> a)
+      ~t:(ft : type_name -> type_opacity -> a -> a)
       ~m:(fm : module_name -> module_signature * name -> a -> a)
+      ~s:(fs : signature_name -> module_signature abstracted -> a -> a)
       (init : a) (sigr : t) : a =
     init
-      |> IdentifierMap.fold fv sigr.sr_vals
-      |> TypeNameMap.fold ft sigr.sr_types
+      |> SignatureNameMap.fold fs sigr.sr_sigs
       |> ModuleNameMap.fold fm sigr.sr_modules
+      |> TypeNameMap.fold ft sigr.sr_types
+      |> IdentifierMap.fold fv sigr.sr_vals
+
+
+  let map
+      ~v:(fv : poly_type * name -> poly_type * name)
+      ~t:(ft : type_opacity -> type_opacity)
+      ~m:(fm : module_signature * name -> module_signature * name)
+      ~s:(fs : module_signature abstracted -> module_signature abstracted)
+      (sigr : t) : t =
+    {
+      sr_vals    = sigr.sr_vals |> IdentifierMap.map fv;
+      sr_types   = sigr.sr_types |> TypeNameMap.map ft;
+      sr_modules = sigr.sr_modules |> ModuleNameMap.map fm;
+      sr_sigs    = sigr.sr_sigs |> SignatureNameMap.map fs;
+    }
 
 
   let overwrite (superior : t) (inferior : t) : t =
     let left _ x y = Some(x) in
-    let sr_vals    = IdentifierMap.union left superior.sr_vals    inferior.sr_vals in
-    let sr_types   = IdentifierMap.union left superior.sr_types   inferior.sr_types in
-    let sr_modules = IdentifierMap.union left superior.sr_modules inferior.sr_modules in
-    { sr_vals; sr_types; sr_modules }
+    let sr_vals    = IdentifierMap.union    left superior.sr_vals    inferior.sr_vals in
+    let sr_types   = TypeNameMap.union      left superior.sr_types   inferior.sr_types in
+    let sr_modules = ModuleNameMap.union    left superior.sr_modules inferior.sr_modules in
+    let sr_sigs    = SignatureNameMap.union left superior.sr_sigs    inferior.sr_sigs in
+    { sr_vals; sr_types; sr_modules; sr_sigs }
+
+
+  let disjoint_union (rng : Range.t) (sigr1 : t) (sigr2 : t) : t =
+    let conflict s _ _ = raise (ConflictInSignature(rng, s)) in
+    let sr_vals    = IdentifierMap.union    conflict sigr1.sr_vals    sigr2.sr_vals in
+    let sr_types   = TypeNameMap.union      conflict sigr1.sr_types   sigr2.sr_types in
+    let sr_modules = ModuleNameMap.union    conflict sigr1.sr_modules sigr2.sr_modules in
+    let sr_sigs    = SignatureNameMap.union conflict sigr1.sr_sigs    sigr2.sr_sigs in
+    { sr_vals; sr_types; sr_modules; sr_sigs }
 
 end

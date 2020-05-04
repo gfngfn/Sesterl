@@ -2,6 +2,52 @@
 open Syntax
 
 
+let rec display_signature (depth : int) (modsig : module_signature) : unit =
+  let indent = String.make (depth * 2) ' ' in
+  match modsig with
+  | ConcStructure(sigr) ->
+      Format.printf "%ssig\n" indent;
+      display_structure (depth + 1) sigr;
+      Format.printf "%send\n" indent
+
+  | ConcFunctor(_oidset, _modsigdom, _absmodsigcod) ->
+      Format.printf "%s: fun ...\n" indent
+
+
+and display_structure (depth : int) (sigr : SigRecord.t) : unit =
+  let indent = String.make (depth * 2) ' ' in
+  sigr |> SigRecord.fold
+      ~v:(fun x (pty, _) () ->
+        Format.printf "%sval %s : %a\n" indent x pp_poly_type pty
+      )
+      ~t:(fun tynm tyopacity () ->
+        match tyopacity with
+        | Transparent(typarams, ISynonym(_sid, ptyreal)) ->
+            Format.printf "%stype %s<%a> = %a\n"
+              indent
+              tynm
+              (Format.pp_print_list BoundID.pp) typarams
+              pp_poly_type ptyreal
+
+        | Transparent(typarams, IVariant(_vid, _ctorbrs)) ->
+            Format.printf "%stype %s<%a> = (variant)\n"
+              indent
+              tynm
+              (Format.pp_print_list BoundID.pp) typarams
+
+        | Opaque(kind, _) ->
+            Format.printf "%stype %s :: %d\n" indent tynm kind
+      )
+      ~m:(fun modnm (modsig, _) () ->
+        Format.printf "%smodule %s :\n" indent modnm;
+        display_signature (depth + 1) modsig;
+      )
+      ~s:(fun signm _ () ->
+        Format.printf "signature %s\n" signm
+      )
+      ()
+
+
 let main fpath_in fpath_out =
   try
     let inc = open_in fpath_in in
@@ -9,6 +55,7 @@ let main fpath_in fpath_out =
     let utdecls = ParserInterface.process lexbuf in
     close_in inc;
     let ((_, sigr), decls) = Typechecker.main utdecls in
+    display_structure 0 sigr;
     let scode =
       let modname =
         Filename.remove_extension (Filename.basename fpath_out)
@@ -18,18 +65,6 @@ let main fpath_in fpath_out =
     let outc = open_out fpath_out in
     output_string outc scode;
     close_out outc;
-    SigRecord.fold
-      ~v:(fun x (pty, _) () ->
-        Format.printf "val %s : %a\n" x pp_poly_type pty
-      )
-      ~t:(fun tynm (typarams, _) () ->
-        Format.printf "type %s :: %d\n" tynm (List.length typarams)
-      )
-      ~m:(fun modnm _ () ->
-        Format.printf "module %s\n" modnm
-      )
-      ()
-      sigr
   with
   | ParserInterface.Error(rng) ->
       Format.printf "%a: syntax error\n" Range.pp rng
@@ -42,6 +77,11 @@ let main fpath_in fpath_out =
 
   | SeeEndOfFileInStringLiteral(rngL) ->
       Format.printf "%a: unclosed string literal begins here\n" Range.pp rngL
+
+  | ConflictInSignature(rng, x) ->
+      Format.printf "%a: '%s' is already defined in the signature\n"
+        Range.pp rng
+        x
 
   | Typechecker.UnboundVariable(rng, x) ->
       Format.printf "%a: unbound variable '%s'\n" Range.pp rng x
@@ -109,6 +149,36 @@ let main fpath_in fpath_out =
       tyidents |> List.iter (fun (rng, tynm) ->
         Format.printf "%s (%a)\n" tynm Range.pp rng
       )
+
+  | Typechecker.UnboundModuleName(rng, modnm) ->
+      Format.printf "%a: unbound module name '%s'\n"
+        Range.pp rng
+        modnm
+
+  | Typechecker.NotOfStructureType(rng, modsig) ->
+      Format.printf "%a: this module expression is not of a structure signature\n"
+        Range.pp rng
+
+  | Typechecker.NotOfFunctorType(rng, modsig) ->
+      Format.printf "%a: this module expression is not of a functor signature\n"
+        Range.pp rng
+
+  | Typechecker.NotAStructureSignature(rng, modsig) ->
+      Format.printf "%a: this signature expression is not a structure\n"
+        Range.pp rng
+
+  | Typechecker.NotAFunctorSignature(rng, modsig) ->
+      Format.printf "%a: this signature expression is not a functor\n"
+        Range.pp rng
+
+  | Typechecker.UnboundSignatureName(rng, signm) ->
+      Format.printf "%a: unbound signature name '%s'\n"
+        Range.pp rng
+        signm
+
+  | Typechecker.CannotRestrictTransparentType(rng, typarams, syn_or_vnt) ->
+      Format.printf "%a: the specified type is already transparent\n"
+        Range.pp rng
 
 
 let flag_output =

@@ -19,9 +19,12 @@ module Variant : S
 
 module Synonym : S
 
+module Opaque : S
+
 type t =
   | Variant of Variant.t
   | Synonym of Synonym.t
+  | Opaque  of Opaque.t
 
 val hash : t -> int
 

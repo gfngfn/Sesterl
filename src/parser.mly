@@ -22,7 +22,7 @@
     (rng, Apply((rngop, Var(vop)), [e1; e2]))
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC
+%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC MODULE STRUCT SIGNATURE SIG DOT
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
 %token<Range.t * string> IDENT CTOR TYPARAM BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
@@ -51,6 +51,9 @@ bindtop:
   | bindval=bindvaltop {
         let (_, valbinding) = bindval in
         BindVal(valbinding)
+      }
+  | MODULE; modident=CTOR; DEFEQ; utmod=modexpr {
+        BindModule(modident, utmod)
       }
 ;
 bindtypesingle:
@@ -113,6 +116,42 @@ params:
 tyannot:
   |               { None }
   | COLON; mty=ty { Some(mty) }
+;
+modexpr:
+  | utmod=modexpr; DOT; modident=CTOR {
+        let rng = make_range (Ranged(utmod)) (Ranged(modident)) in
+        (rng, ModProjMod(utmod, modident))
+      }
+  | tokL=LAMBDA; modident=CTOR; COLON; utsig=sigexpr; ARROW; utmod=modexpr {
+        let rng = make_range (Token(tokL)) (Ranged(utmod)) in
+        (rng, ModFunctor(modident, utsig, utmod))
+      }
+  | utmod=modbot { utmod }
+;
+modbot:
+  | modident=CTOR {
+        let (rng, modnm) = modident in
+        (rng, ModVar(modnm))
+      }
+  | modident1=CTOR; LPAREN; modident2=CTOR; tokR=RPAREN {
+        let rng = make_range (Ranged(modident1)) (Token(tokR)) in
+        (rng, ModApply(modident1, modident2))
+      }
+  | tokL=STRUCT; utbinds=list(bindtop) tokR=END {
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, ModBinds(utbinds))
+      }
+  | tokL=LPAREN; utmod=modexpr; tokR=RPAREN {
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        let (_, utmodmain) = utmod in
+        (rng, utmodmain)
+      }
+;
+sigexpr:
+  | sigident=CTOR {
+        let (rng, signm) = sigident in
+        (rng, SigVar(signm))
+      }
 ;
 exprlet:
   | bindval=bindvaltop; IN; e2=exprlet {
