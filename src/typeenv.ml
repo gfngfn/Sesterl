@@ -47,6 +47,19 @@ type constructor_entry = {
   parameter_types : poly_type list;
 }
 
+module ModuleNameMap = Map.Make(String)
+
+type module_entry = {
+  mod_name      : name;
+  mod_signature : module_signature;
+}
+
+module SignatureNameMap = Map.Make(String)
+
+type signature_entry = {
+  sig_signature : module_signature abstracted;
+}
+
 type t = {
   vals         : val_entry VarMap.t;
   type_names   : (type_entry * int) TypeNameMap.t;
@@ -54,6 +67,8 @@ type t = {
   synonyms     : synonym_entry SynonymMap.t;
   opaques      : opaque_entry OpaqueMap.t;
   constructors : constructor_entry ConstructorMap.t;
+  modules      : module_entry ModuleNameMap.t;
+  signatures   : signature_entry SignatureNameMap.t;
 }
 
 
@@ -64,6 +79,8 @@ let empty = {
   synonyms     = SynonymMap.empty;
   opaques      = OpaqueMap.empty;
   constructors = ConstructorMap.empty;
+  modules      = ModuleNameMap.empty;
+  signatures   = SignatureNameMap.empty;
 }
 
 
@@ -179,17 +196,36 @@ let find_synonym_type (sid : TypeID.Synonym.t) (tyenv : t) : (BoundID.t list * p
   )
 
 
-let add_module (m : module_name) (abssig : module_signature) (name : name) (tyenv : t) : t =
-  failwith "TODO: add_module"
+let add_module (modnm : module_name) (modsig : module_signature) (name : name) (tyenv : t) : t =
+  let modentry =
+    {
+      mod_name      = name;
+      mod_signature = modsig;
+    }
+  in
+  { tyenv with
+    modules = tyenv.modules |> ModuleNameMap.add modnm modentry;
+  }
 
 
-let find_module_opt (m : module_name) (tyenv : t) : (module_signature * name) option =
-  failwith "TODO: find_module_opt"
+let find_module_opt (modnm : module_name) (tyenv : t) : (module_signature * name) option =
+  tyenv.modules |> ModuleNameMap.find_opt modnm |> Option.map (fun modentry ->
+    (modentry.mod_signature, modentry.mod_name)
+  )
 
 
 let add_signature (signm : signature_name) (absmodsig : module_signature abstracted) (tyenv : t) : t =
-  failwith "TODO: add_signature"
+  let sigentry =
+    {
+      sig_signature = absmodsig;
+    }
+  in
+  { tyenv with
+    signatures = tyenv.signatures |> SignatureNameMap.add signm sigentry;
+  }
 
 
 let find_signature_opt (signm : signature_name) (tyenv : t) : (module_signature abstracted) option =
-  failwith "TODO: find_signature_opt"
+  tyenv.signatures |> SignatureNameMap.find_opt signm |> Option.map (fun sigentry ->
+    sigentry.sig_signature
+  )
