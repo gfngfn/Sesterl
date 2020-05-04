@@ -905,7 +905,31 @@ let substitute_abstract (witnessmap : poly_type BoundIDMap.t) (absmodsig : modul
   failwith "TODO: substitute_abstract"
 
 
-let rec typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
+let rec typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) =
+  match utdecl with
+  | DeclVal(ident, mty) ->
+(*
+      let pty = decode_manual_type tyenv mty in
+*)
+      failwith "TODO: DeclVal"
+
+  | DeclTypeTrans(tyident, mty) ->
+(*
+      let pty = decode_manual_type tyenv mty in
+*)
+      failwith "TODO: DeclTypeTrans"
+
+  | DeclTypeOpaque(tyident, kd) ->
+      failwith "TODO: DeclTypeOpaque"
+
+  | DeclModule(modident, utsig) ->
+      failwith "TODO: DeclModule"
+
+  | DeclSig(sigident, utsig) ->
+      failwith "TODO: DeclSig"
+
+
+and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
   match utsig with
   | SigPath(utmod) ->
       failwith "TODO: SigPath"
