@@ -93,89 +93,6 @@ module TypeIDHashSet = Hashtbl.Make(TypeID)
 module TypeIDSet = Set.Make(TypeID)
 
 
-let decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (mty : manual_type) : mono_type =
-  let invalid rng tynm ~expect:len_expected ~actual:len_actual =
-    raise (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
-  in
-  let rec aux (rng, mtymain) =
-    let tymain =
-      match mtymain with
-      | MTypeName(tynm, mtyargs) ->
-          let ptyargs = mtyargs |> List.map aux in
-          let len_actual = List.length ptyargs in
-          begin
-            match tyenv |> Typeenv.find_type tynm with
-            | None ->
-                begin
-                  match (tynm, ptyargs) with
-                  | ("unit", [])    -> BaseType(UnitType)
-                  | ("unit", _)     -> invalid rng "unit" ~expect:0 ~actual:len_actual
-                  | ("bool", [])    -> BaseType(BoolType)
-                  | ("bool", _)     -> invalid rng "bool" ~expect:0 ~actual:len_actual
-                  | ("int", [])     -> BaseType(IntType)
-                  | ("int", _)      -> invalid rng "int" ~expect:0 ~actual:len_actual
-                  | ("binary", [])  -> BaseType(BinaryType)
-                  | ("binary", _)   -> invalid rng "binary" ~expect:0 ~actual:len_actual
-                  | ("list", [ty])  -> ListType(ty)
-                  | ("list", _)     -> invalid rng "list" ~expect:1 ~actual:len_actual
-                  | ("pid", [ty])   -> PidType(Pid(ty))
-                  | ("pid", _)      -> invalid rng "pid" ~expect:1 ~actual:len_actual
-                  | _               -> raise (UndefinedTypeName(rng, tynm))
-                end
-
-            | Some(tyid, len_expected) ->
-                if len_actual = len_expected then
-                  begin
-                    k tyid;
-                    DataType(tyid, ptyargs)
-                  end
-                else
-                  invalid rng tynm ~expect:len_expected ~actual:len_actual
-          end
-
-      | MFuncType(mtydoms, mtycod) ->
-          FuncType(List.map aux mtydoms, aux mtycod)
-
-      | MProductType(mtys) ->
-          ProductType(TupleList.map aux mtys)
-
-      | MEffType(mty1, mty2) ->
-          EffType(Effect(aux mty1), aux mty2)
-
-      | MTypeVar(typaram) ->
-          begin
-            match typarams |> TypeParameterMap.find_opt typaram with
-            | None ->
-                raise (UnboundTypeParameter(rng, typaram))
-
-            | Some(mbbid) ->
-                TypeVar(MustBeBound(mbbid))
-          end
-    in
-    (rng, tymain)
-  in
-  aux mty
-
-
-let decode_manual_type : Typeenv.t -> local_type_parameter_map -> manual_type -> mono_type =
-  decode_manual_type_scheme (fun _ -> ())
-
-
-let decode_manual_type_and_get_dependency (pre : pre) (mty : manual_type) : mono_type * TypeIDSet.t =
-  let hashset = TypeIDHashSet.create 32 in
-    (* -- a hash set is created on every (non-partial) call -- *)
-  let k tyid =
-    TypeIDHashSet.add hashset tyid ()
-  in
-  let ty = decode_manual_type_scheme k pre.tyenv pre.local_type_parameters mty in
-  let dependencies =
-    TypeIDHashSet.fold (fun tyid () set ->
-      set |> TypeIDSet.add tyid
-    ) hashset TypeIDSet.empty
-  in
-  (ty, dependencies)
-
-
 let (&&&) res1 res2 =
   match (res1, res2) with
   | (Consistent, _) -> res2
@@ -469,7 +386,93 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   | BinaryByInts(_)   -> (rng, BaseType(BinaryType))
 
 
-let decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) : mono_type =
+let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (mty : manual_type) : mono_type =
+  let invalid rng tynm ~expect:len_expected ~actual:len_actual =
+    raise (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
+  in
+  let rec aux (rng, mtymain) =
+    let tymain =
+      match mtymain with
+      | MTypeName(tynm, mtyargs) ->
+          let ptyargs = mtyargs |> List.map aux in
+          let len_actual = List.length ptyargs in
+          begin
+            match tyenv |> Typeenv.find_type tynm with
+            | None ->
+                begin
+                  match (tynm, ptyargs) with
+                  | ("unit", [])    -> BaseType(UnitType)
+                  | ("unit", _)     -> invalid rng "unit" ~expect:0 ~actual:len_actual
+                  | ("bool", [])    -> BaseType(BoolType)
+                  | ("bool", _)     -> invalid rng "bool" ~expect:0 ~actual:len_actual
+                  | ("int", [])     -> BaseType(IntType)
+                  | ("int", _)      -> invalid rng "int" ~expect:0 ~actual:len_actual
+                  | ("binary", [])  -> BaseType(BinaryType)
+                  | ("binary", _)   -> invalid rng "binary" ~expect:0 ~actual:len_actual
+                  | ("list", [ty])  -> ListType(ty)
+                  | ("list", _)     -> invalid rng "list" ~expect:1 ~actual:len_actual
+                  | ("pid", [ty])   -> PidType(Pid(ty))
+                  | ("pid", _)      -> invalid rng "pid" ~expect:1 ~actual:len_actual
+                  | _               -> raise (UndefinedTypeName(rng, tynm))
+                end
+
+            | Some(tyid, len_expected) ->
+                if len_actual = len_expected then
+                  begin
+                    k tyid;
+                    DataType(tyid, ptyargs)
+                  end
+                else
+                  invalid rng tynm ~expect:len_expected ~actual:len_actual
+          end
+
+      | MFuncType(mtydoms, mtycod) ->
+          FuncType(List.map aux mtydoms, aux mtycod)
+
+      | MProductType(mtys) ->
+          ProductType(TupleList.map aux mtys)
+
+      | MEffType(mty1, mty2) ->
+          EffType(Effect(aux mty1), aux mty2)
+
+      | MTypeVar(typaram) ->
+          begin
+            match typarams |> TypeParameterMap.find_opt typaram with
+            | None ->
+                raise (UnboundTypeParameter(rng, typaram))
+
+            | Some(mbbid) ->
+                TypeVar(MustBeBound(mbbid))
+          end
+
+      | MModProjType(utmod, tyident) ->
+          failwith "TODO: MModProjType"
+    in
+    (rng, tymain)
+  in
+  aux mty
+
+
+and decode_manual_type (tyenv : Typeenv.t) : local_type_parameter_map -> manual_type -> mono_type =
+  decode_manual_type_scheme (fun _ -> ()) tyenv
+
+
+and decode_manual_type_and_get_dependency (pre : pre) (mty : manual_type) : mono_type * TypeIDSet.t =
+  let hashset = TypeIDHashSet.create 32 in
+    (* -- a hash set is created on every (non-partial) call -- *)
+  let k tyid =
+    TypeIDHashSet.add hashset tyid ()
+  in
+  let ty = decode_manual_type_scheme k pre.tyenv pre.local_type_parameters mty in
+  let dependencies =
+    TypeIDHashSet.fold (fun tyid () set ->
+      set |> TypeIDSet.add tyid
+    ) hashset TypeIDSet.empty
+  in
+  (ty, dependencies)
+
+
+and decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) : mono_type =
   match tyannot with
   | None ->
       fresh_type ~name:x pre.level rng
@@ -478,7 +481,7 @@ let decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) :
       decode_manual_type pre.tyenv pre.local_type_parameters mty
 
 
-let add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typeenv.t * mono_type list * name list =
+and add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typeenv.t * mono_type list * name list =
   let (tyenv, nameacc, tydomacc) =
     List.fold_left (fun (tyenv, nameacc, ptydomacc) (((rngv, x), _) as binder) ->
       let tydom = decode_type_annotation_or_fresh pre binder in
@@ -492,7 +495,7 @@ let add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typ
   (tyenv, tydoms, names)
 
 
-let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
+and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   match utastmain with
   | BaseConst(bc) ->
       let ty = type_of_base_constant rng bc in

@@ -39,14 +39,12 @@ type base_type =
   | BinaryType
 [@@deriving show { with_path = false; } ]
 
-type manual_type = manual_type_main ranged
-
-and manual_type_main =
-  | MTypeName    of type_name * manual_type list
-  | MFuncType    of manual_type list * manual_type
-  | MProductType of manual_type TupleList.t
-  | MEffType     of manual_type * manual_type
-  | MTypeVar     of type_variable_name
+type base_constant =
+  | Unit
+  | Bool           of bool
+  | Int            of int
+  | BinaryByString of string
+  | BinaryByInts   of int list
 [@@deriving show { with_path = false; } ]
 
 type manual_kind = int
@@ -56,32 +54,27 @@ type manual_kind = int
 type kind = int
   (* -- as `manual_kind`, this type handles order-0 or order-1 kind only -- *)
 
-type binder = identifier ranged * manual_type option
+type manual_type = manual_type_main ranged
 
-let pp_binder ppf ((_, s), _) =
-  pp_identifier ppf s
+and manual_type_main =
+  | MTypeName    of type_name * manual_type list
+  | MFuncType    of manual_type list * manual_type
+  | MProductType of manual_type TupleList.t
+  | MEffType     of manual_type * manual_type
+  | MTypeVar     of type_variable_name
+  | MModProjType of untyped_module * type_name ranged
 
+and binder = identifier ranged * manual_type option
 
-type constructor_branch =
+and constructor_branch =
   | ConstructorBranch of constructor_name * manual_type list
-[@@deriving show { with_path = false; } ]
 
-type synonym_or_variant =
+and synonym_or_variant =
   | BindSynonym of manual_type
   | BindVariant of constructor_branch list
-[@@deriving show { with_path = false; } ]
 
-type base_constant =
-  | Unit
-  | Bool           of bool
-  | Int            of int
-  | BinaryByString of string
-  | BinaryByInts   of int list
-[@@deriving show { with_path = false; } ]
-
-type untyped_ast =
+and untyped_ast =
   untyped_ast_main ranged
-[@printer (fun ppf (_, utastmain) -> pp_untyped_ast_main ppf utastmain)]
 
 and untyped_ast_main =
   | BaseConst    of base_constant
