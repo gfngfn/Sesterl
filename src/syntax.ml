@@ -620,7 +620,7 @@ module SigRecord = struct
     { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(typarams, IVariant(vid, ctorbrs))) }
 
 
-  let add_opaque_type (tynm : type_name) (kd : kind) (oid : OpaqueID.t) (sigr : t) : t =
+  let add_opaque_type (tynm : type_name) (oid : OpaqueID.t) (kd : kind) (sigr : t) : t =
     { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Opaque(kd, oid)) }
 
 

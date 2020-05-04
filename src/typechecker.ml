@@ -918,8 +918,8 @@ let rec typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration)
   | DeclTypeOpaque(tyident, mkd) ->
       let (_, tynm) = tyident in
       let kd = mkd in
-      let bid = BoundID.fresh () in
-      let _sigr = SigRecord.empty |> SigRecord.add_opaque_type tynm kd bid in
+      let oid = OpaqueID.fresh () in
+      let _sigr = SigRecord.empty |> SigRecord.add_opaque_type tynm oid kd in
       failwith "TODO: DeclTypeOpaque"
 
   | DeclModule(modident, utsig) ->
