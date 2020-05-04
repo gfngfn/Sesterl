@@ -174,7 +174,9 @@ let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * int) option =
 
 
 let find_synonym_type (sid : TypeID.Synonym.t) (tyenv : t) : (BoundID.t list * poly_type) option =
-  failwith "TODO: find_synonym_type"
+  tyenv.synonyms |> SynonymMap.find_opt sid |> Option.map (fun sentry ->
+    (sentry.s_type_parameters, sentry.s_real_type)
+  )
 
 
 let add_module (m : module_name) (abssig : module_signature) (name : name) (tyenv : t) : t =
