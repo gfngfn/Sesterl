@@ -979,13 +979,10 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
 
               | Some(absmodsig2) ->
                   absmodsig2
-                    (* QUESTION: which of the following is true?
-                       1. we may ignore `oidset1` here.
-                       2. we should assert that `oidset1` be empty.
-                       3. we should add `oidset1` to the return value.
-                       The typing rule (S-Path) in the original paper "F-ing modules"
-                       apparently seems conforming to 2.
-                       Currently we implement 1 here.
+                    (* Combining typing rules (P-Mod) and (S-Path)
+                       in the original paper "F-ing modules" [Rossberg, Russo & Dreyer 2014],
+                       we can ignore `oldset1` here.
+                       (we have noticed this thanks to `@elpinal`.)
                      *)
             end
       end

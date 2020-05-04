@@ -31,4 +31,6 @@ val add_module : module_name -> module_signature -> name -> t -> t
 
 val find_module_opt : module_name -> t -> (module_signature * name) option
 
+val add_signature : signature_name -> module_signature -> t -> t
+
 val find_signature_opt : signature_name -> t -> (module_signature abstracted) option

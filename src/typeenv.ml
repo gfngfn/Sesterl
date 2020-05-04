@@ -159,5 +159,9 @@ let find_module_opt (m : module_name) (tyenv : t) : (module_signature * name) op
   failwith "TODO: find_module_opt"
 
 
+let add_signature (signm : signature_name) (modsig : module_signature) (tyenv : t) : t =
+  failwith "TODO: add_signature"
+
+
 let find_signature_opt (signm : signature_name) (tyenv : t) : (module_signature abstracted) option =
   failwith "TODO: find_signature_opt"
