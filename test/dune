@@ -1,5 +1,8 @@
 (tests
-  (names testRange)
-  (libraries alcotest))
+  (names testRange testTypechecker)
+  (libraries
+    alcotest
+    ocamlgraph
+  ))
 
-(copy_files ../src/*.{ml,mli})
+(copy_files ../src/*.ml)
