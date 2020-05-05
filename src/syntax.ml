@@ -713,7 +713,7 @@ let pp_comma ppf () =
 let stringify_opaque_id_set oidset =
   OpaqueIDSet.fold (fun oid acc ->
     Alist.extend acc (Format.asprintf "%a" TypeID.Opaque.pp oid)
-  ) oidset Alist.empty |> Alist.to_list |> String.concat ", "
+  ) oidset Alist.empty |> Alist.to_list |> List.map (fun s -> " " ^ s) |> String.concat ","
 
 
 let rec display_signature (depth : int) (modsig : module_signature) : unit =
@@ -727,9 +727,9 @@ let rec display_signature (depth : int) (modsig : module_signature) : unit =
   | ConcFunctor(oidset1, modsigdom, (oidset2, modsigcod)) ->
       let sx1 = stringify_opaque_id_set oidset1 in
       let sx2 = stringify_opaque_id_set oidset2 in
-      Format.printf "%s: (exists %s) fun(\n" indent sx1;
+      Format.printf "%s(exists%s) fun(\n" indent sx1;
       display_signature (depth + 1) modsigdom;
-      Format.printf "%s) -> (forall %s)\n" indent sx2;
+      Format.printf "%s) -> (forall%s)\n" indent sx2;
       display_signature (depth + 1) modsigcod
 
 
