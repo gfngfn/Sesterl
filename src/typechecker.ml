@@ -264,9 +264,9 @@ let get_real_type (tyenv : Typeenv.t) (sid : TypeID.Synonym.t) (tyargs : mono_ty
 
 
 let unify (tyenv : Typeenv.t) (tyact : mono_type) (tyexp : mono_type) : unit =
-
+(*
   Format.printf "UNIFY %a =?= %a\n" pp_mono_type tyact pp_mono_type tyexp; (* for debug *)
-
+*)
   let rec aux (ty1 : mono_type) (ty2 : mono_type) : unification_result =
     let (_, ty1main) = ty1 in
     let (_, ty2main) = ty2 in
@@ -282,16 +282,16 @@ let unify (tyenv : Typeenv.t) (tyact : mono_type) (tyexp : mono_type) : unit =
 
     | (DataType(TypeID.Synonym(sid1), tyargs1), _) ->
         let ty1real = get_real_type tyenv sid1 tyargs1 in
-
+(*
         Format.printf "UNIFY-SYN %a => %a =?= %a\n" TypeID.Synonym.pp sid1 pp_mono_type ty1real pp_mono_type ty2;  (* for debug *)
-
+*)
         aux ty1real ty2
 
     | (_, DataType(TypeID.Synonym(sid2), tyargs2)) ->
         let ty2real = get_real_type tyenv sid2 tyargs2 in
-
+(*
         Format.printf "UNIFY-SYN %a =?= %a <= %a\n" pp_mono_type ty1 pp_mono_type ty2real TypeID.Synonym.pp sid2;  (* for debug *)
-
+*)
         aux ty1 ty2real
 
     | (DataType(TypeID.Opaque(oid1), tyargs1), DataType(TypeID.Opaque(oid2), tyargs2)) ->
@@ -387,10 +387,10 @@ let fresh_type ?name:nameopt (lev : int) (rng : Range.t) : mono_type =
   let fid = FreeID.fresh lev in
   let mtvu = ref (Free(fid)) in
   let ty = (rng, TypeVar(Updatable(mtvu))) in
-
+(*
   let name = nameopt |> Option.map (fun x -> x ^ " : ") |> Option.value ~default:"" in
   Format.printf "GEN %sL%d %a\n" name lev pp_mono_type ty;  (* for debug *)
-
+*)
   ty
 
 
@@ -1225,9 +1225,9 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
 
 
 and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding =
-
+(*
   Format.printf "BIND %a\n" pp_untyped_binding utbind;
-
+*)
   match utbind with
   | BindVal(rec_or_nonrec) ->
       let pre =
@@ -1320,9 +1320,9 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           in
           TypeSynonymStore.add_synonym_type sid typarams ptyreal;
           let sigr = sigr |> SigRecord.add_synonym_type tynm sid (List.length typarams) in
-
+(*
           Format.printf "SYN %s %a <%d> = %a\n" tynm TypeID.Synonym.pp sid (List.length typarams) pp_poly_type ptyreal;  (* for debug *)
-
+*)
           (graph, sigr)
         ) (graph, SigRecord.empty)
       in
