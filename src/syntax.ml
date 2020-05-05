@@ -39,14 +39,12 @@ type base_type =
   | BinaryType
 [@@deriving show { with_path = false; } ]
 
-type manual_type = manual_type_main ranged
-
-and manual_type_main =
-  | MTypeName    of type_name * manual_type list
-  | MFuncType    of manual_type list * manual_type
-  | MProductType of manual_type TupleList.t
-  | MEffType     of manual_type * manual_type
-  | MTypeVar     of type_variable_name
+type base_constant =
+  | Unit
+  | Bool           of bool
+  | Int            of int
+  | BinaryByString of string
+  | BinaryByInts   of int list
 [@@deriving show { with_path = false; } ]
 
 type manual_kind = int
@@ -56,32 +54,27 @@ type manual_kind = int
 type kind = int
   (* -- as `manual_kind`, this type handles order-0 or order-1 kind only -- *)
 
-type binder = identifier ranged * manual_type option
+type manual_type = manual_type_main ranged
 
-let pp_binder ppf ((_, s), _) =
-  pp_identifier ppf s
+and manual_type_main =
+  | MTypeName    of type_name * manual_type list
+  | MFuncType    of manual_type list * manual_type
+  | MProductType of manual_type TupleList.t
+  | MEffType     of manual_type * manual_type
+  | MTypeVar     of type_variable_name
+  | MModProjType of untyped_module * type_name ranged * manual_type list
 
+and binder = identifier ranged * manual_type option
 
-type constructor_branch =
+and constructor_branch =
   | ConstructorBranch of constructor_name * manual_type list
-[@@deriving show { with_path = false; } ]
 
-type synonym_or_variant =
+and synonym_or_variant =
   | BindSynonym of manual_type
   | BindVariant of constructor_branch list
-[@@deriving show { with_path = false; } ]
 
-type base_constant =
-  | Unit
-  | Bool           of bool
-  | Int            of int
-  | BinaryByString of string
-  | BinaryByInts   of int list
-[@@deriving show { with_path = false; } ]
-
-type untyped_ast =
+and untyped_ast =
   untyped_ast_main ranged
-[@printer (fun ppf (_, utastmain) -> pp_untyped_ast_main ppf utastmain)]
 
 and untyped_ast_main =
   | BaseConst    of base_constant
@@ -99,6 +92,7 @@ and untyped_ast_main =
   | Case         of untyped_ast * untyped_branch list
   | Constructor  of constructor_name * untyped_ast list
   | BinaryByList of (int ranged) list
+  | ModProjVal   of untyped_module * identifier ranged
 
 and rec_or_nonrec =
   | NonRec of untyped_let_binding
@@ -521,6 +515,8 @@ module TypeParameterMap = Map.Make(String)
 
 type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
+module SynonymIDSet = Set.Make(TypeID.Synonym)
+
 module OpaqueID = TypeID.Opaque
 
 module OpaqueIDSet = Set.Make(OpaqueID)
@@ -625,6 +621,10 @@ module SigRecord = struct
     { sigr with sr_vals = sigr.sr_vals |> IdentifierMap.add x (pty, name) }
 
 
+  let find_val (x : identifier) (sigr : t) : (poly_type * name) option =
+    sigr.sr_vals |> IdentifierMap.find_opt x
+
+
   let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (typarams : BoundID.t list) (ptyreal : poly_type) (sigr : t) : t =
     { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(typarams, ISynonym(sid, ptyreal))) }
 
@@ -702,3 +702,53 @@ module SigRecord = struct
     { sr_vals; sr_types; sr_modules; sr_sigs }
 
 end
+
+
+let pp_comma ppf () =
+  Format.fprintf ppf ", "
+
+
+let rec display_signature (depth : int) (modsig : module_signature) : unit =
+  let indent = String.make (depth * 2) ' ' in
+  match modsig with
+  | ConcStructure(sigr) ->
+      Format.printf "%ssig\n" indent;
+      display_structure (depth + 1) sigr;
+      Format.printf "%send\n" indent
+
+  | ConcFunctor(_oidset, _modsigdom, _absmodsigcod) ->
+      Format.printf "%s: fun ...\n" indent
+
+
+and display_structure (depth : int) (sigr : SigRecord.t) : unit =
+  let indent = String.make (depth * 2) ' ' in
+  sigr |> SigRecord.fold
+      ~v:(fun x (pty, _) () ->
+        Format.printf "%sval %s: %a\n" indent x pp_poly_type pty
+      )
+      ~t:(fun tynm tyopacity () ->
+        match tyopacity with
+        | Transparent(typarams, ISynonym(_sid, ptyreal)) ->
+            Format.printf "%stype %s<%a> = %a\n"
+              indent
+              tynm
+              (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
+              pp_poly_type ptyreal
+
+        | Transparent(typarams, IVariant(_vid, _ctorbrs)) ->
+            Format.printf "%stype %s<%a> = (variant)\n"
+              indent
+              tynm
+              (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
+
+        | Opaque(kind, _) ->
+            Format.printf "%stype %s:: %d\n" indent tynm kind
+      )
+      ~m:(fun modnm (modsig, _) () ->
+        Format.printf "%smodule %s:\n" indent modnm;
+        display_signature (depth + 1) modsig;
+      )
+      ~s:(fun signm _ () ->
+        Format.printf "signature %s\n" signm
+      )
+      ()

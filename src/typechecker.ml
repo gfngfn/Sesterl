@@ -40,7 +40,7 @@ type unification_result =
   | Consistent
   | Contradiction
   | Inclusion of FreeID.t
-
+[@@deriving show { with_path = false; }]
 
 type scope =
   | Local
@@ -52,6 +52,32 @@ type pre = {
   tyenv : Typeenv.t;
   local_type_parameters : local_type_parameter_map;
 }
+
+
+let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
+  match tyenv |> Typeenv.find_module_opt m with
+  | None    -> raise (UnboundModuleName(rng, m))
+  | Some(v) -> v
+
+
+let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Typeenv.t) : Typeenv.t =
+  sigr |> SigRecord.fold
+    ~v:(fun x (pty, name) ->
+      Typeenv.add_val x pty name
+    )
+    ~t:(fun tynm tyopacity ->
+      match tyopacity with
+      | Transparent(typarams, ISynonym(sid, ptyreal)) -> Typeenv.add_synonym_type tynm sid typarams ptyreal
+      | Transparent(typarams, IVariant(vid, ctorbrs)) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
+      | Opaque(kind, oid)                             -> Typeenv.add_opaque_type tynm oid kind
+    )
+    ~m:(fun modnm (modsig, name) ->
+      Typeenv.add_module modnm modsig name
+    )
+    ~s:(fun signm absmodsig ->
+      Typeenv.add_signature signm absmodsig
+    )
+    tyenv
 
 
 let make_bound_to_free_map (lev : int) (typarams : BoundID.t list) : mono_type list * mono_type_var BoundIDMap.t =
@@ -88,92 +114,7 @@ let make_type_parameter_assoc (lev : int) (tyvarnms : (type_variable_name ranged
   ) TypeParameterAssoc.empty
 
 
-module TypeIDHashSet = Hashtbl.Make(TypeID)
-
-module TypeIDSet = Set.Make(TypeID)
-
-
-let decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (mty : manual_type) : mono_type =
-  let invalid rng tynm ~expect:len_expected ~actual:len_actual =
-    raise (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
-  in
-  let rec aux (rng, mtymain) =
-    let tymain =
-      match mtymain with
-      | MTypeName(tynm, mtyargs) ->
-          let ptyargs = mtyargs |> List.map aux in
-          let len_actual = List.length ptyargs in
-          begin
-            match tyenv |> Typeenv.find_type tynm with
-            | None ->
-                begin
-                  match (tynm, ptyargs) with
-                  | ("unit", [])    -> BaseType(UnitType)
-                  | ("unit", _)     -> invalid rng "unit" ~expect:0 ~actual:len_actual
-                  | ("bool", [])    -> BaseType(BoolType)
-                  | ("bool", _)     -> invalid rng "bool" ~expect:0 ~actual:len_actual
-                  | ("int", [])     -> BaseType(IntType)
-                  | ("int", _)      -> invalid rng "int" ~expect:0 ~actual:len_actual
-                  | ("binary", [])  -> BaseType(BinaryType)
-                  | ("binary", _)   -> invalid rng "binary" ~expect:0 ~actual:len_actual
-                  | ("list", [ty])  -> ListType(ty)
-                  | ("list", _)     -> invalid rng "list" ~expect:1 ~actual:len_actual
-                  | ("pid", [ty])   -> PidType(Pid(ty))
-                  | ("pid", _)      -> invalid rng "pid" ~expect:1 ~actual:len_actual
-                  | _               -> raise (UndefinedTypeName(rng, tynm))
-                end
-
-            | Some(tyid, len_expected) ->
-                if len_actual = len_expected then
-                  begin
-                    k tyid;
-                    DataType(tyid, ptyargs)
-                  end
-                else
-                  invalid rng tynm ~expect:len_expected ~actual:len_actual
-          end
-
-      | MFuncType(mtydoms, mtycod) ->
-          FuncType(List.map aux mtydoms, aux mtycod)
-
-      | MProductType(mtys) ->
-          ProductType(TupleList.map aux mtys)
-
-      | MEffType(mty1, mty2) ->
-          EffType(Effect(aux mty1), aux mty2)
-
-      | MTypeVar(typaram) ->
-          begin
-            match typarams |> TypeParameterMap.find_opt typaram with
-            | None ->
-                raise (UnboundTypeParameter(rng, typaram))
-
-            | Some(mbbid) ->
-                TypeVar(MustBeBound(mbbid))
-          end
-    in
-    (rng, tymain)
-  in
-  aux mty
-
-
-let decode_manual_type : Typeenv.t -> local_type_parameter_map -> manual_type -> mono_type =
-  decode_manual_type_scheme (fun _ -> ())
-
-
-let decode_manual_type_and_get_dependency (pre : pre) (mty : manual_type) : mono_type * TypeIDSet.t =
-  let hashset = TypeIDHashSet.create 32 in
-    (* -- a hash set is created on every (non-partial) call -- *)
-  let k tyid =
-    TypeIDHashSet.add hashset tyid ()
-  in
-  let ty = decode_manual_type_scheme k pre.tyenv pre.local_type_parameters mty in
-  let dependencies =
-    TypeIDHashSet.fold (fun tyid () set ->
-      set |> TypeIDSet.add tyid
-    ) hashset TypeIDSet.empty
-  in
-  (ty, dependencies)
+module SynonymIDHashSet = Hashtbl.Make(TypeID.Synonym)
 
 
 let (&&&) res1 res2 =
@@ -346,11 +287,23 @@ let unify (tyenv : Typeenv.t) (tyact : mono_type) (tyexp : mono_type) : unit =
 
     | (DataType(TypeID.Synonym(sid1), tyargs1), _) ->
         let ty1real = get_real_type tyenv sid1 tyargs1 in
+(*
+        Format.printf "UNIFY-SYN %a => %a =?= %a\n" TypeID.Synonym.pp sid1 pp_mono_type ty1real pp_mono_type ty2;  (* for debug *)
+*)
         aux ty1real ty2
 
     | (_, DataType(TypeID.Synonym(sid2), tyargs2)) ->
         let ty2real = get_real_type tyenv sid2 tyargs2 in
+(*
+        Format.printf "UNIFY-SYN %a =?= %a <= %a\n" pp_mono_type ty1 pp_mono_type ty2real TypeID.Synonym.pp sid2;  (* for debug *)
+*)
         aux ty1 ty2real
+
+    | (DataType(TypeID.Opaque(oid1), tyargs1), DataType(TypeID.Opaque(oid2), tyargs2)) ->
+        if TypeID.Opaque.equal oid1 oid2 then
+          aux_list tyargs1 tyargs2
+        else
+          Contradiction
 
     | (BaseType(bt1), BaseType(bt2)) ->
         if bt1 = bt2 then Consistent else Contradiction
@@ -469,7 +422,128 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   | BinaryByInts(_)   -> (rng, BaseType(BinaryType))
 
 
-let decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) : mono_type =
+let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (mty : manual_type) : mono_type =
+  let invalid rng tynm ~expect:len_expected ~actual:len_actual =
+    raise (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
+  in
+  let rec aux (rng, mtymain) =
+    let tymain =
+      match mtymain with
+      | MTypeName(tynm, mtyargs) ->
+          let ptyargs = mtyargs |> List.map aux in
+          let len_actual = List.length ptyargs in
+          begin
+            match tyenv |> Typeenv.find_type tynm with
+            | None ->
+                begin
+                  match (tynm, ptyargs) with
+                  | ("unit", [])    -> BaseType(UnitType)
+                  | ("unit", _)     -> invalid rng "unit" ~expect:0 ~actual:len_actual
+                  | ("bool", [])    -> BaseType(BoolType)
+                  | ("bool", _)     -> invalid rng "bool" ~expect:0 ~actual:len_actual
+                  | ("int", [])     -> BaseType(IntType)
+                  | ("int", _)      -> invalid rng "int" ~expect:0 ~actual:len_actual
+                  | ("binary", [])  -> BaseType(BinaryType)
+                  | ("binary", _)   -> invalid rng "binary" ~expect:0 ~actual:len_actual
+                  | ("list", [ty])  -> ListType(ty)
+                  | ("list", _)     -> invalid rng "list" ~expect:1 ~actual:len_actual
+                  | ("pid", [ty])   -> PidType(Pid(ty))
+                  | ("pid", _)      -> invalid rng "pid" ~expect:1 ~actual:len_actual
+                  | _               -> raise (UndefinedTypeName(rng, tynm))
+                end
+
+            | Some(tyid, len_expected) ->
+                if len_actual = len_expected then
+                  begin
+                    k tyid;
+                    DataType(tyid, ptyargs)
+                  end
+                else
+                  invalid rng tynm ~expect:len_expected ~actual:len_actual
+          end
+
+      | MFuncType(mtydoms, mtycod) ->
+          FuncType(List.map aux mtydoms, aux mtycod)
+
+      | MProductType(mtys) ->
+          ProductType(TupleList.map aux mtys)
+
+      | MEffType(mty1, mty2) ->
+          EffType(Effect(aux mty1), aux mty2)
+
+      | MTypeVar(typaram) ->
+          begin
+            match typarams |> TypeParameterMap.find_opt typaram with
+            | None ->
+                raise (UnboundTypeParameter(rng, typaram))
+
+            | Some(mbbid) ->
+                TypeVar(MustBeBound(mbbid))
+          end
+
+      | MModProjType(utmod1, tyident2, mtyargs) ->
+          let (rng2, tynm2) = tyident2 in
+          let (absmodsig1, _) = typecheck_module tyenv utmod1 in
+          let (_, modsig1) = absmodsig1 in
+          begin
+            match modsig1 with
+            | ConcFunctor(_) ->
+                let (rng1, _) = utmod1 in
+                raise (NotOfStructureType(rng1, modsig1))
+
+            | ConcStructure(sigr) ->
+                begin
+                  match sigr |> SigRecord.find_type tynm2 with
+                  | None ->
+                      raise (UndefinedTypeName(rng2, tynm2))
+
+                  | Some(tyopac) ->
+                      let tyargs = mtyargs |> List.map aux in
+                      let (tyid, arity) =
+                        match tyopac with
+                        | Opaque(kd, oid)                         -> (TypeID.Opaque(oid), kd)
+                        | Transparent(typarams, ISynonym(sid, _)) -> (TypeID.Synonym(sid), List.length typarams)
+                        | Transparent(typarams, IVariant(vid, _)) -> (TypeID.Variant(vid), List.length typarams)
+                      in
+                      assert (arity = List.length tyargs);
+                      k tyid;
+                      DataType(tyid, tyargs)
+                end
+          end
+    in
+    (rng, tymain)
+  in
+  aux mty
+
+
+and decode_manual_type (tyenv : Typeenv.t) : local_type_parameter_map -> manual_type -> mono_type =
+  decode_manual_type_scheme (fun _ -> ()) tyenv
+
+
+and decode_manual_type_and_get_dependency (vertices : SynonymIDSet.t) (pre : pre) (mty : manual_type) : mono_type * SynonymIDSet.t =
+  let hashset = SynonymIDHashSet.create 32 in
+    (* -- a hash set is created on every (non-partial) call -- *)
+  let k tyid =
+    match tyid with
+    | TypeID.Synonym(sid) ->
+        if vertices |> SynonymIDSet.mem sid then
+          SynonymIDHashSet.add hashset sid ()
+        else
+          ()
+
+    | _ ->
+        ()
+  in
+  let ty = decode_manual_type_scheme k pre.tyenv pre.local_type_parameters mty in
+  let dependencies =
+    SynonymIDHashSet.fold (fun sid () set ->
+      set |> SynonymIDSet.add sid
+    ) hashset SynonymIDSet.empty
+  in
+  (ty, dependencies)
+
+
+and decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) : mono_type =
   match tyannot with
   | None ->
       fresh_type ~name:x pre.level rng
@@ -478,7 +552,7 @@ let decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) :
       decode_manual_type pre.tyenv pre.local_type_parameters mty
 
 
-let add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typeenv.t * mono_type list * name list =
+and add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typeenv.t * mono_type list * name list =
   let (tyenv, nameacc, tydomacc) =
     List.fold_left (fun (tyenv, nameacc, ptydomacc) (((rngv, x), _) as binder) ->
       let tydom = decode_type_annotation_or_fresh pre binder in
@@ -492,7 +566,7 @@ let add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typ
   (tyenv, tydoms, names)
 
 
-let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
+and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   match utastmain with
   | BaseConst(bc) ->
       let ty = type_of_base_constant rng bc in
@@ -677,6 +751,27 @@ let rec typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast
         )
       in
       ((rng, BaseType(BinaryType)), IBaseConst(BinaryByInts(ns)))
+
+  | ModProjVal(utmod1, (rng2, x2)) ->
+      let (absmodsig, e1) = typecheck_module pre.tyenv utmod1 in
+      let (_oidset, modsig) = absmodsig in
+      begin
+        match modsig with
+        | ConcFunctor(_) ->
+            let (rng1, _) = utmod1 in
+            raise (NotOfStructureType(rng1, modsig))
+
+        | ConcStructure(sigr) ->
+            begin
+              match sigr |> SigRecord.find_val x2 with
+              | None ->
+                  raise (UnboundVariable(rng2, x2))
+
+              | Some((_, ptymain), name) ->
+                  let ty = instantiate pre.level (rng, ptymain) in
+                  (ty, IAccess(e1, name))
+            end
+      end
 
 
 and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name) =
@@ -877,7 +972,7 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (name_in
   (ptyf, e1)
 
 
-let make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) =
+and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) =
   ctorbrs |> List.fold_left (fun ctormap ctorbr ->
     match ctorbr with
     | ConstructorBranch(ctornm, mtyargs) ->
@@ -888,17 +983,11 @@ let make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorBranchMap.empty
 
 
-let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
-  match tyenv |> Typeenv.find_module_opt m with
-  | None    -> raise (UnboundModuleName(rng, m))
-  | Some(v) -> v
-
-
-let subtype_concrete_with_abstract (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
+and subtype_concrete_with_abstract (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
   failwith "TODO: subtype_concrete_with_abstract"
 
 
-let rec substitute_concrete (wtmap : witness_map) (modsig : module_signature) : module_signature =
+and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : module_signature =
   match modsig with
   | ConcFunctor(oidset, modsigdom, absmodsigcod) ->
       let modsigdom = modsigdom |> substitute_concrete wtmap in
@@ -968,28 +1057,8 @@ and substitute_poly_type (wtmap : witness_map) (pty : poly_type) : poly_type =
   aux pty
 
 
-let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Typeenv.t) : Typeenv.t =
-  sigr |> SigRecord.fold
-    ~v:(fun x (pty, name) ->
-      Typeenv.add_val x pty name
-    )
-    ~t:(fun tynm tyopacity ->
-      match tyopacity with
-      | Transparent(typarams, ISynonym(sid, ptyreal)) -> Typeenv.add_synonym_type tynm sid typarams ptyreal
-      | Transparent(typarams, IVariant(vid, ctorbrs)) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
-      | Opaque(kind, oid)                             -> Typeenv.add_opaque_type tynm oid kind
-    )
-    ~m:(fun modnm (modsig, name) ->
-      Typeenv.add_module modnm modsig name
-    )
-    ~s:(fun signm absmodsig ->
-      Typeenv.add_signature signm absmodsig
-    )
-    tyenv
-
-
-let rec typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
-  let (rng, utdeclmain) = utdecl in
+and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
+  let (_, utdeclmain) = utdecl in
   match utdeclmain with
   | DeclVal(ident, tyvaridents, mty) ->
       let (_, x) = ident in
@@ -1045,7 +1114,7 @@ and typecheck_declaration_list (tyenv : Typeenv.t) (utdecls : untyped_declaratio
     utdecls |> List.fold_left (fun (oidsetacc, sigracc, tyenv) ((rng, _) as utdecl) ->
       let (oidset, sigr) = typecheck_declaration tyenv utdecl in
       let oidsetacc = OpaqueIDSet.union oidsetacc oidset in
-      let sigracc = SigRecord.disjoint_union rng sigracc sigracc in
+      let sigracc = SigRecord.disjoint_union rng sigracc sigr in
       let tyenv = tyenv |> update_type_environment_by_signature_record sigr in
       (oidsetacc, sigracc, tyenv)
     ) (OpaqueIDSet.empty, SigRecord.empty, tyenv)
@@ -1211,8 +1280,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       assert false
 
   | BindType((_ :: _) as tybinds) ->
-      let (synacc, vntacc, graph, tyenv) =
-        tybinds |> List.fold_left (fun (synacc, vntacc, graph, tyenv) (tyident, typarams, syn_or_vnt) ->
+      let (synacc, vntacc, vertices, graph, tyenv) =
+        tybinds |> List.fold_left (fun (synacc, vntacc, vertices, graph, tyenv) (tyident, typarams, syn_or_vnt) ->
           let (_, tynm) = tyident in
           let arity = List.length typarams in
           match syn_or_vnt with
@@ -1221,14 +1290,14 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
               let graph = graph |> DependencyGraph.add_vertex sid tyident in
               let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Synonym(sid)) arity in
               let synacc = Alist.extend synacc (tyident, typarams, synbind, sid) in
-              (synacc, vntacc, graph, tyenv)
+              (synacc, vntacc, vertices |> SynonymIDSet.add sid, graph, tyenv)
 
           | BindVariant(vntbind) ->
               let vid = TypeID.Variant.fresh tynm in
               let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Variant(vid)) arity in
               let vntacc = Alist.extend vntacc (tyident, typarams, vntbind, vid) in
-              (synacc, vntacc, graph, tyenv)
-        ) (Alist.empty, Alist.empty, DependencyGraph.empty, tyenv)
+              (synacc, vntacc, vertices, graph, tyenv)
+        ) (Alist.empty, Alist.empty, SynonymIDSet.empty, DependencyGraph.empty, tyenv)
       in
       let pre =
         {
@@ -1247,18 +1316,18 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             let localtyparams = pre.local_type_parameters |> add_local_type_parameter typaramassoc in
             { pre with local_type_parameters = localtyparams }
           in
-          let (tyreal, dependencies) = decode_manual_type_and_get_dependency pre mtyreal in
-          let ptyreal = generalize pre.level tyreal in
+          let (tyreal, dependencies) = decode_manual_type_and_get_dependency vertices pre mtyreal in
+          let ptyreal = generalize 0 tyreal in
           let graph =
-            graph |> TypeIDSet.fold (fun tyiddep graph ->
-              match tyiddep with
-              | TypeID.Synonym(siddep) -> graph |> DependencyGraph.add_edge sid siddep
-              | TypeID.Variant(_)      -> graph
-              | TypeID.Opaque(_)       -> graph
+            graph |> SynonymIDSet.fold (fun siddep graph ->
+              graph |> DependencyGraph.add_edge sid siddep
             ) dependencies
           in
           let tybindacc = Alist.extend tybindacc (tynm, typarams, ISynonym(sid, ptyreal)) in
           let sigr = sigr |> SigRecord.add_synonym_type tynm sid typarams ptyreal in
+(*
+          Format.printf "SYN %s %a <%d> = %a\n" tynm TypeID.Synonym.pp sid (List.length typarams) pp_poly_type ptyreal;  (* for debug *)
+*)
           (graph, sigr, tybindacc)
         ) (graph, SigRecord.empty, Alist.empty)
       in
@@ -1358,6 +1427,10 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
         (* temporary; it may be appropriate to generate name from `m` *)
       let (absmodsigcod, e0) =
         let (_, m) = modident in
+(*
+        Printf.printf "MOD-FUNCTOR %s\n" m;  (* for debug *)
+        display_signature 0 modsigdom;  (* for debug *)
+*)
         let tyenv = tyenv |> Typeenv.add_module m modsigdom name in
         typecheck_module tyenv utmod0
       in

@@ -38,6 +38,7 @@ rule token = parse
           | "end"     -> END(pos)
           | "case"    -> CASE(pos)
           | "of"      -> OF(pos)
+          | "val"     -> VAL(pos)
           | "type"    -> TYPE(pos)
           | "module"  -> MODULE(pos)
           | "struct"  -> STRUCT(pos)
@@ -83,7 +84,8 @@ rule token = parse
   | "<"                    { LT_EXACT(Range.from_lexbuf lexbuf) }
   | ("<" (nssymbol+))      { BINOP_LT(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
 
-  | (">" (space | break)+) { GT_SPACES(Range.from_lexbuf lexbuf) }
+  | (">" space)            { GT_SPACES(Range.from_lexbuf lexbuf) }
+  | (">" break)            { Lexing.new_line lexbuf; GT_SPACES(Range.from_lexbuf lexbuf) }
   | ">"                    { GT_NOSPACE(Range.from_lexbuf lexbuf) }
   | (">" (nssymbol+))      { BINOP_GT(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
 

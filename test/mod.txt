@@ -1,8 +1,48 @@
-
+/*
 module List = struct
-
   type t<$a> = list<$a>
 
-  let empty<$b>(): t<$b> = []
+  let empty<$b>(): t<$b> =
+    []
 
+  letrec foldl(f, i, l) =
+    case l of
+    | []      -> i
+    | x :: xs -> foldl(f, f(i, x), xs)
+    end
+
+  let reverse<$c>(xs: list<$c>): list<$c> =
+    foldl(fun(acc, x) -> x :: acc, [], xs)
 end
+
+signature Eq = sig
+  type t:: 0
+  val equal: fun(t, t) -> bool
+end
+*/
+
+type option<$a> =
+  | None
+  | Some($a)
+
+signature Ord = sig
+  type s:: 0
+  val compare: fun(s, s) -> int
+end
+
+module Map = fun(Elem: Ord) ->
+  struct
+    type elem = Elem.s
+    type t<$a> = list<(elem, $a)>
+    letrec find<$b>(x: elem, assoc: t<$b>): option<$b> =
+      case assoc of
+      | [] ->
+          None
+
+      | (k, v) :: tail ->
+          if Elem.compare(k, x) == 0 then
+            Some(v)
+          else
+            find(x, tail)
+      end
+  end
