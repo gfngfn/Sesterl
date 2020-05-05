@@ -229,3 +229,10 @@ let find_signature_opt (signm : signature_name) (tyenv : t) : (module_signature 
   tyenv.signatures |> SignatureNameMap.find_opt signm |> Option.map (fun sigentry ->
     sigentry.sig_signature
   )
+
+
+let show_all_synonyms (tyenv : t) : unit =
+  tyenv.synonyms |> SynonymMap.iter (fun sid sentry ->
+    Format.printf "| %a\n"
+      TypeID.Synonym.pp sid
+  )

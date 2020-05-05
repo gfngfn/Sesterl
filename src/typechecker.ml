@@ -1232,6 +1232,10 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
 
 
 and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding =
+
+  Format.printf "BIND %a\n" pp_untyped_binding utbind;
+  Typeenv.show_all_synonyms tyenv;
+
   match utbind with
   | BindVal(rec_or_nonrec) ->
       let pre =

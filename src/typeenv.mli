@@ -34,3 +34,5 @@ val find_module_opt : module_name -> t -> (module_signature * name) option
 val add_signature : signature_name -> module_signature abstracted -> t -> t
 
 val find_signature_opt : signature_name -> t -> (module_signature abstracted) option
+
+val show_all_synonyms : t -> unit
