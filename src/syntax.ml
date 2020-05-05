@@ -603,7 +603,7 @@ and ast =
 and branch =
   | IBranch of pattern * ast option * ast
 
-type witness_map = (TypeID.Synonym.t * BoundID.t list * poly_type) OpaqueIDMap.t
+type witness_map = (BoundID.t list * poly_type) OpaqueIDMap.t
 
 module SigRecord = struct
 
@@ -765,3 +765,39 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
         Format.printf "signature %s\n" signm
       )
       ()
+
+
+module SynonymIDMap = Map.Make(TypeID.Synonym)
+
+module VariantIDMap = Map.Make(TypeID.Variant)
+
+
+module Downward = struct
+
+  type t = {
+    synonym_ids : (BoundID.t list * poly_type) SynonymIDMap.t;
+    variant_ids : (BoundID.t list * constructor_branch_map) VariantIDMap.t;
+  }
+
+  let empty =
+    {
+      synonym_ids = SynonymIDMap.empty;
+      variant_ids = VariantIDMap.empty;
+    }
+
+  let add_synonym_type (sid : TypeID.Synonym.t) (typarams : BoundID.t list) (pty : poly_type) (down : t) : t =
+    { down with synonym_ids = down.synonym_ids |> SynonymIDMap.add sid (typarams, pty) }
+
+
+  let add_variant_type (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrmap : constructor_branch_map) (down : t) : t =
+    { down with variant_ids = down.variant_ids |> VariantIDMap.add vid (typarams, ctorbrmap) }
+
+
+  let union (down1 : t) (down2 : t) : t =
+    let never _ _ _ = assert false in
+    {
+      synonym_ids = SynonymIDMap.union never down1.synonym_ids down2.synonym_ids;
+      variant_ids = VariantIDMap.union never down1.variant_ids down2.variant_ids;
+    }
+
+end
