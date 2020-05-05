@@ -1069,7 +1069,7 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
   | DeclTypeOpaque(tyident, mkd) ->
       let (_, tynm) = tyident in
       let kd = mkd in
-      let oid = OpaqueID.fresh tynm in
+      let oid = TypeID.Opaque.fresh tynm in
       let sigr = SigRecord.empty |> SigRecord.add_opaque_type tynm oid kd in
       (OpaqueIDSet.singleton oid, sigr)
 
@@ -1225,9 +1225,6 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
 
 
 and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding =
-(*
-  Format.printf "BIND %a\n" pp_untyped_binding utbind;
-*)
   match utbind with
   | BindVal(rec_or_nonrec) ->
       let pre =

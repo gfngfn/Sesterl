@@ -519,18 +519,10 @@ type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
 module SynonymIDSet = Set.Make(TypeID.Synonym)
 
-module OpaqueID = TypeID.Opaque
+module OpaqueIDSet = Set.Make(TypeID.Opaque)
 
-module OpaqueIDSet = Set.Make(OpaqueID)
+module OpaqueIDMap = Map.Make(TypeID.Opaque)
 
-module OpaqueIDMap = Map.Make(OpaqueID)
-(*
-type 'r concrete_signature_ =
-  | AtomicPoly   of poly_type
-  | AtomicKinded of poly_type * kind
-  | AtomicAbs    of 'r abstract_signature_
-  | ConcModule   of 'r module_signature_
-*)
 type 'r module_signature_ =
   | ConcStructure of 'r
   | ConcFunctor   of OpaqueIDSet.t * 'r module_signature_ * (OpaqueIDSet.t * 'r module_signature_)
@@ -561,7 +553,7 @@ type single_type_binding =
 
 type type_opacity =
   | Transparent of single_type_binding
-  | Opaque      of kind * OpaqueID.t
+  | Opaque      of kind * TypeID.Opaque.t
 
 type 'a abstracted = OpaqueIDSet.t * 'a
 
@@ -639,7 +631,7 @@ module SigRecord = struct
     sigr.sr_types |> TypeNameMap.find_opt tynm
 
 
-  let add_opaque_type (tynm : type_name) (oid : OpaqueID.t) (kd : kind) (sigr : t) : t =
+  let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (kd : kind) (sigr : t) : t =
     { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Opaque(kd, oid)) }
 
 

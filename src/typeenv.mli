@@ -17,7 +17,7 @@ val add_variant_type : type_name -> TypeID.Variant.t -> BoundID.t list -> constr
 
 val add_synonym_type : type_name -> TypeID.Synonym.t -> int -> t -> t
 
-val add_opaque_type : type_name -> OpaqueID.t -> kind -> t -> t
+val add_opaque_type : type_name -> TypeID.Opaque.t -> kind -> t -> t
 
 val add_type_for_recursion : type_name -> TypeID.t -> int -> t -> t
 

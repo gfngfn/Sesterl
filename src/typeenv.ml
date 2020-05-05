@@ -139,7 +139,7 @@ let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (arity : int) (
   }
 
 
-let add_opaque_type (tynm : type_name) (oid : OpaqueID.t) (kind : kind) (tyenv : t) : t =
+let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (kind : kind) (tyenv : t) : t =
   let oentry =
     {
       o_kind = kind;
