@@ -19,6 +19,7 @@ let main fpath_in fpath_out =
     let outc = open_out fpath_out in
     output_string outc scode;
     close_out outc;
+    Format.printf "output written on '%s'\n" fpath_out;
   with
   | Failure(msg) ->
       Format.printf "unsupported \"%s\"\n" msg
