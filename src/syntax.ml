@@ -501,13 +501,9 @@ let pp_poly_type ppf pty =
 type name = OutputIdentifier.t
 [@@deriving show { with_path = false; } ]
 
-module ConstructorBranchMap = Map.Make(String)
+module ConstructorMap = Map.Make(String)
 
-type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorBranchMap.t
-
-let pp_constructor_branch_map ppf _ =
-  Format.fprintf ppf "<constructor-branch-map>"
-
+type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorMap.t
 
 module TypeParameterAssoc = AssocList.Make(String)
 
@@ -519,6 +515,8 @@ type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
 module SynonymIDSet = Set.Make(TypeID.Synonym)
 
+module VariantIDMap = Map.Make(TypeID.Variant)
+
 module OpaqueIDSet = Set.Make(TypeID.Opaque)
 
 module OpaqueIDMap = Map.Make(TypeID.Opaque)
@@ -527,7 +525,7 @@ type 'r module_signature_ =
   | ConcStructure of 'r
   | ConcFunctor   of OpaqueIDSet.t * 'r module_signature_ * (OpaqueIDSet.t * 'r module_signature_)
 
-module IdentifierMap = Map.Make(String)
+module ValNameMap = Map.Make(String)
 
 module TypeNameMap = Map.Make(String)
 
@@ -558,7 +556,7 @@ type type_opacity =
 type 'a abstracted = OpaqueIDSet.t * 'a
 
 type signature_record = {
-  sr_vals    : (poly_type * name) IdentifierMap.t;
+  sr_vals    : (poly_type * name) ValNameMap.t;
   sr_types   : type_opacity TypeNameMap.t;
   sr_modules : (signature_record module_signature_ * name) ModuleNameMap.t;
   sr_sigs    : ((signature_record module_signature_) abstracted) SignatureNameMap.t;
@@ -604,7 +602,7 @@ module SigRecord = struct
 
   let empty =
     {
-      sr_vals    = IdentifierMap.empty;
+      sr_vals    = ValNameMap.empty;
       sr_types   = TypeNameMap.empty;
       sr_modules = ModuleNameMap.empty;
       sr_sigs    = SignatureNameMap.empty;
@@ -612,11 +610,11 @@ module SigRecord = struct
 
 
   let add_val (x : identifier) (pty : poly_type) (name : name) (sigr : t) : t =
-    { sigr with sr_vals = sigr.sr_vals |> IdentifierMap.add x (pty, name) }
+    { sigr with sr_vals = sigr.sr_vals |> ValNameMap.add x (pty, name) }
 
 
   let find_val (x : identifier) (sigr : t) : (poly_type * name) option =
-    sigr.sr_vals |> IdentifierMap.find_opt x
+    sigr.sr_vals |> ValNameMap.find_opt x
 
 
   let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (arity : int) (sigr : t) : t =
@@ -661,7 +659,7 @@ module SigRecord = struct
       |> SignatureNameMap.fold fs sigr.sr_sigs
       |> ModuleNameMap.fold fm sigr.sr_modules
       |> TypeNameMap.fold ft sigr.sr_types
-      |> IdentifierMap.fold fv sigr.sr_vals
+      |> ValNameMap.fold fv sigr.sr_vals
 
 
   let map
@@ -671,7 +669,7 @@ module SigRecord = struct
       ~s:(fs : module_signature abstracted -> module_signature abstracted)
       (sigr : t) : t =
     {
-      sr_vals    = sigr.sr_vals |> IdentifierMap.map fv;
+      sr_vals    = sigr.sr_vals |> ValNameMap.map fv;
       sr_types   = sigr.sr_types |> TypeNameMap.map ft;
       sr_modules = sigr.sr_modules |> ModuleNameMap.map fm;
       sr_sigs    = sigr.sr_sigs |> SignatureNameMap.map fs;
@@ -680,7 +678,7 @@ module SigRecord = struct
 
   let overwrite (superior : t) (inferior : t) : t =
     let left _ x _ = Some(x) in
-    let sr_vals    = IdentifierMap.union    left superior.sr_vals    inferior.sr_vals in
+    let sr_vals    = ValNameMap.union       left superior.sr_vals    inferior.sr_vals in
     let sr_types   = TypeNameMap.union      left superior.sr_types   inferior.sr_types in
     let sr_modules = ModuleNameMap.union    left superior.sr_modules inferior.sr_modules in
     let sr_sigs    = SignatureNameMap.union left superior.sr_sigs    inferior.sr_sigs in
@@ -689,7 +687,7 @@ module SigRecord = struct
 
   let disjoint_union (rng : Range.t) (sigr1 : t) (sigr2 : t) : t =
     let conflict s _ _ = raise (ConflictInSignature(rng, s)) in
-    let sr_vals    = IdentifierMap.union    conflict sigr1.sr_vals    sigr2.sr_vals in
+    let sr_vals    = ValNameMap.union       conflict sigr1.sr_vals    sigr2.sr_vals in
     let sr_types   = TypeNameMap.union      conflict sigr1.sr_types   sigr2.sr_types in
     let sr_modules = ModuleNameMap.union    conflict sigr1.sr_modules sigr2.sr_modules in
     let sr_sigs    = SignatureNameMap.union conflict sigr1.sr_sigs    sigr2.sr_sigs in

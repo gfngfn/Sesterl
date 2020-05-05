@@ -964,15 +964,15 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
   (ptyf, e1)
 
 
-and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) =
+and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) : constructor_branch_map =
   ctorbrs |> List.fold_left (fun ctormap ctorbr ->
     match ctorbr with
     | ConstructorBranch(ctornm, mtyargs) ->
         let tyargs = mtyargs |> List.map (decode_manual_type pre.tyenv pre.local_type_parameters) in
         let ptyargs = tyargs |> List.map (generalize pre.level) in
         let ctorid = ConstructorID.make ctornm in
-        ctormap |> ConstructorBranchMap.add ctornm (ctorid, ptyargs)
-  ) ConstructorBranchMap.empty
+        ctormap |> ConstructorMap.add ctornm (ctorid, ptyargs)
+  ) ConstructorMap.empty
 
 
 and subtype_concrete_with_abstract (_tyenv : Typeenv.t) (_modsig1 : module_signature) (_absmodsig2 : module_signature abstracted) : witness_map =
