@@ -49,6 +49,9 @@ end = struct
       | (TypeVar(MustBeBound(mbbid1)), TypeVar(MustBeBound(mbbid2))) ->
           MustBeBoundID.equal mbbid1 mbbid2
 
+      | (TypeVar(Updatable(r1)), TypeVar(Updatable(r2))) ->
+          MonoTypeVarUpdatable.equal !r1 !r2
+
       | (ProductType(tys1), ProductType(tys2)) ->
           aux_list (TupleList.to_list tys1) (TupleList.to_list tys2)
 
