@@ -15,7 +15,7 @@ val fold_val : (identifier -> poly_type -> 'a -> 'a) -> t -> 'a -> 'a
 
 val add_variant_type : type_name -> TypeID.Variant.t -> BoundID.t list -> constructor_branch_map -> t -> t
 
-val add_synonym_type : type_name -> TypeID.Synonym.t -> BoundID.t list -> poly_type -> t -> t
+val add_synonym_type : type_name -> TypeID.Synonym.t -> int -> t -> t
 
 val add_opaque_type : type_name -> OpaqueID.t -> kind -> t -> t
 
@@ -25,8 +25,6 @@ val find_constructor : constructor_name -> t -> (TypeID.Variant.t * ConstructorI
 
 val find_type : type_name -> t -> (TypeID.t * int) option
 
-val find_synonym_type : TypeID.Synonym.t -> t -> (BoundID.t list * poly_type) option
-
 val add_module : module_name -> module_signature -> name -> t -> t
 
 val find_module_opt : module_name -> t -> (module_signature * name) option
@@ -34,5 +32,3 @@ val find_module_opt : module_name -> t -> (module_signature * name) option
 val add_signature : signature_name -> module_signature abstracted -> t -> t
 
 val find_signature_opt : signature_name -> t -> (module_signature abstracted) option
-
-val show_all_synonyms : t -> unit

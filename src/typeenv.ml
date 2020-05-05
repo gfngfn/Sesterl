@@ -18,13 +18,6 @@ type type_entry =
   | DefinedSynonym of TypeID.Synonym.t
   | DefinedOpaque  of TypeID.Opaque.t
 
-module SynonymMap = Map.Make(TypeID.Synonym)
-
-type synonym_entry = {
-  s_type_parameters : BoundID.t list;
-  s_real_type       : poly_type;
-}
-
 module VariantMap = Map.Make(TypeID.Variant)
 
 type variant_entry = {
@@ -64,7 +57,6 @@ type t = {
   vals         : val_entry VarMap.t;
   type_names   : (type_entry * int) TypeNameMap.t;
   variants     : variant_entry VariantMap.t;
-  synonyms     : synonym_entry SynonymMap.t;
   opaques      : opaque_entry OpaqueMap.t;
   constructors : constructor_entry ConstructorMap.t;
   modules      : module_entry ModuleNameMap.t;
@@ -76,7 +68,6 @@ let empty = {
   vals         = VarMap.empty;
   type_names   = TypeNameMap.empty;
   variants     = VariantMap.empty;
-  synonyms     = SynonymMap.empty;
   opaques      = OpaqueMap.empty;
   constructors = ConstructorMap.empty;
   modules      = ModuleNameMap.empty;
@@ -142,17 +133,9 @@ let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : Bou
   }
 
 
-let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (typarams : BoundID.t list) (ptyreal : poly_type) (tyenv : t) : t =
-  let sentry =
-    {
-      s_type_parameters = typarams;
-      s_real_type       = ptyreal
-    }
-  in
-  let arity = List.length typarams in
+let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (arity : int) (tyenv : t) : t =
   { tyenv with
     type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedSynonym(sid), arity);
-    synonyms   = tyenv.synonyms |> SynonymMap.add sid sentry;
   }
 
 
@@ -190,12 +173,6 @@ let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * int) option =
   )
 
 
-let find_synonym_type (sid : TypeID.Synonym.t) (tyenv : t) : (BoundID.t list * poly_type) option =
-  tyenv.synonyms |> SynonymMap.find_opt sid |> Option.map (fun sentry ->
-    (sentry.s_type_parameters, sentry.s_real_type)
-  )
-
-
 let add_module (modnm : module_name) (modsig : module_signature) (name : name) (tyenv : t) : t =
   let modentry =
     {
@@ -228,11 +205,4 @@ let add_signature (signm : signature_name) (absmodsig : module_signature abstrac
 let find_signature_opt (signm : signature_name) (tyenv : t) : (module_signature abstracted) option =
   tyenv.signatures |> SignatureNameMap.find_opt signm |> Option.map (fun sigentry ->
     sigentry.sig_signature
-  )
-
-
-let show_all_synonyms (tyenv : t) : unit =
-  tyenv.synonyms |> SynonymMap.iter (fun sid sentry ->
-    Format.printf "| %a\n"
-      TypeID.Synonym.pp sid
   )

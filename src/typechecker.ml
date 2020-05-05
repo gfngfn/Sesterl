@@ -21,7 +21,7 @@ exception NotOfFunctorType                    of Range.t * module_signature
 exception NotAFunctorSignature                of Range.t * module_signature
 exception NotAStructureSignature              of Range.t * module_signature
 exception UnboundSignatureName                of Range.t * signature_name
-exception CannotRestrictTransparentType       of Range.t * BoundID.t list * single_type_binding
+exception CannotRestrictTransparentType       of Range.t * single_type_binding
 
 
 module BindingMap = Map.Make(String)
@@ -67,8 +67,8 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
     )
     ~t:(fun tynm tyopacity ->
       match tyopacity with
-      | Transparent(typarams, ISynonym(sid, ptyreal)) -> Format.printf "UPDATE %a\n" TypeID.Synonym.pp sid; Typeenv.add_synonym_type tynm sid typarams ptyreal
-      | Transparent(typarams, IVariant(vid, ctorbrs)) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
+      | Transparent(ISynonym(sid, arity))             -> Typeenv.add_synonym_type tynm sid arity
+      | Transparent(IVariant(vid, typarams, ctorbrs)) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
       | Opaque(kind, oid)                             -> Typeenv.add_opaque_type tynm oid kind
     )
     ~m:(fun modnm (modsig, name) tyenv ->
@@ -251,23 +251,16 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
 
 
 let get_real_type (tyenv : Typeenv.t) (sid : TypeID.Synonym.t) (tyargs : mono_type list) : mono_type =
-  match tyenv |> Typeenv.find_synonym_type sid with
-  | None ->
-      Format.printf "REAL %a\n" TypeID.Synonym.pp sid;  (* for debug *)
-      assert false
-
-  | Some(typarams, ptyreal) ->
-      begin
-        try
-          let substmap =
-            List.fold_left2 (fun substmap typaram tyarg ->
-              substmap |> BoundIDMap.add typaram tyarg
-            ) BoundIDMap.empty typarams tyargs
-          in
-          substitute substmap ptyreal
-        with
-        | Invalid_argument(_) -> assert false
-      end
+  let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
+  try
+    let substmap =
+      List.fold_left2 (fun substmap typaram tyarg ->
+        substmap |> BoundIDMap.add typaram tyarg
+      ) BoundIDMap.empty typarams tyargs
+    in
+    substitute substmap ptyreal
+  with
+  | Invalid_argument(_) -> assert false
 
 
 let unify (tyenv : Typeenv.t) (tyact : mono_type) (tyexp : mono_type) : unit =
@@ -504,8 +497,8 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                       let (tyid, arity) =
                         match tyopac with
                         | Opaque(kd, oid)                         -> (TypeID.Opaque(oid), kd)
-                        | Transparent(typarams, ISynonym(sid, _)) -> (TypeID.Synonym(sid), List.length typarams)
-                        | Transparent(typarams, IVariant(vid, _)) -> (TypeID.Variant(vid), List.length typarams)
+                        | Transparent(ISynonym(sid, arity))       -> (TypeID.Synonym(sid), arity)
+                        | Transparent(IVariant(vid, typarams, _)) -> (TypeID.Variant(vid), List.length typarams)
                       in
                       assert (arity = List.length tyargs);
                       k tyid;
@@ -1006,8 +999,8 @@ and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : modu
               | Opaque(_kd, oid) ->
                   begin
                     match wtmap |> OpaqueIDMap.find_opt oid with
-                    | None                    -> tyopac
-                    | Some(sid, typarams, pty) -> Transparent(typarams, ISynonym(sid, pty))
+                    | None                   -> tyopac
+                    | Some(sid, typarams, _) -> Transparent(ISynonym(sid, List.length typarams))
                   end
             )
             ~m:(fun (modsig, name) -> (substitute_concrete wtmap modsig, name))
@@ -1208,8 +1201,8 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
               | None ->
                   raise (UndefinedTypeName(rng1, tynm1))
 
-              | Some(Transparent(typarams, tytrans)) ->
-                  raise (CannotRestrictTransparentType(rng1, typarams, tytrans))
+              | Some(Transparent(tytrans)) ->
+                  raise (CannotRestrictTransparentType(rng1, tytrans))
 
               | Some(Opaque(_kd, oid)) ->
                   assert (oidset0 |> OpaqueIDSet.mem oid);
@@ -1234,7 +1227,6 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
 and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding =
 
   Format.printf "BIND %a\n" pp_untyped_binding utbind;
-  Typeenv.show_all_synonyms tyenv;
 
   match utbind with
   | BindVal(rec_or_nonrec) ->
@@ -1326,7 +1318,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
               graph |> DependencyGraph.add_edge sid siddep
             ) dependencies
           in
-          let sigr = sigr |> SigRecord.add_synonym_type tynm sid typarams ptyreal in
+          TypeSynonymStore.add_synonym_type sid typarams ptyreal;
+          let sigr = sigr |> SigRecord.add_synonym_type tynm sid (List.length typarams) in
 
           Format.printf "SYN %s %a <%d> = %a\n" tynm TypeID.Synonym.pp sid (List.length typarams) pp_poly_type ptyreal;  (* for debug *)
 
