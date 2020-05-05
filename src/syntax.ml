@@ -687,7 +687,7 @@ module SigRecord = struct
 
 
   let overwrite (superior : t) (inferior : t) : t =
-    let left _ x y = Some(x) in
+    let left _ x _ = Some(x) in
     let sr_vals    = IdentifierMap.union    left superior.sr_vals    inferior.sr_vals in
     let sr_types   = TypeNameMap.union      left superior.sr_types   inferior.sr_types in
     let sr_modules = ModuleNameMap.union    left superior.sr_modules inferior.sr_modules in

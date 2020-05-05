@@ -71,8 +71,9 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
       | Transparent(typarams, IVariant(vid, ctorbrs)) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
       | Opaque(kind, oid)                             -> Typeenv.add_opaque_type tynm oid kind
     )
-    ~m:(fun modnm (modsig, name) ->
-      Typeenv.add_module modnm modsig name
+    ~m:(fun modnm (modsig, name) tyenv ->
+      let tyenv = tyenv |> Typeenv.add_module modnm modsig name in
+      tyenv
     )
     ~s:(fun signm absmodsig ->
       Typeenv.add_signature signm absmodsig
@@ -164,7 +165,7 @@ let iletrecin_multiple (binds : (identifier * poly_type * name * name * ast) Tup
   in
   let name_for_whole_rec = OutputIdentifier.fresh () in
   let tuple_entries =
-    binds |> TupleList.map (fun (_, _, name_outer, name_inner, e1) ->
+    binds |> TupleList.map (fun (_, _, _name_outer, _name_inner, e1) ->
       match e1 with
       | ILambda(None, names, e0) ->
           ILambda(None, names, iletpatin ipat_inner_tuple (IApply(name_for_whole_rec, [])) e0)
@@ -209,7 +210,7 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     | ListType(ty) ->
         aux ty
 
-    | DataType(tyid, tyargs) ->
+    | DataType(_tyid, tyargs) ->
         aux_list tyargs
 
     | EffType(eff, ty0) ->
@@ -408,7 +409,7 @@ let check_properly_used (tyenv : Typeenv.t) ((rng, x) : identifier ranged) =
 
 
 
-let generate_output_identifier scope rng x =
+let generate_output_identifier scope _rng x =
   match scope with
   | Local         -> OutputIdentifier.local x
   | Global(arity) -> OutputIdentifier.global x arity
@@ -417,8 +418,8 @@ let generate_output_identifier scope rng x =
 let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   match bc with
   | Unit    -> ((rng, BaseType(UnitType)))
-  | Int(n)  -> (rng, BaseType(IntType))
-  | Bool(b) -> (rng, BaseType(BoolType))
+  | Int(_)  -> (rng, BaseType(IntType))
+  | Bool(_) -> (rng, BaseType(BoolType))
   | BinaryByString(_)
   | BinaryByInts(_)   -> (rng, BaseType(BinaryType))
 
@@ -931,23 +932,20 @@ and typecheck_letrec_mutual (name_inner_f : untyped_let_binding -> name) (name_o
     ) (Alist.empty, pre.tyenv)
   in
 
-  let (bindacc, tyenv) =
-    tupleacc |> Alist.to_list |> List.fold_left (fun (bindacc, tyenv) (letbind, name_inner, tyf) ->
-      let (pty, e1) = typecheck_letrec_single { pre with tyenv } letbind name_inner tyf in
-      let tyenv =
-        let (_, x) = letbind.vb_identifier in
-        tyenv |> Typeenv.add_val x pty name_inner
-      in
+  let pre = { pre with tyenv } in
+  let bindacc =
+    tupleacc |> Alist.to_list |> List.fold_left (fun bindacc (letbind, name_inner, tyf) ->
+      let (pty, e1) = typecheck_letrec_single pre letbind tyf in
       let name_outer = name_outer_f letbind in
-      let (_, x) as ident = letbind.vb_identifier in
-      (Alist.extend bindacc (x, pty, name_outer, name_inner, e1), tyenv)
-    ) (Alist.empty, tyenv)
+      let (_, x) = letbind.vb_identifier in
+      Alist.extend bindacc (x, pty, name_outer, name_inner, e1)
+    ) Alist.empty
   in
   bindacc |> Alist.to_list
 
 
-and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (name_inner : name) (tyf : mono_type) : poly_type * ast =
-  let (rngv, x) = letbind.vb_identifier in
+and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : mono_type) : poly_type * ast =
+  let (rngv, _) = letbind.vb_identifier in
   let params = letbind.vb_parameters in
   let utast0 = letbind.vb_body in
 
@@ -984,7 +982,7 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorBranchMap.empty
 
 
-and subtype_concrete_with_abstract (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
+and subtype_concrete_with_abstract (_tyenv : Typeenv.t) (_modsig1 : module_signature) (_absmodsig2 : module_signature abstracted) : witness_map =
   failwith "TODO: subtype_concrete_with_abstract"
 
 
@@ -1005,7 +1003,7 @@ and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : modu
               | Transparent(_) ->
                   tyopac
 
-              | Opaque(kd, oid) ->
+              | Opaque(_kd, oid) ->
                   begin
                     match wtmap |> OpaqueIDMap.find_opt oid with
                     | None                    -> tyopac
@@ -1071,7 +1069,7 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       let sigr = SigRecord.empty |> SigRecord.add_val x pty name in
       (OpaqueIDSet.empty, sigr)
 
-  | DeclTypeTrans(tyident, mty) ->
+  | DeclTypeTrans(_tyident, _mty) ->
       failwith "TODO: DeclTypeTrans"
         (* -- maybe should handle mutually recursive types -- *)
 
@@ -1137,8 +1135,8 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
       end
 
   | SigPath(utmod, sigident) ->
-      let (absmodsig1, e) = typecheck_module tyenv utmod in
-      let (oidset1, modsig1) = absmodsig1 in
+      let (absmodsig1, _e) = typecheck_module tyenv utmod in
+      let (_oidset1, modsig1) = absmodsig1 in
       begin
         match modsig1 with
         | ConcFunctor(_) ->
@@ -1213,7 +1211,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
               | Some(Transparent(typarams, tytrans)) ->
                   raise (CannotRestrictTransparentType(rng1, typarams, tytrans))
 
-              | Some(Opaque(kd, oid)) ->
+              | Some(Opaque(_kd, oid)) ->
                   assert (oidset0 |> OpaqueIDSet.mem oid);
                   let typaramassoc = make_type_parameter_assoc 1 tyvaridents in
                   let pty =
@@ -1308,8 +1306,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         }
       in
       let syns = synacc |> Alist.to_list in
-      let (graph, sigr, tybindacc) =
-        syns |> List.fold_left (fun (graph, sigr, tybindacc) syn ->
+      let (graph, sigr) =
+        syns |> List.fold_left (fun (graph, sigr) syn ->
           let ((_, tynm), typarams, mtyreal, sid) = syn in
           let typaramassoc = make_type_parameter_assoc 1 typarams in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
@@ -1324,16 +1322,15 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
               graph |> DependencyGraph.add_edge sid siddep
             ) dependencies
           in
-          let tybindacc = Alist.extend tybindacc (tynm, typarams, ISynonym(sid, ptyreal)) in
           let sigr = sigr |> SigRecord.add_synonym_type tynm sid typarams ptyreal in
 
           Format.printf "SYN %s %a <%d> = %a\n" tynm TypeID.Synonym.pp sid (List.length typarams) pp_poly_type ptyreal;  (* for debug *)
 
-          (graph, sigr, tybindacc)
-        ) (graph, SigRecord.empty, Alist.empty)
+          (graph, sigr)
+        ) (graph, SigRecord.empty)
       in
-      let (sigr, tybindacc) =
-        vntacc |> Alist.to_list |> List.fold_left (fun (sigr, tybindacc) vnt ->
+      let sigr =
+        vntacc |> Alist.to_list |> List.fold_left (fun sigr vnt ->
           let ((_, tynm), typarams, ctorbrs, vid) = vnt in
           let typaramassoc = make_type_parameter_assoc 1 typarams in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
@@ -1344,10 +1341,9 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           let ctorbrmap =
             make_constructor_branch_map { pre with tyenv } ctorbrs
           in
-          let tybindacc = Alist.extend tybindacc (tynm, typarams, IVariant(vid, ctorbrmap)) in
           let sigr = sigr |> SigRecord.add_variant_type tynm vid typarams ctorbrmap in
-          (sigr, tybindacc)
-        ) (sigr, tybindacc)
+          sigr
+        ) sigr
       in
       if DependencyGraph.has_cycle graph then
         let tyidents = syns |> List.map (fun (tyident, _, _, _) -> tyident) in
@@ -1462,7 +1458,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
 
 
 and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : SigRecord.t abstracted * binding list =
-  let (tyenv, oidsetacc, sigracc, ibindacc) =
+  let (_tyenv, oidsetacc, sigracc, ibindacc) =
     utbinds |> List.fold_left (fun (tyenv, oidsetacc, sigracc, ibindacc) utbind ->
       let (abssigr, ibind) = typecheck_binding tyenv utbind in
       let (oidset, sigr) = abssigr in
