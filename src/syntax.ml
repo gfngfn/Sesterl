@@ -460,17 +460,17 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
 and show_mono_type_var_scheme showty (mtv : mono_type_var) =
   match mtv with
   | MustBeBound(mbbid) -> Format.asprintf "%a" MustBeBoundID.pp mbbid
-  | Updatable(mtvu)    -> show_mono_type_var_updatable_ref_scheme showty mtvu
+  | Updatable(mtvu)    -> show_mono_type_var_updatable_scheme showty !mtvu
 
 
-and show_mono_type_var_updatable_ref_scheme showty (mtvu : mono_type_var_updatable ref) =
-  match !mtvu with
+and show_mono_type_var_updatable_scheme showty (mtvu : mono_type_var_updatable) =
+  match mtvu with
   | Link(ty)  -> showty (show_mono_type_var_scheme showty) ty
   | Free(fid) -> Format.asprintf "%a" FreeID.pp fid
 
 
-let show_mono_type_var_updatable_ref =
-  show_mono_type_var_updatable_ref_scheme show_mono_type_scheme
+let show_mono_type_var_updatable =
+  show_mono_type_var_updatable_scheme show_mono_type_scheme
 
 
 let show_mono_type_var =
@@ -501,13 +501,9 @@ let pp_poly_type ppf pty =
 type name = OutputIdentifier.t
 [@@deriving show { with_path = false; } ]
 
-module ConstructorBranchMap = Map.Make(String)
+module ConstructorMap = Map.Make(String)
 
-type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorBranchMap.t
-
-let pp_constructor_branch_map ppf _ =
-  Format.fprintf ppf "<constructor-branch-map>"
-
+type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorMap.t
 
 module TypeParameterAssoc = AssocList.Make(String)
 
@@ -519,23 +515,17 @@ type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
 module SynonymIDSet = Set.Make(TypeID.Synonym)
 
-module OpaqueID = TypeID.Opaque
+module VariantIDMap = Map.Make(TypeID.Variant)
 
-module OpaqueIDSet = Set.Make(OpaqueID)
+module OpaqueIDSet = Set.Make(TypeID.Opaque)
 
-module OpaqueIDMap = Map.Make(OpaqueID)
-(*
-type 'r concrete_signature_ =
-  | AtomicPoly   of poly_type
-  | AtomicKinded of poly_type * kind
-  | AtomicAbs    of 'r abstract_signature_
-  | ConcModule   of 'r module_signature_
-*)
+module OpaqueIDMap = Map.Make(TypeID.Opaque)
+
 type 'r module_signature_ =
   | ConcStructure of 'r
   | ConcFunctor   of OpaqueIDSet.t * 'r module_signature_ * (OpaqueIDSet.t * 'r module_signature_)
 
-module IdentifierMap = Map.Make(String)
+module ValNameMap = Map.Make(String)
 
 module TypeNameMap = Map.Make(String)
 
@@ -556,17 +546,17 @@ type pattern =
 [@@deriving show { with_path = false; } ]
 
 type single_type_binding =
-  | IVariant of TypeID.Variant.t * constructor_branch_map
-  | ISynonym of TypeID.Synonym.t * poly_type
+  | IVariant of TypeID.Variant.t * BoundID.t list * constructor_branch_map
+  | ISynonym of TypeID.Synonym.t * int
 
 type type_opacity =
-  | Transparent of BoundID.t list * single_type_binding
-  | Opaque      of kind * OpaqueID.t
+  | Transparent of single_type_binding
+  | Opaque      of kind * TypeID.Opaque.t
 
 type 'a abstracted = OpaqueIDSet.t * 'a
 
 type signature_record = {
-  sr_vals    : (poly_type * name) IdentifierMap.t;
+  sr_vals    : (poly_type * name) ValNameMap.t;
   sr_types   : type_opacity TypeNameMap.t;
   sr_modules : (signature_record module_signature_ * name) ModuleNameMap.t;
   sr_sigs    : ((signature_record module_signature_) abstracted) SignatureNameMap.t;
@@ -612,7 +602,7 @@ module SigRecord = struct
 
   let empty =
     {
-      sr_vals    = IdentifierMap.empty;
+      sr_vals    = ValNameMap.empty;
       sr_types   = TypeNameMap.empty;
       sr_modules = ModuleNameMap.empty;
       sr_sigs    = SignatureNameMap.empty;
@@ -620,26 +610,26 @@ module SigRecord = struct
 
 
   let add_val (x : identifier) (pty : poly_type) (name : name) (sigr : t) : t =
-    { sigr with sr_vals = sigr.sr_vals |> IdentifierMap.add x (pty, name) }
+    { sigr with sr_vals = sigr.sr_vals |> ValNameMap.add x (pty, name) }
 
 
   let find_val (x : identifier) (sigr : t) : (poly_type * name) option =
-    sigr.sr_vals |> IdentifierMap.find_opt x
+    sigr.sr_vals |> ValNameMap.find_opt x
 
 
-  let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (typarams : BoundID.t list) (ptyreal : poly_type) (sigr : t) : t =
-    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(typarams, ISynonym(sid, ptyreal))) }
+  let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (arity : int) (sigr : t) : t =
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(ISynonym(sid, arity))) }
 
 
   let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrs : constructor_branch_map) (sigr : t) : t =
-    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(typarams, IVariant(vid, ctorbrs))) }
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(IVariant(vid, typarams, ctorbrs))) }
 
 
   let find_type (tynm : type_name) (sigr : t) : type_opacity option =
     sigr.sr_types |> TypeNameMap.find_opt tynm
 
 
-  let add_opaque_type (tynm : type_name) (oid : OpaqueID.t) (kd : kind) (sigr : t) : t =
+  let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (kd : kind) (sigr : t) : t =
     { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Opaque(kd, oid)) }
 
 
@@ -669,7 +659,7 @@ module SigRecord = struct
       |> SignatureNameMap.fold fs sigr.sr_sigs
       |> ModuleNameMap.fold fm sigr.sr_modules
       |> TypeNameMap.fold ft sigr.sr_types
-      |> IdentifierMap.fold fv sigr.sr_vals
+      |> ValNameMap.fold fv sigr.sr_vals
 
 
   let map
@@ -679,7 +669,7 @@ module SigRecord = struct
       ~s:(fs : module_signature abstracted -> module_signature abstracted)
       (sigr : t) : t =
     {
-      sr_vals    = sigr.sr_vals |> IdentifierMap.map fv;
+      sr_vals    = sigr.sr_vals |> ValNameMap.map fv;
       sr_types   = sigr.sr_types |> TypeNameMap.map ft;
       sr_modules = sigr.sr_modules |> ModuleNameMap.map fm;
       sr_sigs    = sigr.sr_sigs |> SignatureNameMap.map fs;
@@ -687,8 +677,8 @@ module SigRecord = struct
 
 
   let overwrite (superior : t) (inferior : t) : t =
-    let left _ x y = Some(x) in
-    let sr_vals    = IdentifierMap.union    left superior.sr_vals    inferior.sr_vals in
+    let left _ x _ = Some(x) in
+    let sr_vals    = ValNameMap.union       left superior.sr_vals    inferior.sr_vals in
     let sr_types   = TypeNameMap.union      left superior.sr_types   inferior.sr_types in
     let sr_modules = ModuleNameMap.union    left superior.sr_modules inferior.sr_modules in
     let sr_sigs    = SignatureNameMap.union left superior.sr_sigs    inferior.sr_sigs in
@@ -697,71 +687,10 @@ module SigRecord = struct
 
   let disjoint_union (rng : Range.t) (sigr1 : t) (sigr2 : t) : t =
     let conflict s _ _ = raise (ConflictInSignature(rng, s)) in
-    let sr_vals    = IdentifierMap.union    conflict sigr1.sr_vals    sigr2.sr_vals in
+    let sr_vals    = ValNameMap.union       conflict sigr1.sr_vals    sigr2.sr_vals in
     let sr_types   = TypeNameMap.union      conflict sigr1.sr_types   sigr2.sr_types in
     let sr_modules = ModuleNameMap.union    conflict sigr1.sr_modules sigr2.sr_modules in
     let sr_sigs    = SignatureNameMap.union conflict sigr1.sr_sigs    sigr2.sr_sigs in
     { sr_vals; sr_types; sr_modules; sr_sigs }
 
 end
-
-
-let pp_comma ppf () =
-  Format.fprintf ppf ", "
-
-
-let stringify_opaque_id_set oidset =
-  OpaqueIDSet.fold (fun oid acc ->
-    Alist.extend acc (Format.asprintf "%a" TypeID.Opaque.pp oid)
-  ) oidset Alist.empty |> Alist.to_list |> List.map (fun s -> " " ^ s) |> String.concat ","
-
-
-let rec display_signature (depth : int) (modsig : module_signature) : unit =
-  let indent = String.make (depth * 2) ' ' in
-  match modsig with
-  | ConcStructure(sigr) ->
-      Format.printf "%ssig\n" indent;
-      display_structure (depth + 1) sigr;
-      Format.printf "%send\n" indent
-
-  | ConcFunctor(oidset1, modsigdom, (oidset2, modsigcod)) ->
-      let sx1 = stringify_opaque_id_set oidset1 in
-      let sx2 = stringify_opaque_id_set oidset2 in
-      Format.printf "%s(exists%s) fun(\n" indent sx1;
-      display_signature (depth + 1) modsigdom;
-      Format.printf "%s) -> (forall%s)\n" indent sx2;
-      display_signature (depth + 1) modsigcod
-
-
-and display_structure (depth : int) (sigr : SigRecord.t) : unit =
-  let indent = String.make (depth * 2) ' ' in
-  sigr |> SigRecord.fold
-      ~v:(fun x (pty, _) () ->
-        Format.printf "%sval %s: %a\n" indent x pp_poly_type pty
-      )
-      ~t:(fun tynm tyopacity () ->
-        match tyopacity with
-        | Transparent(typarams, ISynonym(_sid, ptyreal)) ->
-            Format.printf "%stype %s<%a> = %a\n"
-              indent
-              tynm
-              (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
-              pp_poly_type ptyreal
-
-        | Transparent(typarams, IVariant(_vid, _ctorbrs)) ->
-            Format.printf "%stype %s<%a> = (variant)\n"
-              indent
-              tynm
-              (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
-
-        | Opaque(kind, _) ->
-            Format.printf "%stype %s:: %d\n" indent tynm kind
-      )
-      ~m:(fun modnm (modsig, _) () ->
-        Format.printf "%smodule %s:\n" indent modnm;
-        display_signature (depth + 1) modsig;
-      )
-      ~s:(fun signm _ () ->
-        Format.printf "signature %s\n" signm
-      )
-      ()

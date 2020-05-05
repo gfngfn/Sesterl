@@ -2,15 +2,11 @@
 open Syntax
 
 
-module VarMap = Map.Make(String)
-
 type val_entry = {
   typ  : poly_type;
   name : name;
   mutable is_used : bool;
 }
-
-module TypeNameMap = Map.Make(String)
 
 type type_entry =
   | Defining       of TypeID.t
@@ -18,27 +14,14 @@ type type_entry =
   | DefinedSynonym of TypeID.Synonym.t
   | DefinedOpaque  of TypeID.Opaque.t
 
-module SynonymMap = Map.Make(TypeID.Synonym)
-
-type synonym_entry = {
-  s_type_parameters : BoundID.t list;
-  s_real_type       : poly_type;
-}
-
-module VariantMap = Map.Make(TypeID.Variant)
-
 type variant_entry = {
   v_type_parameters : BoundID.t list;
   v_branches        : constructor_branch_map;
 }
 
-module OpaqueMap = Map.Make(TypeID.Opaque)
-
 type opaque_entry = {
   o_kind : kind;
 }
-
-module ConstructorMap = Map.Make(String)
 
 type constructor_entry = {
   belongs         : TypeID.Variant.t;
@@ -47,25 +30,20 @@ type constructor_entry = {
   parameter_types : poly_type list;
 }
 
-module ModuleNameMap = Map.Make(String)
-
 type module_entry = {
   mod_name      : name;
   mod_signature : module_signature;
 }
-
-module SignatureNameMap = Map.Make(String)
 
 type signature_entry = {
   sig_signature : module_signature abstracted;
 }
 
 type t = {
-  vals         : val_entry VarMap.t;
+  vals         : val_entry ValNameMap.t;
   type_names   : (type_entry * int) TypeNameMap.t;
-  variants     : variant_entry VariantMap.t;
-  synonyms     : synonym_entry SynonymMap.t;
-  opaques      : opaque_entry OpaqueMap.t;
+  variants     : variant_entry VariantIDMap.t;
+  opaques      : opaque_entry OpaqueIDMap.t;
   constructors : constructor_entry ConstructorMap.t;
   modules      : module_entry ModuleNameMap.t;
   signatures   : signature_entry SignatureNameMap.t;
@@ -73,11 +51,10 @@ type t = {
 
 
 let empty = {
-  vals         = VarMap.empty;
+  vals         = ValNameMap.empty;
   type_names   = TypeNameMap.empty;
-  variants     = VariantMap.empty;
-  synonyms     = SynonymMap.empty;
-  opaques      = OpaqueMap.empty;
+  variants     = VariantIDMap.empty;
+  opaques      = OpaqueIDMap.empty;
   constructors = ConstructorMap.empty;
   modules      = ModuleNameMap.empty;
   signatures   = SignatureNameMap.empty;
@@ -93,25 +70,25 @@ let add_val x pty name tyenv =
       is_used = false;
     }
   in
-  let vals = tyenv.vals |> VarMap.add x entry in
+  let vals = tyenv.vals |> ValNameMap.add x entry in
   { tyenv with vals = vals; }
 
 
 let find_val_opt x tyenv =
-  tyenv.vals |> VarMap.find_opt x |> Option.map (fun entry ->
+  tyenv.vals |> ValNameMap.find_opt x |> Option.map (fun entry ->
     entry.is_used <- true;
     (entry.typ, entry.name)
   )
 
 
 let is_val_properly_used x tyenv =
-  tyenv.vals |> VarMap.find_opt x |> Option.map (fun entry ->
+  tyenv.vals |> ValNameMap.find_opt x |> Option.map (fun entry ->
     entry.is_used
   )
 
 
 let fold_val f tyenv acc =
-  VarMap.fold (fun x entry acc -> f x entry.typ acc) tyenv.vals acc
+  ValNameMap.fold (fun x entry acc -> f x entry.typ acc) tyenv.vals acc
 
 
 let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : BoundID.t list) (brmap : constructor_branch_map) (tyenv : t) : t =
@@ -122,7 +99,7 @@ let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : Bou
     }
   in
   let ctors =
-    ConstructorBranchMap.fold (fun ctornm (ctorid, ptys) ctors ->
+    ConstructorMap.fold (fun ctornm (ctorid, ptys) ctors ->
       let entry =
         {
           belongs         = vid;
@@ -137,26 +114,18 @@ let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : Bou
   let arity = List.length typarams in
   { tyenv with
     type_names   = tyenv.type_names |> TypeNameMap.add tynm (DefinedVariant(vid), arity);
-    variants     = tyenv.variants |> VariantMap.add vid ventry;
+    variants     = tyenv.variants |> VariantIDMap.add vid ventry;
     constructors = ctors;
   }
 
 
-let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (typarams : BoundID.t list) (ptyreal : poly_type) (tyenv : t) : t =
-  let sentry =
-    {
-      s_type_parameters = typarams;
-      s_real_type       = ptyreal
-    }
-  in
-  let arity = List.length typarams in
+let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (arity : int) (tyenv : t) : t =
   { tyenv with
     type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedSynonym(sid), arity);
-    synonyms   = tyenv.synonyms |> SynonymMap.add sid sentry;
   }
 
 
-let add_opaque_type (tynm : type_name) (oid : OpaqueID.t) (kind : kind) (tyenv : t) : t =
+let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (kind : kind) (tyenv : t) : t =
   let oentry =
     {
       o_kind = kind;
@@ -164,7 +133,7 @@ let add_opaque_type (tynm : type_name) (oid : OpaqueID.t) (kind : kind) (tyenv :
   in
   { tyenv with
     type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedOpaque(oid), kind);
-    opaques    = tyenv.opaques |> OpaqueMap.add oid oentry;
+    opaques    = tyenv.opaques |> OpaqueIDMap.add oid oentry;
   }
 
 
@@ -187,12 +156,6 @@ let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * int) option =
     | DefinedVariant(vid) -> (TypeID.Variant(vid), arity)
     | DefinedSynonym(sid) -> (TypeID.Synonym(sid), arity)
     | DefinedOpaque(oid)  -> (TypeID.Opaque(oid), arity)
-  )
-
-
-let find_synonym_type (sid : TypeID.Synonym.t) (tyenv : t) : (BoundID.t list * poly_type) option =
-  tyenv.synonyms |> SynonymMap.find_opt sid |> Option.map (fun sentry ->
-    (sentry.s_type_parameters, sentry.s_real_type)
   )
 
 

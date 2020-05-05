@@ -19,6 +19,6 @@ exception NotOfFunctorType                    of Range.t * module_signature
 exception NotAFunctorSignature                of Range.t * module_signature
 exception NotAStructureSignature              of Range.t * module_signature
 exception UnboundSignatureName                of Range.t * signature_name
-exception CannotRestrictTransparentType       of Range.t * BoundID.t list * single_type_binding
+exception CannotRestrictTransparentType       of Range.t * single_type_binding
 
 val main : untyped_binding list -> SigRecord.t abstracted * binding list
