@@ -460,17 +460,17 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
 and show_mono_type_var_scheme showty (mtv : mono_type_var) =
   match mtv with
   | MustBeBound(mbbid) -> Format.asprintf "%a" MustBeBoundID.pp mbbid
-  | Updatable(mtvu)    -> show_mono_type_var_updatable_ref_scheme showty mtvu
+  | Updatable(mtvu)    -> show_mono_type_var_updatable_scheme showty !mtvu
 
 
-and show_mono_type_var_updatable_ref_scheme showty (mtvu : mono_type_var_updatable ref) =
-  match !mtvu with
+and show_mono_type_var_updatable_scheme showty (mtvu : mono_type_var_updatable) =
+  match mtvu with
   | Link(ty)  -> showty (show_mono_type_var_scheme showty) ty
   | Free(fid) -> Format.asprintf "%a" FreeID.pp fid
 
 
-let show_mono_type_var_updatable_ref =
-  show_mono_type_var_updatable_ref_scheme show_mono_type_scheme
+let show_mono_type_var_updatable =
+  show_mono_type_var_updatable_scheme show_mono_type_scheme
 
 
 let show_mono_type_var =

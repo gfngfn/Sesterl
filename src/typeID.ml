@@ -65,3 +65,11 @@ let pp ppf tyid =
   | Variant(vid) -> Variant.pp ppf vid
   | Synonym(sid) -> Synonym.pp ppf sid
   | Opaque(oid)  -> Opaque.pp ppf oid
+
+
+let equal tyid1 tyid2 =
+  match (tyid1, tyid2) with
+  | (Variant(vid1), Variant(vid2)) -> Variant.equal vid1 vid2
+  | (Synonym(sid1), Synonym(sid2)) -> Synonym.equal sid1 sid2
+  | (Opaque(oid1) , Opaque(oid2) ) -> Opaque.equal oid1 oid2
+  | _                              -> false
