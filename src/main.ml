@@ -19,7 +19,11 @@ let main fpath_in fpath_out =
     let outc = open_out fpath_out in
     output_string outc scode;
     close_out outc;
+    Format.printf "output written on '%s'\n" fpath_out;
   with
+  | Failure(msg) ->
+      Format.printf "unsupported \"%s\"\n" msg
+
   | ParserInterface.Error(rng) ->
       Format.printf "%a: syntax error\n" Range.pp rng
 
@@ -78,7 +82,7 @@ let main fpath_in fpath_out =
         len_actual
 
   | Typechecker.UndefinedTypeName(rng, tynm) ->
-      Format.printf "%a: undefined type or type constructor '%s'"
+      Format.printf "%a: undefined type or type constructor '%s'\n"
         Range.pp rng
         tynm
 
