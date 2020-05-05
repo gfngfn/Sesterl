@@ -1,4 +1,6 @@
 
+open MyUtil
+
 exception UnidentifiedToken           of Range.t * string
 exception SeeEndOfFileInComment       of Range.t
 exception SeeEndOfFileInStringLiteral of Range.t
@@ -708,6 +710,12 @@ let pp_comma ppf () =
   Format.fprintf ppf ", "
 
 
+let stringify_opaque_id_set oidset =
+  OpaqueIDSet.fold (fun oid acc ->
+    Alist.extend acc (Format.asprintf "%a" TypeID.Opaque.pp oid)
+  ) oidset Alist.empty |> Alist.to_list |> String.concat ", "
+
+
 let rec display_signature (depth : int) (modsig : module_signature) : unit =
   let indent = String.make (depth * 2) ' ' in
   match modsig with
@@ -716,8 +724,13 @@ let rec display_signature (depth : int) (modsig : module_signature) : unit =
       display_structure (depth + 1) sigr;
       Format.printf "%send\n" indent
 
-  | ConcFunctor(_oidset, _modsigdom, _absmodsigcod) ->
-      Format.printf "%s: fun ...\n" indent
+  | ConcFunctor(oidset1, modsigdom, (oidset2, modsigcod)) ->
+      let sx1 = stringify_opaque_id_set oidset1 in
+      let sx2 = stringify_opaque_id_set oidset2 in
+      Format.printf "%s: (exists %s) fun(\n" indent sx1;
+      display_signature (depth + 1) modsigdom;
+      Format.printf "%s) -> (forall %s)\n" indent sx2;
+      display_signature (depth + 1) modsigcod
 
 
 and display_structure (depth : int) (sigr : SigRecord.t) : unit =
