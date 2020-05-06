@@ -583,13 +583,7 @@ type pattern =
   | IPConstructor of ConstructorID.t * pattern list
 [@@deriving show { with_path = false; } ]
 
-type single_type_binding =
-  | IVariant of TypeID.Variant.t * int
-  | ISynonym of TypeID.Synonym.t * int
-
-type type_opacity =
-  | Transparent of single_type_binding
-  | Opaque      of kind * TypeID.Opaque.t
+type type_opacity = TypeID.t * int
 
 type 'a abstracted = OpaqueIDSet.t * 'a
 
@@ -664,7 +658,7 @@ module SigRecord = struct
 
 
   let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (arity : int) (sigr : t) : t =
-    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(ISynonym(sid, arity))) }
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (TypeID.Synonym(sid), arity) }
 
 
   let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrs : constructor_branch_map) (sigr : t) : t =
@@ -683,7 +677,7 @@ module SigRecord = struct
     in
     let arity = List.length typarams in
     { sigr with
-      sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(IVariant(vid, arity)));
+      sr_types = sigr.sr_types |> TypeNameMap.add tynm (TypeID.Variant(vid), arity);
       sr_ctors = ctors;
     }
 
@@ -697,7 +691,7 @@ module SigRecord = struct
 
 
   let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (kd : kind) (sigr : t) : t =
-    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Opaque(kd, oid)) }
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (TypeID.Opaque(oid), kd) }
 
 
   let add_module (modnm : module_name) (modsig : module_signature) (name : name) (sigr : t) : t =

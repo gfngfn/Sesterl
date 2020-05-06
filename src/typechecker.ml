@@ -21,7 +21,7 @@ exception NotOfFunctorType                    of Range.t * module_signature
 exception NotAFunctorSignature                of Range.t * module_signature
 exception NotAStructureSignature              of Range.t * module_signature
 exception UnboundSignatureName                of Range.t * signature_name
-exception CannotRestrictTransparentType       of Range.t * single_type_binding
+exception CannotRestrictTransparentType       of Range.t * type_opacity
 exception PolymorphicContradiction            of Range.t * (BoundID.t list * poly_type) * (BoundID.t list * poly_type)
 exception PolymorphicInclusion                of Range.t * FreeID.t * (BoundID.t list * poly_type) * (BoundID.t list * poly_type)
 exception MissingRequiredValName              of Range.t * identifier * poly_type
@@ -69,6 +69,7 @@ module WitnessMap : sig
   val add_variant : TypeID.Variant.t -> TypeID.Variant.t -> t -> t
   val add_synonym : TypeID.Synonym.t -> TypeID.Synonym.t -> t -> t
   val add_opaque : TypeID.Opaque.t -> TypeID.t -> t -> t
+  val find_synonym : TypeID.Synonym.t -> t -> TypeID.Synonym.t option
   val find_opaque : TypeID.Opaque.t -> t -> TypeID.t option
   val union : t -> t -> t
 end = struct
@@ -102,6 +103,10 @@ end = struct
 
   let add_opaque (oid2 : TypeID.Opaque.t) (tyid1 : TypeID.t) (wtmap : t) : t =
     failwith "TODO: WitnessMap.add_opaque"
+
+
+  let find_synonym (sid2 : TypeID.Synonym.t) (wtmap : t) : TypeID.Synonym.t option =
+    wtmap.synonyms |> SynonymIDMap.find_opt sid2
 
 
   let find_opaque (oid2 : TypeID.Opaque.t) (wtmap : t) : TypeID.t option =
@@ -194,9 +199,9 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
     )
     ~t:(fun tynm tyopacity ->
       match tyopacity with
-      | Transparent(ISynonym(sid, arity)) -> Typeenv.add_synonym_type tynm sid arity
-      | Transparent(IVariant(vid, arity)) -> Typeenv.add_variant_type tynm vid arity
-      | Opaque(kind, oid)                 -> Typeenv.add_opaque_type tynm oid kind
+      | (TypeID.Synonym(sid), arity) -> Typeenv.add_synonym_type tynm sid arity
+      | (TypeID.Variant(vid), arity) -> Typeenv.add_variant_type tynm vid arity
+      | (TypeID.Opaque(oid), arity)  -> Typeenv.add_opaque_type tynm oid arity
     )
     ~m:(fun modnm (modsig, name) tyenv ->
       let tyenv = tyenv |> Typeenv.add_module modnm modsig name in
@@ -631,12 +636,7 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
 
                   | Some(tyopac) ->
                       let tyargs = mtyargs |> List.map aux in
-                      let (tyid, arity) =
-                        match tyopac with
-                        | Opaque(kd, oid)                   -> (TypeID.Opaque(oid), kd)
-                        | Transparent(ISynonym(sid, arity)) -> (TypeID.Synonym(sid), arity)
-                        | Transparent(IVariant(vid, arity)) -> (TypeID.Variant(vid), arity)
-                      in
+                      let (tyid, arity) = tyopac in
                       assert (arity = List.length tyargs);
                       k tyid;
                       DataType(tyid, tyargs)
@@ -1206,14 +1206,9 @@ and subtype_poly_type (rng : Range.t) (intern : SubtypingIntern.t) (pty1 : poly_
 
 and subtype_type_opacity (rng : Range.t) (intern : SubtypingIntern.t) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : unit =
   match (tyopac1, tyopac2) with
-  | (_, Opaque(kd2, oid2)) ->
-      let (tyid1, arity1) =
-        match tyopac1 with
-        | Transparent(ISynonym(sid, arity)) -> (TypeID.Synonym(sid), arity)
-        | Transparent(IVariant(vid, arity)) -> (TypeID.Variant(vid), arity)
-        | Opaque(kd1, oid1)                 -> (TypeID.Opaque(oid1), kd1)
-      in
-      if arity1 = kd2 then
+  | (_, (TypeID.Opaque(oid2), arity2)) ->
+      let (tyid1, arity1) = tyopac1 in
+      if arity1 = arity2 then
         if SubtypingIntern.is_consistent_opaque intern oid2 tyid1 arity1 then () else
           raise (NotASubtypeTypeOpacity(rng, tyopac1, tyopac2))
       else
@@ -1322,19 +1317,24 @@ and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : modu
         sigr |> SigRecord.map
             ~v:(fun (pty, name) -> (substitute_poly_type wtmap pty, name))
             ~t:(fun tyopac ->
-              match tyopac with
-              | Transparent(_) ->
-                  failwith "TODO: substitute_concrete, Transparent"
+              let (tyid, arity) = tyopac in
+              match tyid with
+              | TypeID.Synonym(sid) ->
+                  begin
+                    match wtmap |> WitnessMap.find_synonym sid with
+                    | None            -> tyopac
+                    | Some(sid_subst) -> (TypeID.Synonym(sid_subst), arity)
+                  end
 
-              | Opaque(kd, oid) ->
-                  failwith "TODO: substitute_concrete, Opaque"
-(*
+              | TypeID.Variant(vid) ->
+                  failwith "TODO: substitute_concrete, Variant"
+
+              | TypeID.Opaque(oid) ->
                   begin
                     match wtmap |> WitnessMap.find_opaque oid with
-                    | None       -> tyopac
-                    | Some(tyid) -> Transparent(ISynonym(sid, kd))
+                    | None             -> tyopac
+                    | Some(tyid_subst) -> (tyid_subst, arity)
                   end
-*)
             )
             ~m:(fun (modsig, name) -> (substitute_concrete wtmap modsig, name))
             ~s:(substitute_abstract wtmap)
@@ -1538,10 +1538,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
               | None ->
                   raise (UndefinedTypeName(rng1, tynm1))
 
-              | Some(Transparent(tytrans)) ->
-                  raise (CannotRestrictTransparentType(rng1, tytrans))
-
-              | Some(Opaque(kd, oid)) ->
+              | Some(TypeID.Opaque(oid), kd) ->
                   assert (oidset0 |> OpaqueIDSet.mem oid);
                   let typaramassoc = make_type_parameter_assoc 1 tyvaridents in
                   let pty =
@@ -1562,6 +1559,8 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                   else
                     raise (InvalidNumberOfTypeArguments(rng1, tynm1, kd, arity_actual))
 
+              | Some(tyopac) ->
+                  raise (CannotRestrictTransparentType(rng1, tyopac))
             end
       end
 
