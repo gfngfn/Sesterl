@@ -28,6 +28,7 @@ exception MissingRequiredValName              of Range.t * identifier * poly_typ
 exception MissingRequiredTypeName             of Range.t * type_name * type_opacity
 exception MissingRequiredModuleName           of Range.t * module_name * module_signature
 exception MissingRequiredSignatureName        of Range.t * signature_name * module_signature abstracted
+exception MissingRequiredConstructor          of Range.t * constructor_name * constructor_entry
 exception NotASubtype                         of Range.t * module_signature * module_signature
 exception NotASubtypeTypeOpacity              of Range.t * type_opacity * type_opacity
 
@@ -87,7 +88,7 @@ end = struct
     }
 
 
-  let union =
+  let union (wtmap1 : t) (wtmap2 : t) : t =
     failwith "TODO: WitnessMap.union"
 
 
@@ -193,9 +194,9 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
     )
     ~t:(fun tynm tyopacity ->
       match tyopacity with
-      | Transparent(ISynonym(sid, arity))             -> Typeenv.add_synonym_type tynm sid arity
-      | Transparent(IVariant(vid, typarams, ctorbrs)) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
-      | Opaque(kind, oid)                             -> Typeenv.add_opaque_type tynm oid kind
+      | Transparent(ISynonym(sid, arity)) -> Typeenv.add_synonym_type tynm sid arity
+      | Transparent(IVariant(vid, arity)) -> Typeenv.add_variant_type tynm vid arity
+      | Opaque(kind, oid)                 -> Typeenv.add_opaque_type tynm oid kind
     )
     ~m:(fun modnm (modsig, name) tyenv ->
       let tyenv = tyenv |> Typeenv.add_module modnm modsig name in
@@ -203,6 +204,9 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
     )
     ~s:(fun signm absmodsig ->
       Typeenv.add_signature signm absmodsig
+    )
+    ~c:(fun ctornm ctorentry ->
+      Typeenv.add_constructor ctornm ctorentry
     )
     tyenv
 
@@ -629,9 +633,9 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                       let tyargs = mtyargs |> List.map aux in
                       let (tyid, arity) =
                         match tyopac with
-                        | Opaque(kd, oid)                         -> (TypeID.Opaque(oid), kd)
-                        | Transparent(ISynonym(sid, arity))       -> (TypeID.Synonym(sid), arity)
-                        | Transparent(IVariant(vid, typarams, _)) -> (TypeID.Variant(vid), List.length typarams)
+                        | Opaque(kd, oid)                   -> (TypeID.Opaque(oid), kd)
+                        | Transparent(ISynonym(sid, arity)) -> (TypeID.Synonym(sid), arity)
+                        | Transparent(IVariant(vid, arity)) -> (TypeID.Variant(vid), arity)
                       in
                       assert (arity = List.length tyargs);
                       k tyid;
@@ -1205,9 +1209,9 @@ and subtype_type_opacity (rng : Range.t) (intern : SubtypingIntern.t) (tyopac1 :
   | (_, Opaque(kd2, oid2)) ->
       let (tyid1, arity1) =
         match tyopac1 with
-        | Transparent(ISynonym(sid, arity))       -> (TypeID.Synonym(sid), arity)
-        | Transparent(IVariant(vid, typarams, _)) -> (TypeID.Variant(vid), List.length typarams)
-        | Opaque(kd1, oid1)                       -> (TypeID.Opaque(oid1), kd1)
+        | Transparent(ISynonym(sid, arity)) -> (TypeID.Synonym(sid), arity)
+        | Transparent(IVariant(vid, arity)) -> (TypeID.Variant(vid), arity)
+        | Opaque(kd1, oid1)                 -> (TypeID.Opaque(oid1), kd1)
       in
       if arity1 = kd2 then
         if SubtypingIntern.is_consistent_opaque intern oid2 tyid1 arity1 then () else
@@ -1268,6 +1272,24 @@ and subtype_concrete_with_concrete (rng : Range.t) (intern : SubtypingIntern.t) 
                 let wtmap = subtype_abstract_with_abstract rng intern absmodsig1 absmodsig2 in
                 WitnessMap.union wtmapacc wtmap
           )
+          ~c:(fun ctornm2 ctorentry2 wtmapacc ->
+            match sigr1 |> SigRecord.find_constructor ctornm2 with
+            | None ->
+                raise (MissingRequiredConstructor(rng, ctornm2, ctorentry2))
+
+            | Some(ctorentry1) ->
+                let pty1 = ctorentry2.parameter_types in
+                let pty2 = ctorentry2.parameter_types in
+                begin
+                  match List.combine pty1 pty2 with
+                  | exception Invalid_argument(_) ->
+                      raise (MissingRequiredConstructor(rng, ctornm2, ctorentry2))
+
+                  | ptypairs ->
+                      ptypairs |> List.iter (fun (pty1, pty2) -> subtype_poly_type rng intern pty1 pty2);
+                      wtmapacc
+                end
+          )
           WitnessMap.empty
 
   | _ ->
@@ -1316,6 +1338,10 @@ and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : modu
             )
             ~m:(fun (modsig, name) -> (substitute_concrete wtmap modsig, name))
             ~s:(substitute_abstract wtmap)
+            ~c:(fun ctorentry ->
+              let ptys = ctorentry.parameter_types |> List.map (substitute_poly_type wtmap) in
+              { ctorentry with parameter_types = ptys }
+            )
       in
       ConcStructure(sigr)
 
@@ -1651,6 +1677,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           let ctorbrmap =
             make_constructor_branch_map { pre with tyenv } ctorbrs
           in
+          TypeSynonymStore.add_variant_type vid typarams ctorbrmap;
           let sigr = sigr |> SigRecord.add_variant_type tynm vid typarams ctorbrmap in
           sigr
         ) sigr

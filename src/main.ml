@@ -46,7 +46,8 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
               (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
               pp_poly_type ptyreal
 
-        | Transparent(IVariant(_vid, typarams, _ctorbrs)) ->
+        | Transparent(IVariant(vid, arity)) ->
+            let (typarams, _ctorbrs) = TypeSynonymStore.find_variant_type vid in
             Format.printf "%stype %s<%a> = (variant)\n"
               indent
               tynm
@@ -61,6 +62,9 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
       )
       ~s:(fun signm _ () ->
         Format.printf "signature %s\n" signm
+      )
+      ~c:(fun ctornm _ () ->
+        Format.printf "constructor %s\n" ctornm
       )
       ()
 
