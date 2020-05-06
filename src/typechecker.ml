@@ -252,7 +252,7 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
   aux ty
 
 
-let get_real_type (tyenv : Typeenv.t) (sid : TypeID.Synonym.t) (tyargs : mono_type list) : mono_type =
+let get_real_type (sid : TypeID.Synonym.t) (tyargs : mono_type list) : mono_type =
   let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
   try
     let substmap =
@@ -265,7 +265,7 @@ let get_real_type (tyenv : Typeenv.t) (sid : TypeID.Synonym.t) (tyargs : mono_ty
   | Invalid_argument(_) -> assert false
 
 
-let unify (tyenv : Typeenv.t) (tyact : mono_type) (tyexp : mono_type) : unit =
+let unify (_ : Typeenv.t) (tyact : mono_type) (tyexp : mono_type) : unit =
 (*
   Format.printf "UNIFY %a =?= %a\n" pp_mono_type tyact pp_mono_type tyexp; (* for debug *)
 *)
@@ -283,14 +283,14 @@ let unify (tyenv : Typeenv.t) (tyact : mono_type) (tyexp : mono_type) : unit =
         if MustBeBoundID.equal mbbid1 mbbid2 then Consistent else Contradiction
 
     | (DataType(TypeID.Synonym(sid1), tyargs1), _) ->
-        let ty1real = get_real_type tyenv sid1 tyargs1 in
+        let ty1real = get_real_type sid1 tyargs1 in
 (*
         Format.printf "UNIFY-SYN %a => %a =?= %a\n" TypeID.Synonym.pp sid1 pp_mono_type ty1real pp_mono_type ty2;  (* for debug *)
 *)
         aux ty1real ty2
 
     | (_, DataType(TypeID.Synonym(sid2), tyargs2)) ->
-        let ty2real = get_real_type tyenv sid2 tyargs2 in
+        let ty2real = get_real_type sid2 tyargs2 in
 (*
         Format.printf "UNIFY-SYN %a =?= %a <= %a\n" pp_mono_type ty1 pp_mono_type ty2real TypeID.Synonym.pp sid2;  (* for debug *)
 *)
