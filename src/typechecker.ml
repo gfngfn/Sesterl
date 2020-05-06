@@ -975,8 +975,31 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorMap.empty
 
 
-and subtype_concrete_with_abstract (_tyenv : Typeenv.t) (_modsig1 : module_signature) (_absmodsig2 : module_signature abstracted) : witness_map =
-  failwith "TODO: subtype_concrete_with_abstract"
+and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : unit =
+  let (_typarams1, _pty1) = ptyfun1 in
+  let (_typarams2, _pty2) = ptyfun2 in
+  failwith "TODO: unify_poly_type"
+
+
+and subtype_concrete_with_concrete (rng : Range.t) (tyenv : Typeenv.t) (intern : TypeID.Opaque.t -> BoundID.t list -> poly_type -> unit) (modsig1 : module_signature) (modsig2 : module_signature) : witness_map =
+  failwith "TODO: subtype_concrete_with_concrete"
+
+
+and subtype_concrete_with_abstract (rng : Range.t) (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
+  let (oidset2, modsig2) = absmodsig2 in
+  let hashtable = OpaqueIDHashTable.create (OpaqueIDSet.cardinal oidset2) in
+  let intern (oid : TypeID.Opaque.t) (typarams : BoundID.t list) (pty : poly_type) : unit =
+    if oidset2 |> OpaqueIDSet.mem oid then
+      match OpaqueIDHashTable.find_opt hashtable oid with
+      | None ->
+          OpaqueIDHashTable.add hashtable oid (typarams, pty)
+
+      | Some(ptyfun0) ->
+          unify_poly_type rng (typarams, pty) ptyfun0
+    else
+      ()
+  in
+  subtype_concrete_with_concrete rng tyenv intern modsig1 modsig2
 
 
 and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : module_signature =
@@ -1444,7 +1467,8 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
             raise (NotOfFunctorType(rng1, modsig1))
 
         | ConcFunctor(oidset, modsigdom1, absmodsigcod1) ->
-            let witnessmap = subtype_concrete_with_abstract tyenv modsig2 (oidset, modsigdom1) in
+            let (rng2, _) = modident2 in
+            let witnessmap = subtype_concrete_with_abstract rng2 tyenv modsig2 (oidset, modsigdom1) in
             let absmodsig = substitute_abstract witnessmap absmodsigcod1 in
             (absmodsig, IApply(name1, [ IVar(name2) ]))
       end
@@ -1452,7 +1476,8 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
   | ModCoerce(modident0, utsig) ->
       let (modsig0, name0) = find_module tyenv modident0 in
       let absmodsig = typecheck_signature tyenv utsig in
-      let _ = subtype_concrete_with_abstract tyenv modsig0 absmodsig in
+      let (rng0, _) = modident0 in
+      let _ = subtype_concrete_with_abstract rng0 tyenv modsig0 absmodsig in
       (absmodsig, IVar(name0))
 
 

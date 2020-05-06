@@ -521,6 +521,8 @@ module OpaqueIDSet = Set.Make(TypeID.Opaque)
 
 module OpaqueIDMap = Map.Make(TypeID.Opaque)
 
+module OpaqueIDHashTable = Hashtbl.Make(TypeID.Opaque)
+
 type 'r module_signature_ =
   | ConcStructure of 'r
   | ConcFunctor   of OpaqueIDSet.t * 'r module_signature_ * (OpaqueIDSet.t * 'r module_signature_)
