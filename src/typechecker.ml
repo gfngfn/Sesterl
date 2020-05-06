@@ -1300,21 +1300,21 @@ and subtype_concrete_with_concrete (rng : Range.t) (intern : SubtypingIntern.t) 
                 if SubtypingIntern.is_consistent_variant intern vid2 vid1 then
                   raise (NotASubtypeVariant(rng, vid1, vid2))
                 else
-                let pty1 = ctorentry1.parameter_types in
-                let typarams1 = ctorentry1.type_variables in
-                let pty2 = ctorentry2.parameter_types in
-                let typarams2 = ctorentry2.type_variables in
-                begin
-                  match List.combine pty1 pty2 with
-                  | exception Invalid_argument(_) ->
-                      raise (MismatchedNumberOfConstructorParameters(rng, ctornm2, ctorentry2, ctorentry1))
+                  let pty1 = ctorentry1.parameter_types in
+                  let typarams1 = ctorentry1.type_variables in
+                  let pty2 = ctorentry2.parameter_types in
+                  let typarams2 = ctorentry2.type_variables in
+                  begin
+                    match List.combine pty1 pty2 with
+                    | exception Invalid_argument(_) ->
+                        raise (MismatchedNumberOfConstructorParameters(rng, ctornm2, ctorentry2, ctorentry1))
 
-                  | ptypairs ->
-                      ptypairs |> List.iter (fun (pty1, pty2) ->
-                        subtype_type_abstraction rng intern (typarams1, pty1) (typarams2, pty2)
-                      );
-                      wtmapacc
-                end
+                    | ptypairs ->
+                        ptypairs |> List.iter (fun (pty1, pty2) ->
+                          subtype_type_abstraction rng intern (typarams1, pty1) (typarams2, pty2)
+                        );
+                        wtmapacc
+                  end
           )
           WitnessMap.empty
 
