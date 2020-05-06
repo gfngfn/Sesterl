@@ -981,21 +981,18 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
   failwith "TODO: unify_poly_type"
 
 
-and subtype_concrete_with_concrete (rng : Range.t) (tyenv : Typeenv.t) (intern : TypeID.Opaque.t -> BoundID.t list -> poly_type -> unit) (modsig1 : module_signature) (modsig2 : module_signature) : witness_map =
+and subtype_concrete_with_concrete (rng : Range.t) (tyenv : Typeenv.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (modsig1 : module_signature) (modsig2 : module_signature) : witness_map =
   failwith "TODO: subtype_concrete_with_concrete"
 
 
 and subtype_concrete_with_abstract (rng : Range.t) (tyenv : Typeenv.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
   let (oidset2, modsig2) = absmodsig2 in
   let hashtable = OpaqueIDHashTable.create (OpaqueIDSet.cardinal oidset2) in
-  let intern (oid : TypeID.Opaque.t) (typarams : BoundID.t list) (pty : poly_type) : unit =
+  let intern (oid : TypeID.Opaque.t) (ptyfun : BoundID.t list * poly_type) : unit =
     if oidset2 |> OpaqueIDSet.mem oid then
       match OpaqueIDHashTable.find_opt hashtable oid with
-      | None ->
-          OpaqueIDHashTable.add hashtable oid (typarams, pty)
-
-      | Some(ptyfun0) ->
-          unify_poly_type rng (typarams, pty) ptyfun0
+      | None          -> OpaqueIDHashTable.add hashtable oid ptyfun
+      | Some(ptyfun0) -> unify_poly_type rng ptyfun ptyfun0
     else
       ()
   in
