@@ -24,3 +24,10 @@ module Map = fun(Elem: Ord) ->
             find(x, tail)
       end
   end
+
+module Int = struct
+  type s = int
+  let compare() = ()
+end
+
+module IntMap = Map(Int)
