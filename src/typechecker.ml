@@ -125,6 +125,7 @@ module SubtypingIntern : sig
   val create : OpaqueIDSet.t -> t -> t
   val is_consistent_opaque : t -> TypeID.Opaque.t -> TypeID.t -> int -> bool
   val is_consistent_variant : t -> TypeID.Variant.t -> TypeID.Variant.t -> bool
+  val is_consistent_synonym : t -> TypeID.Synonym.t -> TypeID.Synonym.t -> bool
   val make_witness_map : t -> witness_map
 end = struct
 
@@ -179,6 +180,20 @@ end = struct
           match VariantIDHashTable.find_opt variants vid2 with
           | None      -> VariantIDHashTable.add variants vid2 vid1; true
           | Some(vid) -> TypeID.Variant.equal vid vid1
+        end
+
+
+  let rec is_consistent_synonym (opt : t) (sid2 : TypeID.Synonym.t) (sid1 : TypeID.Synonym.t) : bool =
+    match opt with
+    | None ->
+        assert false
+
+    | Some(intern) ->
+        let synonyms = intern.synonyms in
+        begin
+          match SynonymIDHashTable.find_opt synonyms sid2 with
+          | None      -> SynonymIDHashTable.add synonyms sid2 sid1; true
+          | Some(sid) -> TypeID.Synonym.equal sid sid1
         end
 
 
@@ -1227,17 +1242,27 @@ and subtype_type_abstraction (rng : Range.t) (intern : SubtypingIntern.t) (ptyab
 
 
 and subtype_type_opacity (rng : Range.t) (intern : SubtypingIntern.t) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : unit =
-  match (tyopac1, tyopac2) with
-  | (_, (TypeID.Opaque(oid2), arity2)) ->
-      let (tyid1, arity1) = tyopac1 in
-      if arity1 = arity2 then
+  let (tyid1, arity1) = tyopac1 in
+  let (tyid2, arity2) = tyopac2 in
+  let exn = NotASubtypeTypeOpacity(rng, tyopac1, tyopac2) in
+  if arity1 <> arity2 then
+    raise exn
+  else
+    match (tyid1, tyid2) with
+    | (_, TypeID.Opaque(oid2)) ->
         if SubtypingIntern.is_consistent_opaque intern oid2 tyid1 arity1 then () else
-          raise (NotASubtypeTypeOpacity(rng, tyopac1, tyopac2))
-      else
-        raise (NotASubtypeTypeOpacity(rng, tyopac1, tyopac2))
+          raise exn
 
-  | _ ->
-      failwith "TODO: subtype_type_opacity, other than (_, Opaque)"
+    | (TypeID.Variant(vid1), TypeID.Variant(vid2)) ->
+        if SubtypingIntern.is_consistent_variant intern vid2 vid1 then () else
+          raise exn
+
+    | (TypeID.Synonym(sid1), TypeID.Synonym(sid2)) ->
+        if SubtypingIntern.is_consistent_synonym intern sid2 sid1 then () else
+          raise exn
+
+    | _ ->
+        raise exn
 
 
 and subtype_abstract_with_abstract (rng : Range.t) (intern : SubtypingIntern.t) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : witness_map =
