@@ -996,11 +996,11 @@ and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : modu
               | Transparent(_) ->
                   tyopac
 
-              | Opaque(_kd, oid) ->
+              | Opaque(kd, oid) ->
                   begin
                     match wtmap |> OpaqueIDMap.find_opt oid with
-                    | None                   -> tyopac
-                    | Some(sid, typarams, _) -> Transparent(ISynonym(sid, List.length typarams))
+                    | None      -> tyopac
+                    | Some(sid) -> Transparent(ISynonym(sid, kd))
                   end
             )
             ~m:(fun (modsig, name) -> (substitute_concrete wtmap modsig, name))
@@ -1030,8 +1030,8 @@ and substitute_poly_type (wtmap : witness_map) (pty : poly_type) : poly_type =
       | DataType(TypeID.Opaque(oid), ptyargs) ->
           begin
             match wtmap |> OpaqueIDMap.find_opt oid with
-            | None            -> ptymain
-            | Some(sid, _, _) -> DataType(TypeID.Synonym(sid), ptyargs)
+            | None      -> ptymain
+            | Some(sid) -> DataType(TypeID.Synonym(sid), ptyargs)
           end
 
       | DataType(tyid, ptyargs) ->
@@ -1204,7 +1204,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
               | Some(Transparent(tytrans)) ->
                   raise (CannotRestrictTransparentType(rng1, tytrans))
 
-              | Some(Opaque(_kd, oid)) ->
+              | Some(Opaque(kd, oid)) ->
                   assert (oidset0 |> OpaqueIDSet.mem oid);
                   let typaramassoc = make_type_parameter_assoc 1 tyvaridents in
                   let pty =
@@ -1213,12 +1213,17 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                     generalize 0 ty
                   in
                   let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
-                  let modsigret =
-                    let sid = TypeID.Synonym.fresh tynm1 in
-                    let wtmap = OpaqueIDMap.singleton oid (sid, typarams, pty) in
-                    substitute_concrete wtmap modsig0
-                  in
-                  (oidset0 |> OpaqueIDSet.remove oid, modsigret)
+                  let arity_actual = List.length typarams in
+                  if arity_actual = kd then
+                    let modsigret =
+                      let sid = TypeID.Synonym.fresh tynm1 in
+                      TypeSynonymStore.add_synonym_type sid typarams pty;
+                      let wtmap = OpaqueIDMap.singleton oid sid in
+                      substitute_concrete wtmap modsig0
+                    in
+                    (oidset0 |> OpaqueIDSet.remove oid, modsigret)
+                  else
+                    raise (InvalidNumberOfTypeArguments(rng1, tynm1, kd, arity_actual))
 
             end
       end

@@ -593,7 +593,7 @@ and ast =
 and branch =
   | IBranch of pattern * ast option * ast
 
-type witness_map = (TypeID.Synonym.t * BoundID.t list * poly_type) OpaqueIDMap.t
+type witness_map = TypeID.Synonym.t OpaqueIDMap.t
 
 module SigRecord = struct
 
