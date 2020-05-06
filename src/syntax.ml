@@ -627,6 +627,11 @@ and branch =
 
 type witness_map = TypeID.Synonym.t OpaqueIDMap.t
 
+
+let witness_map_union (wtmap1 : witness_map) (wtmap2 : witness_map) : witness_map =
+  OpaqueIDMap.union (fun _ _ _ -> assert false) wtmap1 wtmap2
+
+
 module SigRecord = struct
 
   type t = signature_record
