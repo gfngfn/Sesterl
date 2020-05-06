@@ -22,6 +22,8 @@ exception NotAFunctorSignature                of Range.t * module_signature
 exception NotAStructureSignature              of Range.t * module_signature
 exception UnboundSignatureName                of Range.t * signature_name
 exception CannotRestrictTransparentType       of Range.t * single_type_binding
+exception PolymorphicContradiction            of Range.t * (BoundID.t list * poly_type) * (BoundID.t list * poly_type)
+exception PolymorphicInclusion                of Range.t * FreeID.t * (BoundID.t list * poly_type) * (BoundID.t list * poly_type)
 
 
 module BindingMap = Map.Make(String)
@@ -976,9 +978,39 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
 
 
 and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : unit =
-  let (_typarams1, _pty1) = ptyfun1 in
-  let (_typarams2, _pty2) = ptyfun2 in
-  failwith "TODO: unify_poly_type"
+  let (typarams1, pty1) = ptyfun1 in
+  let (typarams2, pty2) = ptyfun2 in
+  let bidmap =
+    match List.combine typarams1 typarams2 with
+    | exception Invalid_argument(_) ->
+        raise (PolymorphicContradiction(rng, ptyfun1, ptyfun2))
+
+    | typarampairs ->
+        typarampairs |> List.fold_left (fun map (bid1, bid2) -> map |> BoundIDMap.add bid1 bid2) BoundIDMap.empty
+  in
+  let rec aux (_, ptymain1) (_, ptymain2) =
+    match (ptymain1, ptymain2) with
+    | (BaseType(bt1), BaseType(bt2)) ->
+        if bt1 = bt2 then Consistent else Contradiction
+
+    | (TypeVar(Bound(bid1)), TypeVar(Bound(bid2))) ->
+        begin
+          match bidmap |> BoundIDMap.find_opt bid1 with
+          | None ->
+              assert false
+
+          | Some(bid1mapped) ->
+              if BoundID.equal bid1mapped bid2 then Consistent else Contradiction
+        end
+
+    | _ ->
+        failwith "TODO: unify_poly_type"
+  in
+  let res = aux pty1 pty2 in
+  match res with
+  | Consistent     -> ()
+  | Contradiction  -> raise (PolymorphicContradiction(rng, ptyfun1, ptyfun2))
+  | Inclusion(fid) -> raise (PolymorphicInclusion(rng, fid, ptyfun1, ptyfun2))
 
 
 and subtype_concrete_with_concrete (rng : Range.t) (tyenv : Typeenv.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (modsig1 : module_signature) (modsig2 : module_signature) : witness_map =
