@@ -252,7 +252,7 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
   aux ty
 
 
-let get_real_type (sid : TypeID.Synonym.t) (tyargs : mono_type list) : mono_type =
+let get_real_type_scheme (type a) (substf : (a typ) BoundIDMap.t -> poly_type -> a typ) (sid : TypeID.Synonym.t) (tyargs : (a typ) list) : a typ =
   let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
   try
     let substmap =
@@ -260,9 +260,16 @@ let get_real_type (sid : TypeID.Synonym.t) (tyargs : mono_type list) : mono_type
         substmap |> BoundIDMap.add typaram tyarg
       ) BoundIDMap.empty typarams tyargs
     in
-    substitute substmap ptyreal
+    substf substmap ptyreal
   with
   | Invalid_argument(_) -> assert false
+
+
+let get_real_mono_type : TypeID.Synonym.t -> mono_type list -> mono_type =
+  get_real_type_scheme substitute_mono_type
+
+let get_real_poly_type : TypeID.Synonym.t -> poly_type list -> poly_type =
+  get_real_type_scheme substitute_poly_type
 
 
 let unify (tyact : mono_type) (tyexp : mono_type) : unit =
@@ -283,14 +290,14 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
         if MustBeBoundID.equal mbbid1 mbbid2 then Consistent else Contradiction
 
     | (DataType(TypeID.Synonym(sid1), tyargs1), _) ->
-        let ty1real = get_real_type sid1 tyargs1 in
+        let ty1real = get_real_mono_type sid1 tyargs1 in
 (*
         Format.printf "UNIFY-SYN %a => %a =?= %a\n" TypeID.Synonym.pp sid1 pp_mono_type ty1real pp_mono_type ty2;  (* for debug *)
 *)
         aux ty1real ty2
 
     | (_, DataType(TypeID.Synonym(sid2), tyargs2)) ->
-        let ty2real = get_real_type sid2 tyargs2 in
+        let ty2real = get_real_mono_type sid2 tyargs2 in
 (*
         Format.printf "UNIFY-SYN %a =?= %a <= %a\n" pp_mono_type ty1 pp_mono_type ty2real TypeID.Synonym.pp sid2;  (* for debug *)
 *)
@@ -988,15 +995,25 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
     | typarampairs ->
         typarampairs |> List.fold_left (fun map (bid1, bid2) -> map |> BoundIDMap.add bid1 bid2) BoundIDMap.empty
   in
-  let rec aux (_, ptymain1) (_, ptymain2) =
+  let rec aux pty1 pty2 =
+    let (_, ptymain1) = pty1 in
+    let (_, ptymain2) = pty2 in
     match (ptymain1, ptymain2) with
+    | (DataType(TypeID.Synonym(sid1), ptyargs1), _) ->
+        let pty1 = get_real_poly_type sid1 ptyargs1 in
+        aux pty1 pty2
+
     | (BaseType(bt1), BaseType(bt2)) ->
         if bt1 = bt2 then Consistent else Contradiction
 
     | (FuncType(ptydoms1, ptycod1), FuncType(ptydoms2, ptycod2)) ->
-        let res1 = aux_list ptydoms1 ptydoms2 in
-        let res2 = aux ptycod1 ptycod2 in
-        res1 &&& res2
+        aux_list ptydoms1 ptydoms2 &&& aux ptycod1 ptycod2
+
+    | (PidType(pidty1), PidType(pidty2)) ->
+        aux_pid pidty1 pidty2
+
+    | (EffType(effty1, pty1), EffType(effty2, pty2)) ->
+        aux_effect effty1 effty2 &&& aux pty1 pty2
 
     | (TypeVar(Bound(bid1)), TypeVar(Bound(bid2))) ->
         begin
@@ -1007,6 +1024,15 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
           | Some(bid1mapped) ->
               if BoundID.equal bid1mapped bid2 then Consistent else Contradiction
         end
+
+    | TypeVar(Mono(mtvu1)), TypeVar(Mono(mtvu2)) ->
+        failwith "TODO: unify_poly_type, Mono"
+
+    | (ProductType(ptys1), ProductType(ptys2)) ->
+        aux_list (TupleList.to_list ptys1) (TupleList.to_list ptys2)
+
+    | (ListType(pty1), ListType(pty2)) ->
+        aux pty1 pty2
 
     | _ ->
         failwith "TODO: unify_poly_type"
@@ -1021,6 +1047,12 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
           let res = aux pty1 pty2 in
           resacc &&& res
         ) Consistent
+
+  and aux_pid (Pid(pty1)) (Pid(pty2)) =
+    aux pty1 pty2
+
+  and aux_effect (Effect(pty1)) (Effect(pty2)) =
+    aux pty1 pty2
   in
   let res = aux pty1 pty2 in
   match res with

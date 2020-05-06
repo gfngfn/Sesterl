@@ -306,18 +306,15 @@ module BoundIDHashTable = Hashtbl.Make(BoundID)
 module BoundIDMap = Map.Make(BoundID)
 
 
-let instantiate_scheme (intern : Range.t -> BoundID.t -> mono_type) (pty : poly_type) : mono_type =
+let instantiate_scheme (type a) (intern : Range.t -> poly_type_var -> a typ) (pty : poly_type) : a typ =
 
   let rec aux (rng, ptymain) =
     match ptymain with
     | BaseType(bty) ->
         (rng, BaseType(bty))
 
-    | TypeVar(Mono(mtv)) ->
-        (rng, TypeVar(mtv))
-
-    | TypeVar(Bound(bid)) ->
-        intern rng bid
+    | TypeVar(ptv) ->
+        intern rng ptv
 
     | FuncType(ptydoms, ptycod) ->
         let tydoms = ptydoms |> List.map aux in
@@ -357,37 +354,72 @@ let instantiate_scheme (intern : Range.t -> BoundID.t -> mono_type) (pty : poly_
 let instantiate (lev : int) (pty : poly_type) : mono_type =
   let bidht = BoundIDHashTable.create 32 in
     (* -- a hash table is created at every (non-partial) call of `instantiate` -- *)
-  let intern rng bid =
-    let mtv =
-      match BoundIDHashTable.find_opt bidht bid with
-      | Some(mtvu) ->
-          Updatable(mtvu)
+  let intern (rng : Range.t) (ptv : poly_type_var) : mono_type =
+    match ptv with
+    | Mono(mtv) ->
+        (rng, TypeVar(mtv))
 
-      | None ->
-          let fid = FreeID.fresh lev in
-          let mtvu = ref (Free(fid)) in
-          BoundIDHashTable.add bidht bid mtvu;
-          Updatable(mtvu)
-    in
-    (rng, TypeVar(mtv))
+    | Bound(bid) ->
+        let mtv =
+          match BoundIDHashTable.find_opt bidht bid with
+          | Some(mtvu) ->
+              Updatable(mtvu)
+
+          | None ->
+              let fid = FreeID.fresh lev in
+              let mtvu = ref (Free(fid)) in
+              BoundIDHashTable.add bidht bid mtvu;
+              Updatable(mtvu)
+        in
+        (rng, TypeVar(mtv))
   in
   instantiate_scheme intern pty
 
 
 let instantiate_by_map (bfmap : mono_type_var BoundIDMap.t) =
-  let intern rng bid =
-    match bfmap |> BoundIDMap.find_opt bid with
-    | None      -> assert false
-    | Some(mtv) -> (rng, TypeVar(mtv))
+  let intern (rng : Range.t) (ptv : poly_type_var) : mono_type =
+    match ptv with
+    | Mono(mtv) ->
+        (rng, TypeVar(mtv))
+
+    | Bound(bid) ->
+        begin
+          match bfmap |> BoundIDMap.find_opt bid with
+          | None      -> assert false
+          | Some(mtv) -> (rng, TypeVar(mtv))
+        end
   in
   instantiate_scheme intern
 
 
-let substitute (substmap : mono_type BoundIDMap.t) =
-  let intern _ bid =
-    match substmap |> BoundIDMap.find_opt bid with
-    | None     -> assert false
-    | Some(ty) -> ty
+let substitute_mono_type (substmap : mono_type BoundIDMap.t) : poly_type -> mono_type =
+  let intern (rng : Range.t) (ptv : poly_type_var) : mono_type =
+    match ptv with
+    | Mono(mtv) ->
+        (rng, TypeVar(mtv))
+
+    | Bound(bid) ->
+        begin
+          match substmap |> BoundIDMap.find_opt bid with
+          | None     -> assert false
+          | Some(ty) -> ty
+        end
+  in
+  instantiate_scheme intern
+
+
+let substitute_poly_type (substmap : poly_type BoundIDMap.t) : poly_type -> poly_type =
+  let intern (rng : Range.t) (ptv : poly_type_var) : poly_type =
+    match ptv with
+    | Mono(_) ->
+        (rng, TypeVar(ptv))
+
+    | Bound(bid) ->
+        begin
+          match substmap |> BoundIDMap.find_opt bid with
+          | None      -> assert false
+          | Some(pty) -> pty
+        end
   in
   instantiate_scheme intern
 
