@@ -999,10 +999,6 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
     let (_, ptymain1) = pty1 in
     let (_, ptymain2) = pty2 in
     match (ptymain1, ptymain2) with
-    | (DataType(TypeID.Synonym(sid1), ptyargs1), _) ->
-        let pty1 = get_real_poly_type sid1 ptyargs1 in
-        aux pty1 pty2
-
     | (BaseType(bt1), BaseType(bt2)) ->
         if bt1 = bt2 then Consistent else Contradiction
 
@@ -1034,8 +1030,22 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
     | (ListType(pty1), ListType(pty2)) ->
         aux pty1 pty2
 
+    | (DataType(TypeID.Synonym(sid1), ptyargs1), _) ->
+        let pty1 = get_real_poly_type sid1 ptyargs1 in
+        aux pty1 pty2
+
+    | (_, DataType(TypeID.Synonym(sid2), ptyargs2)) ->
+        let pty2 = get_real_poly_type sid2 ptyargs2 in
+        aux pty1 pty2
+
+    | (DataType(tyid1, ptyargs1), DataType(tyid2, ptyargs2)) ->
+        if TypeID.equal tyid1 tyid2 then
+          aux_list ptyargs1 ptyargs2
+        else
+          Contradiction
+
     | _ ->
-        failwith "TODO: unify_poly_type"
+        Contradiction
 
   and aux_list ptys1 ptys2 =
     match List.combine ptys1 ptys2 with
