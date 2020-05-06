@@ -24,11 +24,12 @@ exception UnboundSignatureName                of Range.t * signature_name
 exception CannotRestrictTransparentType       of Range.t * single_type_binding
 exception PolymorphicContradiction            of Range.t * (BoundID.t list * poly_type) * (BoundID.t list * poly_type)
 exception PolymorphicInclusion                of Range.t * FreeID.t * (BoundID.t list * poly_type) * (BoundID.t list * poly_type)
-exception NotASubtype                         of Range.t * module_signature * module_signature
 exception MissingRequiredValName              of Range.t * identifier * poly_type
 exception MissingRequiredTypeName             of Range.t * type_name * type_opacity
 exception MissingRequiredModuleName           of Range.t * module_name * module_signature
 exception MissingRequiredSignatureName        of Range.t * signature_name * module_signature abstracted
+exception NotASubtype                         of Range.t * module_signature * module_signature
+exception NotASubtypeTypeOpacity              of Range.t * type_opacity * type_opacity
 
 
 module BindingMap = Map.Make(String)
@@ -1076,12 +1077,21 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
   | Inclusion(fid) -> raise (PolymorphicInclusion(rng, fid, ptyfun1, ptyfun2))
 
 
-and subtype_poly_type (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (pty1 : poly_type) (pty2 : poly_type) : unit =
-  failwith "TODO: subtype_poly_type"
+and subtype_poly_type (rng : Range.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (pty1 : poly_type) (pty2 : poly_type) : unit =
+  failwith (Format.asprintf "TODO: subtype_poly_type: %a =?= %a" pp_poly_type pty1 pp_poly_type pty2)
 
 
-and subtype_type_opacity (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : unit =
-  failwith "TODO: subtype_type_opacity"
+and subtype_type_opacity (rng : Range.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : unit =
+  match (tyopac1, tyopac2) with
+  | (Transparent(ISynonym(sid1, arity1)), Opaque(kd2, oid2)) ->
+      if arity1 = kd2 then
+        let ptyfun1 = TypeSynonymStore.find_synonym_type sid1 in
+        intern oid2 ptyfun1
+      else
+        raise (NotASubtypeTypeOpacity(rng, tyopac1, tyopac2))
+
+  | _ ->
+      failwith "TODO: subtype_type_opacity, other than (Synonym, Opaque)"
 
 
 and subtype_abstract_with_abstract (rng : Range.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : witness_map =
@@ -1103,7 +1113,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (intern : TypeID.Opaque.t -> 
                 raise (MissingRequiredValName(rng, x2, pty2))
 
             | Some(pty1, _) ->
-                subtype_poly_type intern pty1 pty2;
+                subtype_poly_type rng intern pty1 pty2;
                 wtmapacc
           )
           ~t:(fun tynm2 tyopac2 wtmapacc ->
@@ -1112,7 +1122,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (intern : TypeID.Opaque.t -> 
                 raise (MissingRequiredTypeName(rng, tynm2, tyopac2))
 
             | Some(tyopac1) ->
-                subtype_type_opacity intern tyopac1 tyopac2;
+                subtype_type_opacity rng intern tyopac1 tyopac2;
                 wtmapacc
           )
           ~m:(fun modnm2 (modsig2, _) wtmapacc ->
