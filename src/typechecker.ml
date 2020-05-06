@@ -385,7 +385,7 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
   | Inclusion(fid) -> raise (InclusionError(fid, tyact, tyexp))
 
 
-let fresh_type ?name:nameopt (lev : int) (rng : Range.t) : mono_type =
+let fresh_type ?name:_nameopt (lev : int) (rng : Range.t) : mono_type =
   let fid = FreeID.fresh lev in
   let mtvu = ref (Free(fid)) in
   let ty = (rng, TypeVar(Updatable(mtvu))) in
@@ -993,6 +993,11 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
     | (BaseType(bt1), BaseType(bt2)) ->
         if bt1 = bt2 then Consistent else Contradiction
 
+    | (FuncType(ptydoms1, ptycod1), FuncType(ptydoms2, ptycod2)) ->
+        let res1 = aux_list ptydoms1 ptydoms2 in
+        let res2 = aux ptycod1 ptycod2 in
+        res1 &&& res2
+
     | (TypeVar(Bound(bid1)), TypeVar(Bound(bid2))) ->
         begin
           match bidmap |> BoundIDMap.find_opt bid1 with
@@ -1005,6 +1010,17 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
 
     | _ ->
         failwith "TODO: unify_poly_type"
+
+  and aux_list ptys1 ptys2 =
+    match List.combine ptys1 ptys2 with
+    | exception Invalid_argument(_) ->
+        Contradiction
+
+    | ptypairs ->
+        ptypairs |> List.fold_left (fun resacc (pty1, pty2) ->
+          let res = aux pty1 pty2 in
+          resacc &&& res
+        ) Consistent
   in
   let res = aux pty1 pty2 in
   match res with
@@ -1013,7 +1029,7 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
   | Inclusion(fid) -> raise (PolymorphicInclusion(rng, fid, ptyfun1, ptyfun2))
 
 
-and subtype_concrete_with_concrete (rng : Range.t) (tyenv : Typeenv.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (modsig1 : module_signature) (modsig2 : module_signature) : witness_map =
+and subtype_concrete_with_concrete (_rng : Range.t) (_tyenv : Typeenv.t) (_intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (_modsig1 : module_signature) (_modsig2 : module_signature) : witness_map =
   failwith "TODO: subtype_concrete_with_concrete"
 
 
