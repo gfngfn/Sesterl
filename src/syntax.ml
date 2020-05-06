@@ -545,7 +545,13 @@ type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
 module SynonymIDSet = Set.Make(TypeID.Synonym)
 
+module SynonymIDMap = Map.Make(TypeID.Synonym)
+
+module SynonymIDHashTable = Hashtbl.Make(TypeID.Synonym)
+
 module VariantIDMap = Map.Make(TypeID.Variant)
+
+module VariantIDHashTable = Hashtbl.Make(TypeID.Variant)
 
 module OpaqueIDSet = Set.Make(TypeID.Opaque)
 
@@ -624,12 +630,6 @@ and ast =
 
 and branch =
   | IBranch of pattern * ast option * ast
-
-type witness_map = TypeID.Synonym.t OpaqueIDMap.t
-
-
-let witness_map_union (wtmap1 : witness_map) (wtmap2 : witness_map) : witness_map =
-  OpaqueIDMap.union (fun _ _ _ -> assert false) wtmap1 wtmap2
 
 
 module SigRecord = struct
