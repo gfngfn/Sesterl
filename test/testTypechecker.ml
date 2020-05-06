@@ -87,7 +87,7 @@ let mono_type_var_updatable_witness : mono_type_var_updatable Alcotest.testable 
 
 
 let test_unify (ty1, ty2, assoc) () =
-  Typechecker.unify Typeenv.empty ty1 ty2;
+  Typechecker.unify ty1 ty2;
   assoc |> List.iter (fun (fid, mtvu_nonref) ->
     Alcotest.check mono_type_var_updatable_witness "free variable" !fid mtvu_nonref
   )
@@ -98,7 +98,7 @@ let dr = Range.dummy "test"
 
 let () =
   let open Alcotest in
-  run "Typecheck" [
+  run "Typechecker" [
     ("unify",
       List.map (fun tuple ->
         test_case "unify" `Quick (test_unify tuple)

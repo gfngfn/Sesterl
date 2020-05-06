@@ -22,6 +22,14 @@ exception NotAFunctorSignature                of Range.t * module_signature
 exception NotAStructureSignature              of Range.t * module_signature
 exception UnboundSignatureName                of Range.t * signature_name
 exception CannotRestrictTransparentType       of Range.t * single_type_binding
+exception PolymorphicContradiction            of Range.t * (BoundID.t list * poly_type) * (BoundID.t list * poly_type)
+exception PolymorphicInclusion                of Range.t * FreeID.t * (BoundID.t list * poly_type) * (BoundID.t list * poly_type)
+exception MissingRequiredValName              of Range.t * identifier * poly_type
+exception MissingRequiredTypeName             of Range.t * type_name * type_opacity
+exception MissingRequiredModuleName           of Range.t * module_name * module_signature
+exception MissingRequiredSignatureName        of Range.t * signature_name * module_signature abstracted
+exception NotASubtype                         of Range.t * module_signature * module_signature
+exception NotASubtypeTypeOpacity              of Range.t * type_opacity * type_opacity
 
 
 module BindingMap = Map.Make(String)
@@ -250,7 +258,7 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
   aux ty
 
 
-let get_real_type (tyenv : Typeenv.t) (sid : TypeID.Synonym.t) (tyargs : mono_type list) : mono_type =
+let get_real_type_scheme (type a) (substf : (a typ) BoundIDMap.t -> poly_type -> a typ) (sid : TypeID.Synonym.t) (tyargs : (a typ) list) : a typ =
   let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
   try
     let substmap =
@@ -258,12 +266,19 @@ let get_real_type (tyenv : Typeenv.t) (sid : TypeID.Synonym.t) (tyargs : mono_ty
         substmap |> BoundIDMap.add typaram tyarg
       ) BoundIDMap.empty typarams tyargs
     in
-    substitute substmap ptyreal
+    substf substmap ptyreal
   with
   | Invalid_argument(_) -> assert false
 
 
-let unify (tyenv : Typeenv.t) (tyact : mono_type) (tyexp : mono_type) : unit =
+let get_real_mono_type : TypeID.Synonym.t -> mono_type list -> mono_type =
+  get_real_type_scheme substitute_mono_type
+
+let get_real_poly_type : TypeID.Synonym.t -> poly_type list -> poly_type =
+  get_real_type_scheme substitute_poly_type
+
+
+let unify (tyact : mono_type) (tyexp : mono_type) : unit =
 (*
   Format.printf "UNIFY %a =?= %a\n" pp_mono_type tyact pp_mono_type tyexp; (* for debug *)
 *)
@@ -281,14 +296,14 @@ let unify (tyenv : Typeenv.t) (tyact : mono_type) (tyexp : mono_type) : unit =
         if MustBeBoundID.equal mbbid1 mbbid2 then Consistent else Contradiction
 
     | (DataType(TypeID.Synonym(sid1), tyargs1), _) ->
-        let ty1real = get_real_type tyenv sid1 tyargs1 in
+        let ty1real = get_real_mono_type sid1 tyargs1 in
 (*
         Format.printf "UNIFY-SYN %a => %a =?= %a\n" TypeID.Synonym.pp sid1 pp_mono_type ty1real pp_mono_type ty2;  (* for debug *)
 *)
         aux ty1real ty2
 
     | (_, DataType(TypeID.Synonym(sid2), tyargs2)) ->
-        let ty2real = get_real_type tyenv sid2 tyargs2 in
+        let ty2real = get_real_mono_type sid2 tyargs2 in
 (*
         Format.printf "UNIFY-SYN %a =?= %a <= %a\n" pp_mono_type ty1 pp_mono_type ty2real TypeID.Synonym.pp sid2;  (* for debug *)
 *)
@@ -383,7 +398,7 @@ let unify (tyenv : Typeenv.t) (tyact : mono_type) (tyexp : mono_type) : unit =
   | Inclusion(fid) -> raise (InclusionError(fid, tyact, tyexp))
 
 
-let fresh_type ?name:nameopt (lev : int) (rng : Range.t) : mono_type =
+let fresh_type ?name:_nameopt (lev : int) (rng : Range.t) : mono_type =
   let fid = FreeID.fresh lev in
   let mtvu = ref (Free(fid)) in
   let ty = (rng, TypeVar(Updatable(mtvu))) in
@@ -595,15 +610,15 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let tyargs = List.map fst tyeargs in
       let eargs = List.map snd tyeargs in
       let tyret = fresh_type pre.level rng in
-      unify pre.tyenv tyfun (Range.dummy "Apply", FuncType(tyargs, tyret));
+      unify tyfun (Range.dummy "Apply", FuncType(tyargs, tyret));
       (tyret, iapply efun eargs)
 
   | If(utast0, utast1, utast2) ->
       let (ty0, e0) = typecheck pre utast0 in
-      unify pre.tyenv ty0 (Range.dummy "If", BaseType(BoolType));
+      unify ty0 (Range.dummy "If", BaseType(BoolType));
       let (ty1, e1) = typecheck pre utast1 in
       let (ty2, e2) = typecheck pre utast2 in
-      unify pre.tyenv ty1 ty2;
+      unify ty1 ty2;
       let ibranches = [ IBranch(IPBool(true), None, e1); IBranch(IPBool(false), None, e2) ] in
       (ty1, ICase(e0, ibranches))
 
@@ -649,10 +664,10 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             (tyx, pre.tyenv |> Typeenv.add_val x (lift tyx) name, name)
       in
       let tyrecv = fresh_type lev (Range.dummy "do-recv") in
-      unify tyenv ty1 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tyx));
+      unify ty1 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tyx));
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       let tysome = fresh_type lev (Range.dummy "do-some") in
-      unify tyenv ty2 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tysome));
+      unify ty2 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tysome));
       let e2 =
         ithunk (ILetIn(name, iforce e1, iforce e2))
       in
@@ -686,7 +701,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   | ListCons(utast1, utast2) ->
       let (ty1, e1) = typecheck pre utast1 in
       let (ty2, e2) = typecheck pre utast2 in
-      unify pre.tyenv ty2 (Range.dummy "list-cons", ListType(ty1));
+      unify ty2 (Range.dummy "list-cons", ListType(ty1));
       (ty2, IListCons(e1, e2))
 
   | Case(utast0, branches) ->
@@ -704,7 +719,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   | LetPatIn(utpat, utast1, utast2) ->
       let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in
       let (typat, ipat, bindmap) = typecheck_pattern pre utpat in
-      unify pre.tyenv ty1 typat;
+      unify ty1 typat;
       let tyenv =
         BindingMap.fold (fun x (ty, name, _) tyenv ->
           let pty = generalize pre.level ty in
@@ -724,7 +739,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
           let es =
             List.fold_left2 (fun acc ty_expected utast ->
               let (ty, e) = typecheck pre utast in
-              unify pre.tyenv ty ty_expected;
+              unify ty ty_expected;
               Alist.extend acc e
             ) Alist.empty tys_expected utastargs |> Alist.to_list
           in
@@ -783,13 +798,13 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name
 
 and typecheck_case_branch (pre : pre) =
   typecheck_branch_scheme (fun ty1 _ tyret ->
-    unify pre.tyenv ty1 tyret
+    unify ty1 tyret
   ) pre
 
 
 and typecheck_receive_branch (pre : pre) =
   typecheck_branch_scheme (fun ty1 typatexp tyret ->
-    unify pre.tyenv ty1 (Range.dummy "branch", EffType(Effect(typatexp), tyret))
+    unify ty1 (Range.dummy "branch", EffType(Effect(typatexp), tyret))
   ) pre
 
 
@@ -801,11 +816,11 @@ and typecheck_branch_scheme (unifyk : mono_type -> mono_type -> mono_type -> uni
     ) bindmap pre.tyenv
   in
   let pre = { pre with tyenv } in
-  unify tyenv typat typatexp;
+  unify typat typatexp;
   let e0opt =
     utast0opt |> Option.map (fun utast0 ->
       let (ty0, e0) = typecheck pre utast0 in
-      unify tyenv ty0 (Range.dummy "when", BaseType(BoolType));
+      unify ty0 (Range.dummy "when", BaseType(BoolType));
       e0
     )
   in
@@ -844,7 +859,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
       let (ty1, ipat1, bindmap1) = typecheck_pattern pre pat1 in
       let (ty2, ipat2, bindmap2) = typecheck_pattern pre pat2 in
       let bindmap = binding_map_union rng bindmap1 bindmap2 in
-      unify pre.tyenv ty2 (Range.dummy "pattern-cons", ListType(ty1));
+      unify ty2 (Range.dummy "pattern-cons", ListType(ty1));
       (ty2, IPListCons(ipat1, ipat2), bindmap)
 
   | PTuple(pats) ->
@@ -866,7 +881,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
           let (ipatacc, bindmap) =
             List.fold_left2 (fun (ipatacc, bindmapacc) ty_expected pat ->
               let (ty, ipat, bindmap) = typecheck_pattern pre pat in
-              unify pre.tyenv ty ty_expected;
+              unify ty ty_expected;
               (Alist.extend ipatacc ipat, binding_map_union rng bindmapacc bindmap)
             ) (Alist.empty, BindingMap.empty) tys_expected pats
           in
@@ -898,7 +913,7 @@ and typecheck_let (scope : scope) (pre : pre) (letbind : untyped_let_binding) : 
 
     letbind.vb_return_type |> Option.map (fun mty0 ->
       let ty0_expected = decode_manual_type tyenv localtyparams mty0 in
-      unify tyenv ty0 ty0_expected
+      unify ty0 ty0_expected
     ) |> Option.value ~default:();
     (ty0, e0, tys, names)
   in
@@ -953,13 +968,13 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
     let (ty0, e0) = typecheck { pre with tyenv } utast0 in
     letbind.vb_return_type |> Option.map (fun mty0 ->
       let ty0_expected = decode_manual_type tyenv localtyparams mty0 in
-      unify tyenv ty0 ty0_expected;
+      unify ty0 ty0_expected;
     ) |> Option.value ~default:();
     (ty0, e0, tys, names)
   in
   let ty1 = (rngv, FuncType(tys, ty0)) in
   let e1 = ILambda(None, names, e0) in
-  unify pre.tyenv ty1 tyf;
+  unify ty1 tyf;
   let ptyf = generalize pre.level ty1 in
   (ptyf, e1)
 
@@ -975,8 +990,190 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorMap.empty
 
 
-and subtype_concrete_with_abstract (_tyenv : Typeenv.t) (_modsig1 : module_signature) (_absmodsig2 : module_signature abstracted) : witness_map =
-  failwith "TODO: subtype_concrete_with_abstract"
+and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : unit =
+  let (typarams1, pty1) = ptyfun1 in
+  let (typarams2, pty2) = ptyfun2 in
+  let bidmap =
+    match List.combine typarams1 typarams2 with
+    | exception Invalid_argument(_) ->
+        raise (PolymorphicContradiction(rng, ptyfun1, ptyfun2))
+
+    | typarampairs ->
+        typarampairs |> List.fold_left (fun map (bid1, bid2) -> map |> BoundIDMap.add bid1 bid2) BoundIDMap.empty
+  in
+  let rec aux pty1 pty2 =
+    let (_, ptymain1) = pty1 in
+    let (_, ptymain2) = pty2 in
+    match (ptymain1, ptymain2) with
+    | (BaseType(bt1), BaseType(bt2)) ->
+        if bt1 = bt2 then Consistent else Contradiction
+
+    | (FuncType(ptydoms1, ptycod1), FuncType(ptydoms2, ptycod2)) ->
+        aux_list ptydoms1 ptydoms2 &&& aux ptycod1 ptycod2
+
+    | (PidType(pidty1), PidType(pidty2)) ->
+        aux_pid pidty1 pidty2
+
+    | (EffType(effty1, pty1), EffType(effty2, pty2)) ->
+        aux_effect effty1 effty2 &&& aux pty1 pty2
+
+    | (TypeVar(Bound(bid1)), TypeVar(Bound(bid2))) ->
+        begin
+          match bidmap |> BoundIDMap.find_opt bid1 with
+          | None ->
+              assert false
+
+          | Some(bid1mapped) ->
+              if BoundID.equal bid1mapped bid2 then Consistent else Contradiction
+        end
+
+    | TypeVar(Mono(mtvu1)), TypeVar(Mono(mtvu2)) ->
+        failwith "TODO: unify_poly_type, Mono"
+
+    | (ProductType(ptys1), ProductType(ptys2)) ->
+        aux_list (TupleList.to_list ptys1) (TupleList.to_list ptys2)
+
+    | (ListType(pty1), ListType(pty2)) ->
+        aux pty1 pty2
+
+    | (DataType(TypeID.Synonym(sid1), ptyargs1), _) ->
+        let pty1 = get_real_poly_type sid1 ptyargs1 in
+        aux pty1 pty2
+
+    | (_, DataType(TypeID.Synonym(sid2), ptyargs2)) ->
+        let pty2 = get_real_poly_type sid2 ptyargs2 in
+        aux pty1 pty2
+
+    | (DataType(tyid1, ptyargs1), DataType(tyid2, ptyargs2)) ->
+        if TypeID.equal tyid1 tyid2 then
+          aux_list ptyargs1 ptyargs2
+        else
+          Contradiction
+
+    | _ ->
+        Contradiction
+
+  and aux_list ptys1 ptys2 =
+    match List.combine ptys1 ptys2 with
+    | exception Invalid_argument(_) ->
+        Contradiction
+
+    | ptypairs ->
+        ptypairs |> List.fold_left (fun resacc (pty1, pty2) ->
+          let res = aux pty1 pty2 in
+          resacc &&& res
+        ) Consistent
+
+  and aux_pid (Pid(pty1)) (Pid(pty2)) =
+    aux pty1 pty2
+
+  and aux_effect (Effect(pty1)) (Effect(pty2)) =
+    aux pty1 pty2
+  in
+  let res = aux pty1 pty2 in
+  match res with
+  | Consistent     -> ()
+  | Contradiction  -> raise (PolymorphicContradiction(rng, ptyfun1, ptyfun2))
+  | Inclusion(fid) -> raise (PolymorphicInclusion(rng, fid, ptyfun1, ptyfun2))
+
+
+and subtype_poly_type (rng : Range.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (pty1 : poly_type) (pty2 : poly_type) : unit =
+  failwith (Format.asprintf "TODO: subtype_poly_type: %a =?= %a" pp_poly_type pty1 pp_poly_type pty2)
+
+
+and subtype_type_opacity (rng : Range.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : unit =
+  match (tyopac1, tyopac2) with
+  | (Transparent(ISynonym(sid1, arity1)), Opaque(kd2, oid2)) ->
+      if arity1 = kd2 then
+        let ptyfun1 = TypeSynonymStore.find_synonym_type sid1 in
+        intern oid2 ptyfun1
+      else
+        raise (NotASubtypeTypeOpacity(rng, tyopac1, tyopac2))
+
+  | _ ->
+      failwith "TODO: subtype_type_opacity, other than (Synonym, Opaque)"
+
+
+and subtype_abstract_with_abstract (rng : Range.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : witness_map =
+  failwith "TODO: subtype_abstract_with_abstract"
+
+
+and subtype_concrete_with_concrete (rng : Range.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (modsig1 : module_signature) (modsig2 : module_signature) : witness_map =
+  match (modsig1, modsig2) with
+  | (ConcFunctor(oidset1, modsigdom1, absmodsigcod1), ConcFunctor(oidset2, modsigdom2, absmodsigcod2)) ->
+      let wtmap = subtype_concrete_with_abstract rng intern modsigdom2 (oidset1, modsigdom1) in
+      let absmodsigcod1 = absmodsigcod1 |> substitute_abstract wtmap in
+      subtype_abstract_with_abstract rng intern absmodsigcod1 absmodsigcod2
+
+  | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
+      sigr2 |> SigRecord.fold
+          ~v:(fun x2 (pty2, _) wtmapacc ->
+            match sigr1 |> SigRecord.find_val x2 with
+            | None ->
+                raise (MissingRequiredValName(rng, x2, pty2))
+
+            | Some(pty1, _) ->
+                subtype_poly_type rng intern pty1 pty2;
+                wtmapacc
+          )
+          ~t:(fun tynm2 tyopac2 wtmapacc ->
+            match sigr1 |> SigRecord.find_type tynm2 with
+            | None ->
+                raise (MissingRequiredTypeName(rng, tynm2, tyopac2))
+
+            | Some(tyopac1) ->
+                subtype_type_opacity rng intern tyopac1 tyopac2;
+                wtmapacc
+          )
+          ~m:(fun modnm2 (modsig2, _) wtmapacc ->
+            match sigr1 |> SigRecord.find_module modnm2 with
+            | None ->
+                raise (MissingRequiredModuleName(rng, modnm2, modsig2))
+
+            | Some(modsig1, _) ->
+                let wtmap = subtype_concrete_with_concrete rng intern modsig1 modsig2 in
+                witness_map_union wtmapacc wtmap
+          )
+          ~s:(fun signm2 absmodsig2 wtmapacc ->
+            match sigr1 |> SigRecord.find_signature signm2 with
+            | None ->
+                raise (MissingRequiredSignatureName(rng, signm2, absmodsig2))
+
+            | Some(absmodsig1) ->
+                let wtmap = subtype_abstract_with_abstract rng intern absmodsig1 absmodsig2 in
+                witness_map_union wtmapacc wtmap
+          )
+          OpaqueIDMap.empty
+
+  | _ ->
+      raise (NotASubtype(rng, modsig1, modsig2))
+
+
+and subtype_concrete_with_abstract (rng : Range.t) (internsub : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
+  let (oidset2, modsig2) = absmodsig2 in
+  let hashtable = OpaqueIDHashTable.create (OpaqueIDSet.cardinal oidset2) in
+  let intern (oid : TypeID.Opaque.t) (ptyfun : BoundID.t list * poly_type) : unit =
+    if oidset2 |> OpaqueIDSet.mem oid then
+      match OpaqueIDHashTable.find_opt hashtable oid with
+      | None          -> OpaqueIDHashTable.add hashtable oid ptyfun
+      | Some(ptyfun0) -> unify_poly_type rng ptyfun ptyfun0
+    else
+      internsub oid ptyfun
+  in
+  let wtmapsub = subtype_concrete_with_concrete rng intern modsig1 modsig2 in
+  let wtmap =
+    OpaqueIDHashTable.fold (fun oid (typarams, ptyreal) wtmap ->
+      let sid = TypeID.Synonym.fresh "(subtype)" in
+      TypeSynonymStore.add_synonym_type sid typarams ptyreal;
+      wtmap |> OpaqueIDMap.add oid sid
+    ) hashtable OpaqueIDMap.empty
+  in
+  witness_map_union wtmapsub wtmap
+
+
+and subtype_signature (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
+  let intern_outermost oid ptyfun = () in
+  subtype_concrete_with_abstract rng intern_outermost modsig1 absmodsig2
 
 
 and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : module_signature =
@@ -1444,15 +1641,17 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
             raise (NotOfFunctorType(rng1, modsig1))
 
         | ConcFunctor(oidset, modsigdom1, absmodsigcod1) ->
-            let witnessmap = subtype_concrete_with_abstract tyenv modsig2 (oidset, modsigdom1) in
-            let absmodsig = substitute_abstract witnessmap absmodsigcod1 in
+            let (rng2, _) = modident2 in
+            let wtmap = subtype_signature rng2 modsig2 (oidset, modsigdom1) in
+            let absmodsig = substitute_abstract wtmap absmodsigcod1 in
             (absmodsig, IApply(name1, [ IVar(name2) ]))
       end
 
   | ModCoerce(modident0, utsig) ->
       let (modsig0, name0) = find_module tyenv modident0 in
       let absmodsig = typecheck_signature tyenv utsig in
-      let _ = subtype_concrete_with_abstract tyenv modsig0 absmodsig in
+      let (rng0, _) = modident0 in
+      let _ = subtype_signature rng0 modsig0 absmodsig in
       (absmodsig, IVar(name0))
 
 
