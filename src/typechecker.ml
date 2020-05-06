@@ -31,7 +31,8 @@ exception MissingRequiredSignatureName        of Range.t * signature_name * modu
 exception MissingRequiredConstructor          of Range.t * constructor_name * constructor_entry
 exception NotASubtype                         of Range.t * module_signature * module_signature
 exception NotASubtypeTypeOpacity              of Range.t * type_opacity * type_opacity
-
+exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t
+exception MismatchedNumberOfConstructorParameters of Range.t * constructor_name * constructor_entry * constructor_entry
 
 module BindingMap = Map.Make(String)
 
@@ -123,6 +124,7 @@ module SubtypingIntern : sig
   val create_vacant : unit -> t
   val create : OpaqueIDSet.t -> t -> t
   val is_consistent_opaque : t -> TypeID.Opaque.t -> TypeID.t -> int -> bool
+  val is_consistent_variant : t -> TypeID.Variant.t -> TypeID.Variant.t -> bool
   val make_witness_map : t -> witness_map
 end = struct
 
@@ -151,19 +153,33 @@ end = struct
     }
 
 
-  let rec is_consistent_opaque (opt : t) (oid : TypeID.Opaque.t) (tyid : TypeID.t) (arity : int) : bool =
+  let rec is_consistent_opaque (opt : t) (oid2 : TypeID.Opaque.t) (tyid1 : TypeID.t) (arity1 : int) : bool =
     match opt with
     | None ->
         assert false
 
     | Some(intern) ->
-        if intern.domain |> OpaqueIDSet.mem oid then
+        if intern.domain |> OpaqueIDSet.mem oid2 then
           let opaques = intern.opaques in
-          match OpaqueIDHashTable.find_opt opaques oid with
-          | None                  -> OpaqueIDHashTable.add opaques oid (tyid, arity); true
-          | Some((tyid0, arity0)) -> TypeID.equal tyid0 tyid && arity0 = arity
+          match OpaqueIDHashTable.find_opt opaques oid2 with
+          | None                -> OpaqueIDHashTable.add opaques oid2 (tyid1, arity1); true
+          | Some((tyid, arity)) -> TypeID.equal tyid tyid1 && arity = arity1
         else
-          is_consistent_opaque intern.sub oid tyid arity
+          is_consistent_opaque intern.sub oid2 tyid1 arity1
+
+
+  let rec is_consistent_variant (opt : t) (vid2 : TypeID.Variant.t) (vid1 : TypeID.Variant.t) : bool =
+    match opt with
+    | None ->
+        assert false
+
+    | Some(intern) ->
+        let variants = intern.variants in
+        begin
+          match VariantIDHashTable.find_opt variants vid2 with
+          | None      -> VariantIDHashTable.add variants vid2 vid1; true
+          | Some(vid) -> TypeID.Variant.equal vid vid1
+        end
 
 
   let make_witness_map (opt : t) : witness_map =
@@ -1201,7 +1217,13 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
 
 
 and subtype_poly_type (rng : Range.t) (intern : SubtypingIntern.t) (pty1 : poly_type) (pty2 : poly_type) : unit =
-  failwith (Format.asprintf "TODO: subtype_poly_type: %a =?= %a" pp_poly_type pty1 pp_poly_type pty2)
+  failwith (Format.asprintf "TODO: subtype_poly_type: %a <?= %a" pp_poly_type pty1 pp_poly_type pty2)
+
+
+and subtype_type_abstraction (rng : Range.t) (intern : SubtypingIntern.t) (ptyabs1 : BoundID.t list * poly_type) (ptyabs2 : BoundID.t list * poly_type) : unit =
+  let (_, pty1) = ptyabs1 in
+  let (_, pty2) = ptyabs2 in
+  failwith (Format.asprintf "TODO: subtype_type_abstraction: %a <?= %a" pp_poly_type pty1 pp_poly_type pty2)
 
 
 and subtype_type_opacity (rng : Range.t) (intern : SubtypingIntern.t) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : unit =
@@ -1273,15 +1295,24 @@ and subtype_concrete_with_concrete (rng : Range.t) (intern : SubtypingIntern.t) 
                 raise (MissingRequiredConstructor(rng, ctornm2, ctorentry2))
 
             | Some(ctorentry1) ->
-                let pty1 = ctorentry2.parameter_types in
+                let vid1 = ctorentry1.belongs in
+                let vid2 = ctorentry2.belongs in
+                if SubtypingIntern.is_consistent_variant intern vid2 vid1 then
+                  raise (NotASubtypeVariant(rng, vid1, vid2))
+                else
+                let pty1 = ctorentry1.parameter_types in
+                let typarams1 = ctorentry1.type_variables in
                 let pty2 = ctorentry2.parameter_types in
+                let typarams2 = ctorentry2.type_variables in
                 begin
                   match List.combine pty1 pty2 with
                   | exception Invalid_argument(_) ->
-                      raise (MissingRequiredConstructor(rng, ctornm2, ctorentry2))
+                      raise (MismatchedNumberOfConstructorParameters(rng, ctornm2, ctorentry2, ctorentry1))
 
                   | ptypairs ->
-                      ptypairs |> List.iter (fun (pty1, pty2) -> subtype_poly_type rng intern pty1 pty2);
+                      ptypairs |> List.iter (fun (pty1, pty2) ->
+                        subtype_type_abstraction rng intern (typarams1, pty1) (typarams2, pty2)
+                      );
                       wtmapacc
                 end
           )
