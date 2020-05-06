@@ -23,13 +23,6 @@ type opaque_entry = {
   o_kind : kind;
 }
 
-type constructor_entry = {
-  belongs         : TypeID.Variant.t;
-  constructor_id  : ConstructorID.t;
-  type_variables  : BoundID.t list;
-  parameter_types : poly_type list;
-}
-
 type module_entry = {
   mod_name      : name;
   mod_signature : module_signature;
@@ -42,7 +35,6 @@ type signature_entry = {
 type t = {
   vals         : val_entry ValNameMap.t;
   type_names   : (type_entry * int) TypeNameMap.t;
-  variants     : variant_entry VariantIDMap.t;
   opaques      : opaque_entry OpaqueIDMap.t;
   constructors : constructor_entry ConstructorMap.t;
   modules      : module_entry ModuleNameMap.t;
@@ -53,7 +45,6 @@ type t = {
 let empty = {
   vals         = ValNameMap.empty;
   type_names   = TypeNameMap.empty;
-  variants     = VariantIDMap.empty;
   opaques      = OpaqueIDMap.empty;
   constructors = ConstructorMap.empty;
   modules      = ModuleNameMap.empty;
@@ -91,31 +82,15 @@ let fold_val f tyenv acc =
   ValNameMap.fold (fun x entry acc -> f x entry.typ acc) tyenv.vals acc
 
 
-let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : BoundID.t list) (brmap : constructor_branch_map) (tyenv : t) : t =
-  let ventry =
-    {
-      v_type_parameters = typarams;
-      v_branches        = brmap;
-    }
-  in
-  let ctors =
-    ConstructorMap.fold (fun ctornm (ctorid, ptys) ctors ->
-      let entry =
-        {
-          belongs         = vid;
-          constructor_id  = ctorid;
-          type_variables  = typarams;
-          parameter_types = ptys;
-        }
-      in
-      ctors |> ConstructorMap.add ctornm entry
-    ) brmap tyenv.constructors
-  in
-  let arity = List.length typarams in
+let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (arity : int) (tyenv : t) : t =
   { tyenv with
-    type_names   = tyenv.type_names |> TypeNameMap.add tynm (DefinedVariant(vid), arity);
-    variants     = tyenv.variants |> VariantIDMap.add vid ventry;
-    constructors = ctors;
+    type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedVariant(vid), arity);
+  }
+
+
+let add_constructor (ctornm : constructor_name) (ctorentry : constructor_entry) (tyenv : t) : t =
+  { tyenv with
+    constructors = tyenv.constructors |> ConstructorMap.add ctornm ctorentry;
   }
 
 

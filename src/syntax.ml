@@ -545,7 +545,13 @@ type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
 module SynonymIDSet = Set.Make(TypeID.Synonym)
 
+module SynonymIDMap = Map.Make(TypeID.Synonym)
+
+module SynonymIDHashTable = Hashtbl.Make(TypeID.Synonym)
+
 module VariantIDMap = Map.Make(TypeID.Variant)
+
+module VariantIDHashTable = Hashtbl.Make(TypeID.Variant)
 
 module OpaqueIDSet = Set.Make(TypeID.Opaque)
 
@@ -577,21 +583,23 @@ type pattern =
   | IPConstructor of ConstructorID.t * pattern list
 [@@deriving show { with_path = false; } ]
 
-type single_type_binding =
-  | IVariant of TypeID.Variant.t * BoundID.t list * constructor_branch_map
-  | ISynonym of TypeID.Synonym.t * int
-
-type type_opacity =
-  | Transparent of single_type_binding
-  | Opaque      of kind * TypeID.Opaque.t
+type type_opacity = TypeID.t * int
 
 type 'a abstracted = OpaqueIDSet.t * 'a
+
+type constructor_entry = {
+  belongs         : TypeID.Variant.t;
+  constructor_id  : ConstructorID.t;
+  type_variables  : BoundID.t list;
+  parameter_types : poly_type list;
+}
 
 type signature_record = {
   sr_vals    : (poly_type * name) ValNameMap.t;
   sr_types   : type_opacity TypeNameMap.t;
   sr_modules : (signature_record module_signature_ * name) ModuleNameMap.t;
   sr_sigs    : ((signature_record module_signature_) abstracted) SignatureNameMap.t;
+  sr_ctors   : constructor_entry ConstructorMap.t;
 }
 
 type module_signature = signature_record module_signature_
@@ -625,12 +633,6 @@ and ast =
 and branch =
   | IBranch of pattern * ast option * ast
 
-type witness_map = TypeID.Synonym.t OpaqueIDMap.t
-
-
-let witness_map_union (wtmap1 : witness_map) (wtmap2 : witness_map) : witness_map =
-  OpaqueIDMap.union (fun _ _ _ -> assert false) wtmap1 wtmap2
-
 
 module SigRecord = struct
 
@@ -643,6 +645,7 @@ module SigRecord = struct
       sr_types   = TypeNameMap.empty;
       sr_modules = ModuleNameMap.empty;
       sr_sigs    = SignatureNameMap.empty;
+      sr_ctors   = ConstructorMap.empty;
     }
 
 
@@ -655,11 +658,32 @@ module SigRecord = struct
 
 
   let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (arity : int) (sigr : t) : t =
-    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(ISynonym(sid, arity))) }
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (TypeID.Synonym(sid), arity) }
 
 
   let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrs : constructor_branch_map) (sigr : t) : t =
-    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Transparent(IVariant(vid, typarams, ctorbrs))) }
+    let ctors =
+      ConstructorMap.fold (fun ctornm (ctorid, ptys) ctors ->
+        let entry =
+          {
+            belongs         = vid;
+            constructor_id  = ctorid;
+            type_variables  = typarams;
+            parameter_types = ptys;
+          }
+        in
+        ctors |> ConstructorMap.add ctornm entry
+      ) ctorbrs sigr.sr_ctors
+    in
+    let arity = List.length typarams in
+    { sigr with
+      sr_types = sigr.sr_types |> TypeNameMap.add tynm (TypeID.Variant(vid), arity);
+      sr_ctors = ctors;
+    }
+
+
+  let find_constructor (ctornm : constructor_name) (sigr : t) : constructor_entry option =
+    sigr.sr_ctors |> ConstructorMap.find_opt ctornm
 
 
   let find_type (tynm : type_name) (sigr : t) : type_opacity option =
@@ -667,7 +691,7 @@ module SigRecord = struct
 
 
   let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (kd : kind) (sigr : t) : t =
-    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (Opaque(kd, oid)) }
+    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (TypeID.Opaque(oid), kd) }
 
 
   let add_module (modnm : module_name) (modsig : module_signature) (name : name) (sigr : t) : t =
@@ -691,12 +715,14 @@ module SigRecord = struct
       ~t:(ft : type_name -> type_opacity -> a -> a)
       ~m:(fm : module_name -> module_signature * name -> a -> a)
       ~s:(fs : signature_name -> module_signature abstracted -> a -> a)
+      ~c:(fc : constructor_name -> constructor_entry -> a -> a)
       (init : a) (sigr : t) : a =
     init
       |> SignatureNameMap.fold fs sigr.sr_sigs
       |> ModuleNameMap.fold fm sigr.sr_modules
       |> TypeNameMap.fold ft sigr.sr_types
       |> ValNameMap.fold fv sigr.sr_vals
+      |> ConstructorMap.fold fc sigr.sr_ctors
 
 
   let map
@@ -704,12 +730,14 @@ module SigRecord = struct
       ~t:(ft : type_opacity -> type_opacity)
       ~m:(fm : module_signature * name -> module_signature * name)
       ~s:(fs : module_signature abstracted -> module_signature abstracted)
+      ~c:(fc : constructor_entry -> constructor_entry)
       (sigr : t) : t =
     {
       sr_vals    = sigr.sr_vals |> ValNameMap.map fv;
       sr_types   = sigr.sr_types |> TypeNameMap.map ft;
       sr_modules = sigr.sr_modules |> ModuleNameMap.map fm;
       sr_sigs    = sigr.sr_sigs |> SignatureNameMap.map fs;
+      sr_ctors   = sigr.sr_ctors |> ConstructorMap.map fc;
     }
 
 
@@ -719,7 +747,8 @@ module SigRecord = struct
     let sr_types   = TypeNameMap.union      left superior.sr_types   inferior.sr_types in
     let sr_modules = ModuleNameMap.union    left superior.sr_modules inferior.sr_modules in
     let sr_sigs    = SignatureNameMap.union left superior.sr_sigs    inferior.sr_sigs in
-    { sr_vals; sr_types; sr_modules; sr_sigs }
+    let sr_ctors   = ConstructorMap.union   left superior.sr_ctors   inferior.sr_ctors in
+    { sr_vals; sr_types; sr_modules; sr_sigs; sr_ctors }
 
 
   let disjoint_union (rng : Range.t) (sigr1 : t) (sigr2 : t) : t =
@@ -728,6 +757,7 @@ module SigRecord = struct
     let sr_types   = TypeNameMap.union      conflict sigr1.sr_types   sigr2.sr_types in
     let sr_modules = ModuleNameMap.union    conflict sigr1.sr_modules sigr2.sr_modules in
     let sr_sigs    = SignatureNameMap.union conflict sigr1.sr_sigs    sigr2.sr_sigs in
-    { sr_vals; sr_types; sr_modules; sr_sigs }
+    let sr_ctors   = ConstructorMap.union   conflict sigr1.sr_ctors   sigr2.sr_ctors in
+    { sr_vals; sr_types; sr_modules; sr_sigs; sr_ctors }
 
 end

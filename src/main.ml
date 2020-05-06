@@ -36,9 +36,10 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
       ~v:(fun x (pty, _) () ->
         Format.printf "%sval %s: %a\n" indent x pp_poly_type pty
       )
-      ~t:(fun tynm tyopacity () ->
-        match tyopacity with
-        | Transparent(ISynonym(sid, arity)) ->
+      ~t:(fun tynm tyopac () ->
+        let (tyid, arity) = tyopac in
+        match tyid with
+        | TypeID.Synonym(sid) ->
             let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
             Format.printf "%stype %s<%a> = %a\n"
               indent
@@ -46,14 +47,15 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
               (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
               pp_poly_type ptyreal
 
-        | Transparent(IVariant(_vid, typarams, _ctorbrs)) ->
+        | TypeID.Variant(vid) ->
+            let (typarams, _ctorbrs) = TypeSynonymStore.find_variant_type vid in
             Format.printf "%stype %s<%a> = (variant)\n"
               indent
               tynm
               (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
 
-        | Opaque(kind, _) ->
-            Format.printf "%stype %s:: %d\n" indent tynm kind
+        | TypeID.Opaque(_) ->
+            Format.printf "%stype %s:: %d\n" indent tynm arity
       )
       ~m:(fun modnm (modsig, _) () ->
         Format.printf "%smodule %s:\n" indent modnm;
@@ -61,6 +63,9 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
       )
       ~s:(fun signm _ () ->
         Format.printf "signature %s\n" signm
+      )
+      ~c:(fun ctornm _ () ->
+        Format.printf "constructor %s\n" ctornm
       )
       ()
 

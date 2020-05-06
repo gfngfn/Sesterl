@@ -13,7 +13,9 @@ val is_val_properly_used : identifier -> t -> bool option
 
 val fold_val : (identifier -> poly_type -> 'a -> 'a) -> t -> 'a -> 'a
 
-val add_variant_type : type_name -> TypeID.Variant.t -> BoundID.t list -> constructor_branch_map -> t -> t
+val add_variant_type : type_name -> TypeID.Variant.t -> int -> t -> t
+
+val add_constructor : constructor_name -> constructor_entry -> t -> t
 
 val add_synonym_type : type_name -> TypeID.Synonym.t -> int -> t -> t
 

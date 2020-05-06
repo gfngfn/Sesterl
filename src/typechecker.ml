@@ -21,16 +21,18 @@ exception NotOfFunctorType                    of Range.t * module_signature
 exception NotAFunctorSignature                of Range.t * module_signature
 exception NotAStructureSignature              of Range.t * module_signature
 exception UnboundSignatureName                of Range.t * signature_name
-exception CannotRestrictTransparentType       of Range.t * single_type_binding
+exception CannotRestrictTransparentType       of Range.t * type_opacity
 exception PolymorphicContradiction            of Range.t * (BoundID.t list * poly_type) * (BoundID.t list * poly_type)
 exception PolymorphicInclusion                of Range.t * FreeID.t * (BoundID.t list * poly_type) * (BoundID.t list * poly_type)
 exception MissingRequiredValName              of Range.t * identifier * poly_type
 exception MissingRequiredTypeName             of Range.t * type_name * type_opacity
 exception MissingRequiredModuleName           of Range.t * module_name * module_signature
 exception MissingRequiredSignatureName        of Range.t * signature_name * module_signature abstracted
+exception MissingRequiredConstructor          of Range.t * constructor_name * constructor_entry
 exception NotASubtype                         of Range.t * module_signature * module_signature
 exception NotASubtypeTypeOpacity              of Range.t * type_opacity * type_opacity
-
+exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t
+exception MismatchedNumberOfConstructorParameters of Range.t * constructor_name * constructor_entry * constructor_entry
 
 module BindingMap = Map.Make(String)
 
@@ -62,6 +64,159 @@ type pre = {
 }
 
 
+module WitnessMap : sig
+  type t
+  val empty : t
+  val add_variant : TypeID.Variant.t -> TypeID.Variant.t -> t -> t
+  val add_synonym : TypeID.Synonym.t -> TypeID.Synonym.t -> t -> t
+  val add_opaque : TypeID.Opaque.t -> TypeID.t -> t -> t
+  val find_synonym : TypeID.Synonym.t -> t -> TypeID.Synonym.t option
+  val find_opaque : TypeID.Opaque.t -> t -> TypeID.t option
+  val union : t -> t -> t
+end = struct
+
+  type t = {
+    variants : TypeID.Variant.t VariantIDMap.t;
+    synonyms : TypeID.Synonym.t SynonymIDMap.t;
+    opaques  : TypeID.t OpaqueIDMap.t;
+  }
+
+
+  let empty : t =
+    {
+      variants = VariantIDMap.empty;
+      synonyms = SynonymIDMap.empty;
+      opaques  = OpaqueIDMap.empty;
+    }
+
+
+  let union (wtmap1 : t) (wtmap2 : t) : t =
+    failwith "TODO: WitnessMap.union"
+
+
+  let add_variant (vid2 : TypeID.Variant.t) (vid1 : TypeID.Variant.t) (wtmap : t) : t =
+    { wtmap with variants = wtmap.variants |> VariantIDMap.add vid2 vid1 }
+
+
+  let add_synonym (sid2 : TypeID.Synonym.t) (sid1 : TypeID.Synonym.t) (wtmap : t) : t =
+    failwith "TODO: WitnessMap.add_synonym"
+
+
+  let add_opaque (oid2 : TypeID.Opaque.t) (tyid1 : TypeID.t) (wtmap : t) : t =
+    failwith "TODO: WitnessMap.add_opaque"
+
+
+  let find_synonym (sid2 : TypeID.Synonym.t) (wtmap : t) : TypeID.Synonym.t option =
+    wtmap.synonyms |> SynonymIDMap.find_opt sid2
+
+
+  let find_opaque (oid2 : TypeID.Opaque.t) (wtmap : t) : TypeID.t option =
+    wtmap.opaques |> OpaqueIDMap.find_opt oid2
+
+end
+
+
+type witness_map = WitnessMap.t
+
+
+module SubtypingIntern : sig
+  type t
+  val create_vacant : unit -> t
+  val create : OpaqueIDSet.t -> t -> t
+  val is_consistent_opaque : t -> TypeID.Opaque.t -> TypeID.t -> int -> bool
+  val is_consistent_variant : t -> TypeID.Variant.t -> TypeID.Variant.t -> bool
+  val is_consistent_synonym : t -> TypeID.Synonym.t -> TypeID.Synonym.t -> bool
+  val make_witness_map : t -> witness_map
+end = struct
+
+  type t = impl option
+
+  and impl = {
+    domain   : OpaqueIDSet.t;
+    variants : TypeID.Variant.t VariantIDHashTable.t;
+    synonyms : TypeID.Synonym.t SynonymIDHashTable.t;
+    opaques  : (TypeID.t * int) OpaqueIDHashTable.t;
+    sub      : t;
+  }
+
+
+  let create_vacant () : t =
+    None
+
+
+  let create (oidset : OpaqueIDSet.t) (sub : t) : t =
+    Some{
+      domain   = oidset;
+      variants = VariantIDHashTable.create 32;
+      synonyms = SynonymIDHashTable.create 32;
+      opaques  = OpaqueIDHashTable.create 32;
+      sub      = sub;
+    }
+
+
+  let rec is_consistent_opaque (opt : t) (oid2 : TypeID.Opaque.t) (tyid1 : TypeID.t) (arity1 : int) : bool =
+    match opt with
+    | None ->
+        assert false
+
+    | Some(intern) ->
+        if intern.domain |> OpaqueIDSet.mem oid2 then
+          let opaques = intern.opaques in
+          match OpaqueIDHashTable.find_opt opaques oid2 with
+          | None                -> OpaqueIDHashTable.add opaques oid2 (tyid1, arity1); true
+          | Some((tyid, arity)) -> TypeID.equal tyid tyid1 && arity = arity1
+        else
+          is_consistent_opaque intern.sub oid2 tyid1 arity1
+
+
+  let rec is_consistent_variant (opt : t) (vid2 : TypeID.Variant.t) (vid1 : TypeID.Variant.t) : bool =
+    match opt with
+    | None ->
+        assert false
+
+    | Some(intern) ->
+        let variants = intern.variants in
+        begin
+          match VariantIDHashTable.find_opt variants vid2 with
+          | None      -> VariantIDHashTable.add variants vid2 vid1; true
+          | Some(vid) -> TypeID.Variant.equal vid vid1
+        end
+
+
+  let rec is_consistent_synonym (opt : t) (sid2 : TypeID.Synonym.t) (sid1 : TypeID.Synonym.t) : bool =
+    match opt with
+    | None ->
+        assert false
+
+    | Some(intern) ->
+        let synonyms = intern.synonyms in
+        begin
+          match SynonymIDHashTable.find_opt synonyms sid2 with
+          | None      -> SynonymIDHashTable.add synonyms sid2 sid1; true
+          | Some(sid) -> TypeID.Synonym.equal sid sid1
+        end
+
+
+  let make_witness_map (opt : t) : witness_map =
+    match opt with
+    | None ->
+        assert false
+
+    | Some(intern) ->
+        WitnessMap.empty
+          |> SynonymIDHashTable.fold (fun sid2 sid1 wtmap ->
+            wtmap |> WitnessMap.add_synonym sid2 sid1
+          ) intern.synonyms
+          |> VariantIDHashTable.fold (fun vid2 vid1 wtmap ->
+            wtmap |> WitnessMap.add_variant vid2 vid1
+          ) intern.variants
+          |> OpaqueIDHashTable.fold (fun oid2 (tyid1, _) wtmap ->
+            wtmap |> WitnessMap.add_opaque oid2 tyid1
+          ) intern.opaques
+
+end
+
+
 let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
   match tyenv |> Typeenv.find_module_opt m with
   | None    -> raise (UnboundModuleName(rng, m))
@@ -75,9 +230,9 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
     )
     ~t:(fun tynm tyopacity ->
       match tyopacity with
-      | Transparent(ISynonym(sid, arity))             -> Typeenv.add_synonym_type tynm sid arity
-      | Transparent(IVariant(vid, typarams, ctorbrs)) -> Typeenv.add_variant_type tynm vid typarams ctorbrs
-      | Opaque(kind, oid)                             -> Typeenv.add_opaque_type tynm oid kind
+      | (TypeID.Synonym(sid), arity) -> Typeenv.add_synonym_type tynm sid arity
+      | (TypeID.Variant(vid), arity) -> Typeenv.add_variant_type tynm vid arity
+      | (TypeID.Opaque(oid), arity)  -> Typeenv.add_opaque_type tynm oid arity
     )
     ~m:(fun modnm (modsig, name) tyenv ->
       let tyenv = tyenv |> Typeenv.add_module modnm modsig name in
@@ -85,6 +240,9 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
     )
     ~s:(fun signm absmodsig ->
       Typeenv.add_signature signm absmodsig
+    )
+    ~c:(fun ctornm ctorentry ->
+      Typeenv.add_constructor ctornm ctorentry
     )
     tyenv
 
@@ -509,12 +667,7 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
 
                   | Some(tyopac) ->
                       let tyargs = mtyargs |> List.map aux in
-                      let (tyid, arity) =
-                        match tyopac with
-                        | Opaque(kd, oid)                         -> (TypeID.Opaque(oid), kd)
-                        | Transparent(ISynonym(sid, arity))       -> (TypeID.Synonym(sid), arity)
-                        | Transparent(IVariant(vid, typarams, _)) -> (TypeID.Variant(vid), List.length typarams)
-                      in
+                      let (tyid, arity) = tyopac in
                       assert (arity = List.length tyargs);
                       k tyid;
                       DataType(tyid, tyargs)
@@ -1078,28 +1231,45 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
   | Inclusion(fid) -> raise (PolymorphicInclusion(rng, fid, ptyfun1, ptyfun2))
 
 
-and subtype_poly_type (rng : Range.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (pty1 : poly_type) (pty2 : poly_type) : unit =
-  failwith (Format.asprintf "TODO: subtype_poly_type: %a =?= %a" pp_poly_type pty1 pp_poly_type pty2)
+and subtype_poly_type (rng : Range.t) (intern : SubtypingIntern.t) (pty1 : poly_type) (pty2 : poly_type) : unit =
+  failwith (Format.asprintf "TODO: subtype_poly_type: %a <?= %a" pp_poly_type pty1 pp_poly_type pty2)
 
 
-and subtype_type_opacity (rng : Range.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : unit =
-  match (tyopac1, tyopac2) with
-  | (Transparent(ISynonym(sid1, arity1)), Opaque(kd2, oid2)) ->
-      if arity1 = kd2 then
-        let ptyfun1 = TypeSynonymStore.find_synonym_type sid1 in
-        intern oid2 ptyfun1
-      else
-        raise (NotASubtypeTypeOpacity(rng, tyopac1, tyopac2))
-
-  | _ ->
-      failwith "TODO: subtype_type_opacity, other than (Synonym, Opaque)"
+and subtype_type_abstraction (rng : Range.t) (intern : SubtypingIntern.t) (ptyabs1 : BoundID.t list * poly_type) (ptyabs2 : BoundID.t list * poly_type) : unit =
+  let (_, pty1) = ptyabs1 in
+  let (_, pty2) = ptyabs2 in
+  failwith (Format.asprintf "TODO: subtype_type_abstraction: %a <?= %a" pp_poly_type pty1 pp_poly_type pty2)
 
 
-and subtype_abstract_with_abstract (rng : Range.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : witness_map =
+and subtype_type_opacity (rng : Range.t) (intern : SubtypingIntern.t) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : unit =
+  let (tyid1, arity1) = tyopac1 in
+  let (tyid2, arity2) = tyopac2 in
+  let exn = NotASubtypeTypeOpacity(rng, tyopac1, tyopac2) in
+  if arity1 <> arity2 then
+    raise exn
+  else
+    match (tyid1, tyid2) with
+    | (_, TypeID.Opaque(oid2)) ->
+        if SubtypingIntern.is_consistent_opaque intern oid2 tyid1 arity1 then () else
+          raise exn
+
+    | (TypeID.Variant(vid1), TypeID.Variant(vid2)) ->
+        if SubtypingIntern.is_consistent_variant intern vid2 vid1 then () else
+          raise exn
+
+    | (TypeID.Synonym(sid1), TypeID.Synonym(sid2)) ->
+        if SubtypingIntern.is_consistent_synonym intern sid2 sid1 then () else
+          raise exn
+
+    | _ ->
+        raise exn
+
+
+and subtype_abstract_with_abstract (rng : Range.t) (intern : SubtypingIntern.t) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : witness_map =
   failwith "TODO: subtype_abstract_with_abstract"
 
 
-and subtype_concrete_with_concrete (rng : Range.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (modsig1 : module_signature) (modsig2 : module_signature) : witness_map =
+and subtype_concrete_with_concrete (rng : Range.t) (intern : SubtypingIntern.t) (modsig1 : module_signature) (modsig2 : module_signature) : witness_map =
   match (modsig1, modsig2) with
   | (ConcFunctor(oidset1, modsigdom1, absmodsigcod1), ConcFunctor(oidset2, modsigdom2, absmodsigcod2)) ->
       let wtmap = subtype_concrete_with_abstract rng intern modsigdom2 (oidset1, modsigdom1) in
@@ -1133,7 +1303,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (intern : TypeID.Opaque.t -> 
 
             | Some(modsig1, _) ->
                 let wtmap = subtype_concrete_with_concrete rng intern modsig1 modsig2 in
-                witness_map_union wtmapacc wtmap
+                WitnessMap.union wtmapacc wtmap
           )
           ~s:(fun signm2 absmodsig2 wtmapacc ->
             match sigr1 |> SigRecord.find_signature signm2 with
@@ -1142,38 +1312,51 @@ and subtype_concrete_with_concrete (rng : Range.t) (intern : TypeID.Opaque.t -> 
 
             | Some(absmodsig1) ->
                 let wtmap = subtype_abstract_with_abstract rng intern absmodsig1 absmodsig2 in
-                witness_map_union wtmapacc wtmap
+                WitnessMap.union wtmapacc wtmap
           )
-          OpaqueIDMap.empty
+          ~c:(fun ctornm2 ctorentry2 wtmapacc ->
+            match sigr1 |> SigRecord.find_constructor ctornm2 with
+            | None ->
+                raise (MissingRequiredConstructor(rng, ctornm2, ctorentry2))
+
+            | Some(ctorentry1) ->
+                let vid1 = ctorentry1.belongs in
+                let vid2 = ctorentry2.belongs in
+                if SubtypingIntern.is_consistent_variant intern vid2 vid1 then
+                  raise (NotASubtypeVariant(rng, vid1, vid2))
+                else
+                  let pty1 = ctorentry1.parameter_types in
+                  let typarams1 = ctorentry1.type_variables in
+                  let pty2 = ctorentry2.parameter_types in
+                  let typarams2 = ctorentry2.type_variables in
+                  begin
+                    match List.combine pty1 pty2 with
+                    | exception Invalid_argument(_) ->
+                        raise (MismatchedNumberOfConstructorParameters(rng, ctornm2, ctorentry2, ctorentry1))
+
+                    | ptypairs ->
+                        ptypairs |> List.iter (fun (pty1, pty2) ->
+                          subtype_type_abstraction rng intern (typarams1, pty1) (typarams2, pty2)
+                        );
+                        wtmapacc
+                  end
+          )
+          WitnessMap.empty
 
   | _ ->
       raise (NotASubtype(rng, modsig1, modsig2))
 
 
-and subtype_concrete_with_abstract (rng : Range.t) (internsub : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
+and subtype_concrete_with_abstract (rng : Range.t) (internsub : SubtypingIntern.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
   let (oidset2, modsig2) = absmodsig2 in
-  let hashtable = OpaqueIDHashTable.create (OpaqueIDSet.cardinal oidset2) in
-  let intern (oid : TypeID.Opaque.t) (ptyfun : BoundID.t list * poly_type) : unit =
-    if oidset2 |> OpaqueIDSet.mem oid then
-      match OpaqueIDHashTable.find_opt hashtable oid with
-      | None          -> OpaqueIDHashTable.add hashtable oid ptyfun
-      | Some(ptyfun0) -> unify_poly_type rng ptyfun ptyfun0
-    else
-      internsub oid ptyfun
-  in
-  let wtmapsub = subtype_concrete_with_concrete rng intern modsig1 modsig2 in
-  let wtmap =
-    OpaqueIDHashTable.fold (fun oid (typarams, ptyreal) wtmap ->
-      let sid = TypeID.Synonym.fresh "(subtype)" in
-      TypeSynonymStore.add_synonym_type sid typarams ptyreal;
-      wtmap |> OpaqueIDMap.add oid sid
-    ) hashtable OpaqueIDMap.empty
-  in
-  witness_map_union wtmapsub wtmap
+  let intern = SubtypingIntern.create oidset2 internsub in
+  let wtmapsuper = subtype_concrete_with_concrete rng intern modsig1 modsig2 in
+  let wtmap = SubtypingIntern.make_witness_map intern in
+  WitnessMap.union wtmapsuper wtmap
 
 
 and subtype_signature (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
-  let intern_outermost oid ptyfun = () in
+  let intern_outermost = SubtypingIntern.create_vacant () in
   subtype_concrete_with_abstract rng intern_outermost modsig1 absmodsig2
 
 
@@ -1190,19 +1373,31 @@ and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : modu
         sigr |> SigRecord.map
             ~v:(fun (pty, name) -> (substitute_poly_type wtmap pty, name))
             ~t:(fun tyopac ->
-              match tyopac with
-              | Transparent(_) ->
-                  tyopac
-
-              | Opaque(kd, oid) ->
+              let (tyid, arity) = tyopac in
+              match tyid with
+              | TypeID.Synonym(sid) ->
                   begin
-                    match wtmap |> OpaqueIDMap.find_opt oid with
-                    | None      -> tyopac
-                    | Some(sid) -> Transparent(ISynonym(sid, kd))
+                    match wtmap |> WitnessMap.find_synonym sid with
+                    | None            -> tyopac
+                    | Some(sid_subst) -> (TypeID.Synonym(sid_subst), arity)
+                  end
+
+              | TypeID.Variant(vid) ->
+                  failwith "TODO: substitute_concrete, Variant"
+
+              | TypeID.Opaque(oid) ->
+                  begin
+                    match wtmap |> WitnessMap.find_opaque oid with
+                    | None             -> tyopac
+                    | Some(tyid_subst) -> (tyid_subst, arity)
                   end
             )
             ~m:(fun (modsig, name) -> (substitute_concrete wtmap modsig, name))
             ~s:(substitute_abstract wtmap)
+            ~c:(fun ctorentry ->
+              let ptys = ctorentry.parameter_types |> List.map (substitute_poly_type wtmap) in
+              { ctorentry with parameter_types = ptys }
+            )
       in
       ConcStructure(sigr)
 
@@ -1227,9 +1422,9 @@ and substitute_poly_type (wtmap : witness_map) (pty : poly_type) : poly_type =
 
       | DataType(TypeID.Opaque(oid), ptyargs) ->
           begin
-            match wtmap |> OpaqueIDMap.find_opt oid with
-            | None      -> ptymain
-            | Some(sid) -> DataType(TypeID.Synonym(sid), ptyargs)
+            match wtmap |> WitnessMap.find_opaque oid with
+            | None       -> ptymain
+            | Some(tyid) -> DataType(tyid, ptyargs)
           end
 
       | DataType(tyid, ptyargs) ->
@@ -1399,10 +1594,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
               | None ->
                   raise (UndefinedTypeName(rng1, tynm1))
 
-              | Some(Transparent(tytrans)) ->
-                  raise (CannotRestrictTransparentType(rng1, tytrans))
-
-              | Some(Opaque(kd, oid)) ->
+              | Some(TypeID.Opaque(oid), kd) ->
                   assert (oidset0 |> OpaqueIDSet.mem oid);
                   let typaramassoc = make_type_parameter_assoc 1 tyvaridents in
                   let pty =
@@ -1416,13 +1608,15 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                     let modsigret =
                       let sid = TypeID.Synonym.fresh tynm1 in
                       TypeSynonymStore.add_synonym_type sid typarams pty;
-                      let wtmap = OpaqueIDMap.singleton oid sid in
+                      let wtmap = WitnessMap.empty |> WitnessMap.add_opaque oid (TypeID.Synonym(sid)) in
                       substitute_concrete wtmap modsig0
                     in
                     (oidset0 |> OpaqueIDSet.remove oid, modsigret)
                   else
                     raise (InvalidNumberOfTypeArguments(rng1, tynm1, kd, arity_actual))
 
+              | Some(tyopac) ->
+                  raise (CannotRestrictTransparentType(rng1, tyopac))
             end
       end
 
@@ -1538,6 +1732,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           let ctorbrmap =
             make_constructor_branch_map { pre with tyenv } ctorbrs
           in
+          TypeSynonymStore.add_variant_type vid typarams ctorbrmap;
           let sigr = sigr |> SigRecord.add_variant_type tynm vid typarams ctorbrmap in
           sigr
         ) sigr
