@@ -1028,7 +1028,8 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
         end
 
     | TypeVar(Mono(mtvu1)), TypeVar(Mono(mtvu2)) ->
-        failwith "TODO: unify_poly_type, Mono"
+        assert false
+          (* -- monomorphic type variables cannot occur at level 0 -- *)
 
     | (ProductType(ptys1), ProductType(ptys2)) ->
         aux_list (TupleList.to_list ptys1) (TupleList.to_list ptys2)
