@@ -27,6 +27,8 @@ exception PolymorphicInclusion                of Range.t * FreeID.t * (BoundID.t
 exception NotASubtype                         of Range.t * module_signature * module_signature
 exception MissingRequiredValName              of Range.t * identifier * poly_type
 exception MissingRequiredTypeName             of Range.t * type_name * type_opacity
+exception MissingRequiredModuleName           of Range.t * module_name * module_signature
+exception MissingRequiredSignatureName        of Range.t * signature_name * module_signature abstracted
 
 
 module BindingMap = Map.Make(String)
@@ -1074,24 +1076,24 @@ and unify_poly_type (rng : Range.t) (ptyfun1 : BoundID.t list * poly_type) (ptyf
   | Inclusion(fid) -> raise (PolymorphicInclusion(rng, fid, ptyfun1, ptyfun2))
 
 
-and subtype_poly_type (pty1 : poly_type) (pty2 : poly_type) : witness_map =
+and subtype_poly_type (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (pty1 : poly_type) (pty2 : poly_type) : unit =
   failwith "TODO: subtype_poly_type"
 
 
-and subtype_type_opacity (tyopac1 : type_opacity) (tyopac2 : type_opacity) : witness_map =
+and subtype_type_opacity (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : unit =
   failwith "TODO: subtype_type_opacity"
 
 
-and subtype_abstract_with_abstract (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : witness_map =
+and subtype_abstract_with_abstract (rng : Range.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : witness_map =
   failwith "TODO: subtype_abstract_with_abstract"
 
 
-and subtype_concrete_with_concrete (rng : Range.t) (_intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (modsig1 : module_signature) (modsig2 : module_signature) : witness_map =
+and subtype_concrete_with_concrete (rng : Range.t) (intern : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (modsig1 : module_signature) (modsig2 : module_signature) : witness_map =
   match (modsig1, modsig2) with
   | (ConcFunctor(oidset1, modsigdom1, absmodsigcod1), ConcFunctor(oidset2, modsigdom2, absmodsigcod2)) ->
-      let wtmap = subtype_concrete_with_abstract rng modsigdom2 (oidset1, modsigdom1) in
+      let wtmap = subtype_concrete_with_abstract rng intern modsigdom2 (oidset1, modsigdom1) in
       let absmodsigcod1 = absmodsigcod1 |> substitute_abstract wtmap in
-      subtype_abstract_with_abstract absmodsigcod1 absmodsigcod2
+      subtype_abstract_with_abstract rng intern absmodsigcod1 absmodsigcod2
 
   | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
       sigr2 |> SigRecord.fold
@@ -1101,8 +1103,8 @@ and subtype_concrete_with_concrete (rng : Range.t) (_intern : TypeID.Opaque.t ->
                 raise (MissingRequiredValName(rng, x2, pty2))
 
             | Some(pty1, _) ->
-                let wtmap = subtype_poly_type pty1 pty2 in
-                witness_map_union wtmapacc wtmap
+                subtype_poly_type intern pty1 pty2;
+                wtmapacc
           )
           ~t:(fun tynm2 tyopac2 wtmapacc ->
             match sigr1 |> SigRecord.find_type tynm2 with
@@ -1110,17 +1112,34 @@ and subtype_concrete_with_concrete (rng : Range.t) (_intern : TypeID.Opaque.t ->
                 raise (MissingRequiredTypeName(rng, tynm2, tyopac2))
 
             | Some(tyopac1) ->
-                let wtmap = subtype_type_opacity tyopac1 tyopac2 in
+                subtype_type_opacity intern tyopac1 tyopac2;
+                wtmapacc
+          )
+          ~m:(fun modnm2 (modsig2, _) wtmapacc ->
+            match sigr1 |> SigRecord.find_module modnm2 with
+            | None ->
+                raise (MissingRequiredModuleName(rng, modnm2, modsig2))
+
+            | Some(modsig1, _) ->
+                let wtmap = subtype_concrete_with_concrete rng intern modsig1 modsig2 in
                 witness_map_union wtmapacc wtmap
           )
-          ~m:(fun modnm (modsig, _) wtmapacc -> wtmapacc)
-          ~s:(fun signm absmodsig wtmapacc -> wtmapacc)
+          ~s:(fun signm2 absmodsig2 wtmapacc ->
+            match sigr1 |> SigRecord.find_signature signm2 with
+            | None ->
+                raise (MissingRequiredSignatureName(rng, signm2, absmodsig2))
+
+            | Some(absmodsig1) ->
+                let wtmap = subtype_abstract_with_abstract rng intern absmodsig1 absmodsig2 in
+                witness_map_union wtmapacc wtmap
+          )
           OpaqueIDMap.empty
 
   | _ ->
       raise (NotASubtype(rng, modsig1, modsig2))
 
-and subtype_concrete_with_abstract (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
+
+and subtype_concrete_with_abstract (rng : Range.t) (internsub : TypeID.Opaque.t -> BoundID.t list * poly_type -> unit) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
   let (oidset2, modsig2) = absmodsig2 in
   let hashtable = OpaqueIDHashTable.create (OpaqueIDSet.cardinal oidset2) in
   let intern (oid : TypeID.Opaque.t) (ptyfun : BoundID.t list * poly_type) : unit =
@@ -1129,9 +1148,22 @@ and subtype_concrete_with_abstract (rng : Range.t) (modsig1 : module_signature) 
       | None          -> OpaqueIDHashTable.add hashtable oid ptyfun
       | Some(ptyfun0) -> unify_poly_type rng ptyfun ptyfun0
     else
-      ()
+      internsub oid ptyfun
   in
-  subtype_concrete_with_concrete rng intern modsig1 modsig2
+  let wtmapsub = subtype_concrete_with_concrete rng intern modsig1 modsig2 in
+  let wtmap =
+    OpaqueIDHashTable.fold (fun oid (typarams, ptyreal) wtmap ->
+      let sid = TypeID.Synonym.fresh "(subtype)" in
+      TypeSynonymStore.add_synonym_type sid typarams ptyreal;
+      wtmap |> OpaqueIDMap.add oid sid
+    ) hashtable OpaqueIDMap.empty
+  in
+  witness_map_union wtmapsub wtmap
+
+
+and subtype_signature (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
+  let intern_outermost oid ptyfun = () in
+  subtype_concrete_with_abstract rng intern_outermost modsig1 absmodsig2
 
 
 and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : module_signature =
@@ -1600,8 +1632,8 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
 
         | ConcFunctor(oidset, modsigdom1, absmodsigcod1) ->
             let (rng2, _) = modident2 in
-            let witnessmap = subtype_concrete_with_abstract rng2 modsig2 (oidset, modsigdom1) in
-            let absmodsig = substitute_abstract witnessmap absmodsigcod1 in
+            let wtmap = subtype_signature rng2 modsig2 (oidset, modsigdom1) in
+            let absmodsig = substitute_abstract wtmap absmodsigcod1 in
             (absmodsig, IApply(name1, [ IVar(name2) ]))
       end
 
@@ -1609,7 +1641,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       let (modsig0, name0) = find_module tyenv modident0 in
       let absmodsig = typecheck_signature tyenv utsig in
       let (rng0, _) = modident0 in
-      let _ = subtype_concrete_with_abstract rng0 modsig0 absmodsig in
+      let _ = subtype_signature rng0 modsig0 absmodsig in
       (absmodsig, IVar(name0))
 
 
