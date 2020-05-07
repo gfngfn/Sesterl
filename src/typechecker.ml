@@ -1223,9 +1223,9 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
 
 and subtype_poly_type_scheme (intern : SubtypingIntern.t) (internbid : BoundID.t -> BoundID.t -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
   let rec aux pty1 pty2 =
-
+(*
   Format.printf "subtype_poly_type_scheme > aux: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
-
+*)
     let (_, ptymain1) = pty1 in
     let (_, ptymain2) = pty2 in
     match (ptymain1, ptymain2) with
@@ -1320,9 +1320,9 @@ and subtype_poly_type_scheme (intern : SubtypingIntern.t) (internbid : BoundID.t
 
 
 and subtype_poly_type (intern : SubtypingIntern.t) (pty1 : poly_type) (pty2 : poly_type) : bool =
-
+(*
   Format.printf "subtype_poly_type: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
-
+*)
   let hashtable = BoundIDHashTable.create 32 in
   let internbid bid2 bid1 =
     match BoundIDHashTable.find_opt hashtable bid2 with
@@ -1335,9 +1335,9 @@ and subtype_poly_type (intern : SubtypingIntern.t) (pty1 : poly_type) (pty2 : po
 and subtype_type_abstraction (intern : SubtypingIntern.t) (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : bool =
   let (typarams1, pty1) = ptyfun1 in
   let (typarams2, pty2) = ptyfun2 in
-
+(*
   Format.printf "subtype_type_abstraction: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
-
+*)
   match List.combine typarams1 typarams2 with
   | exception Invalid_argument(_) ->
       false
