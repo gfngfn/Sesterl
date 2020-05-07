@@ -142,7 +142,8 @@ module SubtypingIntern : sig
   val create : OpaqueIDSet.t -> t -> t
   val is_consistent_opaque_to_variant : t -> TypeID.Opaque.t -> TypeID.Variant.t -> bool
   val is_consistent_opaque_to_opaque : t -> TypeID.Opaque.t -> TypeID.Opaque.t -> bool
-  val is_consistent_opaque_to_type_abstraction : t -> TypeID.Opaque.t -> BoundID.t list * poly_type -> (BoundID.t list * poly_type -> BoundID.t list * poly_type -> bool) -> bool
+  val add_opaque_to_type_abstraction : t -> TypeID.Opaque.t -> BoundID.t list * poly_type -> unit
+  val add_constraint_for_opaque_to_type_abstraction : t -> TypeID.Opaque.t -> poly_type list -> poly_type -> unit
   val is_consistent_variant : t -> TypeID.Variant.t -> TypeID.Variant.t -> bool
 (*
   val is_consistent_synonym : t -> TypeID.Synonym.t -> TypeID.Synonym.t -> bool
@@ -159,6 +160,8 @@ end = struct
     synonyms : TypeID.Synonym.t SynonymIDHashTable.t;
 *)
     opaques  : opaque_entry OpaqueIDHashTable.t;
+
+    constraints : (((poly_type list * poly_type) list) ref) OpaqueIDHashTable.t;
     sub      : t;
   }
 
@@ -175,6 +178,7 @@ end = struct
       synonyms = SynonymIDHashTable.create 32;
 *)
       opaques  = OpaqueIDHashTable.create 32;
+      constraints = OpaqueIDHashTable.create 32;
       sub      = sub;
     }
 
@@ -195,11 +199,36 @@ end = struct
           is_consistent_opaque_to_variant intern.sub oid2 vid1
 
 
-  let is_consistent_opaque_to_opaque (opt : t) =
-    failwith "TODO: is_consistent_opaque_to_opaque"
+  let rec add_opaque_to_type_abstraction (opt : t) (oid2 : TypeID.Opaque.t) (ptyfun1 : BoundID.t list * poly_type) : unit =
+    match opt with
+    | None ->
+        assert false
+
+    | Some(intern) ->
+        if intern.domain |> OpaqueIDSet.mem oid2 then
+          let opaques = intern.opaques in
+          OpaqueIDHashTable.add opaques oid2 (OpaqueToSynonym(ptyfun1, "(name)"))
+        else
+          add_opaque_to_type_abstraction intern.sub oid2 ptyfun1
 
 
-  let rec is_consistent_opaque_to_type_abstraction (opt : t) (oid2 : TypeID.Opaque.t) (ptyfun1 : BoundID.t list * poly_type) (equalf : BoundID.t list * poly_type -> BoundID.t list * poly_type -> bool) : bool =
+  let rec add_constraint_for_opaque_to_type_abstraction (opt : t) (oid2 : TypeID.Opaque.t) (ptyargs : poly_type list) (pty : poly_type) : unit =
+    match opt with
+    | None ->
+        assert false
+
+    | Some(intern) ->
+        if intern.domain |> OpaqueIDSet.mem oid2 then
+          let constraints = intern.constraints in
+          match OpaqueIDHashTable.find_opt constraints oid2 with
+          | None    -> OpaqueIDHashTable.add constraints oid2 (ref [(ptyargs, pty)])
+          | Some(r) -> r := (ptyargs, pty) :: !r
+        else
+          add_constraint_for_opaque_to_type_abstraction intern.sub oid2 ptyargs pty
+
+
+
+  let rec is_consistent_opaque_to_opaque (opt : t) (oid2 : TypeID.Opaque.t) (oid1 : TypeID.Opaque.t) : bool =
     match opt with
     | None ->
         assert false
@@ -208,11 +237,11 @@ end = struct
         if intern.domain |> OpaqueIDSet.mem oid2 then
           let opaques = intern.opaques in
           match OpaqueIDHashTable.find_opt opaques oid2 with
-          | None                             -> OpaqueIDHashTable.add opaques oid2 (OpaqueToSynonym(ptyfun1, "(name)")); true
-          | Some(OpaqueToSynonym(ptyfun, _)) -> equalf ptyfun ptyfun1
-          | Some(_)                          -> false
+          | None                      -> OpaqueIDHashTable.add opaques oid2 (OpaqueToOpaque(oid1)); true
+          | Some(OpaqueToOpaque(oid)) -> TypeID.Opaque.equal oid oid1
+          | Some(_)                   -> false
         else
-          is_consistent_opaque_to_type_abstraction intern.sub oid2 ptyfun1 equalf
+          is_consistent_opaque_to_opaque intern.sub oid2 oid1
 
 
   let rec is_consistent_variant (opt : t) (vid2 : TypeID.Variant.t) (vid1 : TypeID.Variant.t) : bool =
@@ -259,7 +288,12 @@ end = struct
             wtmap |> WitnessMap.add_variant vid2 vid1
           ) intern.variants
           |> OpaqueIDHashTable.fold (fun oid2 opq1 wtmap ->
-            wtmap |> WitnessMap.add_opaque oid2 opq1
+            match OpaqueIDHashTable.find_opt intern.constraints oid2 with
+            | None ->
+                wtmap |> WitnessMap.add_opaque oid2 opq1
+
+            | Some(_) ->
+                failwith "TODO: constraint solving for synonyms"
           ) intern.opaques
 
 end
@@ -1256,7 +1290,8 @@ and subtype_poly_type_scheme (intern : SubtypingIntern.t) (internbid : BoundID.t
           false
 
     | (_, DataType(TypeID.Opaque(oid2), ptyargs2)) ->
-        failwith "TODO: subtype_poly_type_scheme, (!{Variant, Synonym, Opaque}, Opaque)"
+        SubtypingIntern.add_constraint_for_opaque_to_type_abstraction intern oid2 ptyargs2 pty1;
+        true
 
     | (TypeVar(Bound(bid1)), _) ->
         failwith "TODO: subtype_poly_type_scheme, (Bound, !Bound)"
@@ -1336,7 +1371,8 @@ and subtype_type_opacity (intern : SubtypingIntern.t) (tyopac1 : type_opacity) (
 
     | (TypeID.Synonym(sid1), TypeID.Opaque(oid2)) ->
         let ptyfun1 = TypeSynonymStore.find_synonym_type sid1 in
-        SubtypingIntern.is_consistent_opaque_to_type_abstraction intern oid2 ptyfun1 unify_type_abstraction
+        SubtypingIntern.add_opaque_to_type_abstraction intern oid2 ptyfun1;
+        true
 
     | (TypeID.Variant(vid1), TypeID.Variant(vid2)) ->
         SubtypingIntern.is_consistent_variant intern vid2 vid1
