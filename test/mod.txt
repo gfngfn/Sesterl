@@ -27,7 +27,7 @@ module Map = fun(Elem: Ord) ->
 
 module Int = struct
   type s = int
-  let compare() = ()
+  let compare(x: int, y: int) = y - x
 end
 
 module IntMap = Map(Int)

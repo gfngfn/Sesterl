@@ -22,7 +22,7 @@ exception NotAFunctorSignature                of Range.t * module_signature
 exception NotAStructureSignature              of Range.t * module_signature
 exception UnboundSignatureName                of Range.t * signature_name
 exception CannotRestrictTransparentType       of Range.t * type_opacity
-exception PolymorphicContradiction            of Range.t * poly_type * poly_type
+exception PolymorphicContradiction            of Range.t * identifier * poly_type * poly_type
 exception PolymorphicInclusion                of Range.t * FreeID.t * poly_type * poly_type
 exception MissingRequiredValName              of Range.t * identifier * poly_type
 exception MissingRequiredTypeName             of Range.t * type_name * type_opacity
@@ -1143,7 +1143,7 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorMap.empty
 
 
-and subtype_poly_type_scheme (rng : Range.t) (intern : SubtypingIntern.t) (internbid : BoundID.t -> BoundID.t -> bool) (pty1 : poly_type) (pty2 : poly_type) : unit =
+and subtype_poly_type_scheme (rng : Range.t) (intern : SubtypingIntern.t) (internbid : BoundID.t -> BoundID.t -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
   let rec aux pty1 pty2 =
     let (_, ptymain1) = pty1 in
     let (_, ptymain2) = pty2 in
@@ -1154,16 +1154,20 @@ and subtype_poly_type_scheme (rng : Range.t) (intern : SubtypingIntern.t) (inter
           (* -- monomorphic type variables cannot occur at level 0 -- *)
 
     | (BaseType(bt1), BaseType(bt2)) ->
-        if bt1 = bt2 then Consistent else Contradiction
+        bt1 = bt2
 
     | (FuncType(ptydoms1, ptycod1), FuncType(ptydoms2, ptycod2)) ->
-        aux_list ptydoms1 ptydoms2 &&& aux ptycod1 ptycod2
+        let b1 = aux_list ptydoms1 ptydoms2 in
+        let b2 = aux ptycod1 ptycod2 in
+        b1 && b2
 
     | (PidType(pidty1), PidType(pidty2)) ->
         aux_pid pidty1 pidty2
 
     | (EffType(effty1, pty1), EffType(effty2, pty2)) ->
-        aux_effect effty1 effty2 &&& aux pty1 pty2
+        let b1 = aux_effect effty1 effty2 in
+        let b2 = aux pty1 pty2 in
+        b1 && b2
 
     | (ProductType(ptys1), ProductType(ptys2)) ->
         aux_list (TupleList.to_list ptys1) (TupleList.to_list ptys2)
@@ -1172,25 +1176,25 @@ and subtype_poly_type_scheme (rng : Range.t) (intern : SubtypingIntern.t) (inter
         aux ptysub1 ptysub2
 
     | (TypeVar(Bound(bid1)), TypeVar(Bound(bid2))) ->
-        if internbid bid2 bid1 then Consistent else Contradiction
+        internbid bid2 bid1
 
     | (DataType(TypeID.Synonym(sid1), ptyargs1), DataType(TypeID.Synonym(sid2), ptyargs2)) ->
         if SubtypingIntern.is_consistent_synonym intern sid2 sid1 then
           aux_list ptyargs1 ptyargs2
         else
-          Contradiction
+          false
 
     | (DataType(TypeID.Variant(vid1), ptyargs1), DataType(TypeID.Variant(vid2), ptyargs2)) ->
         if SubtypingIntern.is_consistent_variant intern vid2 vid1 then
           aux_list ptyargs1 ptyargs2
         else
-          Contradiction
+          false
 
     | (DataType(tyid1, ptyargs1), DataType(TypeID.Opaque(oid2), ptyargs2)) ->
         if SubtypingIntern.is_consistent_opaque intern oid2 tyid1 (List.length ptyargs1) then
           aux_list ptyargs1 ptyargs2
         else
-          Contradiction
+          false
 
     | (DataType(TypeID.Synonym(sid1), ptyargs1), _) ->
         let pty1real = get_real_poly_type sid1 ptyargs1 in
@@ -1200,18 +1204,18 @@ and subtype_poly_type_scheme (rng : Range.t) (intern : SubtypingIntern.t) (inter
         failwith "TODO: subtype_poly_type_scheme, (Bound, !Bound)"
 
     | _ ->
-        Contradiction
+        false
 
   and aux_list ptys1 ptys2 =
     match List.combine ptys1 ptys2 with
     | exception Invalid_argument(_) ->
-        Contradiction
+        false
 
     | ptypairs ->
-        ptypairs |> List.fold_left (fun resacc (pty1, pty2) ->
-          let res = aux pty1 pty2 in
-          resacc &&& res
-        ) Consistent
+        ptypairs |> List.fold_left (fun bacc (pty1, pty2) ->
+          let b = aux pty1 pty2 in
+          bacc && b
+        ) true
 
   and aux_pid (Pid(pty1)) (Pid(pty2)) =
     aux pty1 pty2
@@ -1219,14 +1223,10 @@ and subtype_poly_type_scheme (rng : Range.t) (intern : SubtypingIntern.t) (inter
   and aux_effect (Effect(pty1)) (Effect(pty2)) =
     aux pty1 pty2
   in
-  let res = aux pty1 pty2 in
-  match res with
-  | Consistent     -> ()
-  | Contradiction  -> raise (PolymorphicContradiction(rng, pty1, pty2))
-  | Inclusion(fid) -> raise (PolymorphicInclusion(rng, fid, pty1, pty2))
+  aux pty1 pty2
 
 
-and subtype_poly_type (rng : Range.t) (intern : SubtypingIntern.t) (pty1 : poly_type) (pty2 : poly_type) : unit =
+and subtype_poly_type (rng : Range.t) (intern : SubtypingIntern.t) (pty1 : poly_type) (pty2 : poly_type) : bool =
   let hashtable = BoundIDHashTable.create 32 in
   let internbid bid2 bid1 =
     match BoundIDHashTable.find_opt hashtable bid2 with
@@ -1236,7 +1236,7 @@ and subtype_poly_type (rng : Range.t) (intern : SubtypingIntern.t) (pty1 : poly_
   subtype_poly_type_scheme rng intern internbid pty1 pty2
 
 
-and subtype_type_abstraction (rng : Range.t) (intern : SubtypingIntern.t) (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : unit =
+and subtype_type_abstraction (rng : Range.t) (intern : SubtypingIntern.t) (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : bool =
   let (typarams1, pty1) = ptyfun1 in
   let (typarams2, pty2) = ptyfun2 in
 
@@ -1244,7 +1244,7 @@ and subtype_type_abstraction (rng : Range.t) (intern : SubtypingIntern.t) (ptyfu
 
   match List.combine typarams1 typarams2 with
   | exception Invalid_argument(_) ->
-      raise (PolymorphicContradiction(rng, pty1, pty2))
+      false
 
   | typarampairs ->
       let map =
@@ -1299,8 +1299,10 @@ and subtype_concrete_with_concrete (rng : Range.t) (intern : SubtypingIntern.t) 
                 raise (MissingRequiredValName(rng, x2, pty2))
 
             | Some(pty1, _) ->
-                subtype_poly_type rng intern pty1 pty2;
-                wtmapacc
+               if subtype_poly_type rng intern pty1 pty2 then
+                 wtmapacc
+               else
+                 raise (PolymorphicContradiction(rng, x2, pty1, pty2))
           )
           ~t:(fun tynm2 tyopac2 wtmapacc ->
             match sigr1 |> SigRecord.find_type tynm2 with
@@ -1353,7 +1355,10 @@ and subtype_concrete_with_concrete (rng : Range.t) (intern : SubtypingIntern.t) 
 
                     | ptypairs ->
                         ptypairs |> List.iter (fun (pty1, pty2) ->
-                          subtype_type_abstraction rng intern (typarams1, pty1) (typarams2, pty2)
+                          if subtype_type_abstraction rng intern (typarams1, pty1) (typarams2, pty2) then
+                            raise (PolymorphicContradiction(rng, ctornm2, pty1, pty2))
+                          else
+                            ()
                         );
                         wtmapacc
                   end

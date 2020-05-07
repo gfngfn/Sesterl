@@ -206,10 +206,10 @@ let main fpath_in fpath_out =
       Format.printf "%a: the specified type is already transparent\n"
         Range.pp rng
 
-  | Typechecker.PolymorphicContradiction(rng, pty1, pty2) ->
+  | Typechecker.PolymorphicContradiction(rng, x, pty1, pty2) ->
       Format.printf "%a: not a subtype; as to value '%s', type %a cannot be encapsulated by type %a\n"
         Range.pp rng
-        "(TODO)"
+        x
         pp_poly_type pty1
         pp_poly_type pty2
 

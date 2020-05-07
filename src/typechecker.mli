@@ -20,7 +20,7 @@ exception NotAFunctorSignature                of Range.t * module_signature
 exception NotAStructureSignature              of Range.t * module_signature
 exception UnboundSignatureName                of Range.t * signature_name
 exception CannotRestrictTransparentType       of Range.t * type_opacity
-exception PolymorphicContradiction            of Range.t * poly_type * poly_type
+exception PolymorphicContradiction            of Range.t * identifier * poly_type * poly_type
 exception PolymorphicInclusion                of Range.t * FreeID.t * poly_type * poly_type
 exception MissingRequiredValName              of Range.t * identifier * poly_type
 exception MissingRequiredTypeName             of Range.t * type_name * type_opacity
