@@ -1281,7 +1281,8 @@ and subtype_type_opacity (intern : SubtypingIntern.t) (tyopac1 : type_opacity) (
 
 
 and subtype_abstract_with_abstract (rng : Range.t) (intern : SubtypingIntern.t) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : witness_map =
-  failwith "TODO: subtype_abstract_with_abstract"
+  let (_, modsig1) = absmodsig1 in
+  subtype_concrete_with_abstract rng intern modsig1 absmodsig2
 
 
 and subtype_concrete_with_concrete (rng : Range.t) (intern : SubtypingIntern.t) (modsig1 : module_signature) (modsig2 : module_signature) : witness_map =
