@@ -75,9 +75,6 @@ module WitnessMap : sig
   type t
   val empty : t
   val add_variant : TypeID.Variant.t -> TypeID.Variant.t -> t -> t
-(*
-  val add_synonym : TypeID.Synonym.t -> TypeID.Synonym.t -> t -> t
-*)
   val add_opaque : TypeID.Opaque.t -> opaque_entry -> t -> t
   val find_synonym : TypeID.Synonym.t -> t -> TypeID.Synonym.t option
   val find_opaque : TypeID.Opaque.t -> t -> TypeID.t option
@@ -107,15 +104,15 @@ end = struct
     { wtmap with variants = wtmap.variants |> VariantIDMap.add vid2 vid1 }
 
 
-  let add_synonym (sid2 : TypeID.Synonym.t) (sid1 : TypeID.Synonym.t) (wtmap : t) : t =
-    failwith "TODO: WitnessMap.add_synonym"
-
-
   let add_opaque (oid2 : TypeID.Opaque.t) (opq : opaque_entry) (wtmap : t) : t =
     let tyid1 =
       match opq with
-      | OpaqueToOpaque(oid1)  -> TypeID.Opaque(oid1)
-      | OpaqueToVariant(vid1) -> TypeID.Variant(vid1)
+      | OpaqueToOpaque(oid1) ->
+          TypeID.Opaque(oid1)
+
+      | OpaqueToVariant(vid1) ->
+          TypeID.Variant(vid1)
+
       | OpaqueToSynonym((typarams1, pty1), tynm1) ->
           let sid1 = TypeID.Synonym.fresh tynm1 in
           TypeSynonymStore.add_synonym_type sid1 typarams1 pty1;
