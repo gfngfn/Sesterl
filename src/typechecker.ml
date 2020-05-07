@@ -123,7 +123,7 @@ module SubtypingIntern : sig
   type t
   val create_vacant : unit -> t
   val create : OpaqueIDSet.t -> t -> t
-  val is_consistent_opaque : t -> TypeID.Opaque.t -> TypeID.t -> int -> bool
+  val is_consistent_opaque : t -> TypeID.Opaque.t -> TypeID.t -> bool
   val is_consistent_variant : t -> TypeID.Variant.t -> TypeID.Variant.t -> bool
   val is_consistent_synonym : t -> TypeID.Synonym.t -> TypeID.Synonym.t -> bool
   val make_witness_map : t -> witness_map
@@ -135,7 +135,7 @@ end = struct
     domain   : OpaqueIDSet.t;
     variants : TypeID.Variant.t VariantIDHashTable.t;
     synonyms : TypeID.Synonym.t SynonymIDHashTable.t;
-    opaques  : (TypeID.t * int) OpaqueIDHashTable.t;
+    opaques  : TypeID.t OpaqueIDHashTable.t;
     sub      : t;
   }
 
@@ -154,7 +154,7 @@ end = struct
     }
 
 
-  let rec is_consistent_opaque (opt : t) (oid2 : TypeID.Opaque.t) (tyid1 : TypeID.t) (arity1 : int) : bool =
+  let rec is_consistent_opaque (opt : t) (oid2 : TypeID.Opaque.t) (tyid1 : TypeID.t) : bool =
     match opt with
     | None ->
         assert false
@@ -163,10 +163,10 @@ end = struct
         if intern.domain |> OpaqueIDSet.mem oid2 then
           let opaques = intern.opaques in
           match OpaqueIDHashTable.find_opt opaques oid2 with
-          | None                -> OpaqueIDHashTable.add opaques oid2 (tyid1, arity1); true
-          | Some((tyid, arity)) -> TypeID.equal tyid tyid1 && arity = arity1
+          | None       -> OpaqueIDHashTable.add opaques oid2 tyid1; true
+          | Some(tyid) -> TypeID.equal tyid tyid1
         else
-          is_consistent_opaque intern.sub oid2 tyid1 arity1
+          is_consistent_opaque intern.sub oid2 tyid1
 
 
   let rec is_consistent_variant (opt : t) (vid2 : TypeID.Variant.t) (vid1 : TypeID.Variant.t) : bool =
@@ -210,7 +210,7 @@ end = struct
           |> VariantIDHashTable.fold (fun vid2 vid1 wtmap ->
             wtmap |> WitnessMap.add_variant vid2 vid1
           ) intern.variants
-          |> OpaqueIDHashTable.fold (fun oid2 (tyid1, _) wtmap ->
+          |> OpaqueIDHashTable.fold (fun oid2 tyid1 wtmap ->
             wtmap |> WitnessMap.add_opaque oid2 tyid1
           ) intern.opaques
 
@@ -1191,7 +1191,7 @@ and subtype_poly_type_scheme (rng : Range.t) (intern : SubtypingIntern.t) (inter
           false
 
     | (DataType(tyid1, ptyargs1), DataType(TypeID.Opaque(oid2), ptyargs2)) ->
-        if SubtypingIntern.is_consistent_opaque intern oid2 tyid1 (List.length ptyargs1) then
+        if SubtypingIntern.is_consistent_opaque intern oid2 tyid1 then
           aux_list ptyargs1 ptyargs2
         else
           false
@@ -1268,7 +1268,7 @@ and subtype_type_opacity (intern : SubtypingIntern.t) (tyopac1 : type_opacity) (
   else
     match (tyid1, tyid2) with
     | (_, TypeID.Opaque(oid2)) ->
-        SubtypingIntern.is_consistent_opaque intern oid2 tyid1 arity1
+        SubtypingIntern.is_consistent_opaque intern oid2 tyid1
 
     | (TypeID.Variant(vid1), TypeID.Variant(vid2)) ->
         SubtypingIntern.is_consistent_variant intern vid2 vid1
