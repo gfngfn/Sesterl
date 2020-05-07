@@ -20,5 +20,16 @@ exception NotAFunctorSignature                of Range.t * module_signature
 exception NotAStructureSignature              of Range.t * module_signature
 exception UnboundSignatureName                of Range.t * signature_name
 exception CannotRestrictTransparentType       of Range.t * type_opacity
+exception PolymorphicContradiction            of Range.t * identifier * poly_type * poly_type
+exception PolymorphicInclusion                of Range.t * FreeID.t * poly_type * poly_type
+exception MissingRequiredValName              of Range.t * identifier * poly_type
+exception MissingRequiredTypeName             of Range.t * type_name * type_opacity
+exception MissingRequiredModuleName           of Range.t * module_name * module_signature
+exception MissingRequiredSignatureName        of Range.t * signature_name * module_signature abstracted
+exception MissingRequiredConstructor          of Range.t * constructor_name * constructor_entry
+exception NotASubtype                         of Range.t * module_signature * module_signature
+exception NotASubtypeTypeOpacity              of Range.t * type_name * type_opacity * type_opacity
+exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t
+exception MismatchedNumberOfConstructorParameters of Range.t * constructor_name * constructor_entry * constructor_entry
 
 val main : untyped_binding list -> SigRecord.t abstracted * binding list
