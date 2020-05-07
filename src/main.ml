@@ -206,6 +206,65 @@ let main fpath_in fpath_out =
       Format.printf "%a: the specified type is already transparent\n"
         Range.pp rng
 
+  | Typechecker.PolymorphicContradiction(rng, pty1, pty2) ->
+      Format.printf "%a: not a subtype; as to value '%s', type %a cannot be encapsulated by type %a\n"
+        Range.pp rng
+        "(TODO)"
+        pp_poly_type pty1
+        pp_poly_type pty2
+
+  | Typechecker.PolymorphicInclusion(rng, fid, pty1, pty2) ->
+      Format.printf "%a: type %a is inconsistent with type %a as to type variable %a\n"
+        Range.pp rng
+        pp_poly_type pty1
+        pp_poly_type pty2
+        FreeID.pp fid
+
+  | Typechecker.MissingRequiredValName(rng, x, pty) ->
+      Format.printf "%a: missing required value '%s' of type %a\n"
+        Range.pp rng
+        x
+        pp_poly_type pty
+
+  | Typechecker.MissingRequiredTypeName(rng, tynm, (_, arity)) ->
+      Format.printf "%a: missing required type name '%s' of arity %d\n"
+        Range.pp rng
+        tynm
+        arity
+
+  | Typechecker.MissingRequiredModuleName(rng, modnm, _modsign) ->
+      Format.printf "%a: missing required module name '%s'\n"
+        Range.pp rng
+        modnm
+
+  | Typechecker.MissingRequiredSignatureName(rng, signm, _absmodsig) ->
+      Format.printf "%a: missing required module name '%s'\n"
+        Range.pp rng
+        signm
+
+  | Typechecker.MissingRequiredConstructor(rng, ctornm, _) ->
+      Format.printf "%a: missing required constructor '%s'\n"
+        Range.pp rng
+        ctornm
+
+  | Typechecker.NotASubtype(rng, modsig1, modsig2) ->
+      Format.printf "%a: not a subtype (TODO: detailed explanation)\n"
+        Range.pp rng
+
+  | Typechecker.NotASubtypeTypeOpacity(rng, tynm, _tyopac1, _tyopac2) ->
+      Format.printf "%a: not a subtype; type '%s' cannot be encapsulated (TODO: detailed explanation)\n"
+        Range.pp rng
+        tynm
+
+  | Typechecker.NotASubtypeVariant(rng, vid1, vid2) ->
+      Format.printf "%a: not a subtype (TODO: detailed explanation)\n"
+        Range.pp rng
+
+  | Typechecker.MismatchedNumberOfConstructorParameters(rng, ctornm, ctorentry1, ctorentry2) ->
+      Format.printf "%a: not a subtype about constructor '%s' (TODO: detailed explanation)\n"
+        Range.pp rng
+        ctornm
+
 
 let flag_output =
   let open Cmdliner in

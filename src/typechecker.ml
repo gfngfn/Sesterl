@@ -30,7 +30,7 @@ exception MissingRequiredModuleName           of Range.t * module_name * module_
 exception MissingRequiredSignatureName        of Range.t * signature_name * module_signature abstracted
 exception MissingRequiredConstructor          of Range.t * constructor_name * constructor_entry
 exception NotASubtype                         of Range.t * module_signature * module_signature
-exception NotASubtypeTypeOpacity              of Range.t * type_opacity * type_opacity
+exception NotASubtypeTypeOpacity              of Range.t * type_name * type_opacity * type_opacity
 exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t
 exception MismatchedNumberOfConstructorParameters of Range.t * constructor_name * constructor_entry * constructor_entry
 
@@ -1260,28 +1260,24 @@ and subtype_type_abstraction (rng : Range.t) (intern : SubtypingIntern.t) (ptyfu
       subtype_poly_type_scheme rng intern internbid pty1 pty2
 
 
-and subtype_type_opacity (rng : Range.t) (intern : SubtypingIntern.t) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : unit =
+and subtype_type_opacity (intern : SubtypingIntern.t) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : bool =
   let (tyid1, arity1) = tyopac1 in
   let (tyid2, arity2) = tyopac2 in
-  let exn = NotASubtypeTypeOpacity(rng, tyopac1, tyopac2) in
   if arity1 <> arity2 then
-    raise exn
+    false
   else
     match (tyid1, tyid2) with
     | (_, TypeID.Opaque(oid2)) ->
-        if SubtypingIntern.is_consistent_opaque intern oid2 tyid1 arity1 then () else
-          raise exn
+        SubtypingIntern.is_consistent_opaque intern oid2 tyid1 arity1
 
     | (TypeID.Variant(vid1), TypeID.Variant(vid2)) ->
-        if SubtypingIntern.is_consistent_variant intern vid2 vid1 then () else
-          raise exn
+        SubtypingIntern.is_consistent_variant intern vid2 vid1
 
     | (TypeID.Synonym(sid1), TypeID.Synonym(sid2)) ->
-        if SubtypingIntern.is_consistent_synonym intern sid2 sid1 then () else
-          raise exn
+        SubtypingIntern.is_consistent_synonym intern sid2 sid1
 
     | _ ->
-        raise exn
+        false
 
 
 and subtype_abstract_with_abstract (rng : Range.t) (intern : SubtypingIntern.t) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : witness_map =
@@ -1312,8 +1308,10 @@ and subtype_concrete_with_concrete (rng : Range.t) (intern : SubtypingIntern.t) 
                 raise (MissingRequiredTypeName(rng, tynm2, tyopac2))
 
             | Some(tyopac1) ->
-                subtype_type_opacity rng intern tyopac1 tyopac2;
-                wtmapacc
+                if subtype_type_opacity intern tyopac1 tyopac2 then
+                  wtmapacc
+                else
+                  raise (NotASubtypeTypeOpacity(rng, tynm2, tyopac1, tyopac2))
           )
           ~m:(fun modnm2 (modsig2, _) wtmapacc ->
             match sigr1 |> SigRecord.find_module modnm2 with
