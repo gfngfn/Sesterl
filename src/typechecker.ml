@@ -145,24 +145,17 @@ module SubtypingIntern : sig
   val add_opaque_to_type_abstraction : t -> TypeID.Opaque.t -> BoundID.t list * poly_type -> unit
   val add_constraint_for_opaque_to_type_abstraction : t -> TypeID.Opaque.t -> poly_type list -> poly_type -> unit
   val is_consistent_variant : t -> TypeID.Variant.t -> TypeID.Variant.t -> bool
-(*
-  val is_consistent_synonym : t -> TypeID.Synonym.t -> TypeID.Synonym.t -> bool
-*)
   val make_witness_map : t -> witness_map
 end = struct
 
   type t = impl option
 
   and impl = {
-    domain   : OpaqueIDSet.t;
-    variants : TypeID.Variant.t VariantIDHashTable.t;
-(*
-    synonyms : TypeID.Synonym.t SynonymIDHashTable.t;
-*)
-    opaques  : opaque_entry OpaqueIDHashTable.t;
-
+    domain      : OpaqueIDSet.t;
+    variants    : TypeID.Variant.t VariantIDHashTable.t;
+    opaques     : opaque_entry OpaqueIDHashTable.t;
     constraints : (((poly_type list * poly_type) list) ref) OpaqueIDHashTable.t;
-    sub      : t;
+    sub         : t;
   }
 
 
@@ -172,14 +165,11 @@ end = struct
 
   let create (oidset : OpaqueIDSet.t) (sub : t) : t =
     Some{
-      domain   = oidset;
-      variants = VariantIDHashTable.create 32;
-(*
-      synonyms = SynonymIDHashTable.create 32;
-*)
-      opaques  = OpaqueIDHashTable.create 32;
+      domain      = oidset;
+      variants    = VariantIDHashTable.create 32;
+      opaques     = OpaqueIDHashTable.create 32;
       constraints = OpaqueIDHashTable.create 32;
-      sub      = sub;
+      sub         = sub;
     }
 
 
@@ -257,20 +247,6 @@ end = struct
           | Some(vid) -> TypeID.Variant.equal vid vid1
         end
 
-(*
-  let rec is_consistent_synonym (opt : t) (sid2 : TypeID.Synonym.t) (sid1 : TypeID.Synonym.t) : bool =
-    match opt with
-    | None ->
-        assert false
-
-    | Some(intern) ->
-        let synonyms = intern.synonyms in
-        begin
-          match SynonymIDHashTable.find_opt synonyms sid2 with
-          | None      -> SynonymIDHashTable.add synonyms sid2 sid1; true
-          | Some(sid) -> TypeID.Synonym.equal sid sid1
-        end
-*)
 
   let make_witness_map (opt : t) : witness_map =
     match opt with
@@ -279,11 +255,6 @@ end = struct
 
     | Some(intern) ->
         WitnessMap.empty
-(*
-          |> SynonymIDHashTable.fold (fun sid2 sid1 wtmap ->
-            wtmap |> WitnessMap.add_synonym sid2 sid1
-          ) intern.synonyms
-*)
           |> VariantIDHashTable.fold (fun vid2 vid1 wtmap ->
             wtmap |> WitnessMap.add_variant vid2 vid1
           ) intern.variants
