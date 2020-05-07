@@ -32,6 +32,7 @@ exception MissingRequiredConstructor          of Range.t * constructor_name * co
 exception NotASubtype                         of Range.t * module_signature * module_signature
 exception NotASubtypeTypeOpacity              of Range.t * type_name * type_opacity * type_opacity
 exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t
+exception NotASubtypeSynonym                  of Range.t * type_name * (BoundID.t list * poly_type) * poly_type * poly_type
 exception MismatchedNumberOfConstructorParameters of Range.t * constructor_name * constructor_entry * constructor_entry
 
 module BindingMap = Map.Make(String)
@@ -145,7 +146,7 @@ module SubtypingIntern : sig
   val add_opaque_to_type_abstraction : t -> TypeID.Opaque.t -> BoundID.t list * poly_type -> unit
   val add_constraint_for_opaque_to_type_abstraction : t -> TypeID.Opaque.t -> poly_type list -> poly_type -> unit
   val is_consistent_variant : t -> TypeID.Variant.t -> TypeID.Variant.t -> bool
-  val make_witness_map : t -> witness_map
+  val make_witness_map : t -> Range.t -> (t -> poly_type -> poly_type -> bool) -> witness_map
 end = struct
 
   type t = impl option
@@ -217,7 +218,6 @@ end = struct
           add_constraint_for_opaque_to_type_abstraction intern.sub oid2 ptyargs pty
 
 
-
   let rec is_consistent_opaque_to_opaque (opt : t) (oid2 : TypeID.Opaque.t) (oid1 : TypeID.Opaque.t) : bool =
     match opt with
     | None ->
@@ -248,7 +248,7 @@ end = struct
         end
 
 
-  let make_witness_map (opt : t) : witness_map =
+  let make_witness_map (opt : t) (rng : Range.t) (subtype_poly_type : t -> poly_type -> poly_type -> bool) : witness_map =
     match opt with
     | None ->
         assert false
@@ -259,12 +259,37 @@ end = struct
             wtmap |> WitnessMap.add_variant vid2 vid1
           ) intern.variants
           |> OpaqueIDHashTable.fold (fun oid2 opq1 wtmap ->
-            match OpaqueIDHashTable.find_opt intern.constraints oid2 with
-            | None ->
+            match (OpaqueIDHashTable.find_opt intern.constraints oid2, opq1) with
+            | (None, _) ->
                 wtmap |> WitnessMap.add_opaque oid2 opq1
 
-            | Some(_) ->
-                failwith "TODO: constraint solving for synonyms"
+            | (Some({contents = pairs}), OpaqueToSynonym((typarams, ptyreal), tynm)) ->
+              (* -- constraint solving -- *)
+                pairs |> List.iter (fun (ptyargs2, pty1) ->
+                  let pty2 =
+                    match List.combine typarams ptyargs2 with
+                    | exception Invalid_argument(_) ->
+                        assert false
+
+                    | params_to_args ->
+                        let map =
+                          params_to_args |> List.fold_left (fun map (bid, pty) ->
+                            map |> BoundIDMap.add bid pty
+                          ) BoundIDMap.empty
+                        in
+                        substitute_poly_type map ptyreal
+                  in
+                  if
+                    subtype_poly_type opt pty1 pty2
+                      (* doubtful *)
+                  then () else
+                    raise (NotASubtypeSynonym(rng, tynm, (typarams, ptyreal), pty1, pty2))
+                );
+                wtmap |> WitnessMap.add_opaque oid2 opq1
+
+            | (Some(_), _) ->
+                assert false
+
           ) intern.opaques
 
 end
@@ -1262,6 +1287,10 @@ and subtype_poly_type_scheme (intern : SubtypingIntern.t) (internbid : BoundID.t
 
     | (_, DataType(TypeID.Opaque(oid2), ptyargs2)) ->
         SubtypingIntern.add_constraint_for_opaque_to_type_abstraction intern oid2 ptyargs2 pty1;
+          (* --
+             store a constraint that stands for `pty1 <= [ptyargs2/typarams]tyreal`,
+             and solve it later when making a `WitnessMap.t` from `SubtypingIntern.t`.
+             -- *)
         true
 
     | (TypeVar(Bound(bid1)), _) ->
@@ -1456,7 +1485,7 @@ and subtype_concrete_with_abstract (rng : Range.t) (internsub : SubtypingIntern.
   let (oidset2, modsig2) = absmodsig2 in
   let intern = SubtypingIntern.create oidset2 internsub in
   let wtmapsuper = subtype_concrete_with_concrete rng intern modsig1 modsig2 in
-  let wtmap = SubtypingIntern.make_witness_map intern in
+  let wtmap = SubtypingIntern.make_witness_map intern rng subtype_poly_type in
   WitnessMap.union wtmapsuper wtmap
 
 
