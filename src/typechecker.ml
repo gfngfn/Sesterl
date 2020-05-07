@@ -1330,8 +1330,9 @@ and subtype_concrete_with_concrete (rng : Range.t) (intern : SubtypingIntern.t) 
                 raise (MissingRequiredSignatureName(rng, signm2, absmodsig2))
 
             | Some(absmodsig1) ->
-                let wtmap = subtype_abstract_with_abstract rng intern absmodsig1 absmodsig2 in
-                WitnessMap.union wtmapacc wtmap
+                let wtmap1 = subtype_abstract_with_abstract rng intern absmodsig1 absmodsig2 in
+                let wtmap2 = subtype_abstract_with_abstract rng intern absmodsig2 absmodsig1 in
+                WitnessMap.union wtmapacc (WitnessMap.union wtmap1 wtmap2)
           )
           ~c:(fun ctornm2 ctorentry2 wtmapacc ->
             match sigr1 |> SigRecord.find_constructor ctornm2 with
