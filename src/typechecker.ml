@@ -1457,10 +1457,13 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
     (* -- Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. -- *)
 
   | ConcStructure(sigr) ->
-      let sigr =
+      let (sigr, wtmap) =
         sigr |> SigRecord.map_and_fold
-            ~v:(fun (pty, name) wtmap -> (substitute_poly_type wtmap pty, name))
-            ~t:(fun tyopacs ->
+            ~v:(fun (pty, name) wtmap ->
+              let ventry = (substitute_poly_type wtmap pty, name) in
+              (ventry, wtmap)
+            )
+            ~t:(fun tyopacs wtmap ->
               let (tyid, arity) = tyopac in
               match tyid with
               | TypeID.Synonym(sid) ->
@@ -1486,12 +1489,19 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
                     | Some(tyid_subst) -> (tyid_subst, arity)
                   end
             )
-            ~m:(fun (modsig, name) -> (substitute_concrete wtmap modsig, name))
-            ~s:(substitute_abstract wtmap)
-            ~c:(fun ctorentry ->
-              let ptys = ctorentry.parameter_types |> List.map (substitute_poly_type wtmap) in
-              { ctorentry with parameter_types = ptys }
+            ~m:(fun (modsig, name) wtmap ->
+              let mentry = (substitute_concrete wtmap modsig, name) in
+              (mentry, wtmap)
             )
+            ~s:(fun absmodsig wtmap ->
+              (substitute_abstract wtmap absmodsig, wtmap)
+            )
+            ~c:(fun ctorentry wtmap ->
+              let ptys = ctorentry.parameter_types |> List.map (substitute_poly_type wtmap) in
+              let ctorentry = { ctorentry with parameter_types = ptys } in
+              (ctorentry, wtmap)
+            )
+            wtmap
       in
       ConcStructure(sigr)
 

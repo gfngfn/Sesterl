@@ -741,21 +741,36 @@ module SigRecord = struct
     ) init
 
 
-  let map
-      ~v:(fv : poly_type * name -> poly_type * name)
-      ~t:(ft : type_opacity list -> type_opacity list)
-      ~m:(fm : module_signature * name -> module_signature * name)
-      ~s:(fs : module_signature abstracted -> module_signature abstracted)
-      ~c:(fc : constructor_entry -> constructor_entry)
-      (sigr : t) : t =
-    sigr |> Alist.to_list |> List.map (fun entry ->
-      match entry with
-      | SRVal(x, ventry)        -> SRVal(x, fv ventry)
-      | SRRecTypes(tydefs)      -> SRRecTypes(List.combine (tydefs |> List.map fst) (tydefs |> List.map snd |> ft))
-      | SRModule(modnm, mentry) -> SRModule(modnm, fm mentry)
-      | SRSig(signm, absmodsig) -> SRSig(signm, fs absmodsig)
-      | SRCtor(ctor, ctorentry) -> SRCtor(ctor, fc ctorentry)
-    ) |> Alist.from_list
+  let map_and_fold (type a)
+      ~v:(fv : poly_type * name -> a -> (poly_type * name) * a)
+      ~t:(ft : type_opacity list -> a -> type_opacity list * a)
+      ~m:(fm : module_signature * name -> a -> (module_signature * name) * a)
+      ~s:(fs : module_signature abstracted -> a -> module_signature abstracted * a)
+      ~c:(fc : constructor_entry -> a -> constructor_entry * a)
+      (init : a) (sigr : t) : t * a =
+      sigr |> Alist.to_list |> List.fold_left (fun (sigracc, acc) entry ->
+        match entry with
+        | SRVal(x, ventry) ->
+            let (ventry, acc) = fv ventry acc in
+            (Alist.extend sigracc (SRVal(x, ventry)), acc)
+
+        | SRRecTypes(tydefs) ->
+            let tynms = tydefs |> List.map fst in
+            let (tyopacs, acc) = ft (tydefs |> List.map snd) acc in
+            (Alist.extend sigracc (SRRecTypes(List.combine tynms tyopacs)), acc)
+
+        | SRModule(modnm, mentry) ->
+            let (mentry, acc) = fm mentry acc in
+            (Alist.extend sigracc (SRModule(modnm, mentry)), acc)
+
+        | SRSig(signm, absmodsig) ->
+            let (absmodsig, acc) = fs absmodsig acc in
+            (Alist.extend sigracc (SRSig(signm, absmodsig)), acc)
+
+        | SRCtor(ctor, ctorentry) ->
+            let (ctorentry, acc) = fc ctorentry acc in
+            (Alist.extend sigracc (SRCtor(ctor, ctorentry)), acc)
+      ) (Alist.empty, init)
 
 (*
   let overwrite (superior : t) (inferior : t) : t =
