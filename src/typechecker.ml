@@ -180,11 +180,13 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
     ~v:(fun x (pty, name) ->
       Typeenv.add_val x pty name
     )
-    ~t:(fun tynm tyopacity ->
-      match tyopacity with
-      | (TypeID.Synonym(sid), arity) -> Typeenv.add_synonym_type tynm sid arity
-      | (TypeID.Variant(vid), arity) -> Typeenv.add_variant_type tynm vid arity
-      | (TypeID.Opaque(oid), arity)  -> Typeenv.add_opaque_type tynm oid arity
+    ~t:(fun tydefs tyenv ->
+      tydefs |> List.fold_left (fun tyenv (tynm, tyopac) ->
+        match tyopac with
+        | (TypeID.Synonym(sid), arity) -> tyenv |> Typeenv.add_synonym_type tynm sid arity
+        | (TypeID.Variant(vid), arity) -> tyenv |> Typeenv.add_variant_type tynm vid arity
+        | (TypeID.Opaque(oid), arity)  -> tyenv |> Typeenv.add_opaque_type tynm oid arity
+      ) tyenv
     )
     ~m:(fun modnm (modsig, name) tyenv ->
       let tyenv = tyenv |> Typeenv.add_module modnm modsig name in
@@ -1288,17 +1290,19 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
             ~v:(fun _ _ wtmapacc ->
               wtmapacc
             )
-            ~t:(fun tynm2 tyopac2 wtmapacc ->
-              match sigr1 |> SigRecord.find_type tynm2 with
-              | None ->
-                  raise (MissingRequiredTypeName(rng, tynm2, tyopac2))
+            ~t:(fun tydefs2 wtmapacc ->
+              tydefs2 |> List.fold_left (fun wtmapacc (tynm2, tyopac2) ->
+                match sigr1 |> SigRecord.find_type tynm2 with
+                | None ->
+                    raise (MissingRequiredTypeName(rng, tynm2, tyopac2))
 
-              | Some(tyopac1) ->
-                  begin
-                    match lookup_type_opacity tynm2 tyopac1 tyopac2 with
-                    | None        -> raise (NotASubtypeTypeOpacity(rng, tynm2, tyopac1, tyopac2))
-                    | Some(wtmap) -> WitnessMap.union wtmapacc wtmap
-                  end
+                | Some(tyopac1) ->
+                    begin
+                      match lookup_type_opacity tynm2 tyopac1 tyopac2 with
+                      | None        -> raise (NotASubtypeTypeOpacity(rng, tynm2, tyopac1, tyopac2))
+                      | Some(wtmap) -> WitnessMap.union wtmapacc wtmap
+                    end
+              ) wtmapacc
             )
             ~m:(fun modnm2 (modsig2, _) wtmapacc ->
               match sigr1 |> SigRecord.find_module modnm2 with
@@ -1400,7 +1404,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
                else
                  raise (PolymorphicContradiction(rng, x2, pty1, pty2))
           )
-          ~t:(fun _ _ () ->
+          ~t:(fun _ () ->
             ()
           )
           ~m:(fun modnm2 (modsig2, _) () ->
@@ -1454,9 +1458,9 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
 
   | ConcStructure(sigr) ->
       let sigr =
-        sigr |> SigRecord.map
-            ~v:(fun (pty, name) -> (substitute_poly_type wtmap pty, name))
-            ~t:(fun tyopac ->
+        sigr |> SigRecord.map_and_fold
+            ~v:(fun (pty, name) wtmap -> (substitute_poly_type wtmap pty, name))
+            ~t:(fun tyopacs ->
               let (tyid, arity) = tyopac in
               match tyid with
               | TypeID.Synonym(sid) ->
@@ -1714,7 +1718,8 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
 
 
 and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding =
-  match utbind with
+  let (_, utbindmain) = utbind in
+  match utbindmain with
   | BindVal(rec_or_nonrec) ->
       let pre =
         {
@@ -1788,8 +1793,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         }
       in
       let syns = synacc |> Alist.to_list in
-      let (graph, sigr) =
-        syns |> List.fold_left (fun (graph, sigr) syn ->
+      let (graph, tydefacc) =
+        syns |> List.fold_left (fun (graph, tydefacc) syn ->
           let ((_, tynm), typarams, mtyreal, sid) = syn in
           let typaramassoc = make_type_parameter_assoc 1 typarams in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
@@ -1805,15 +1810,15 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             ) dependencies
           in
           TypeSynonymStore.add_synonym_type sid typarams ptyreal;
-          let sigr = sigr |> SigRecord.add_synonym_type tynm sid (List.length typarams) in
+          let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Synonym(sid), List.length typarams)) in
 (*
           Format.printf "SYN %s %a <%d> = %a\n" tynm TypeID.Synonym.pp sid (List.length typarams) pp_poly_type ptyreal;  (* for debug *)
 *)
-          (graph, sigr)
-        ) (graph, SigRecord.empty)
+          (graph, tydefacc)
+        ) (graph, Alist.empty)
       in
-      let sigr =
-        vntacc |> Alist.to_list |> List.fold_left (fun sigr vnt ->
+      let (tydefacc, ctordefacc) =
+        vntacc |> Alist.to_list |> List.fold_left (fun (tydefacc, ctordefacc) vnt ->
           let ((_, tynm), typarams, ctorbrs, vid) = vnt in
           let typaramassoc = make_type_parameter_assoc 1 typarams in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
@@ -1825,14 +1830,21 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             make_constructor_branch_map { pre with tyenv } ctorbrs
           in
           TypeSynonymStore.add_variant_type vid typarams ctorbrmap;
-          let sigr = sigr |> SigRecord.add_variant_type tynm vid typarams ctorbrmap in
-          sigr
-        ) sigr
+          let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Variant(vid), List.length typarams)) in
+          let ctordefacc = Alist.extend ctordefacc (vid, typarams, ctorbrmap) in
+          (tydefacc, ctordefacc)
+        ) (tydefacc, Alist.empty)
       in
       if DependencyGraph.has_cycle graph then
         let tyidents = syns |> List.map (fun (tyident, _, _, _) -> tyident) in
         raise (CyclicSynonymTypeDefinition(tyidents))
       else
+        let sigr = SigRecord.empty |> SigRecord.add_types (tydefacc |> Alist.to_list) in
+        let sigr =
+          ctordefacc |> Alist.to_list |> List.fold_left (fun sigr (vid, typarams, ctorbrmap) ->
+            sigr |> SigRecord.add_constructors vid typarams ctorbrmap
+          ) sigr
+        in
         ((OpaqueIDSet.empty, sigr), IBindType)
 
   | BindModule(modident, utmod) ->
@@ -1953,7 +1965,14 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
       let (oidset, sigr) = abssigr in
       let tyenv = tyenv |> update_type_environment_by_signature_record sigr in
       let oidsetacc = OpaqueIDSet.union oidsetacc oidset in
-      let sigracc = sigracc |> SigRecord.overwrite sigr in
+      let sigracc =
+        let (rng, _) = utbind in
+        SigRecord.disjoint_union rng sigracc sigr in
+        (* --
+           In the original paper "F-ing modules" [Rossberg, Russo & Dreyer 2014],
+           this operation is not disjoint union, but union with right-hand side precedence.
+           For the sake of clarity, however, we adopt disjoint union here, at least for now.
+           -- *)
       let ibindacc = Alist.extend ibindacc ibind in
       (tyenv, oidsetacc, sigracc, ibindacc)
     ) (tyenv, OpaqueIDSet.empty, SigRecord.empty, Alist.empty)

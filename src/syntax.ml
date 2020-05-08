@@ -1,4 +1,6 @@
 
+open MyUtil
+
 exception UnidentifiedToken           of Range.t * string
 exception SeeEndOfFileInComment       of Range.t
 exception SeeEndOfFileInStringLiteral of Range.t
@@ -137,6 +139,9 @@ and untyped_module_main =
   | ModCoerce  of module_name ranged * untyped_signature
 
 and untyped_binding =
+  untyped_binding_main ranged
+
+and untyped_binding_main =
   | BindVal    of rec_or_nonrec
   | BindType   of (type_name ranged * (type_variable_name ranged) list * synonym_or_variant) list
   | BindModule of module_name ranged * untyped_module
@@ -594,13 +599,15 @@ type constructor_entry = {
   parameter_types : poly_type list;
 }
 
-type signature_record = {
-  sr_vals    : (poly_type * name) ValNameMap.t;
-  sr_types   : type_opacity TypeNameMap.t;
-  sr_modules : (signature_record module_signature_ * name) ModuleNameMap.t;
-  sr_sigs    : ((signature_record module_signature_) abstracted) SignatureNameMap.t;
-  sr_ctors   : constructor_entry ConstructorMap.t;
-}
+type signature_record =
+  signature_record_entry Alist.t
+
+and signature_record_entry =
+  | SRVal      of identifier * (poly_type * name)
+  | SRRecTypes of (type_name * type_opacity) list
+  | SRModule   of module_name * (signature_record module_signature_ * name)
+  | SRSig      of signature_name * (signature_record module_signature_) abstracted
+  | SRCtor     of constructor_name * constructor_entry
 
 type module_signature = signature_record module_signature_
 
@@ -639,108 +646,118 @@ module SigRecord = struct
   type t = signature_record
 
 
-  let empty =
-    {
-      sr_vals    = ValNameMap.empty;
-      sr_types   = TypeNameMap.empty;
-      sr_modules = ModuleNameMap.empty;
-      sr_sigs    = SignatureNameMap.empty;
-      sr_ctors   = ConstructorMap.empty;
-    }
+  let empty : t =
+    Alist.empty
 
 
   let add_val (x : identifier) (pty : poly_type) (name : name) (sigr : t) : t =
-    { sigr with sr_vals = sigr.sr_vals |> ValNameMap.add x (pty, name) }
+    Alist.extend sigr (SRVal(x, (pty, name)))
 
 
-  let find_val (x : identifier) (sigr : t) : (poly_type * name) option =
-    sigr.sr_vals |> ValNameMap.find_opt x
+  let find_val (x0 : identifier) (sigr : t) : (poly_type * name) option =
+    sigr |> Alist.to_rev_list |> List.find_map (function
+    | SRVal(x, ventry) -> if String.equal x x0 then Some(ventry) else None
+    | _                -> None
+    )
 
 
-  let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (arity : int) (sigr : t) : t =
-    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (TypeID.Synonym(sid), arity) }
+  let add_types (tydefs : (type_name * type_opacity) list) (sigr : t) : t =
+    Alist.extend sigr (SRRecTypes(tydefs))
 
 
-  let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrs : constructor_branch_map) (sigr : t) : t =
-    let ctors =
-      ConstructorMap.fold (fun ctornm (ctorid, ptys) ctors ->
-        let entry =
-          {
-            belongs         = vid;
-            constructor_id  = ctorid;
-            type_variables  = typarams;
-            parameter_types = ptys;
-          }
-        in
-        ctors |> ConstructorMap.add ctornm entry
-      ) ctorbrs sigr.sr_ctors
-    in
-    let arity = List.length typarams in
-    { sigr with
-      sr_types = sigr.sr_types |> TypeNameMap.add tynm (TypeID.Variant(vid), arity);
-      sr_ctors = ctors;
-    }
+  let add_constructors (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrs : constructor_branch_map) (sigr : t) : t =
+    ConstructorMap.fold (fun ctornm (ctorid, ptys) ctors ->
+      let entry =
+        {
+          belongs         = vid;
+          constructor_id  = ctorid;
+          type_variables  = typarams;
+          parameter_types = ptys;
+        }
+      in
+      Alist.extend sigr (SRCtor(ctornm, entry))
+    ) ctorbrs sigr
 
 
-  let find_constructor (ctornm : constructor_name) (sigr : t) : constructor_entry option =
-    sigr.sr_ctors |> ConstructorMap.find_opt ctornm
+  let find_constructor (ctornm0 : constructor_name) (sigr : t) : constructor_entry option =
+    sigr |> Alist.to_rev_list |> List.find_map (function
+    | SRCtor(ctornm, entry) -> if String.equal ctornm ctornm0 then Some(entry) else None
+    | _                     -> None
+    )
 
 
-  let find_type (tynm : type_name) (sigr : t) : type_opacity option =
-    sigr.sr_types |> TypeNameMap.find_opt tynm
+  let find_type (tynm0 : type_name) (sigr : t) : type_opacity option =
+    sigr |> Alist.to_rev_list |> List.find_map (function
+    | SRRecTypes(tydefs) ->
+        tydefs |> List.find_map (fun (tynm, tyopac) ->
+          if String.equal tynm tynm0 then Some(tyopac) else None
+        )
+
+    | _ ->
+        None
+    )
 
 
   let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (kd : kind) (sigr : t) : t =
-    { sigr with sr_types = sigr.sr_types |> TypeNameMap.add tynm (TypeID.Opaque(oid), kd) }
+    Alist.extend sigr (SRRecTypes[ (tynm, (TypeID.Opaque(oid), kd)) ])
 
 
   let add_module (modnm : module_name) (modsig : module_signature) (name : name) (sigr : t) : t =
-    { sigr with sr_modules = sigr.sr_modules |> ModuleNameMap.add modnm (modsig, name) }
+    Alist.extend sigr (SRModule(modnm, (modsig, name)))
 
 
-  let find_module (modnm : module_name) (sigr : t) : (module_signature * name) option =
-    sigr.sr_modules |> ModuleNameMap.find_opt modnm
+  let find_module (modnm0 : module_name) (sigr : t) : (module_signature * name) option =
+    sigr |> Alist.to_list |> List.find_map (function
+    | SRModule(modnm, mentry) -> if String.equal modnm modnm0 then Some(mentry) else None
+    | _                       -> None
+    )
 
 
   let add_signature (signm : signature_name) (absmodsig : module_signature abstracted) (sigr : t) : t =
-    { sigr with sr_sigs = sigr.sr_sigs |> SignatureNameMap.add signm absmodsig }
+    Alist.extend sigr (SRSig(signm, absmodsig))
 
 
-  let find_signature (signm : signature_name) (sigr : t) : (module_signature abstracted) option =
-    sigr.sr_sigs |> SignatureNameMap.find_opt signm
+  let find_signature (signm0 : signature_name) (sigr : t) : (module_signature abstracted) option =
+    sigr |> Alist.to_list |> List.find_map (function
+    | SRSig(signm, absmodsig) -> if String.equal signm signm0 then Some(absmodsig) else None
+    | _                       -> None
+    )
 
 
   let fold (type a)
       ~v:(fv : identifier -> poly_type * name -> a -> a)
-      ~t:(ft : type_name -> type_opacity -> a -> a)
+      ~t:(ft : (type_name * type_opacity) list -> a -> a)
       ~m:(fm : module_name -> module_signature * name -> a -> a)
       ~s:(fs : signature_name -> module_signature abstracted -> a -> a)
       ~c:(fc : constructor_name -> constructor_entry -> a -> a)
       (init : a) (sigr : t) : a =
-    init
-      |> SignatureNameMap.fold fs sigr.sr_sigs
-      |> ModuleNameMap.fold fm sigr.sr_modules
-      |> TypeNameMap.fold ft sigr.sr_types
-      |> ValNameMap.fold fv sigr.sr_vals
-      |> ConstructorMap.fold fc sigr.sr_ctors
+    sigr |> Alist.to_list |> List.fold_left (fun acc entry ->
+      match entry with
+      | SRVal(x, ventry)        -> fv x ventry acc
+      | SRRecTypes(tydefs)      -> ft tydefs acc
+      | SRModule(modnm, mentry) -> fm modnm mentry acc
+      | SRSig(signm, absmodsig) -> fs signm absmodsig acc
+      | SRCtor(ctor, ctorentry) -> fc ctor ctorentry acc
+    ) init
 
 
   let map
       ~v:(fv : poly_type * name -> poly_type * name)
-      ~t:(ft : type_opacity -> type_opacity)
+      ~t:(ft : type_opacity list -> type_opacity list)
       ~m:(fm : module_signature * name -> module_signature * name)
       ~s:(fs : module_signature abstracted -> module_signature abstracted)
       ~c:(fc : constructor_entry -> constructor_entry)
       (sigr : t) : t =
-    {
-      sr_vals    = sigr.sr_vals |> ValNameMap.map fv;
-      sr_types   = sigr.sr_types |> TypeNameMap.map ft;
-      sr_modules = sigr.sr_modules |> ModuleNameMap.map fm;
-      sr_sigs    = sigr.sr_sigs |> SignatureNameMap.map fs;
-      sr_ctors   = sigr.sr_ctors |> ConstructorMap.map fc;
-    }
+    sigr |> Alist.to_list |> List.map (fun entry ->
+      match entry with
+      | SRVal(x, ventry)        -> SRVal(x, fv ventry)
+      | SRRecTypes(tydefs)      -> SRRecTypes(List.combine (tydefs |> List.map fst) (tydefs |> List.map snd |> ft))
+      | SRModule(modnm, mentry) -> SRModule(modnm, fm mentry)
+      | SRSig(signm, absmodsig) -> SRSig(signm, fs absmodsig)
+      | SRCtor(ctor, ctorentry) -> SRCtor(ctor, fc ctorentry)
+    ) |> Alist.from_list
 
-
+(*
   let overwrite (superior : t) (inferior : t) : t =
     let left _ x _ = Some(x) in
     let sr_vals    = ValNameMap.union       left superior.sr_vals    inferior.sr_vals in
@@ -749,15 +766,24 @@ module SigRecord = struct
     let sr_sigs    = SignatureNameMap.union left superior.sr_sigs    inferior.sr_sigs in
     let sr_ctors   = ConstructorMap.union   left superior.sr_ctors   inferior.sr_ctors in
     { sr_vals; sr_types; sr_modules; sr_sigs; sr_ctors }
-
+*)
 
   let disjoint_union (rng : Range.t) (sigr1 : t) (sigr2 : t) : t =
-    let conflict s _ _ = raise (ConflictInSignature(rng, s)) in
-    let sr_vals    = ValNameMap.union       conflict sigr1.sr_vals    sigr2.sr_vals in
-    let sr_types   = TypeNameMap.union      conflict sigr1.sr_types   sigr2.sr_types in
-    let sr_modules = ModuleNameMap.union    conflict sigr1.sr_modules sigr2.sr_modules in
-    let sr_sigs    = SignatureNameMap.union conflict sigr1.sr_sigs    sigr2.sr_sigs in
-    let sr_ctors   = ConstructorMap.union   conflict sigr1.sr_ctors   sigr2.sr_ctors in
-    { sr_vals; sr_types; sr_modules; sr_sigs; sr_ctors }
+    let check_none s opt =
+      match opt with
+      | None    -> ()
+      | Some(_) -> raise (ConflictInSignature(rng, s))
+    in
+    sigr2 |> Alist.to_list |> List.fold_left (fun sigracc entry ->
+      let () =
+        match entry with
+        | SRVal(x, _)        -> check_none x (find_val x sigr1)
+        | SRRecTypes(tydefs) -> tydefs |> List.iter (fun (tynm, _) -> check_none tynm (find_type tynm sigr1))
+        | SRModule(modnm, _) -> check_none modnm (find_module modnm sigr1)
+        | SRSig(signm, _)    -> check_none signm (find_signature signm sigr1)
+        | SRCtor(ctor, _)    -> check_none ctor (find_constructor ctor sigr1)
+      in
+      Alist.extend sigracc entry
+    ) sigr1
 
 end
