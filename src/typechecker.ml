@@ -180,11 +180,13 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
     ~v:(fun x (pty, name) ->
       Typeenv.add_val x pty name
     )
-    ~t:(fun tynm tyopacity ->
-      match tyopacity with
-      | (TypeID.Synonym(sid), arity) -> Typeenv.add_synonym_type tynm sid arity
-      | (TypeID.Variant(vid), arity) -> Typeenv.add_variant_type tynm vid arity
-      | (TypeID.Opaque(oid), arity)  -> Typeenv.add_opaque_type tynm oid arity
+    ~t:(fun tydefs tyenv ->
+      tydefs |> List.fold_left (fun tyenv (tynm, tyopac) ->
+        match tyopac with
+        | (TypeID.Synonym(sid), arity) -> tyenv |> Typeenv.add_synonym_type tynm sid arity
+        | (TypeID.Variant(vid), arity) -> tyenv |> Typeenv.add_variant_type tynm vid arity
+        | (TypeID.Opaque(oid), arity)  -> tyenv |> Typeenv.add_opaque_type tynm oid arity
+      ) tyenv
     )
     ~m:(fun modnm (modsig, name) tyenv ->
       let tyenv = tyenv |> Typeenv.add_module modnm modsig name in
@@ -1288,17 +1290,19 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
             ~v:(fun _ _ wtmapacc ->
               wtmapacc
             )
-            ~t:(fun tynm2 tyopac2 wtmapacc ->
-              match sigr1 |> SigRecord.find_type tynm2 with
-              | None ->
-                  raise (MissingRequiredTypeName(rng, tynm2, tyopac2))
+            ~t:(fun tydefs2 wtmapacc ->
+              tydefs2 |> List.fold_left (fun wtmapacc (tynm2, tyopac2) ->
+                match sigr1 |> SigRecord.find_type tynm2 with
+                | None ->
+                    raise (MissingRequiredTypeName(rng, tynm2, tyopac2))
 
-              | Some(tyopac1) ->
-                  begin
-                    match lookup_type_opacity tynm2 tyopac1 tyopac2 with
-                    | None        -> raise (NotASubtypeTypeOpacity(rng, tynm2, tyopac1, tyopac2))
-                    | Some(wtmap) -> WitnessMap.union wtmapacc wtmap
-                  end
+                | Some(tyopac1) ->
+                    begin
+                      match lookup_type_opacity tynm2 tyopac1 tyopac2 with
+                      | None        -> raise (NotASubtypeTypeOpacity(rng, tynm2, tyopac1, tyopac2))
+                      | Some(wtmap) -> WitnessMap.union wtmapacc wtmap
+                    end
+              ) wtmapacc
             )
             ~m:(fun modnm2 (modsig2, _) wtmapacc ->
               match sigr1 |> SigRecord.find_module modnm2 with
@@ -1400,7 +1404,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
                else
                  raise (PolymorphicContradiction(rng, x2, pty1, pty2))
           )
-          ~t:(fun _ _ () ->
+          ~t:(fun _ () ->
             ()
           )
           ~m:(fun modnm2 (modsig2, _) () ->
@@ -1453,41 +1457,70 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
     (* -- Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. -- *)
 
   | ConcStructure(sigr) ->
-      let sigr =
-        sigr |> SigRecord.map
-            ~v:(fun (pty, name) -> (substitute_poly_type wtmap pty, name))
-            ~t:(fun tyopac ->
-              let (tyid, arity) = tyopac in
-              match tyid with
-              | TypeID.Synonym(sid) ->
-                  begin
-                    match wtmap |> WitnessMap.find_synonym sid with
-                    | None ->
-                        let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
-                        let sid = TypeID.Synonym.fresh "(name)" in
-                        let ptyreal = ptyreal |> substitute_poly_type wtmap in
-                        TypeSynonymStore.add_synonym_type sid typarams ptyreal;
-                        (TypeID.Synonym(sid), arity)
-
-                    | Some(sid_subst) -> (TypeID.Synonym(sid_subst), arity)
-                  end
-
-              | TypeID.Variant(vid) ->
-                  failwith "TODO: substitute_concrete, Variant"
-
-              | TypeID.Opaque(oid) ->
-                  begin
-                    match wtmap |> WitnessMap.find_opaque oid with
-                    | None             -> tyopac
-                    | Some(tyid_subst) -> (tyid_subst, arity)
-                  end
+      let (sigr, wtmap) =
+        sigr |> SigRecord.map_and_fold
+            ~v:(fun (pty, name) wtmap ->
+              let ventry = (substitute_poly_type wtmap pty, name) in
+              (ventry, wtmap)
             )
-            ~m:(fun (modsig, name) -> (substitute_concrete wtmap modsig, name))
-            ~s:(substitute_abstract wtmap)
-            ~c:(fun ctorentry ->
+            ~t:(fun tyopacs_from wtmap ->
+              let wtmap =
+                tyopacs_from |> List.fold_left (fun wtmap (tyid_from, arity) ->
+                  match tyid_from with
+                  | TypeID.Synonym(sid_from) ->
+                      let sid_to = TypeID.Synonym.fresh "(nameS)" in
+                      wtmap |> WitnessMap.add_synonym sid_from sid_to
+
+                  | TypeID.Variant(vid_from) ->
+                      let vid_to = TypeID.Variant.fresh "(nameV)" in
+                      wtmap |> WitnessMap.add_variant vid_from vid_to
+
+                  | TypeID.Opaque(_) ->
+                      wtmap
+                ) wtmap
+              in
+              let tyopacs_to =
+                tyopacs_from |> List.map (fun (tyid_from, arity) ->
+                  match tyid_from with
+                  | TypeID.Synonym(sid_from) ->
+                      let (typarams, ptyreal_from) = TypeSynonymStore.find_synonym_type sid_from in
+                      let ptyreal_to = ptyreal_from |> substitute_poly_type wtmap in
+                      begin
+                        match wtmap |> WitnessMap.find_synonym sid_from with
+                        | Some(sid_to) ->
+                            TypeSynonymStore.add_synonym_type sid_to typarams ptyreal_to;
+                          (TypeID.Synonym(sid_to), arity)
+
+                        | None ->
+                            assert false
+                      end
+
+                  | TypeID.Variant(vid) ->
+                      failwith "TODO: substitute_concrete, Variant"
+
+                  | TypeID.Opaque(oid) ->
+                      begin
+                        match wtmap |> WitnessMap.find_opaque oid with
+                        | None          -> (tyid_from, arity)
+                        | Some(tyid_to) -> (tyid_to, arity)
+                      end
+                )
+              in
+              (tyopacs_to, wtmap)
+            )
+            ~m:(fun (modsig, name) wtmap ->
+              let mentry = (substitute_concrete wtmap modsig, name) in
+              (mentry, wtmap)
+            )
+            ~s:(fun absmodsig wtmap ->
+              (substitute_abstract wtmap absmodsig, wtmap)
+            )
+            ~c:(fun ctorentry wtmap ->
               let ptys = ctorentry.parameter_types |> List.map (substitute_poly_type wtmap) in
-              { ctorentry with parameter_types = ptys }
+              let ctorentry = { ctorentry with parameter_types = ptys } in
+              (ctorentry, wtmap)
             )
+            wtmap
       in
       ConcStructure(sigr)
 
@@ -1510,15 +1543,26 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
       | ProductType(ptys)         -> ProductType(ptys |> TupleList.map aux)
       | ListType(ptysub)          -> ListType(aux ptysub)
 
-      | DataType(TypeID.Opaque(oid), ptyargs) ->
+      | DataType(TypeID.Opaque(oid_from), ptyargs) ->
           begin
-            match wtmap |> WitnessMap.find_opaque oid with
-            | None       -> ptymain
-            | Some(tyid) -> DataType(tyid, ptyargs)
+            match wtmap |> WitnessMap.find_opaque oid_from with
+            | None          -> ptymain
+            | Some(tyid_to) -> DataType(tyid_to, ptyargs)
           end
 
-      | DataType(tyid, ptyargs) ->
-          DataType(tyid, ptyargs |> List.map aux)
+      | DataType(TypeID.Synonym(sid_from), ptyargs) ->
+          begin
+            match wtmap |> WitnessMap.find_synonym sid_from with
+            | None         -> ptymain
+            | Some(sid_to) -> DataType(TypeID.Synonym(sid_to), ptyargs |> List.map aux)
+          end
+
+      | DataType(TypeID.Variant(vid_from), ptyargs) ->
+          begin
+            match wtmap |> WitnessMap.find_variant vid_from with
+            | None         -> ptymain
+            | Some(vid_to) -> DataType(TypeID.Variant(vid_to), ptyargs |> List.map aux)
+          end
     in
     (rng, ptymain)
 
@@ -1714,7 +1758,8 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
 
 
 and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding =
-  match utbind with
+  let (_, utbindmain) = utbind in
+  match utbindmain with
   | BindVal(rec_or_nonrec) ->
       let pre =
         {
@@ -1788,8 +1833,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         }
       in
       let syns = synacc |> Alist.to_list in
-      let (graph, sigr) =
-        syns |> List.fold_left (fun (graph, sigr) syn ->
+      let (graph, tydefacc) =
+        syns |> List.fold_left (fun (graph, tydefacc) syn ->
           let ((_, tynm), typarams, mtyreal, sid) = syn in
           let typaramassoc = make_type_parameter_assoc 1 typarams in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
@@ -1805,15 +1850,15 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             ) dependencies
           in
           TypeSynonymStore.add_synonym_type sid typarams ptyreal;
-          let sigr = sigr |> SigRecord.add_synonym_type tynm sid (List.length typarams) in
+          let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Synonym(sid), List.length typarams)) in
 (*
           Format.printf "SYN %s %a <%d> = %a\n" tynm TypeID.Synonym.pp sid (List.length typarams) pp_poly_type ptyreal;  (* for debug *)
 *)
-          (graph, sigr)
-        ) (graph, SigRecord.empty)
+          (graph, tydefacc)
+        ) (graph, Alist.empty)
       in
-      let sigr =
-        vntacc |> Alist.to_list |> List.fold_left (fun sigr vnt ->
+      let (tydefacc, ctordefacc) =
+        vntacc |> Alist.to_list |> List.fold_left (fun (tydefacc, ctordefacc) vnt ->
           let ((_, tynm), typarams, ctorbrs, vid) = vnt in
           let typaramassoc = make_type_parameter_assoc 1 typarams in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
@@ -1825,14 +1870,21 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             make_constructor_branch_map { pre with tyenv } ctorbrs
           in
           TypeSynonymStore.add_variant_type vid typarams ctorbrmap;
-          let sigr = sigr |> SigRecord.add_variant_type tynm vid typarams ctorbrmap in
-          sigr
-        ) sigr
+          let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Variant(vid), List.length typarams)) in
+          let ctordefacc = Alist.extend ctordefacc (vid, typarams, ctorbrmap) in
+          (tydefacc, ctordefacc)
+        ) (tydefacc, Alist.empty)
       in
       if DependencyGraph.has_cycle graph then
         let tyidents = syns |> List.map (fun (tyident, _, _, _) -> tyident) in
         raise (CyclicSynonymTypeDefinition(tyidents))
       else
+        let sigr = SigRecord.empty |> SigRecord.add_types (tydefacc |> Alist.to_list) in
+        let sigr =
+          ctordefacc |> Alist.to_list |> List.fold_left (fun sigr (vid, typarams, ctorbrmap) ->
+            sigr |> SigRecord.add_constructors vid typarams ctorbrmap
+          ) sigr
+        in
         ((OpaqueIDSet.empty, sigr), IBindType)
 
   | BindModule(modident, utmod) ->
@@ -1953,7 +2005,14 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
       let (oidset, sigr) = abssigr in
       let tyenv = tyenv |> update_type_environment_by_signature_record sigr in
       let oidsetacc = OpaqueIDSet.union oidsetacc oidset in
-      let sigracc = sigracc |> SigRecord.overwrite sigr in
+      let sigracc =
+        let (rng, _) = utbind in
+        SigRecord.disjoint_union rng sigracc sigr in
+        (* --
+           In the original paper "F-ing modules" [Rossberg, Russo & Dreyer 2014],
+           this operation is not disjoint union, but union with right-hand side precedence.
+           For the sake of clarity, however, we adopt disjoint union here, at least for now.
+           -- *)
       let ibindacc = Alist.extend ibindacc ibind in
       (tyenv, oidsetacc, sigracc, ibindacc)
     ) (tyenv, OpaqueIDSet.empty, SigRecord.empty, Alist.empty)
