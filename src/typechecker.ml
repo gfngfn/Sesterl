@@ -32,7 +32,7 @@ exception MissingRequiredConstructor          of Range.t * constructor_name * co
 exception NotASubtype                         of Range.t * module_signature * module_signature
 exception NotASubtypeTypeOpacity              of Range.t * type_name * type_opacity * type_opacity
 exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t * constructor_name
-exception NotASubtypeSynonym                  of Range.t * type_name * (BoundID.t list * poly_type) * poly_type * poly_type
+exception NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t
 exception MismatchedNumberOfConstructorParameters of Range.t * constructor_name * constructor_entry * constructor_entry
 
 module BindingMap = Map.Make(String)
@@ -1148,7 +1148,10 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> Bo
         begin
           match wtmap |> WitnessMap.find_variant vid2 with
           | None ->
-              assert false
+              if TypeID.Variant.equal vid1 vid2 then
+                aux_list ptyargs1 ptyargs2
+              else
+                false
 
           | Some(vid) ->
               if TypeID.Variant.equal vid vid1 then
@@ -1355,10 +1358,16 @@ and check_well_formedness_of_witness_map (rng : Range.t) (wtmap : WitnessMap.t) 
         )
       )
       ~synonym:(fun sid2 sid1 () ->
-        failwith "TODO: check_well_formedness_of_witness_map, synonym"
+        let ptyfun1 = TypeSynonymStore.find_synonym_type sid1 in
+        let ptyfun2 = TypeSynonymStore.find_synonym_type sid2 in
+        if subtype_type_abstraction wtmap ptyfun1 ptyfun2 then
+          ()
+        else
+          raise (NotASubtypeSynonym(rng, sid1, sid2))
       )
       ~opaque:(fun oid2 tyid1 () ->
-        failwith "TODO: check_well_formedness_of_witness_map, opaque"
+        ()
+          (* -- the consistency of arity has already been checked -- *)
       )
       ()
 
