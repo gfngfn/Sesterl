@@ -4,13 +4,13 @@ type option<$a> =
   | Some($a)
 
 signature Decomposable = sig
-  type t:: 1
-  val decompose<$a>: fun(t<$a>) -> option<($a, t<$a>)>
+  type s:: 1
+  val decompose<$a>: fun(s<$a>) -> option<($a, s<$a>)>
 end
 
 module Seq = fun(D: Decomposable) ->
   struct
-    type t<$a> = D.t<$a>
+    type t<$a> = D.s<$a>
     let to_reversed_list<$a>(xs: t<$a>): list<$a> =
       letrec aux(acc, xs) =
         case D.decompose(xs) of
@@ -22,7 +22,7 @@ module Seq = fun(D: Decomposable) ->
   end
 
 module ListD = struct
-  type t<$a> = list<$a>
+  type s<$a> = list<$a>
   let decompose(xs) =
     case xs of
     | []        -> None
@@ -31,3 +31,6 @@ module ListD = struct
 end
 
 module ListSeq = Seq(ListD)
+
+let f(xs) =
+  ListSeq.to_reversed_list([3, 1, 4])

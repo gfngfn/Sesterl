@@ -256,9 +256,10 @@ let main fpath_in fpath_out =
         Range.pp rng
         tynm
 
-  | Typechecker.NotASubtypeVariant(rng, vid1, vid2) ->
-      Format.printf "%a: not a subtype (TODO: detailed explanation)\n"
+  | Typechecker.NotASubtypeVariant(rng, vid1, vid2, ctor) ->
+      Format.printf "%a: not a subtype about constructor '%s' (TODO: detailed explanation)\n"
         Range.pp rng
+        ctor
 
   | Typechecker.MismatchedNumberOfConstructorParameters(rng, ctornm, ctorentry1, ctorentry2) ->
       Format.printf "%a: not a subtype about constructor '%s' (TODO: detailed explanation)\n"
