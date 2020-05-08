@@ -38,6 +38,9 @@ exception MismatchedNumberOfConstructorParameters of Range.t * constructor_name 
 module BindingMap = Map.Make(String)
 
 
+type subtyping_error = unit
+
+
 type binding_map = (mono_type * name * Range.t) BindingMap.t
 
 
@@ -75,8 +78,10 @@ module WitnessMap : sig
   type t
   val empty : t
   val add_variant : TypeID.Variant.t -> TypeID.Variant.t -> t -> t
-  val add_opaque : TypeID.Opaque.t -> opaque_entry -> t -> t
+  val add_opaque : TypeID.Opaque.t -> TypeID.t -> t -> t
+  val add_synonym : TypeID.Synonym.t -> TypeID.Synonym.t -> t -> t
   val find_synonym : TypeID.Synonym.t -> t -> TypeID.Synonym.t option
+  val find_variant : TypeID.Variant.t -> t -> TypeID.Variant.t option
   val find_opaque : TypeID.Opaque.t -> t -> TypeID.t option
   val union : t -> t -> t
   val print : t -> unit
@@ -110,21 +115,16 @@ end = struct
     { wtmap with variants = wtmap.variants |> VariantIDMap.add vid2 vid1 }
 
 
-  let add_opaque (oid2 : TypeID.Opaque.t) (opq : opaque_entry) (wtmap : t) : t =
-    let tyid1 =
-      match opq with
-      | OpaqueToOpaque(oid1) ->
-          TypeID.Opaque(oid1)
+  let add_synonym (sid2 : TypeID.Synonym.t) (sid1 : TypeID.Synonym.t) (wtmap : t) : t =
+    { wtmap with synonyms = wtmap.synonyms |> SynonymIDMap.add sid2 sid1 }
 
-      | OpaqueToVariant(vid1) ->
-          TypeID.Variant(vid1)
 
-      | OpaqueToSynonym((typarams1, pty1), tynm1) ->
-          let sid1 = TypeID.Synonym.fresh tynm1 in
-          TypeSynonymStore.add_synonym_type sid1 typarams1 pty1;
-          TypeID.Synonym(sid1)
-    in
+  let add_opaque (oid2 : TypeID.Opaque.t) (tyid1 : TypeID.t) (wtmap : t) : t =
     { wtmap with opaques = wtmap.opaques |> OpaqueIDMap.add oid2 tyid1 }
+
+
+  let find_variant (vid2 : TypeID.Variant.t) (wtmap : t) : TypeID.Variant.t option =
+    wtmap.variants |> VariantIDMap.find_opt vid2
 
 
   let find_synonym (sid2 : TypeID.Synonym.t) (wtmap : t) : TypeID.Synonym.t option =
@@ -151,7 +151,7 @@ end
 
 type witness_map = WitnessMap.t
 
-
+(*
 module SubtypingIntern : sig
   type t
   val create_vacant : unit -> t
@@ -308,7 +308,7 @@ end = struct
           ) intern.opaques
 
 end
-
+*)
 
 let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
   match tyenv |> Typeenv.find_module_opt m with
@@ -1236,7 +1236,7 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorMap.empty
 
 
-and subtype_poly_type_scheme (intern : SubtypingIntern.t) (internbid : BoundID.t -> BoundID.t -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
+and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> BoundID.t -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
   let rec aux pty1 pty2 =
 (*
   Format.printf "subtype_poly_type_scheme > aux: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
@@ -1283,30 +1283,54 @@ and subtype_poly_type_scheme (intern : SubtypingIntern.t) (internbid : BoundID.t
         internbid bid2 bid1
 
     | (DataType(TypeID.Variant(vid1), ptyargs1), DataType(TypeID.Variant(vid2), ptyargs2)) ->
-        if SubtypingIntern.is_consistent_variant intern vid2 vid1 then
-          aux_list ptyargs1 ptyargs2
-        else
-          false
+        begin
+          match wtmap |> WitnessMap.find_variant vid2 with
+          | None ->
+              assert false
 
-    | (DataType(TypeID.Variant(vid1), ptyargs1), DataType(TypeID.Opaque(oid2), ptyargs2)) ->
-        if SubtypingIntern.is_consistent_opaque_to_variant intern oid2 vid1 then
-          aux_list ptyargs1 ptyargs2
-        else
-          false
-
-    | (DataType(TypeID.Opaque(oid1), ptyargs1), DataType(TypeID.Opaque(oid2), ptyargs2)) ->
-        if SubtypingIntern.is_consistent_opaque_to_opaque intern oid2 oid1 then
-          aux_list ptyargs1 ptyargs2
-        else
-          false
+          | Some(vid) ->
+              if TypeID.Variant.equal vid vid1 then
+                aux_list ptyargs1 ptyargs2
+              else
+                false
+        end
 
     | (_, DataType(TypeID.Opaque(oid2), ptyargs2)) ->
-        SubtypingIntern.add_constraint_for_opaque_to_type_abstraction intern oid2 ptyargs2 pty1;
-          (* --
-             store a constraint that stands for `pty1 <= [ptyargs2/typarams]tyreal`,
-             and solve it later when making a `WitnessMap.t` from `SubtypingIntern.t`.
-             -- *)
-        true
+        begin
+          match wtmap |> WitnessMap.find_opaque oid2 with
+          | None ->
+              assert false
+
+          | Some(TypeID.Synonym(sid)) ->
+              let pty2real = get_real_poly_type sid ptyargs2 in
+              aux pty1 pty2real
+
+          | Some(TypeID.Variant(vid)) ->
+              begin
+                match ptymain1 with
+                | DataType(TypeID.Variant(vid1), ptyargs1) ->
+                    if TypeID.Variant.equal vid vid1 then
+                      aux_list ptyargs1 ptyargs2
+                    else
+                      false
+
+                | _ ->
+                    false
+              end
+
+          | Some(TypeID.Opaque(oid)) ->
+              begin
+                match ptymain1 with
+                | DataType(TypeID.Opaque(oid1), ptyargs1) ->
+                    if  TypeID.Opaque.equal oid oid1 then
+                      aux_list ptyargs1 ptyargs2
+                    else
+                      false
+
+                | _ ->
+                    false
+              end
+        end
 
     | (TypeVar(Bound(bid1)), _) ->
         failwith "TODO: subtype_poly_type_scheme, (Bound, !Bound)"
@@ -1334,7 +1358,7 @@ and subtype_poly_type_scheme (intern : SubtypingIntern.t) (internbid : BoundID.t
   aux pty1 pty2
 
 
-and subtype_poly_type (intern : SubtypingIntern.t) (pty1 : poly_type) (pty2 : poly_type) : bool =
+and subtype_poly_type (wtmap : WitnessMap.t) (pty1 : poly_type) (pty2 : poly_type) : bool =
 (*
   Format.printf "subtype_poly_type: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
 *)
@@ -1344,10 +1368,10 @@ and subtype_poly_type (intern : SubtypingIntern.t) (pty1 : poly_type) (pty2 : po
     | None      -> BoundIDHashTable.add hashtable bid2 bid1; true
     | Some(bid) -> BoundID.equal bid bid1
   in
-  subtype_poly_type_scheme intern internbid pty1 pty2
+  subtype_poly_type_scheme wtmap internbid pty1 pty2
 
 
-and subtype_type_abstraction (intern : SubtypingIntern.t) (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : bool =
+and subtype_type_abstraction (wtmap : WitnessMap.t) (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : bool =
   let (typarams1, pty1) = ptyfun1 in
   let (typarams2, pty2) = ptyfun2 in
 (*
@@ -1368,99 +1392,132 @@ and subtype_type_abstraction (intern : SubtypingIntern.t) (ptyfun1 : BoundID.t l
         | None      -> false
         | Some(bid) -> BoundID.equal bid bid1
       in
-      subtype_poly_type_scheme intern internbid pty1 pty2
+      subtype_poly_type_scheme wtmap internbid pty1 pty2
 
 
-and subtype_type_opacity (tynm : type_name) (intern : SubtypingIntern.t) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : bool =
+and lookup_type_opacity (tynm : type_name) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : witness_map option =
   let (tyid1, arity1) = tyopac1 in
   let (tyid2, arity2) = tyopac2 in
   if arity1 <> arity2 then
-    false
+    None
   else
     match (tyid1, tyid2) with
-    | (TypeID.Variant(vid1), TypeID.Opaque(oid2)) ->
-        SubtypingIntern.is_consistent_opaque_to_variant intern oid2 vid1
-
-    | (TypeID.Opaque(oid1), TypeID.Opaque(oid2)) ->
-        SubtypingIntern.is_consistent_opaque_to_opaque intern oid2 oid1
-
-    | (TypeID.Synonym(sid1), TypeID.Opaque(oid2)) ->
-        let ptyfun1 = TypeSynonymStore.find_synonym_type sid1 in
-        SubtypingIntern.add_opaque_to_type_abstraction intern tynm oid2 ptyfun1;
-        true
+    | (_, TypeID.Opaque(oid2)) ->
+        Some(WitnessMap.empty |> WitnessMap.add_opaque oid2 tyid1)
 
     | (TypeID.Variant(vid1), TypeID.Variant(vid2)) ->
-        SubtypingIntern.is_consistent_variant intern vid2 vid1
+        Some(WitnessMap.empty |> WitnessMap.add_variant vid2 vid1)
 
     | (TypeID.Synonym(sid1), TypeID.Synonym(sid2)) ->
-        let ptyfun1 = TypeSynonymStore.find_synonym_type sid1 in
-        let ptyfun2 = TypeSynonymStore.find_synonym_type sid2 in
-        subtype_type_abstraction intern ptyfun1 ptyfun2
+        Some(WitnessMap.empty |> WitnessMap.add_synonym sid2 sid1)
 
     | _ ->
-        false
+        None
 
 
-and unify_type_abstraction (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : bool =
-  failwith "TODO: unify_type_bastraction"
+and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module_signature) : WitnessMap.t =
+    match (modsig1, modsig2) with
+    | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
+        (* --
+           perform signature matching by looking up signature `sigr1` and `sigr2` and associate type IDs in them
+           so that we can check whether subtyping relation `sigr1 <= sigr2` holds
+           -- *)
+        sigr2 |> SigRecord.fold
+            ~v:(fun _ _ wtmapacc ->
+              wtmapacc
+            )
+            ~t:(fun tynm2 tyopac2 wtmapacc ->
+              match sigr1 |> SigRecord.find_type tynm2 with
+              | None ->
+                  raise (MissingRequiredTypeName(rng, tynm2, tyopac2))
+
+              | Some(tyopac1) ->
+                  begin
+                    match lookup_type_opacity tynm2 tyopac1 tyopac2 with
+                    | None        -> raise (NotASubtypeTypeOpacity(rng, tynm2, tyopac1, tyopac2))
+                    | Some(wtmap) -> WitnessMap.union wtmapacc wtmap
+                  end
+            )
+            ~m:(fun modnm2 (modsig2, _) wtmapacc ->
+              match sigr1 |> SigRecord.find_module modnm2 with
+              | None ->
+                  raise (MissingRequiredModuleName(rng, modnm2, modsig2))
+
+              | Some(modsig1, _) ->
+                  let wtmap = lookup_record rng modsig1 modsig2 in
+                  WitnessMap.union wtmapacc wtmap
+            )
+            ~s:(fun _ _ wtmapacc ->
+              wtmapacc
+            )
+            ~c:(fun _ _ wtmapacc ->
+              wtmapacc
+            )
+            WitnessMap.empty
+
+    | _ ->
+        WitnessMap.empty
 
 
-and subtype_abstract_with_abstract (rng : Range.t) (intern : SubtypingIntern.t) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : witness_map =
+and check_well_formedness_of_witness_map (wtmap : WitnessMap.t) : unit =
+  failwith "TODO: check_well_formedness_of_witness_map"
+
+
+and subtype_abstract_with_abstract (rng : Range.t) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : unit =
   let (_, modsig1) = absmodsig1 in
-  subtype_concrete_with_abstract rng intern modsig1 absmodsig2
+  let _ = subtype_concrete_with_abstract rng modsig1 absmodsig2 in
+  ()
 
 
-and subtype_concrete_with_concrete (rng : Range.t) (intern : SubtypingIntern.t) (modsig1 : module_signature) (modsig2 : module_signature) : witness_map =
+and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsig1 : module_signature) (modsig2 : module_signature) : unit =
   match (modsig1, modsig2) with
   | (ConcFunctor(oidset1, modsigdom1, absmodsigcod1), ConcFunctor(oidset2, modsigdom2, absmodsigcod2)) ->
-      let wtmap = subtype_concrete_with_abstract rng intern modsigdom2 (oidset1, modsigdom1) in
+      let wtmap = subtype_concrete_with_abstract rng modsigdom2 (oidset1, modsigdom1) in
       let absmodsigcod1 = absmodsigcod1 |> substitute_abstract wtmap in
-      subtype_abstract_with_abstract rng intern absmodsigcod1 absmodsigcod2
+      subtype_abstract_with_abstract rng absmodsigcod1 absmodsigcod2
 
   | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
+      (* --
+         First traverse the structure signature and extract a mapping
+         from opaque types to types and one
+         from variant types to variant types
+         -- *)
       sigr2 |> SigRecord.fold
-          ~v:(fun x2 (pty2, _) wtmapacc ->
+          ~v:(fun x2 (pty2, _) () ->
             match sigr1 |> SigRecord.find_val x2 with
             | None ->
                 raise (MissingRequiredValName(rng, x2, pty2))
 
             | Some(pty1, _) ->
-               if subtype_poly_type intern pty1 pty2 then
-                 wtmapacc
+               if subtype_poly_type wtmap pty1 pty2 then
+                 ()
                else
                  raise (PolymorphicContradiction(rng, x2, pty1, pty2))
           )
-          ~t:(fun tynm2 tyopac2 wtmapacc ->
-            match sigr1 |> SigRecord.find_type tynm2 with
-            | None ->
-                raise (MissingRequiredTypeName(rng, tynm2, tyopac2))
-
-            | Some(tyopac1) ->
-                if subtype_type_opacity tynm2 intern tyopac1 tyopac2 then
-                  wtmapacc
-                else
-                  raise (NotASubtypeTypeOpacity(rng, tynm2, tyopac1, tyopac2))
+          ~t:(fun _ _ () ->
+            ()
           )
-          ~m:(fun modnm2 (modsig2, _) wtmapacc ->
+          ~m:(fun modnm2 (modsig2, _) () ->
             match sigr1 |> SigRecord.find_module modnm2 with
             | None ->
                 raise (MissingRequiredModuleName(rng, modnm2, modsig2))
 
             | Some(modsig1, _) ->
-                let wtmap = subtype_concrete_with_concrete rng intern modsig1 modsig2 in
-                WitnessMap.union wtmapacc wtmap
+                subtype_concrete_with_concrete rng wtmap modsig1 modsig2
           )
-          ~s:(fun signm2 absmodsig2 wtmapacc ->
+          ~s:(fun signm2 absmodsig2 () ->
             match sigr1 |> SigRecord.find_signature signm2 with
             | None ->
                 raise (MissingRequiredSignatureName(rng, signm2, absmodsig2))
 
             | Some(absmodsig1) ->
-                let wtmap1 = subtype_abstract_with_abstract rng intern absmodsig1 absmodsig2 in
-                let wtmap2 = subtype_abstract_with_abstract rng intern absmodsig2 absmodsig1 in
-                WitnessMap.union wtmapacc (WitnessMap.union wtmap1 wtmap2)
+                subtype_abstract_with_abstract rng absmodsig1 absmodsig2;
+                subtype_abstract_with_abstract rng absmodsig2 absmodsig1;
+                ()
           )
-          ~c:(fun ctornm2 ctorentry2 wtmapacc ->
+          ~c:(fun ctornm2 ctorentry2 () ->
+            ()
+(*
             match sigr1 |> SigRecord.find_constructor ctornm2 with
             | None ->
                 raise (MissingRequiredConstructor(rng, ctornm2, ctorentry2))
@@ -1489,24 +1546,25 @@ and subtype_concrete_with_concrete (rng : Range.t) (intern : SubtypingIntern.t) 
                         );
                         wtmapacc
                   end
+*)
           )
-          WitnessMap.empty
+          ()
 
   | _ ->
       raise (NotASubtype(rng, modsig1, modsig2))
 
 
-and subtype_concrete_with_abstract (rng : Range.t) (internsub : SubtypingIntern.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
+and subtype_concrete_with_abstract (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : WitnessMap.t =
   let (oidset2, modsig2) = absmodsig2 in
-  let intern = SubtypingIntern.create oidset2 internsub in
-  let wtmapsuper = subtype_concrete_with_concrete rng intern modsig1 modsig2 in
-  let wtmap = SubtypingIntern.make_witness_map intern rng subtype_poly_type in
-  WitnessMap.union wtmapsuper wtmap
+  let wtmap = lookup_record rng modsig1 modsig2 in
+  check_well_formedness_of_witness_map wtmap;
+  let modsig2 = modsig2 |> substitute_concrete wtmap in
+  subtype_concrete_with_concrete rng wtmap modsig1 modsig2;
+  wtmap
 
 
 and subtype_signature (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
-  let intern_outermost = SubtypingIntern.create_vacant () in
-  subtype_concrete_with_abstract rng intern_outermost modsig1 absmodsig2
+  subtype_concrete_with_abstract rng modsig1 absmodsig2
 
 
 and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : module_signature =
@@ -1755,9 +1813,10 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                   let arity_actual = List.length typarams in
                   if arity_actual = kd then
                     let modsigret =
+                      let sid = TypeID.Synonym.fresh tynm1 in
+                      TypeSynonymStore.add_synonym_type sid typarams pty;
                       let wtmap =
-                        WitnessMap.empty
-                          |> WitnessMap.add_opaque oid (OpaqueToSynonym((typarams, pty), tynm1))
+                        WitnessMap.empty |> WitnessMap.add_opaque oid (TypeID.Synonym(sid))
                       in
                       substitute_concrete wtmap modsig0
                     in
