@@ -32,5 +32,7 @@ end
 
 module ListSeq = Seq(ListD)
 
+/*
 let f(xs) =
   ListSeq.to_reversed_list([3, 1, 4])
+*/

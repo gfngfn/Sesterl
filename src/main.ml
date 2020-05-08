@@ -24,9 +24,9 @@ let rec display_signature (depth : int) (modsig : module_signature) : unit =
   | ConcFunctor(oidset1, modsigdom, (oidset2, modsigcod)) ->
       let sx1 = stringify_opaque_id_set oidset1 in
       let sx2 = stringify_opaque_id_set oidset2 in
-      Format.printf "%s(exists%s) fun(\n" indent sx1;
+      Format.printf "%s(forall%s) fun(\n" indent sx1;
       display_signature (depth + 1) modsigdom;
-      Format.printf "%s) -> (forall%s)\n" indent sx2;
+      Format.printf "%s) -> (exists%s)\n" indent sx2;
       display_signature (depth + 1) modsigcod
 
 
@@ -41,21 +41,24 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
         match tyid with
         | TypeID.Synonym(sid) ->
             let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
-            Format.printf "%stype %s<%a> = %a\n"
+            Format.printf "%stype %a<%a> = %a\n"
               indent
-              tynm
+              TypeID.Synonym.pp sid
               (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
               pp_poly_type ptyreal
 
         | TypeID.Variant(vid) ->
             let (typarams, _ctorbrs) = TypeSynonymStore.find_variant_type vid in
-            Format.printf "%stype %s<%a> = (variant)\n"
+            Format.printf "%stype %a<%a> = (variant)\n"
               indent
-              tynm
+              TypeID.Variant.pp vid
               (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
 
-        | TypeID.Opaque(_) ->
-            Format.printf "%stype %s:: %d\n" indent tynm arity
+        | TypeID.Opaque(oid) ->
+            Format.printf "%stype %a:: %d\n"
+              indent
+              TypeID.Opaque.pp oid
+              arity
       )
       ~m:(fun modnm (modsig, _) () ->
         Format.printf "%smodule %s:\n" indent modnm;

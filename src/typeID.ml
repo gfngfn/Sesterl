@@ -43,7 +43,7 @@ module Internal = struct
     tyid1.number = tyid2.number
 
   let pp ppf tyid =
-    Format.fprintf ppf "%s" tyid.name
+    Format.fprintf ppf "%s/%d" tyid.name tyid.number
 
 end
 
