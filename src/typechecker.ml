@@ -169,9 +169,6 @@ end = struct
 end
 
 
-type witness_map = WitnessMap.t
-
-
 let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
   match tyenv |> Typeenv.find_module_opt m with
   | None    -> raise (UnboundModuleName(rng, m))
@@ -1260,7 +1257,7 @@ and subtype_type_abstraction (wtmap : WitnessMap.t) (ptyfun1 : BoundID.t list * 
       subtype_poly_type_scheme wtmap internbid pty1 pty2
 
 
-and lookup_type_opacity (tynm : type_name) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : witness_map option =
+and lookup_type_opacity (tynm : type_name) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : WitnessMap.t option =
   let (tyid1, arity1) = tyopac1 in
   let (tyid2, arity2) = tyopac2 in
   if arity1 <> arity2 then
@@ -1426,36 +1423,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
           )
           ~c:(fun ctornm2 ctorentry2 () ->
             ()
-(*
-            match sigr1 |> SigRecord.find_constructor ctornm2 with
-            | None ->
-                raise (MissingRequiredConstructor(rng, ctornm2, ctorentry2))
-
-            | Some(ctorentry1) ->
-                let vid1 = ctorentry1.belongs in
-                let vid2 = ctorentry2.belongs in
-                if SubtypingIntern.is_consistent_variant intern vid2 vid1 then
-                  raise (NotASubtypeVariant(rng, vid1, vid2))
-                else
-                  let pty1 = ctorentry1.parameter_types in
-                  let typarams1 = ctorentry1.type_variables in
-                  let pty2 = ctorentry2.parameter_types in
-                  let typarams2 = ctorentry2.type_variables in
-                  begin
-                    match List.combine pty1 pty2 with
-                    | exception Invalid_argument(_) ->
-                        raise (MismatchedNumberOfConstructorParameters(rng, ctornm2, ctorentry2, ctorentry1))
-
-                    | ptypairs ->
-                        ptypairs |> List.iter (fun (pty1, pty2) ->
-                          if subtype_type_abstraction intern (typarams1, pty1) (typarams2, pty2) then
-                            raise (PolymorphicContradiction(rng, ctornm2, pty1, pty2))
-                          else
-                            ()
-                        );
-                        wtmapacc
-                  end
-*)
+              (* -- checking for constructors is performed by `check_well_formedness_of_witness_map` *)
           )
           ()
 
@@ -1472,11 +1440,11 @@ and subtype_concrete_with_abstract (rng : Range.t) (modsig1 : module_signature) 
   wtmap
 
 
-and subtype_signature (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : witness_map =
+and subtype_signature (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : WitnessMap.t =
   subtype_concrete_with_abstract rng modsig1 absmodsig2
 
 
-and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : module_signature =
+and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : module_signature =
   match modsig with
   | ConcFunctor(oidset, modsigdom, absmodsigcod) ->
       let modsigdom = modsigdom |> substitute_concrete wtmap in
@@ -1518,13 +1486,13 @@ and substitute_concrete (wtmap : witness_map) (modsig : module_signature) : modu
       ConcStructure(sigr)
 
 
-and substitute_abstract (wtmap : witness_map) (absmodsig : module_signature abstracted) : module_signature abstracted =
+and substitute_abstract (wtmap : WitnessMap.t) (absmodsig : module_signature abstracted) : module_signature abstracted =
   let (oidset, modsig) = absmodsig in
   (oidset, substitute_concrete wtmap modsig)
     (* -- Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. -- *)
 
 
-and substitute_poly_type (wtmap : witness_map) (pty : poly_type) : poly_type =
+and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
   let rec aux (rng, ptymain) =
     let ptymain =
       match ptymain with
