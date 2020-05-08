@@ -31,6 +31,7 @@
 %token EOI
 
 %start main
+%type<Syntax.untyped_binding> bindtop
 %type<Syntax.untyped_binding list> main
 %type<Syntax.manual_type> ty
 %type<Syntax.binder list> params
@@ -46,17 +47,21 @@ ident:
 ;
 bindtop:
   | TYPE; tybind=bindtypesingle; tybinds=list(bindtypesub) {
-        BindType(tybind :: tybinds)
+        let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
+        (rng, BindType(tybind :: tybinds))
       }
   | bindval=bindvaltop {
+        let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
         let (_, valbinding) = bindval in
-        BindVal(valbinding)
+        (rng, BindVal(valbinding))
       }
   | MODULE; modident=CTOR; DEFEQ; utmod=modexpr {
-        BindModule(modident, utmod)
+        let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
+        (rng, BindModule(modident, utmod))
       }
   | SIGNATURE; sigident=CTOR; DEFEQ; utsig=sigexpr {
-        BindSig(sigident, utsig)
+        let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
+        (rng, BindSig(sigident, utsig))
       }
 ;
 bindtypesingle:

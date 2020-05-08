@@ -1463,31 +1463,50 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
               let ventry = (substitute_poly_type wtmap pty, name) in
               (ventry, wtmap)
             )
-            ~t:(fun tyopacs wtmap ->
-              let (tyid, arity) = tyopac in
-              match tyid with
-              | TypeID.Synonym(sid) ->
-                  begin
-                    match wtmap |> WitnessMap.find_synonym sid with
-                    | None ->
-                        let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
-                        let sid = TypeID.Synonym.fresh "(name)" in
-                        let ptyreal = ptyreal |> substitute_poly_type wtmap in
-                        TypeSynonymStore.add_synonym_type sid typarams ptyreal;
-                        (TypeID.Synonym(sid), arity)
+            ~t:(fun tyopacs_from wtmap ->
+              let wtmap =
+                tyopacs_from |> List.fold_left (fun wtmap (tyid_from, arity) ->
+                  match tyid_from with
+                  | TypeID.Synonym(sid_from) ->
+                      let sid_to = TypeID.Synonym.fresh "(nameS)" in
+                      wtmap |> WitnessMap.add_synonym sid_from sid_to
 
-                    | Some(sid_subst) -> (TypeID.Synonym(sid_subst), arity)
-                  end
+                  | TypeID.Variant(vid_from) ->
+                      let vid_to = TypeID.Variant.fresh "(nameV)" in
+                      wtmap |> WitnessMap.add_variant vid_from vid_to
 
-              | TypeID.Variant(vid) ->
-                  failwith "TODO: substitute_concrete, Variant"
+                  | TypeID.Opaque(_) ->
+                      wtmap
+                ) wtmap
+              in
+              let tyopacs_to =
+                tyopacs_from |> List.map (fun (tyid_from, arity) ->
+                  match tyid_from with
+                  | TypeID.Synonym(sid_from) ->
+                      let (typarams, ptyreal_from) = TypeSynonymStore.find_synonym_type sid_from in
+                      let ptyreal_to = ptyreal_from |> substitute_poly_type wtmap in
+                      begin
+                        match wtmap |> WitnessMap.find_synonym sid_from with
+                        | Some(sid_to) ->
+                            TypeSynonymStore.add_synonym_type sid_to typarams ptyreal_to;
+                          (TypeID.Synonym(sid_to), arity)
 
-              | TypeID.Opaque(oid) ->
-                  begin
-                    match wtmap |> WitnessMap.find_opaque oid with
-                    | None             -> tyopac
-                    | Some(tyid_subst) -> (tyid_subst, arity)
-                  end
+                        | None ->
+                            assert false
+                      end
+
+                  | TypeID.Variant(vid) ->
+                      failwith "TODO: substitute_concrete, Variant"
+
+                  | TypeID.Opaque(oid) ->
+                      begin
+                        match wtmap |> WitnessMap.find_opaque oid with
+                        | None          -> (tyid_from, arity)
+                        | Some(tyid_to) -> (tyid_to, arity)
+                      end
+                )
+              in
+              (tyopacs_to, wtmap)
             )
             ~m:(fun (modsig, name) wtmap ->
               let mentry = (substitute_concrete wtmap modsig, name) in
