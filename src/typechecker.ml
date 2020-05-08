@@ -1462,7 +1462,13 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
               | TypeID.Synonym(sid) ->
                   begin
                     match wtmap |> WitnessMap.find_synonym sid with
-                    | None            -> tyopac
+                    | None ->
+                        let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
+                        let sid = TypeID.Synonym.fresh "(name)" in
+                        let ptyreal = ptyreal |> substitute_poly_type wtmap in
+                        TypeSynonymStore.add_synonym_type sid typarams ptyreal;
+                        (TypeID.Synonym(sid), arity)
+
                     | Some(sid_subst) -> (TypeID.Synonym(sid_subst), arity)
                   end
 
