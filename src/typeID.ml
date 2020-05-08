@@ -16,7 +16,7 @@ module type S = sig
 end
 
 
-module Internal = struct
+module Internal(A : sig val suffix : string end) = struct
 
   type t = {
     number : int;
@@ -43,16 +43,16 @@ module Internal = struct
     tyid1.number = tyid2.number
 
   let pp ppf tyid =
-    Format.fprintf ppf "%s/%d" tyid.name tyid.number
+    Format.fprintf ppf "%s/%d%s" tyid.name tyid.number A.suffix
 
 end
 
 
-module Variant = Internal
+module Variant = Internal(struct let suffix = "!" end)
 
-module Synonym = Internal
+module Synonym = Internal(struct let suffix = "*" end)
 
-module Opaque = Internal
+module Opaque = Internal(struct let suffix = "@" end)
 
 type t =
   | Variant of Variant.t
