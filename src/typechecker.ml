@@ -1543,15 +1543,26 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
       | ProductType(ptys)         -> ProductType(ptys |> TupleList.map aux)
       | ListType(ptysub)          -> ListType(aux ptysub)
 
-      | DataType(TypeID.Opaque(oid), ptyargs) ->
+      | DataType(TypeID.Opaque(oid_from), ptyargs) ->
           begin
-            match wtmap |> WitnessMap.find_opaque oid with
-            | None       -> ptymain
-            | Some(tyid) -> DataType(tyid, ptyargs)
+            match wtmap |> WitnessMap.find_opaque oid_from with
+            | None          -> ptymain
+            | Some(tyid_to) -> DataType(tyid_to, ptyargs)
           end
 
-      | DataType(tyid, ptyargs) ->
-          DataType(tyid, ptyargs |> List.map aux)
+      | DataType(TypeID.Synonym(sid_from), ptyargs) ->
+          begin
+            match wtmap |> WitnessMap.find_synonym sid_from with
+            | None         -> ptymain
+            | Some(sid_to) -> DataType(TypeID.Synonym(sid_to), ptyargs |> List.map aux)
+          end
+
+      | DataType(TypeID.Variant(vid_from), ptyargs) ->
+          begin
+            match wtmap |> WitnessMap.find_variant vid_from with
+            | None         -> ptymain
+            | Some(vid_to) -> DataType(TypeID.Variant(vid_to), ptyargs |> List.map aux)
+          end
     in
     (rng, ptymain)
 
