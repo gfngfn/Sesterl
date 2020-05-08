@@ -666,8 +666,8 @@ module SigRecord = struct
 
 
   let add_constructors (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrs : constructor_branch_map) (sigr : t) : t =
-    ConstructorMap.fold (fun ctornm (ctorid, ptys) ctors ->
-      let entry =
+    ConstructorMap.fold (fun ctornm (ctorid, ptys) sigr ->
+      let ctorentry =
         {
           belongs         = vid;
           constructor_id  = ctorid;
@@ -675,7 +675,7 @@ module SigRecord = struct
           parameter_types = ptys;
         }
       in
-      Alist.extend sigr (SRCtor(ctornm, entry))
+      Alist.extend sigr (SRCtor(ctornm, ctorentry))
     ) ctorbrs sigr
 
 
