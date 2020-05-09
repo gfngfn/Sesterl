@@ -14,17 +14,27 @@ Sesterl provides many ML-inspired features (i.e. basically resembles OCaml, Stan
 
 ### Function definition
 
-Function definition is performed by `let`-expressions. Unlike ML family, functions have their own arity (i.e. not curried by nature) and typed `fun(τ_1, …, τ_n) -> τ` in order to realize seemless compilation to top-level function definitions in Erlang code.
+Function definition is performed by `let`-expressions:
 
 ```
 let add(x, y) = x + y
 ```
 
-The function `add` defined above has type `fun(int, int) -> int`. Here, you do not have to annotate types of arguments or return values; they will be reconstructed by standard *Hindley–Milner type inference*. you can nonetheless add type annotation like the following:
+Unlike ML family, however, in order to realize seemless compilation to top-level function definitions in Erlang, functions have their own arity (i.e. not curried by nature) and thereby have types of the form `fun(τ_1, …, τ_n) -> τ`. The function `add` defined above, for instance, has type `fun(int, int) -> int`, which is not equivalent to `fun(int) -> fun(int) -> int`.
+
+Incidentally, you do not have to annotate types of arguments or return values; they will be reconstructed by standard *Hindley–Milner type inference*. you can nonetheless add type annotation like the following:
 
 ```
 let add(x: int, y: int): int = x + y
 ```
+
+You can define higher-order functions, of course:
+
+```
+let apply(f, x) = f(x)
+```
+
+As is the case in ML, `apply` has a polymorphic type. Features related to type polymorphism is explained later.
 
 Recursive or mutually recursive functions can be defined by using `letrec`-expressions, not only globally but also in a local scope:
 
@@ -42,7 +52,7 @@ let is_even_nat(n) =
   if n < 0 then false else even(n)
 ```
 
-Unlike Erlang, function names are all lowercased regardless of whether they are defined in the global scope or a local one.
+Note that, unlike Erlang, function names are all lowercased regardless of whether they are defined in the global scope or a local one. You can also write, for example, `apply(fact, 6)`; each name of globally-defined functions can be used for the function value bound to the name. This is different from the situation in Erlang, where a globally-defined function name by itself will be interpreted as an atom of the same text.
 
 
 ### Polymorphism
