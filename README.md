@@ -9,7 +9,7 @@ As mentioned below, however, many features as a typed functional language have a
 
 ## Features
 
-Sesterl provides many ML-inspired features (i.e. basically resenbles OCaml, Standard ML, Reason, etc.).
+Sesterl provides many ML-inspired features (i.e. basically resembles OCaml, Standard ML, Reason, etc.).
 
 
 ### Function definition
