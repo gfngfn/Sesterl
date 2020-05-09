@@ -111,10 +111,10 @@ letrec tree_size(t: bintree<$a>) =
 
 ### Concurrency
 
-As in Erlang, you can use primitives `self`, `send`, and `spawn` for message-passing concurrency. They are given types by using a kind of monadic types `[τ_0]τ_1` and types `pid(τ)` for PIDs (i.e. process identifiers) as follows:
+As in Erlang, you can use primitives `self`, `send`, and `spawn` for message-passing concurrency. They are given types by using a kind of monadic types `[τ_0]τ_1` and types `pid<τ>` for PIDs (i.e. process identifiers) as follows:
 
-* `self<$p>: [$p]pid($p)`
-* `send<$p, $q>: fun(pid($q), $q) -> [$p]unit`
+* `self<$p>: [$p]pid<$p>`
+* `send<$p, $q>: fun(pid<$q>, $q) -> [$p]unit`
 * `spawn<$p, $q>: fun([$q]unit) -> [$p]pid<$q>`
 
 This formalization is based on *λ\_\{act\}* \[Fowler 2019\].
