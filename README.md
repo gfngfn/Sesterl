@@ -52,7 +52,7 @@ let is_even_nat(n) =
   if n < 0 then false else even(n)
 ```
 
-Note that, unlike Erlang, function names are all lowercased regardless of whether they are defined in the global scope or a local one. You can also write, for example, `apply(fact, 6)`; each name of globally-defined functions can be used for the function value bound to the name. This is different from the situation in Erlang, where a globally-defined function name by itself will be interpreted as an atom of the same text.
+Note that, unlike Erlang, function names are all lowercased regardless of whether they are defined in the global scope or in a local one. You can also write, for example, `apply(fact, 6)`; each name of globally-defined functions can be used for the function value the name is bound to, just as locally defined function names can be. This is different from the situation in Erlang, where a globally-defined function name by itself will be interpreted as an atom of the same text.
 
 
 ### Polymorphism
@@ -150,6 +150,7 @@ letrec wait_all(acc, pids) =
           | Some(rest) -> wait_all(msg :: acc, rest)
           end
       end
+  end
 
 letrec spawn_all(acc, n) =
   if n <= 0 then
