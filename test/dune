@@ -2,6 +2,7 @@
   (names testRange testTypechecker)
   (libraries
     alcotest
+    menhirLib
     ocamlgraph
   ))
 

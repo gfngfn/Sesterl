@@ -255,3 +255,24 @@ Currently, however, back-end Erlang code generator has not supported modules yet
 * [x] Pattern matching by generalized `let`-expressions
 * [x] Module system
 * [ ] (Multiparty) session types
+
+
+## Build Notes
+
+### Create a local switch
+
+```bash
+opam switch create .
+```
+
+### Install the required packages
+
+```bash
+opam install . --deps-only --with-doc --with-test
+```
+
+### Build
+
+```bash
+make
+```
