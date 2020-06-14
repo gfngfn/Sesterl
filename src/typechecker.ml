@@ -34,6 +34,7 @@ exception NotASubtypeTypeOpacity              of Range.t * type_name * type_opac
 exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t * constructor_name
 exception NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t
 exception MismatchedNumberOfConstructorParameters of Range.t * constructor_name * constructor_entry * constructor_entry
+exception OpaqueIDCannotExtrudeScopeViaPath       of Range.t * module_signature abstracted
 
 module BindingMap = Map.Make(String)
 
@@ -368,6 +369,15 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     tys |> List.map aux |> List.fold_left ( || ) false
   in
   aux ty
+
+
+let opaque_occurs (oidset : OpaqueIDSet.t) (modsig : module_signature) : bool =
+  match modsig with
+  | ConcStructure(sigr) ->
+      failwith "TODO: opaque_occurs, ConcStructure"
+
+  | ConcFunctor(oidsetdom, modsigdom, absmodsigcod) ->
+      failwith "TODO: opaque_occurs, ConcFunctor"
 
 
 let get_real_type_scheme (type a) (substf : (a typ) BoundIDMap.t -> poly_type -> a typ) (sid : TypeID.Synonym.t) (tyargs : (a typ) list) : a typ =
@@ -1651,35 +1661,54 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
             raise (UnboundSignatureName(rng, signm))
 
         | Some(absmodsig) ->
+          (* TODO: we need to rename opaque ID sets here.
+             Otherwise, we mistakenly make the  following program pass:
+
+             ```
+             signature S = sig
+               type t:: 0
+             end
+
+             module F = fun(X: S) -> fun(Y: S) -> struct
+               type f(x: X.t): Y.t = x
+             end
+             ```
+
+             This issue was reported by `@elpinal`:
+             https://twitter.com/elpin1al/status/1269198048967589889?s=20
+          *)
             absmodsig
       end
 
-  | SigPath(utmod, sigident) ->
-      let (absmodsig1, _e) = typecheck_module tyenv utmod in
-      let (_oidset1, modsig1) = absmodsig1 in
+  | SigPath(utmod1, sigident2) ->
+      let (absmodsig1, _e) = typecheck_module tyenv utmod1 in
+      let (oidset1, modsig1) = absmodsig1 in
       begin
         match modsig1 with
         | ConcFunctor(_) ->
-            let (rng1, _) = utmod in
+            let (rng1, _) = utmod1 in
             raise (NotOfStructureType(rng1, modsig1))
 
         | ConcStructure(sigr1) ->
-            let (rng2, signm2) = sigident in
+            let (rng2, signm2) = sigident2 in
             begin
               match sigr1 |> SigRecord.find_signature signm2 with
               | None ->
                   raise (UnboundSignatureName(rng2, signm2))
 
               | Some((_, modsig2) as absmodsig2) ->
-                  begin
-                    match modsig2 with
-                    | ConcFunctor(_)   -> raise (NotAStructureSignature(rng2, modsig2))
-                    | ConcStructure(_) -> absmodsig2
-                  end
+                  if opaque_occurs oidset1 modsig2 then
+                    raise (OpaqueIDCannotExtrudeScopeViaPath(rng, absmodsig2))
+                  else
+                    absmodsig2
                     (* Combining typing rules (P-Mod) and (S-Path)
                        in the original paper "F-ing modules" [Rossberg, Russo & Dreyer 2014],
-                       we can ignore `oldset1` here.
-                       (we have noticed this thanks to `@elpinal`.)
+                       we can ignore `oidset1` here.
+                       However, we CANNOT SIMPLY ignore `oidset1`;
+                       according to the second premise “Γ ⊢ Σ : Ω” of (P-Mod),
+                       we must assert `absmodsig2` do not contain every type variable in `oidset1`.
+                       (we have again realized this thanks to `@elpinal`.)
+                       https://twitter.com/elpin1al/status/1272110415435010048?s=20
                      *)
             end
       end
