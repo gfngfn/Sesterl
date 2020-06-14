@@ -371,13 +371,38 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
   aux ty
 
 
-let opaque_occurs (oidset : OpaqueIDSet.t) (modsig : module_signature) : bool =
+let opaque_occurs_in_poly_type (oidset : OpaqueIDSet.t) (pty : poly_type) : bool =
+  failwith "TODO: opaque_occurs_in_poly_type"
+
+
+let rec opaque_occurs (oidset : OpaqueIDSet.t) (modsig : module_signature) : bool =
   match modsig with
   | ConcStructure(sigr) ->
-      failwith "TODO: opaque_occurs, ConcStructure"
+      sigr |> SigRecord.fold
+          ~v:(fun _ (pty, _) b ->
+            b || opaque_occurs_in_poly_type oidset pty
+          )
+          ~t:(fun tydefs b ->
+            b || (tydefs |> List.exists (fun (_, (tyid, _arity)) ->
+              match tyid with
+              | TypeID.Synonym(sid) -> failwith "TODO: opaque_occurs, TypeID.Synonym"
+              | TypeID.Variant(vid) -> false
+              | TypeID.Opaque(oid)  -> oidset |> OpaqueIDSet.mem oid
+            ))
+          )
+          ~m:(fun _ (modsig, _) b ->
+            b || opaque_occurs oidset modsig
+          )
+          ~s:(fun _ (_oidset, modsig) b ->
+            b || opaque_occurs oidset modsig
+          )
+          ~c:(fun _ ctorentry b ->
+            b || ctorentry.parameter_types |> List.exists (opaque_occurs_in_poly_type oidset)
+          )
+          false
 
-  | ConcFunctor(oidsetdom, modsigdom, absmodsigcod) ->
-      failwith "TODO: opaque_occurs, ConcFunctor"
+  | ConcFunctor(_oidsetdom, modsigdom, (_oidsetcod, modsigcod)) ->
+      opaque_occurs oidset modsigdom || opaque_occurs oidset modsigcod
 
 
 let get_real_type_scheme (type a) (substf : (a typ) BoundIDMap.t -> poly_type -> a typ) (sid : TypeID.Synonym.t) (tyargs : (a typ) list) : a typ =
