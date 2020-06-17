@@ -34,7 +34,8 @@ exception NotASubtypeTypeOpacity              of Range.t * type_name * type_opac
 exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t * constructor_name
 exception NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t
 exception MismatchedNumberOfConstructorParameters of Range.t * constructor_name * constructor_entry * constructor_entry
-exception OpaqueIDCannotExtrudeScopeViaPath       of Range.t * module_signature abstracted
+exception OpaqueIDExtrudesScopeViaType            of Range.t * type_opacity
+exception OpaqueIDExtrudesScopeViaSignature       of Range.t * module_signature abstracted
 
 module BindingMap = Map.Make(String)
 
@@ -641,7 +642,7 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
       | MModProjType(utmod1, tyident2, mtyargs) ->
           let (rng2, tynm2) = tyident2 in
           let (absmodsig1, _) = typecheck_module tyenv utmod1 in
-          let (_, modsig1) = absmodsig1 in
+          let (oidset1, modsig1) = absmodsig1 in
           begin
             match modsig1 with
             | ConcFunctor(_) ->
@@ -654,12 +655,29 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                   | None ->
                       raise (UndefinedTypeName(rng2, tynm2))
 
-                  | Some(tyopac) ->
+                  | Some(tyopac2) ->
                       let tyargs = mtyargs |> List.map aux in
-                      let (tyid, arity) = tyopac in
-                      assert (arity = List.length tyargs);
-                      k tyid;
-                      DataType(tyid, tyargs)
+                      let (tyid2, arity_expected) = tyopac2 in
+                      let arity_actual = List.length tyargs in
+                      if arity_actual = arity_expected then
+                        let is_bad =
+                          match tyid2 with
+                          | TypeID.Opaque(oid) ->
+                              oidset1 |> OpaqueIDSet.mem oid
+
+                          | TypeID.Variant(_) ->
+                              failwith "TODO: MModProjType, Variant"
+
+                          | TypeID.Synonym(_) ->
+                              failwith "TODO: MModProjType, Synonym"
+                        in
+                        if is_bad then
+                          raise (OpaqueIDExtrudesScopeViaType(rng, tyopac2))
+                        else
+                        DataType(tyid2, tyargs)
+                      else
+                        let (_, tynm2) = tyident2 in
+                        raise (InvalidNumberOfTypeArguments(rng, tynm2, arity_expected, arity_actual))
                 end
           end
     in
@@ -1723,7 +1741,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
 
               | Some((_, modsig2) as absmodsig2) ->
                   if opaque_occurs oidset1 modsig2 then
-                    raise (OpaqueIDCannotExtrudeScopeViaPath(rng, absmodsig2))
+                    raise (OpaqueIDExtrudesScopeViaSignature(rng, absmodsig2))
                   else
                     absmodsig2
                     (* Combining typing rules (P-Mod) and (S-Path)
