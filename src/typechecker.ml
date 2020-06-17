@@ -372,8 +372,43 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
   aux ty
 
 
-let opaque_occurs_in_poly_type (oidset : OpaqueIDSet.t) (pty : poly_type) : bool =
-  failwith "TODO: opaque_occurs_in_poly_type"
+let rec opaque_occurs_in_poly_type (oidset : OpaqueIDSet.t) (pty : poly_type) : bool =
+  let rec aux (_, ptymain) =
+    match ptymain with
+    | BaseType(_)               -> false
+    | FuncType(ptydoms, ptycod) -> List.exists aux ptydoms || aux ptycod
+    | PidType(ptypid)           -> aux_pid ptypid
+    | EffType(ptyeff, ptysub)   -> aux_effect ptyeff || aux ptysub
+    | ListType(ptysub)          -> aux ptysub
+    | ProductType(ptys)         -> ptys |> TupleList.to_list |> List.exists aux
+
+    | DataType(tyid, ptyargs) ->
+        opaque_occurs_in_type_id oidset tyid || List.exists aux ptyargs
+
+    | TypeVar(ptv) ->
+        failwith "TODO: opaque_occurs_in_poly_type"
+
+  and aux_pid = function
+    | Pid(ty) -> aux ty
+
+  and aux_effect = function
+    | Effect(ty) -> aux ty
+
+  in
+  aux pty
+
+
+and opaque_occurs_in_type_id (oidset : OpaqueIDSet.t) (tyid : TypeID.t) : bool =
+  match tyid with
+  | TypeID.Opaque(oid) ->
+      oidset |> OpaqueIDSet.mem oid
+
+  | TypeID.Variant(vid) ->
+      false
+
+  | TypeID.Synonym(sid) ->
+      let (_, pty) = TypeSynonymStore.find_synonym_type sid in
+      opaque_occurs_in_poly_type oidset pty
 
 
 let rec opaque_occurs (oidset : OpaqueIDSet.t) (modsig : module_signature) : bool =
@@ -385,10 +420,7 @@ let rec opaque_occurs (oidset : OpaqueIDSet.t) (modsig : module_signature) : boo
           )
           ~t:(fun tydefs b ->
             b || (tydefs |> List.exists (fun (_, (tyid, _arity)) ->
-              match tyid with
-              | TypeID.Synonym(sid) -> failwith "TODO: opaque_occurs, TypeID.Synonym"
-              | TypeID.Variant(vid) -> false
-              | TypeID.Opaque(oid)  -> oidset |> OpaqueIDSet.mem oid
+              opaque_occurs_in_type_id oidset tyid
             ))
           )
           ~m:(fun _ (modsig, _) b ->
@@ -404,6 +436,11 @@ let rec opaque_occurs (oidset : OpaqueIDSet.t) (modsig : module_signature) : boo
 
   | ConcFunctor(_oidsetdom, modsigdom, (_oidsetcod, modsigcod)) ->
       opaque_occurs oidset modsigdom || opaque_occurs oidset modsigcod
+
+
+
+
+
 
 
 let get_real_type_scheme (type a) (substf : (a typ) BoundIDMap.t -> poly_type -> a typ) (sid : TypeID.Synonym.t) (tyargs : (a typ) list) : a typ =
