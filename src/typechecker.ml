@@ -372,21 +372,21 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
   aux ty
 
 
-let rec opaque_occurs_in_poly_type (oidset : OpaqueIDSet.t) (pty : poly_type) : bool =
+let opaque_occurs_in_type_scheme (type a) (tyidp : OpaqueIDSet.t -> TypeID.t -> bool) (tvp : a -> bool) (oidset : OpaqueIDSet.t) : a typ -> bool =
   let rec aux (_, ptymain) =
     match ptymain with
-    | BaseType(_)               -> false
-    | FuncType(ptydoms, ptycod) -> List.exists aux ptydoms || aux ptycod
-    | PidType(ptypid)           -> aux_pid ptypid
-    | EffType(ptyeff, ptysub)   -> aux_effect ptyeff || aux ptysub
-    | ListType(ptysub)          -> aux ptysub
-    | ProductType(ptys)         -> ptys |> TupleList.to_list |> List.exists aux
+    | BaseType(_)             -> false
+    | FuncType(tydoms, tycod) -> List.exists aux tydoms || aux tycod
+    | PidType(typid)          -> aux_pid typid
+    | EffType(tyeff, tysub)   -> aux_effect tyeff || aux tysub
+    | ListType(tysub)         -> aux tysub
+    | ProductType(tys)        -> tys |> TupleList.to_list |> List.exists aux
 
-    | DataType(tyid, ptyargs) ->
-        opaque_occurs_in_type_id oidset tyid || List.exists aux ptyargs
+    | DataType(tyid, tyargs) ->
+        tyidp oidset tyid || List.exists aux tyargs
 
-    | TypeVar(ptv) ->
-        failwith "TODO: opaque_occurs_in_poly_type"
+    | TypeVar(tv) ->
+        tvp tv
 
   and aux_pid = function
     | Pid(ty) -> aux ty
@@ -395,7 +395,23 @@ let rec opaque_occurs_in_poly_type (oidset : OpaqueIDSet.t) (pty : poly_type) : 
     | Effect(ty) -> aux ty
 
   in
-  aux pty
+  aux
+
+
+let rec opaque_occurs_in_mono_type (oidset : OpaqueIDSet.t) : mono_type -> bool =
+  let tvp : mono_type_var -> bool = function
+    | Updatable({contents = Link(ty)}) -> opaque_occurs_in_mono_type oidset ty
+    | _                                -> false
+  in
+  opaque_occurs_in_type_scheme opaque_occurs_in_type_id tvp oidset
+
+
+and opaque_occurs_in_poly_type (oidset : OpaqueIDSet.t) : poly_type -> bool =
+  let tvp : poly_type_var -> bool = function
+    | Mono(Updatable({contents = Link(ty)})) -> opaque_occurs_in_mono_type oidset ty
+    | _                                      -> false
+  in
+  opaque_occurs_in_type_scheme opaque_occurs_in_type_id tvp oidset
 
 
 and opaque_occurs_in_type_id (oidset : OpaqueIDSet.t) (tyid : TypeID.t) : bool =
