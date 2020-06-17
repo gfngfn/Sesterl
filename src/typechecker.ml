@@ -34,6 +34,9 @@ exception NotASubtypeTypeOpacity              of Range.t * type_name * type_opac
 exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t * constructor_name
 exception NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t
 exception MismatchedNumberOfConstructorParameters of Range.t * constructor_name * constructor_entry * constructor_entry
+exception OpaqueIDExtrudesScopeViaValue           of Range.t * poly_type
+exception OpaqueIDExtrudesScopeViaType            of Range.t * type_opacity
+exception OpaqueIDExtrudesScopeViaSignature       of Range.t * module_signature abstracted
 
 module BindingMap = Map.Make(String)
 
@@ -370,6 +373,93 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
   aux ty
 
 
+let opaque_occurs_in_type_scheme (type a) (tyidp : OpaqueIDSet.t -> TypeID.t -> bool) (tvp : a -> bool) (oidset : OpaqueIDSet.t) : a typ -> bool =
+  let rec aux (_, ptymain) =
+    match ptymain with
+    | BaseType(_)             -> false
+    | FuncType(tydoms, tycod) -> List.exists aux tydoms || aux tycod
+    | PidType(typid)          -> aux_pid typid
+    | EffType(tyeff, tysub)   -> aux_effect tyeff || aux tysub
+    | ListType(tysub)         -> aux tysub
+    | ProductType(tys)        -> tys |> TupleList.to_list |> List.exists aux
+
+    | DataType(tyid, tyargs) ->
+        tyidp oidset tyid || List.exists aux tyargs
+
+    | TypeVar(tv) ->
+        tvp tv
+
+  and aux_pid = function
+    | Pid(ty) -> aux ty
+
+  and aux_effect = function
+    | Effect(ty) -> aux ty
+
+  in
+  aux
+
+
+let rec opaque_occurs_in_mono_type (oidset : OpaqueIDSet.t) : mono_type -> bool =
+  let tvp : mono_type_var -> bool = function
+    | Updatable({contents = Link(ty)}) -> opaque_occurs_in_mono_type oidset ty
+    | _                                -> false
+  in
+  opaque_occurs_in_type_scheme opaque_occurs_in_type_id tvp oidset
+
+
+and opaque_occurs_in_poly_type (oidset : OpaqueIDSet.t) : poly_type -> bool =
+  let tvp : poly_type_var -> bool = function
+    | Mono(Updatable({contents = Link(ty)})) -> opaque_occurs_in_mono_type oidset ty
+    | _                                      -> false
+  in
+  opaque_occurs_in_type_scheme opaque_occurs_in_type_id tvp oidset
+
+
+and opaque_occurs_in_type_id (oidset : OpaqueIDSet.t) (tyid : TypeID.t) : bool =
+  match tyid with
+  | TypeID.Opaque(oid) ->
+      oidset |> OpaqueIDSet.mem oid
+
+  | TypeID.Variant(vid) ->
+      false
+
+  | TypeID.Synonym(sid) ->
+      let (_, pty) = TypeSynonymStore.find_synonym_type sid in
+      opaque_occurs_in_poly_type oidset pty
+
+
+let rec opaque_occurs (oidset : OpaqueIDSet.t) (modsig : module_signature) : bool =
+  match modsig with
+  | ConcStructure(sigr) ->
+      sigr |> SigRecord.fold
+          ~v:(fun _ (pty, _) b ->
+            b || opaque_occurs_in_poly_type oidset pty
+          )
+          ~t:(fun tydefs b ->
+            b || (tydefs |> List.exists (fun (_, (tyid, _arity)) ->
+              opaque_occurs_in_type_id oidset tyid
+            ))
+          )
+          ~m:(fun _ (modsig, _) b ->
+            b || opaque_occurs oidset modsig
+          )
+          ~s:(fun _ (_oidset, modsig) b ->
+            b || opaque_occurs oidset modsig
+          )
+          ~c:(fun _ ctorentry b ->
+            b || ctorentry.parameter_types |> List.exists (opaque_occurs_in_poly_type oidset)
+          )
+          false
+
+  | ConcFunctor(_oidsetdom, modsigdom, (_oidsetcod, modsigcod)) ->
+      opaque_occurs oidset modsigdom || opaque_occurs oidset modsigcod
+
+
+
+
+
+
+
 let get_real_type_scheme (type a) (substf : (a typ) BoundIDMap.t -> poly_type -> a typ) (sid : TypeID.Synonym.t) (tyargs : (a typ) list) : a typ =
   let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
   try
@@ -606,7 +696,7 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
       | MModProjType(utmod1, tyident2, mtyargs) ->
           let (rng2, tynm2) = tyident2 in
           let (absmodsig1, _) = typecheck_module tyenv utmod1 in
-          let (_, modsig1) = absmodsig1 in
+          let (oidset1, modsig1) = absmodsig1 in
           begin
             match modsig1 with
             | ConcFunctor(_) ->
@@ -619,12 +709,22 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                   | None ->
                       raise (UndefinedTypeName(rng2, tynm2))
 
-                  | Some(tyopac) ->
+                  | Some(tyopac2) ->
                       let tyargs = mtyargs |> List.map aux in
-                      let (tyid, arity) = tyopac in
-                      assert (arity = List.length tyargs);
-                      k tyid;
-                      DataType(tyid, tyargs)
+                      let (tyid2, arity_expected) = tyopac2 in
+                      let arity_actual = List.length tyargs in
+                      if arity_actual = arity_expected then
+                        if opaque_occurs_in_type_id oidset1 tyid2 then
+                        (* Combining (T-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
+                           in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
+                           we must assert that opaque type variables do not extrude their scope.
+                        *)
+                          raise (OpaqueIDExtrudesScopeViaType(rng, tyopac2))
+                        else
+                          DataType(tyid2, tyargs)
+                      else
+                        let (_, tynm2) = tyident2 in
+                        raise (InvalidNumberOfTypeArguments(rng, tynm2, arity_expected, arity_actual))
                 end
           end
     in
@@ -870,23 +970,31 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       ((rng, BaseType(BinaryType)), IBaseConst(BinaryByInts(ns)))
 
   | ModProjVal(utmod1, (rng2, x2)) ->
-      let (absmodsig, e1) = typecheck_module pre.tyenv utmod1 in
-      let (_oidset, modsig) = absmodsig in
+      let (absmodsig1, e1) = typecheck_module pre.tyenv utmod1 in
+      let (oidset1, modsig1) = absmodsig1 in
       begin
-        match modsig with
+        match modsig1 with
         | ConcFunctor(_) ->
             let (rng1, _) = utmod1 in
-            raise (NotOfStructureType(rng1, modsig))
+            raise (NotOfStructureType(rng1, modsig1))
 
-        | ConcStructure(sigr) ->
+        | ConcStructure(sigr1) ->
             begin
-              match sigr |> SigRecord.find_val x2 with
+              match sigr1 |> SigRecord.find_val x2 with
               | None ->
                   raise (UnboundVariable(rng2, x2))
 
-              | Some((_, ptymain), name) ->
-                  let ty = instantiate pre.level (rng, ptymain) in
-                  (ty, IAccess(e1, name))
+              | Some((_, ptymain2), name) ->
+                  let pty2 = (rng, ptymain2) in
+                  if opaque_occurs_in_poly_type oidset1 pty2 then
+                  (* Combining (E-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
+                     in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
+                     we must assert that opaque type variables do not extrude their scope.
+                  *)
+                    raise (OpaqueIDExtrudesScopeViaValue(rng, pty2))
+                  else
+                    let ty = instantiate pre.level pty2 in
+                    (ty, IAccess(e1, name))
             end
       end
 
@@ -1651,35 +1759,54 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
             raise (UnboundSignatureName(rng, signm))
 
         | Some(absmodsig) ->
+          (* TODO: we need to rename opaque ID sets here.
+             Otherwise, we mistakenly make the  following program pass:
+
+             ```
+             signature S = sig
+               type t:: 0
+             end
+
+             module F = fun(X: S) -> fun(Y: S) -> struct
+               type f(x: X.t): Y.t = x
+             end
+             ```
+
+             This issue was reported by `@elpinal`:
+             https://twitter.com/elpin1al/status/1269198048967589889?s=20
+          *)
             absmodsig
       end
 
-  | SigPath(utmod, sigident) ->
-      let (absmodsig1, _e) = typecheck_module tyenv utmod in
-      let (_oidset1, modsig1) = absmodsig1 in
+  | SigPath(utmod1, sigident2) ->
+      let (absmodsig1, _e) = typecheck_module tyenv utmod1 in
+      let (oidset1, modsig1) = absmodsig1 in
       begin
         match modsig1 with
         | ConcFunctor(_) ->
-            let (rng1, _) = utmod in
+            let (rng1, _) = utmod1 in
             raise (NotOfStructureType(rng1, modsig1))
 
         | ConcStructure(sigr1) ->
-            let (rng2, signm2) = sigident in
+            let (rng2, signm2) = sigident2 in
             begin
               match sigr1 |> SigRecord.find_signature signm2 with
               | None ->
                   raise (UnboundSignatureName(rng2, signm2))
 
               | Some((_, modsig2) as absmodsig2) ->
-                  begin
-                    match modsig2 with
-                    | ConcFunctor(_)   -> raise (NotAStructureSignature(rng2, modsig2))
-                    | ConcStructure(_) -> absmodsig2
-                  end
+                  if opaque_occurs oidset1 modsig2 then
+                    raise (OpaqueIDExtrudesScopeViaSignature(rng, absmodsig2))
+                  else
+                    absmodsig2
                     (* Combining typing rules (P-Mod) and (S-Path)
                        in the original paper "F-ing modules" [Rossberg, Russo & Dreyer 2014],
-                       we can ignore `oldset1` here.
-                       (we have noticed this thanks to `@elpinal`.)
+                       we can ignore `oidset1` here.
+                       However, we CANNOT SIMPLY ignore `oidset1`;
+                       according to the second premise “Γ ⊢ Σ : Ω” of (P-Mod),
+                       we must assert `absmodsig2` do not contain every type variable in `oidset1`.
+                       (we have again realized this thanks to `@elpinal`.)
+                       https://twitter.com/elpin1al/status/1272110415435010048?s=20
                      *)
             end
       end
