@@ -715,6 +715,10 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                       let arity_actual = List.length tyargs in
                       if arity_actual = arity_expected then
                         if opaque_occurs_in_type_id oidset1 tyid2 then
+                        (* Combining (T-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
+                           in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
+                           we must assert that opaque type variables do not extrude their scope.
+                        *)
                           raise (OpaqueIDExtrudesScopeViaType(rng, tyopac2))
                         else
                           DataType(tyid2, tyargs)
@@ -983,6 +987,10 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
               | Some((_, ptymain2), name) ->
                   let pty2 = (rng, ptymain2) in
                   if opaque_occurs_in_poly_type oidset1 pty2 then
+                  (* Combining (E-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
+                     in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
+                     we must assert that opaque type variables do not extrude their scope.
+                  *)
                     raise (OpaqueIDExtrudesScopeViaValue(rng, pty2))
                   else
                     let ty = instantiate pre.level pty2 in
