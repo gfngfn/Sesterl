@@ -34,6 +34,7 @@ exception NotASubtypeTypeOpacity              of Range.t * type_name * type_opac
 exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t * constructor_name
 exception NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t
 exception MismatchedNumberOfConstructorParameters of Range.t * constructor_name * constructor_entry * constructor_entry
+exception OpaqueIDExtrudesScopeViaValue           of Range.t * poly_type
 exception OpaqueIDExtrudesScopeViaType            of Range.t * type_opacity
 exception OpaqueIDExtrudesScopeViaSignature       of Range.t * module_signature abstracted
 
@@ -965,23 +966,27 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       ((rng, BaseType(BinaryType)), IBaseConst(BinaryByInts(ns)))
 
   | ModProjVal(utmod1, (rng2, x2)) ->
-      let (absmodsig, e1) = typecheck_module pre.tyenv utmod1 in
-      let (_oidset, modsig) = absmodsig in
+      let (absmodsig1, e1) = typecheck_module pre.tyenv utmod1 in
+      let (oidset1, modsig1) = absmodsig1 in
       begin
-        match modsig with
+        match modsig1 with
         | ConcFunctor(_) ->
             let (rng1, _) = utmod1 in
-            raise (NotOfStructureType(rng1, modsig))
+            raise (NotOfStructureType(rng1, modsig1))
 
-        | ConcStructure(sigr) ->
+        | ConcStructure(sigr1) ->
             begin
-              match sigr |> SigRecord.find_val x2 with
+              match sigr1 |> SigRecord.find_val x2 with
               | None ->
                   raise (UnboundVariable(rng2, x2))
 
-              | Some((_, ptymain), name) ->
-                  let ty = instantiate pre.level (rng, ptymain) in
-                  (ty, IAccess(e1, name))
+              | Some((_, ptymain2), name) ->
+                  let pty2 = (rng, ptymain2) in
+                  if opaque_occurs_in_poly_type oidset1 pty2 then
+                    raise (OpaqueIDExtrudesScopeViaValue(rng, pty2))
+                  else
+                    let ty = instantiate pre.level pty2 in
+                    (ty, IAccess(e1, name))
             end
       end
 
