@@ -44,7 +44,7 @@ letrec fact(n) =
 
 let is_even_nat(n) =
   letrec odd(n) =
-    if n <= 0 then even(n - 1)
+    if n == 0 then false else even(n - 1)
 
   andrec even(n) =
     if n == 0 then true else odd(n - 1)
