@@ -713,21 +713,10 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                       let (tyid2, arity_expected) = tyopac2 in
                       let arity_actual = List.length tyargs in
                       if arity_actual = arity_expected then
-                        let is_bad =
-                          match tyid2 with
-                          | TypeID.Opaque(oid) ->
-                              oidset1 |> OpaqueIDSet.mem oid
-
-                          | TypeID.Variant(_) ->
-                              failwith "TODO: MModProjType, Variant"
-
-                          | TypeID.Synonym(_) ->
-                              failwith "TODO: MModProjType, Synonym"
-                        in
-                        if is_bad then
+                        if opaque_occurs_in_type_id oidset1 tyid2 then
                           raise (OpaqueIDExtrudesScopeViaType(rng, tyopac2))
                         else
-                        DataType(tyid2, tyargs)
+                          DataType(tyid2, tyargs)
                       else
                         let (_, tynm2) = tyident2 in
                         raise (InvalidNumberOfTypeArguments(rng, tynm2, arity_expected, arity_actual))
