@@ -45,6 +45,6 @@ let main() =
   in
   let size = tree_size(tr) in
   let _ = print_debug(size) in
-  let t = OddCons(3, Nil) in
+  let t = OddCons(3, Nil()) in
   let _ = print_debug(t) in
   ()
