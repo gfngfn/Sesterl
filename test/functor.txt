@@ -1,0 +1,9 @@
+
+signature S = sig
+  type t:: 0
+end
+
+module F = fun(X: S) -> fun(Y: S) -> struct
+  let f(x: X.t): X.t = x
+  let g(y: Y.t): Y.t = y
+end
