@@ -1603,16 +1603,32 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
                       let ptyreal_to = ptyreal_from |> substitute_poly_type wtmap in
                       begin
                         match wtmap |> WitnessMap.find_synonym sid_from with
-                        | Some(sid_to) ->
-                            TypeSynonymStore.add_synonym_type sid_to typarams ptyreal_to;
-                          (TypeID.Synonym(sid_to), arity)
-
                         | None ->
                             assert false
+
+                        | Some(sid_to) ->
+                            TypeSynonymStore.add_synonym_type sid_to typarams ptyreal_to;
+                            (TypeID.Synonym(sid_to), arity)
                       end
 
-                  | TypeID.Variant(vid) ->
-                      failwith "TODO: substitute_concrete, Variant"
+                  | TypeID.Variant(vid_from) ->
+                      begin
+                        match wtmap |> WitnessMap.find_variant vid_from with
+                        | None ->
+                            assert false
+
+                        | Some(vid_to) ->
+                            let (typarams, ctorbrs_from) = TypeSynonymStore.find_variant_type vid_from in
+                            let ctorbrs_to =
+                              ConstructorMap.fold (fun ctornm (_, ptyargs_from) ctorbrs_to ->
+                                let ptyargs_to = ptyargs_from |> List.map (substitute_poly_type wtmap) in
+                                let ctorid_to = ConstructorID.make ctornm in
+                                ctorbrs_to |> ConstructorMap.add ctornm (ctorid_to, ptyargs_to)
+                              ) ctorbrs_from ConstructorMap.empty
+                            in
+                            TypeSynonymStore.add_variant_type vid_to typarams ctorbrs_to;
+                            (TypeID.Variant(vid_to), arity)
+                      end
 
                   | TypeID.Opaque(oid) ->
                       begin
