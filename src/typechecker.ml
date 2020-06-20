@@ -1341,7 +1341,66 @@ and subtype_poly_type (wtmap : WitnessMap.t) (pty1 : poly_type) (pty2 : poly_typ
 
 
 and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
-  failwith "TODO: poly_type_equal"
+  let rec aux (pty1 : poly_type) (pty2 : poly_type) : bool =
+    let (_, ptymain1) = pty1 in
+    let (_, ptymain2) = pty2 in
+    match (ptymain1, ptymain2) with
+    | (DataType(TypeID.Synonym(sid1), ptyargs1), _) ->
+        let pty1real = get_real_poly_type sid1 ptyargs1 in
+        aux pty1real pty2
+
+    | (_, DataType(TypeID.Synonym(sid2), ptyargs2)) ->
+        let pty2real = get_real_poly_type sid2 ptyargs2 in
+        aux pty1 pty2real
+
+    | (DataType(TypeID.Opaque(oid1), ptyargs1), DataType(TypeID.Opaque(oid2), ptyargs2)) ->
+        TypeID.Opaque.equal oid1 oid2 && aux_list ptyargs1 ptyargs2
+
+    | (BaseType(bty1), BaseType(bty2)) ->
+        bty1 = bty2
+
+    | (FuncType(pty1doms, pty1cod), FuncType(pty2doms, pty2cod)) ->
+        aux_list pty1doms pty2doms && aux pty1cod pty2cod
+
+    | (EffType(peff1, ptysub1), EffType(peff2, ptysub2)) ->
+        aux_effect peff1 peff2 && aux ptysub1 ptysub2
+
+    | (PidType(ppidty1), PidType(ppidty2)) ->
+        aux_pid_type ppidty1 ppidty2
+
+    | (ProductType(ptys1), ProductType(ptys2)) ->
+        aux_list (ptys1 |> TupleList.to_list) (ptys2 |> TupleList.to_list)
+
+    | (ListType(pty1), ListType(pty2)) ->
+        aux pty1 pty2
+
+    | (DataType(TypeID.Variant(vid1), ptyargs1), DataType(TypeID.Variant(vid2), ptyargs2)) ->
+        TypeID.Variant.equal vid1 vid2 && aux_list ptyargs1 ptyargs2
+
+    | (TypeVar(Bound(bid1)), TypeVar(Bound(bid2))) ->
+        BoundID.equal bid1 bid2
+
+    | (TypeVar(Mono(_)), _)
+    | (_, TypeVar(Mono(_))) ->
+        assert false
+
+    | _ ->
+        false
+
+  and aux_list tys1 tys2 =
+    try
+      List.fold_left2 (fun b ty1 ty2 -> b && aux ty1 ty2) true tys1 tys2
+    with
+    | Invalid_argument(_) -> false
+
+  and aux_effect (Effect(pty1)) (Effect(pty2)) =
+    aux pty1 pty2
+
+  and aux_pid_type (Pid(pty1)) (Pid(pty2)) =
+    aux pty1 pty2
+
+  in
+  aux pty1 pty2
 
 
 and subtype_type_abstraction (wtmap : WitnessMap.t) (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : bool =
