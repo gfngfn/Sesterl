@@ -1205,7 +1205,7 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorMap.empty
 
 
-and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> BoundID.t -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
+and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> poly_type -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
   let rec aux pty1 pty2 =
 (*
   Format.printf "subtype_poly_type_scheme > aux: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
@@ -1248,8 +1248,8 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> Bo
     | (ListType(ptysub1), ListType(ptysub2)) ->
         aux ptysub1 ptysub2
 
-    | (TypeVar(Bound(bid1)), TypeVar(Bound(bid2))) ->
-        internbid bid2 bid1
+    | (TypeVar(Bound(bid1)), _) ->
+        internbid bid1 pty2
 
     | (DataType(TypeID.Variant(vid1), ptyargs1), DataType(TypeID.Variant(vid2), ptyargs2)) ->
         begin
@@ -1304,9 +1304,6 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> Bo
               end
         end
 
-    | (TypeVar(Bound(bid1)), _) ->
-        failwith "TODO: subtype_poly_type_scheme, (Bound, !Bound)"
-
     | _ ->
         false
 
@@ -1335,12 +1332,16 @@ and subtype_poly_type (wtmap : WitnessMap.t) (pty1 : poly_type) (pty2 : poly_typ
   Format.printf "subtype_poly_type: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
 *)
   let hashtable = BoundIDHashTable.create 32 in
-  let internbid bid2 bid1 =
-    match BoundIDHashTable.find_opt hashtable bid2 with
-    | None      -> BoundIDHashTable.add hashtable bid2 bid1; true
-    | Some(bid) -> BoundID.equal bid bid1
+  let internbid (bid1 : BoundID.t) (pty2 : poly_type) : bool =
+    match BoundIDHashTable.find_opt hashtable bid1 with
+    | None      -> BoundIDHashTable.add hashtable bid1 pty2; true
+    | Some(pty) -> poly_type_equal pty pty2
   in
   subtype_poly_type_scheme wtmap internbid pty1 pty2
+
+
+and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
+  failwith "TODO: poly_type_equal"
 
 
 and subtype_type_abstraction (wtmap : WitnessMap.t) (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : bool =
@@ -1359,10 +1360,17 @@ and subtype_type_abstraction (wtmap : WitnessMap.t) (ptyfun1 : BoundID.t list * 
           map |> BoundIDMap.add bid2 bid1
         ) BoundIDMap.empty
       in
-      let internbid bid2 bid1 =
-        match map |> BoundIDMap.find_opt bid2 with
-        | None      -> false
-        | Some(bid) -> BoundID.equal bid bid1
+      let internbid (bid1 : BoundID.t) (pty2 : poly_type) : bool =
+        match pty2 with
+        | (_, TypeVar(Bound(bid2))) ->
+            begin
+              match map |> BoundIDMap.find_opt bid1 with
+              | None      -> false
+              | Some(bid) -> BoundID.equal bid bid2
+            end
+
+        | _ ->
+            false
       in
       subtype_poly_type_scheme wtmap internbid pty1 pty2
 
