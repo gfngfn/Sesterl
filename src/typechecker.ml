@@ -1832,6 +1832,20 @@ and typecheck_declaration_list (tyenv : Typeenv.t) (utdecls : untyped_declaratio
   (oidsetacc, sigracc)
 
 
+and copy_abstract_signature (absmodsig_from : module_signature abstracted) : module_signature abstracted =
+  let (oidset_from, modsig_from) = absmodsig_from in
+  let (oidset_to, wtmap) =
+    OpaqueIDSet.fold (fun oid_from (oidset_to, wtmap) ->
+      let oid_to = TypeID.Opaque.fresh "(nameO)" in
+      let oidset_to = oidset_to |> OpaqueIDSet.add oid_to in
+      let wtmap = wtmap |> WitnessMap.add_opaque oid_from (TypeID.Opaque(oid_to)) in
+      (oidset_to, wtmap)
+    ) oidset_from (OpaqueIDSet.empty, WitnessMap.empty)
+  in
+  let modsig_to = substitute_concrete wtmap modsig_from in
+  (oidset_to, modsig_to)
+
+
 and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
   let (rng, utsigmain) = utsig in
   match utsigmain with
@@ -1842,23 +1856,23 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
             raise (UnboundSignatureName(rng, signm))
 
         | Some(absmodsig) ->
-          (* TODO: we need to rename opaque ID sets here.
-             Otherwise, we mistakenly make the  following program pass:
+            copy_abstract_signature absmodsig
+              (* We need to rename opaque IDs here, since otherwise
+                 we would mistakenly make the following program pass:
 
-             ```
-             signature S = sig
-               type t:: 0
-             end
+                 ```
+                 signature S = sig
+                   type t:: 0
+                 end
 
-             module F = fun(X: S) -> fun(Y: S) -> struct
-               type f(x: X.t): Y.t = x
-             end
-             ```
+                 module F = fun(X: S) -> fun(Y: S) -> struct
+                   type f(x: X.t): Y.t = x
+                 end
+                 ```
 
-             This issue was reported by `@elpinal`:
-             https://twitter.com/elpin1al/status/1269198048967589889?s=20
-          *)
-            absmodsig
+                 This issue was reported by `@elpinal`:
+                 https://twitter.com/elpin1al/status/1269198048967589889?s=20
+              *)
       end
 
   | SigPath(utmod1, sigident2) ->
