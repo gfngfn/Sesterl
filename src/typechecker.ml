@@ -1205,7 +1205,7 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorMap.empty
 
 
-and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> BoundID.t -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
+and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> poly_type -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
   let rec aux pty1 pty2 =
 (*
   Format.printf "subtype_poly_type_scheme > aux: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
@@ -1248,8 +1248,8 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> Bo
     | (ListType(ptysub1), ListType(ptysub2)) ->
         aux ptysub1 ptysub2
 
-    | (TypeVar(Bound(bid1)), TypeVar(Bound(bid2))) ->
-        internbid bid2 bid1
+    | (TypeVar(Bound(bid1)), _) ->
+        internbid bid1 pty2
 
     | (DataType(TypeID.Variant(vid1), ptyargs1), DataType(TypeID.Variant(vid2), ptyargs2)) ->
         begin
@@ -1304,9 +1304,6 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> Bo
               end
         end
 
-    | (TypeVar(Bound(bid1)), _) ->
-        failwith "TODO: subtype_poly_type_scheme, (Bound, !Bound)"
-
     | _ ->
         false
 
@@ -1335,12 +1332,75 @@ and subtype_poly_type (wtmap : WitnessMap.t) (pty1 : poly_type) (pty2 : poly_typ
   Format.printf "subtype_poly_type: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
 *)
   let hashtable = BoundIDHashTable.create 32 in
-  let internbid bid2 bid1 =
-    match BoundIDHashTable.find_opt hashtable bid2 with
-    | None      -> BoundIDHashTable.add hashtable bid2 bid1; true
-    | Some(bid) -> BoundID.equal bid bid1
+  let internbid (bid1 : BoundID.t) (pty2 : poly_type) : bool =
+    match BoundIDHashTable.find_opt hashtable bid1 with
+    | None      -> BoundIDHashTable.add hashtable bid1 pty2; true
+    | Some(pty) -> poly_type_equal pty pty2
   in
   subtype_poly_type_scheme wtmap internbid pty1 pty2
+
+
+and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
+  let rec aux (pty1 : poly_type) (pty2 : poly_type) : bool =
+    let (_, ptymain1) = pty1 in
+    let (_, ptymain2) = pty2 in
+    match (ptymain1, ptymain2) with
+    | (DataType(TypeID.Synonym(sid1), ptyargs1), _) ->
+        let pty1real = get_real_poly_type sid1 ptyargs1 in
+        aux pty1real pty2
+
+    | (_, DataType(TypeID.Synonym(sid2), ptyargs2)) ->
+        let pty2real = get_real_poly_type sid2 ptyargs2 in
+        aux pty1 pty2real
+
+    | (DataType(TypeID.Opaque(oid1), ptyargs1), DataType(TypeID.Opaque(oid2), ptyargs2)) ->
+        TypeID.Opaque.equal oid1 oid2 && aux_list ptyargs1 ptyargs2
+
+    | (BaseType(bty1), BaseType(bty2)) ->
+        bty1 = bty2
+
+    | (FuncType(pty1doms, pty1cod), FuncType(pty2doms, pty2cod)) ->
+        aux_list pty1doms pty2doms && aux pty1cod pty2cod
+
+    | (EffType(peff1, ptysub1), EffType(peff2, ptysub2)) ->
+        aux_effect peff1 peff2 && aux ptysub1 ptysub2
+
+    | (PidType(ppidty1), PidType(ppidty2)) ->
+        aux_pid_type ppidty1 ppidty2
+
+    | (ProductType(ptys1), ProductType(ptys2)) ->
+        aux_list (ptys1 |> TupleList.to_list) (ptys2 |> TupleList.to_list)
+
+    | (ListType(pty1), ListType(pty2)) ->
+        aux pty1 pty2
+
+    | (DataType(TypeID.Variant(vid1), ptyargs1), DataType(TypeID.Variant(vid2), ptyargs2)) ->
+        TypeID.Variant.equal vid1 vid2 && aux_list ptyargs1 ptyargs2
+
+    | (TypeVar(Bound(bid1)), TypeVar(Bound(bid2))) ->
+        BoundID.equal bid1 bid2
+
+    | (TypeVar(Mono(_)), _)
+    | (_, TypeVar(Mono(_))) ->
+        assert false
+
+    | _ ->
+        false
+
+  and aux_list tys1 tys2 =
+    try
+      List.fold_left2 (fun b ty1 ty2 -> b && aux ty1 ty2) true tys1 tys2
+    with
+    | Invalid_argument(_) -> false
+
+  and aux_effect (Effect(pty1)) (Effect(pty2)) =
+    aux pty1 pty2
+
+  and aux_pid_type (Pid(pty1)) (Pid(pty2)) =
+    aux pty1 pty2
+
+  in
+  aux pty1 pty2
 
 
 and subtype_type_abstraction (wtmap : WitnessMap.t) (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : bool =
@@ -1359,10 +1419,17 @@ and subtype_type_abstraction (wtmap : WitnessMap.t) (ptyfun1 : BoundID.t list * 
           map |> BoundIDMap.add bid2 bid1
         ) BoundIDMap.empty
       in
-      let internbid bid2 bid1 =
-        match map |> BoundIDMap.find_opt bid2 with
-        | None      -> false
-        | Some(bid) -> BoundID.equal bid bid1
+      let internbid (bid1 : BoundID.t) (pty2 : poly_type) : bool =
+        match pty2 with
+        | (_, TypeVar(Bound(bid2))) ->
+            begin
+              match map |> BoundIDMap.find_opt bid1 with
+              | None      -> false
+              | Some(bid) -> BoundID.equal bid bid2
+            end
+
+        | _ ->
+            false
       in
       subtype_poly_type_scheme wtmap internbid pty1 pty2
 
@@ -1595,16 +1662,32 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
                       let ptyreal_to = ptyreal_from |> substitute_poly_type wtmap in
                       begin
                         match wtmap |> WitnessMap.find_synonym sid_from with
-                        | Some(sid_to) ->
-                            TypeSynonymStore.add_synonym_type sid_to typarams ptyreal_to;
-                          (TypeID.Synonym(sid_to), arity)
-
                         | None ->
                             assert false
+
+                        | Some(sid_to) ->
+                            TypeSynonymStore.add_synonym_type sid_to typarams ptyreal_to;
+                            (TypeID.Synonym(sid_to), arity)
                       end
 
-                  | TypeID.Variant(vid) ->
-                      failwith "TODO: substitute_concrete, Variant"
+                  | TypeID.Variant(vid_from) ->
+                      begin
+                        match wtmap |> WitnessMap.find_variant vid_from with
+                        | None ->
+                            assert false
+
+                        | Some(vid_to) ->
+                            let (typarams, ctorbrs_from) = TypeSynonymStore.find_variant_type vid_from in
+                            let ctorbrs_to =
+                              ConstructorMap.fold (fun ctornm (_, ptyargs_from) ctorbrs_to ->
+                                let ptyargs_to = ptyargs_from |> List.map (substitute_poly_type wtmap) in
+                                let ctorid_to = ConstructorID.make ctornm in
+                                ctorbrs_to |> ConstructorMap.add ctornm (ctorid_to, ptyargs_to)
+                              ) ctorbrs_from ConstructorMap.empty
+                            in
+                            TypeSynonymStore.add_variant_type vid_to typarams ctorbrs_to;
+                            (TypeID.Variant(vid_to), arity)
+                      end
 
                   | TypeID.Opaque(oid) ->
                       begin
@@ -1749,6 +1832,20 @@ and typecheck_declaration_list (tyenv : Typeenv.t) (utdecls : untyped_declaratio
   (oidsetacc, sigracc)
 
 
+and copy_abstract_signature (absmodsig_from : module_signature abstracted) : module_signature abstracted =
+  let (oidset_from, modsig_from) = absmodsig_from in
+  let (oidset_to, wtmap) =
+    OpaqueIDSet.fold (fun oid_from (oidset_to, wtmap) ->
+      let oid_to = TypeID.Opaque.fresh "(nameO)" in
+      let oidset_to = oidset_to |> OpaqueIDSet.add oid_to in
+      let wtmap = wtmap |> WitnessMap.add_opaque oid_from (TypeID.Opaque(oid_to)) in
+      (oidset_to, wtmap)
+    ) oidset_from (OpaqueIDSet.empty, WitnessMap.empty)
+  in
+  let modsig_to = substitute_concrete wtmap modsig_from in
+  (oidset_to, modsig_to)
+
+
 and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
   let (rng, utsigmain) = utsig in
   match utsigmain with
@@ -1759,23 +1856,23 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
             raise (UnboundSignatureName(rng, signm))
 
         | Some(absmodsig) ->
-          (* TODO: we need to rename opaque ID sets here.
-             Otherwise, we mistakenly make the  following program pass:
+            copy_abstract_signature absmodsig
+              (* We need to rename opaque IDs here, since otherwise
+                 we would mistakenly make the following program pass:
 
-             ```
-             signature S = sig
-               type t:: 0
-             end
+                 ```
+                 signature S = sig
+                   type t:: 0
+                 end
 
-             module F = fun(X: S) -> fun(Y: S) -> struct
-               type f(x: X.t): Y.t = x
-             end
-             ```
+                 module F = fun(X: S) -> fun(Y: S) -> struct
+                   type f(x: X.t): Y.t = x
+                 end
+                 ```
 
-             This issue was reported by `@elpinal`:
-             https://twitter.com/elpin1al/status/1269198048967589889?s=20
-          *)
-            absmodsig
+                 This issue was reported by `@elpinal`:
+                 https://twitter.com/elpin1al/status/1269198048967589889?s=20
+              *)
       end
 
   | SigPath(utmod1, sigident2) ->
