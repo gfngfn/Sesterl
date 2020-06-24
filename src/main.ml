@@ -21,7 +21,8 @@ let rec display_signature (depth : int) (modsig : module_signature) : unit =
       display_structure (depth + 1) sigr;
       Format.printf "%send\n" indent
 
-  | ConcFunctor(oidset1, Domain(sigr1), (oidset2, modsigcod)) ->
+  | ConcFunctor(sigftor) ->
+      let (oidset1, Domain(sigr1), (oidset2, modsigcod)) = (sigftor.opaques, sigftor.domain, sigftor.codomain) in
       let modsigdom = ConcStructure(sigr1) in
       let sx1 = stringify_opaque_id_set oidset1 in
       let sx2 = stringify_opaque_id_set oidset2 in

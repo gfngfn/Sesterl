@@ -434,7 +434,9 @@ let rec opaque_occurs (oidset : OpaqueIDSet.t) (modsig : module_signature) : boo
   | ConcStructure(sigr) ->
       opaque_occurs_in_structure oidset sigr
 
-  | ConcFunctor(_oidsetdom, Domain(sigr), (_oidsetcod, modsigcod)) ->
+  | ConcFunctor(sigftor) ->
+      let Domain(sigr) = sigftor.domain in
+      let (_oidsetcod, modsigcod) = sigftor.codomain in
       opaque_occurs_in_structure oidset sigr || opaque_occurs oidset modsigcod
 
 
@@ -1560,7 +1562,9 @@ and subtype_abstract_with_abstract (rng : Range.t) (absmodsig1 : module_signatur
 
 and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsig1 : module_signature) (modsig2 : module_signature) : unit =
   match (modsig1, modsig2) with
-  | (ConcFunctor(oidset1, Domain(sigr1), absmodsigcod1), ConcFunctor(oidset2, Domain(sigr2), absmodsigcod2)) ->
+  | (ConcFunctor(sigftor1), ConcFunctor(sigftor2)) ->
+      let (oidset1, Domain(sigr1), absmodsigcod1) = (sigftor1.opaques, sigftor1.domain, sigftor1.codomain) in
+      let (oidset2, Domain(sigr2), absmodsigcod2) = (sigftor2.opaques, sigftor2.domain, sigftor2.codomain) in
       let wtmap =
         let modsigdom1 = ConcStructure(sigr1) in
         let modsigdom2 = ConcStructure(sigr2) in
@@ -1633,10 +1637,18 @@ and subtype_signature (rng : Range.t) (modsig1 : module_signature) (absmodsig2 :
 
 and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : module_signature =
   match modsig with
-  | ConcFunctor(oidset, Domain(sigr), absmodsigcod) ->
+  | ConcFunctor(sigftor) ->
+      let (oidset, Domain(sigr), absmodsigcod) = (sigftor.opaques, sigftor.domain, sigftor.codomain) in
       let sigr = sigr |> substitute_structure wtmap in
       let absmodsigcod = absmodsigcod |> substitute_abstract wtmap in
-      ConcFunctor(oidset, Domain(sigr), absmodsigcod)
+      let sigftor =
+        { sigftor with
+          opaques  = oidset;
+          domain   = Domain(sigr);
+          codomain = absmodsigcod;
+        }
+      in
+      ConcFunctor(sigftor)
     (* -- Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. -- *)
 
   | ConcStructure(sigr) ->
@@ -1935,8 +1947,19 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
       in
       begin
         match sigdom with
-        | ConcStructure(sigr) -> (OpaqueIDSet.empty, ConcFunctor(oidset, Domain(sigr), abssigcod))
-        | _                   -> raise (SupportOnlyFirstOrderFunctor(rng))
+        | ConcStructure(sigr) ->
+            let sigftor =
+              {
+                opaques  = oidset;
+                domain   = Domain(sigr);
+                codomain = abssigcod;
+                closure  = None;
+              }
+            in
+            (OpaqueIDSet.empty, ConcFunctor(sigftor))
+
+        | _ ->
+            raise (SupportOnlyFirstOrderFunctor(rng))
       end
 
   | SigWith(utsig0, modidents, tyident1, tyvaridents, mty) ->
@@ -2211,8 +2234,20 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       let absmodsig =
         begin
           match modsigdom with
-          | ConcStructure(sigr) -> (OpaqueIDSet.empty, ConcFunctor(oidset, Domain(sigr), absmodsigcod))
-          | _                   -> raise (SupportOnlyFirstOrderFunctor(rng))
+          | ConcStructure(sigrdom) ->
+              let sigrenv = tyenv |> (failwith "TODO: how to convert type environments into signature records") in
+              let sigftor =
+                {
+                  opaques  = oidset;
+                  domain   = Domain(sigrdom);
+                  codomain = absmodsigcod;
+                  closure  = Some(modident, utmod0, sigrenv);
+                }
+              in
+              (OpaqueIDSet.empty, ConcFunctor(sigftor))
+
+          | _ ->
+              raise (SupportOnlyFirstOrderFunctor(rng))
         end
       in
       let e = ILambda(None, [name], e0) in
@@ -2227,7 +2262,8 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
             let (rng1, _) = modident1 in
             raise (NotOfFunctorType(rng1, modsig1))
 
-        | ConcFunctor(oidset, Domain(sigr1), absmodsigcod1) ->
+        | ConcFunctor(sigftor1) ->
+            let (oidset, Domain(sigr1), absmodsigcod1) = (sigftor1.opaques, sigftor1.domain, sigftor1.codomain) in
             let (rng2, _) = modident2 in
             let wtmap =
               let modsigdom1 = ConcStructure(sigr1) in
