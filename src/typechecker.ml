@@ -975,13 +975,15 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       in
       ((rng, BaseType(BinaryType)), IBaseConst(BinaryByInts(ns)))
 
-  | ModProjVal(utmod1, (rng2, x2)) ->
-      let (absmodsig1, e1) = typecheck_module pre.tyenv utmod1 in
+  | ModProjVal(modident1, (rng2, x2)) ->
+      let (modsig1, name1) = find_module pre.tyenv modident1 in
+(*
       let (oidset1, modsig1) = absmodsig1 in
+*)
       begin
         match modsig1 with
         | ConcFunctor(_) ->
-            let (rng1, _) = utmod1 in
+            let (rng1, _) = modident1 in
             raise (NotOfStructureType(rng1, modsig1))
 
         | ConcStructure(sigr1) ->
@@ -990,8 +992,9 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
               | None ->
                   raise (UnboundVariable(rng2, x2))
 
-              | Some((_, ptymain2), name) ->
+              | Some((_, ptymain2), name2) ->
                   let pty2 = (rng, ptymain2) in
+(*
                   if opaque_occurs_in_poly_type oidset1 pty2 then
                   (* Combining (E-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
                      in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
@@ -999,8 +1002,9 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
                   *)
                     raise (OpaqueIDExtrudesScopeViaValue(rng, pty2))
                   else
+*)
                     let ty = instantiate pre.level pty2 in
-                    (ty, IAccess(e1, name))
+                    (ty, IAccess(IVar(name1), name2))
             end
       end
 
@@ -2021,7 +2025,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
       end
 
 
-and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding =
+and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding list =
   let (_, utbindmain) = utbind in
   match utbindmain with
   | BindVal(rec_or_nonrec) ->
@@ -2064,7 +2068,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             let sigr = SigRecord.empty |> SigRecord.add_val x pty name in
             (sigr, INonRec(x, name, pty, e))
       in
-      ((OpaqueIDSet.empty, sigr), IBindVal(i_rec_or_nonrec))
+      ((OpaqueIDSet.empty, sigr), [IBindVal(i_rec_or_nonrec)])
 
   | BindType([]) ->
       assert false
@@ -2149,19 +2153,19 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             sigr |> SigRecord.add_constructors vid typarams ctorbrmap
           ) sigr
         in
-        ((OpaqueIDSet.empty, sigr), IBindType)
+        ((OpaqueIDSet.empty, sigr), [])
 
   | BindModule(modident, utmod) ->
       let (_, m) = modident in
-      let (absmodsig, e) = typecheck_module tyenv utmod in
+      let (absmodsig, ibinds) = typecheck_module tyenv utmod in
       let (oidset, modsig) = absmodsig in
       let name = OutputIdentifier.fresh () in
         (* temporary; it may be appropriate to generate name from `m` *)
       let sigr = SigRecord.empty |> SigRecord.add_module m modsig name in
-      ((oidset, sigr), IBindModule(name, e))
+      ((oidset, sigr), [IBindModule(name, ibinds)])
 
   | BindInclude(utmod) ->
-      let (absmodsig, e) = typecheck_module tyenv utmod in
+      let (absmodsig, ibinds) = typecheck_module tyenv utmod in
       let (oidset, modsig) = absmodsig in
       begin
         match modsig with
@@ -2170,32 +2174,32 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             raise (NotOfStructureType(rng, modsig))
 
         | ConcStructure(sigr) ->
-            ((oidset, sigr), IBindInclude(e))
+            ((oidset, sigr), ibinds)
       end
 
   | BindSig(sigident, sigbind) ->
       let (_, signm) = sigident in
       let absmodsig = typecheck_signature tyenv sigbind in
       let sigr = SigRecord.empty |> SigRecord.add_signature signm absmodsig in
-      ((OpaqueIDSet.empty, sigr), IBindSig)
+      ((OpaqueIDSet.empty, sigr), [])
 
 
-and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signature abstracted * ast =
+and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signature abstracted * binding list =
   let (rng, utmodmain) = utmod in
   match utmodmain with
   | ModVar(m) ->
       let (modsig, name) = find_module tyenv (rng, m) in
       let absmodsig = (OpaqueIDSet.empty, modsig) in
-      (absmodsig, IVar(name))
+      (absmodsig, [])
 
   | ModBinds(utbinds) ->
       let (abssigr, ibinds) = typecheck_binding_list tyenv utbinds in
       let (oidset, sigr) = abssigr in
       let absmodsig = (oidset, ConcStructure(sigr)) in
-      (absmodsig, IStructure(ibinds))
+      (absmodsig, ibinds)
 
   | ModProjMod(utmod, modident) ->
-      let (absmodsig, e) = typecheck_module tyenv utmod in
+      let (absmodsig, ibinds) = typecheck_module tyenv utmod in
       let (oidset, modsig) = absmodsig in
       begin
         match modsig with
@@ -2212,8 +2216,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
 
               | Some(modsigp, name) ->
                   let absmodsigp = (oidset, modsigp) in
-                  let ep = IAccess(e, name) in
-                  (absmodsigp, ep)
+                  (absmodsigp, ibinds)
             end
       end
 
@@ -2222,7 +2225,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       let (oidset, modsigdom) = absmodsigdom in
       let name = OutputIdentifier.fresh () in
         (* temporary; it may be appropriate to generate name from `m` *)
-      let (absmodsigcod, e0) =
+      let (absmodsigcod, _) =
         let (_, m) = modident in
 (*
         Printf.printf "MOD-FUNCTOR %s\n" m;  (* for debug *)
@@ -2250,12 +2253,11 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
               raise (SupportOnlyFirstOrderFunctor(rng))
         end
       in
-      let e = ILambda(None, [name], e0) in
-      (absmodsig, e)
+      (absmodsig, [])
 
   | ModApply(modident1, modident2) ->
-      let (modsig1, name1) = find_module tyenv modident1 in
-      let (modsig2, name2) = find_module tyenv modident2 in
+      let (modsig1, _name1) = find_module tyenv modident1 in
+      let (modsig2, _name2) = find_module tyenv modident2 in
       begin
         match modsig1 with
         | ConcStructure(_) ->
@@ -2263,17 +2265,30 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
             raise (NotOfFunctorType(rng1, modsig1))
 
         | ConcFunctor(sigftor1) ->
-            let (oidset, Domain(sigr1), absmodsigcod1) = (sigftor1.opaques, sigftor1.domain, sigftor1.codomain) in
-            let (rng2, _) = modident2 in
-            let wtmap =
-              let modsigdom1 = ConcStructure(sigr1) in
-              subtype_signature rng2 modsig2 (oidset, modsigdom1)
-            in
+            let oidset           = sigftor1.opaques in
+            let Domain(sigrdom1) = sigftor1.domain in
+            let absmodsigcod1    = sigftor1.codomain in
+            begin
+              match sigftor1.closure with
+              | None ->
+                  assert false
 
-            WitnessMap.print wtmap;
+              | Some(modident0, utmodC, tyenv0) ->
+                  let (_, m0) = modident0 in
+                  let tyenv0 = tyenv0 |> Typeenv.add_module m0 modsig2 in
+                  let (_, tbinds) = typecheck_module tyenv0 utmodC in
 
-            let absmodsig = substitute_abstract wtmap absmodsigcod1 in
-            (absmodsig, IApply(name1, [ IVar(name2) ]))
+                  let (rng2, _) = modident2 in
+                  let wtmap =
+                    let modsigdom1 = ConcStructure(sigrdom1) in
+                    subtype_signature rng2 modsig2 (oidset, modsigdom1)
+                  in
+
+                  WitnessMap.print wtmap;
+
+                  let absmodsig = substitute_abstract wtmap absmodsigcod1 in
+                  (absmodsig, tbinds)
+            end
       end
 
   | ModCoerce(modident0, utsig) ->
@@ -2281,13 +2296,13 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       let absmodsig = typecheck_signature tyenv utsig in
       let (rng0, _) = modident0 in
       let _ = subtype_signature rng0 modsig0 absmodsig in
-      (absmodsig, IVar(name0))
+      (absmodsig, [])
 
 
 and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : SigRecord.t abstracted * binding list =
   let (_tyenv, oidsetacc, sigracc, ibindacc) =
     utbinds |> List.fold_left (fun (tyenv, oidsetacc, sigracc, ibindacc) utbind ->
-      let (abssigr, ibind) = typecheck_binding tyenv utbind in
+      let (abssigr, ibinds) = typecheck_binding tyenv utbind in
       let (oidset, sigr) = abssigr in
       let tyenv = tyenv |> update_type_environment_by_signature_record sigr in
       let oidsetacc = OpaqueIDSet.union oidsetacc oidset in
@@ -2299,7 +2314,7 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
            this operation is not disjoint union, but union with right-hand side precedence.
            For the sake of clarity, however, we adopt disjoint union here, at least for now.
            -- *)
-      let ibindacc = Alist.extend ibindacc ibind in
+      let ibindacc = Alist.append ibindacc ibinds in
       (tyenv, oidsetacc, sigracc, ibindacc)
     ) (tyenv, OpaqueIDSet.empty, SigRecord.empty, Alist.empty)
   in

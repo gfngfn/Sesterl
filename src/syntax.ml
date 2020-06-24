@@ -94,7 +94,7 @@ and untyped_ast_main =
   | Case         of untyped_ast * untyped_branch list
   | Constructor  of constructor_name * untyped_ast list
   | BinaryByList of (int ranged) list
-  | ModProjVal   of untyped_module * identifier ranged
+  | ModProjVal   of module_name ranged * identifier ranged
 
 and rec_or_nonrec =
   | NonRec of untyped_let_binding
@@ -573,6 +573,7 @@ and 'r functor_signature = {
   domain   : 'r functor_domain;
   codomain : OpaqueIDSet.t * 'r module_signature_;
   closure  : (module_name ranged * untyped_module * 'r) option;
+    (* TODO: should be `Typeenv.t` for `'r` *)
 }
 
 and 'r functor_domain =
@@ -627,10 +628,7 @@ type val_binding =
 
 and binding =
   | IBindVal     of val_binding
-  | IBindType
-  | IBindModule  of name * ast
-  | IBindSig
-  | IBindInclude of ast
+  | IBindModule  of name * binding list
 
 and ast =
   | IBaseConst   of base_constant
