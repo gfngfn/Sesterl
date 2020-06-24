@@ -566,7 +566,10 @@ module OpaqueIDHashTable = Hashtbl.Make(TypeID.Opaque)
 
 type 'r module_signature_ =
   | ConcStructure of 'r
-  | ConcFunctor   of OpaqueIDSet.t * 'r module_signature_ * (OpaqueIDSet.t * 'r module_signature_)
+  | ConcFunctor   of OpaqueIDSet.t * 'r functor_domain * (OpaqueIDSet.t * 'r module_signature_)
+
+and 'r functor_domain =
+  | Domain of 'r
 
 module ValNameMap = Map.Make(String)
 
