@@ -615,8 +615,7 @@ and ast =
   | IListNil
   | IListCons    of ast * ast
   | IConstructor of ConstructorID.t * ast list
-  | IStructure   of binding list
-  | IAccess      of ast * name
+  | IAccess      of name * name
 
 and branch =
   | IBranch of pattern * ast option * ast

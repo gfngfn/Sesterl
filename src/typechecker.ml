@@ -1003,7 +1003,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
                   else
 *)
                     let ty = instantiate pre.level pty2 in
-                    (ty, IAccess(IVar(name1), name2))
+                    (ty, IAccess(name1, name2))
             end
       end
 

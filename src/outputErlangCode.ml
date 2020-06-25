@@ -125,10 +125,7 @@ let rec stringify_ast (ast : ast) =
             Printf.sprintf "{%s, %s}" sctor (String.concat ", " ss)
       end
 
-  | IStructure(ibinds) ->
-      failwith "TODO: IStructure"
-
-  | IAccess(e0, name) ->
+  | IAccess(_name0, _name) ->
       failwith "TODO: IAccess"
 
 
