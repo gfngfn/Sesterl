@@ -13,7 +13,7 @@ let stringify_opaque_id_set oidset =
   ) oidset Alist.empty |> Alist.to_list |> List.map (fun s -> " " ^ s) |> String.concat ","
 
 
-let rec display_signature (depth : int) (modsig : module_signature) : unit =
+let rec display_signature (depth : int) (modsig : SigRecord.module_signature) : unit =
   let indent = String.make (depth * 2) ' ' in
   match modsig with
   | ConcStructure(sigr) ->

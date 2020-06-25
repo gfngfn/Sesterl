@@ -27,10 +27,10 @@ val find_constructor : constructor_name -> t -> (TypeID.Variant.t * ConstructorI
 
 val find_type : type_name -> t -> (TypeID.t * int) option
 
-val add_module : module_name -> module_signature -> name -> t -> t
+val add_module : module_name -> SigRecord.module_signature -> name -> t -> t
 
-val find_module_opt : module_name -> t -> (module_signature * name) option
+val find_module_opt : module_name -> t -> (SigRecord.module_signature * name) option
 
-val add_signature : signature_name -> module_signature abstracted -> t -> t
+val add_signature : signature_name -> SigRecord.module_signature abstracted -> t -> t
 
-val find_signature_opt : signature_name -> t -> (module_signature abstracted) option
+val find_signature_opt : signature_name -> t -> (SigRecord.module_signature abstracted) option

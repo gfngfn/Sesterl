@@ -2,6 +2,8 @@
 open Syntax
 
 
+type module_signature = SigRecord.module_signature
+
 type val_entry = {
   typ  : poly_type;
   name : name;
