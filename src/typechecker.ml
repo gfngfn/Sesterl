@@ -2156,12 +2156,17 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
 
   | BindModule(modident, utmod) ->
       let (_, m) = modident in
-      let (absmodsig, ibinds) = typecheck_module tyenv utmod in
+      let (absmodsig, ibindssub) = typecheck_module tyenv utmod in
       let (oidset, modsig) = absmodsig in
       let name = OutputIdentifier.fresh () in
         (* temporary; it may be appropriate to generate name from `m` *)
       let sigr = SigRecord.empty |> SigRecord.add_module m modsig name in
-      ((oidset, sigr), [IBindModule(name, ibinds)])
+      let ibinds =
+        match ibindssub with
+        | []     -> []
+        | _ :: _ -> [IBindModule(name, ibindssub)]
+      in
+      ((oidset, sigr), ibinds)
 
   | BindInclude(utmod) ->
       let (absmodsig, ibinds) = typecheck_module tyenv utmod in
