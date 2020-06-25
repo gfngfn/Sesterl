@@ -67,7 +67,7 @@ let add_val x pty name tyenv =
   { tyenv with vals = vals; }
 
 
-let find_val_opt x tyenv =
+let find_val x tyenv =
   tyenv.vals |> ValNameMap.find_opt x |> Option.map (fun entry ->
     entry.is_used <- true;
     (entry.typ, entry.name)
@@ -148,7 +148,7 @@ let add_module (modnm : module_name) (modsig : module_signature) (name : name) (
   }
 
 
-let find_module_opt (modnm : module_name) (tyenv : t) : (module_signature * name) option =
+let find_module (modnm : module_name) (tyenv : t) : (module_signature * name) option =
   tyenv.modules |> ModuleNameMap.find_opt modnm |> Option.map (fun modentry ->
     (modentry.mod_signature, modentry.mod_name)
   )
@@ -165,7 +165,7 @@ let add_signature (signm : signature_name) (absmodsig : module_signature abstrac
   }
 
 
-let find_signature_opt (signm : signature_name) (tyenv : t) : (module_signature abstracted) option =
+let find_signature (signm : signature_name) (tyenv : t) : (module_signature abstracted) option =
   tyenv.signatures |> SignatureNameMap.find_opt signm |> Option.map (fun sigentry ->
     sigentry.sig_signature
   )

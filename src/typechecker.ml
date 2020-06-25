@@ -174,7 +174,7 @@ end
 
 
 let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
-  match tyenv |> Typeenv.find_module_opt m with
+  match tyenv |> Typeenv.find_module m with
   | None    -> raise (UnboundModuleName(rng, m))
   | Some(v) -> v
 
@@ -797,7 +797,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
   | Var(x) ->
       begin
-        match pre.tyenv |> Typeenv.find_val_opt x with
+        match pre.tyenv |> Typeenv.find_val x with
         | None ->
             raise (UnboundVariable(rng, x))
 
@@ -1880,7 +1880,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
   match utsigmain with
   | SigVar(signm) ->
       begin
-        match tyenv |> Typeenv.find_signature_opt signm with
+        match tyenv |> Typeenv.find_signature signm with
         | None ->
             raise (UnboundSignatureName(rng, signm))
 

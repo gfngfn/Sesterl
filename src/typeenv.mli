@@ -7,7 +7,7 @@ val empty : t
 
 val add_val : identifier -> poly_type -> name -> t -> t
 
-val find_val_opt : identifier -> t -> (poly_type * name) option
+val find_val : identifier -> t -> (poly_type * name) option
 
 val is_val_properly_used : identifier -> t -> bool option
 
@@ -29,8 +29,8 @@ val find_type : type_name -> t -> (TypeID.t * int) option
 
 val add_module : module_name -> SigRecord.module_signature -> name -> t -> t
 
-val find_module_opt : module_name -> t -> (SigRecord.module_signature * name) option
+val find_module : module_name -> t -> (SigRecord.module_signature * name) option
 
 val add_signature : signature_name -> SigRecord.module_signature abstracted -> t -> t
 
-val find_signature_opt : signature_name -> t -> (SigRecord.module_signature abstracted) option
+val find_signature : signature_name -> t -> (SigRecord.module_signature abstracted) option
