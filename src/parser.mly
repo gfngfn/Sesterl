@@ -37,6 +37,7 @@
 %type<Syntax.binder list> params
 %type<Syntax.untyped_let_binding> bindvalsingle
 %type<Range.t * Syntax.rec_or_nonrec> bindvaltop
+%type<Syntax.untyped_module> modexprbot
 
 %%
 main:
@@ -288,9 +289,9 @@ exprapp:
         let (rng, ctornm) = ctor in
         (rng, Constructor(ctornm, []))
       }
-  | utmod=modexprbot; DOT; ident=IDENT {
-        let rng = make_range (Ranged(utmod)) (Ranged(ident)) in
-        (rng, ModProjVal(utmod, ident))
+  | modident=CTOR; DOT; ident=IDENT {
+        let rng = make_range (Ranged(modident)) (Ranged(ident)) in
+        (rng, ModProjVal(modident, ident))
       }
   | e=exprbot { e }
 ;

@@ -181,7 +181,7 @@ and stringify_pattern (ipat : pattern) =
       end
 
 
-let stringify_binding (bind : binding) : string list =
+let stringify_binding (ibind : binding) : string list =
   let val_single (_, namefun, _, ast) =
     match ast with
     | ILambda(None, nameparams, ast0) ->
@@ -193,24 +193,15 @@ let stringify_binding (bind : binding) : string list =
     | _ ->
         assert false
   in
-  match bind with
+  match ibind with
   | IBindVal(INonRec(valbind)) ->
       [ val_single valbind ]
 
   | IBindVal(IRec(valbinds)) ->
       valbinds |> List.map val_single
 
-  | IBindType ->
-      []
-
-  | IBindModule(name, e) ->
+  | IBindModule(name, ibinds) ->
       failwith "TODO: IBindModule"
-
-  | IBindSig ->
-      []
-
-  | IBindInclude(_) ->
-      failwith "TODO: IInclude"
 
 
 let main (modname : string) (binds : binding list) : string =
