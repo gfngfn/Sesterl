@@ -2237,13 +2237,12 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
         begin
           match modsigdom with
           | ConcStructure(sigrdom) ->
-              let sigrenv = tyenv |> (failwith "TODO: how to convert type environments into signature records") in
               let sigftor =
                 {
                   opaques  = oidset;
                   domain   = Domain(sigrdom);
                   codomain = absmodsigcod;
-                  closure  = Some(modident, utmod0, sigrenv);
+                  closure  = Some(modident, utmod0, tyenv);
                 }
               in
               (OpaqueIDSet.empty, ConcFunctor(sigftor))
@@ -2256,7 +2255,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
 
   | ModApply(modident1, modident2) ->
       let (modsig1, _name1) = find_module tyenv modident1 in
-      let (modsig2, _name2) = find_module tyenv modident2 in
+      let (modsig2, name2) = find_module tyenv modident2 in
       begin
         match modsig1 with
         | ConcStructure(_) ->
@@ -2274,13 +2273,10 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
 
               | Some(modident0, utmodC, tyenv0) ->
                   let tyenv0 =
-(*
                     let (_, m0) = modident0 in
-                    tyenv0 |> Typeenv.add_module m0 modsig2
-*)
-                    failwith "TODO"
+                    tyenv0 |> Typeenv.add_module m0 modsig2 name2
                   in
-                  let (_, tbinds) = typecheck_module tyenv0 utmodC in
+                  let (_, ibinds) = typecheck_module tyenv0 utmodC in
 
                   let (rng2, _) = modident2 in
                   let wtmap =
@@ -2291,7 +2287,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
                   WitnessMap.print wtmap;
 
                   let absmodsig = substitute_abstract wtmap absmodsigcod1 in
-                  (absmodsig, tbinds)
+                  (absmodsig, ibinds)
             end
       end
 
