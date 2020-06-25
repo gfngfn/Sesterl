@@ -202,6 +202,9 @@ let stringify_binding (ibind : binding) : string list =
 
 
 let main (modname : string) (binds : binding list) : string =
+
+  Format.printf "%a\n" (Format.pp_print_list pp_binding) binds;
+
   let sbinds = binds |> List.map stringify_binding |> List.concat in
   let lines =
     List.append [

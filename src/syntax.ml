@@ -619,3 +619,4 @@ and ast =
 
 and branch =
   | IBranch of pattern * ast option * ast
+[@@deriving show { with_path = false; } ]
