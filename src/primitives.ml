@@ -1,5 +1,6 @@
 
 open Syntax
+open Env
 
 let fresh_bound () =
   let bid = BoundID.fresh () in

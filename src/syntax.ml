@@ -564,21 +564,6 @@ module OpaqueIDMap = Map.Make(TypeID.Opaque)
 
 module OpaqueIDHashTable = Hashtbl.Make(TypeID.Opaque)
 
-type 'r module_signature_ =
-  | ConcStructure of 'r
-  | ConcFunctor   of 'r functor_signature
-
-and 'r functor_signature = {
-  opaques  : OpaqueIDSet.t;
-  domain   : 'r functor_domain;
-  codomain : OpaqueIDSet.t * 'r module_signature_;
-  closure  : (module_name ranged * untyped_module * 'r) option;
-    (* TODO: should be `Typeenv.t` for `'r` *)
-}
-
-and 'r functor_domain =
-  | Domain of 'r
-
 module ValNameMap = Map.Make(String)
 
 module TypeNameMap = Map.Make(String)

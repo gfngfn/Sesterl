@@ -1,6 +1,7 @@
 
 open MyUtil
 open Syntax
+open Env
 
 
 let pp_comma ppf () =
@@ -13,7 +14,7 @@ let stringify_opaque_id_set oidset =
   ) oidset Alist.empty |> Alist.to_list |> List.map (fun s -> " " ^ s) |> String.concat ","
 
 
-let rec display_signature (depth : int) (modsig : SigRecord.module_signature) : unit =
+let rec display_signature (depth : int) (modsig : module_signature) : unit =
   let indent = String.make (depth * 2) ' ' in
   match modsig with
   | ConcStructure(sigr) ->
@@ -249,11 +250,6 @@ let main fpath_in fpath_out =
         Range.pp rng
         signm
 
-  | Typechecker.MissingRequiredConstructor(rng, ctornm, _) ->
-      Format.printf "%a: missing required constructor '%s'\n"
-        Range.pp rng
-        ctornm
-
   | Typechecker.NotASubtype(rng, modsig1, modsig2) ->
       Format.printf "%a: not a subtype (TODO: detailed explanation)\n"
         Range.pp rng
@@ -267,11 +263,6 @@ let main fpath_in fpath_out =
       Format.printf "%a: not a subtype about constructor '%s' (TODO: detailed explanation)\n"
         Range.pp rng
         ctor
-
-  | Typechecker.MismatchedNumberOfConstructorParameters(rng, ctornm, ctorentry1, ctorentry2) ->
-      Format.printf "%a: not a subtype about constructor '%s' (TODO: detailed explanation)\n"
-        Range.pp rng
-        ctornm
 
 
 let flag_output =

@@ -1,8 +1,7 @@
 
 open MyUtil
 open Syntax
-
-type module_signature = SigRecord.module_signature
+open Env
 
 
 exception UnboundVariable                     of Range.t * identifier
@@ -2274,8 +2273,13 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
                   assert false
 
               | Some(modident0, utmodC, tyenv0) ->
-                  let (_, m0) = modident0 in
-                  let tyenv0 = tyenv0 |> Typeenv.add_module m0 modsig2 in
+                  let tyenv0 =
+(*
+                    let (_, m0) = modident0 in
+                    tyenv0 |> Typeenv.add_module m0 modsig2
+*)
+                    failwith "TODO"
+                  in
                   let (_, tbinds) = typecheck_module tyenv0 utmodC in
 
                   let (rng2, _) = modident2 in
