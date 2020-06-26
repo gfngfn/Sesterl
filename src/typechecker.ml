@@ -33,10 +33,10 @@ exception NotASubtype                         of Range.t * module_signature * mo
 exception NotASubtypeTypeOpacity              of Range.t * type_name * type_opacity * type_opacity
 exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t * constructor_name
 exception NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t
-exception OpaqueIDExtrudesScopeViaValue           of Range.t * poly_type
-exception OpaqueIDExtrudesScopeViaType            of Range.t * type_opacity
-exception OpaqueIDExtrudesScopeViaSignature       of Range.t * module_signature abstracted
-exception SupportOnlyFirstOrderFunctor            of Range.t
+exception OpaqueIDExtrudesScopeViaValue       of Range.t * poly_type
+exception OpaqueIDExtrudesScopeViaType        of Range.t * type_opacity
+exception OpaqueIDExtrudesScopeViaSignature   of Range.t * module_signature abstracted
+exception SupportOnlyFirstOrderFunctor        of Range.t
 exception InvalidIdentifier                   of Range.t * identifier
 
 module BindingMap = Map.Make(String)

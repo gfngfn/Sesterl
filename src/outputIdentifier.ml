@@ -30,10 +30,6 @@ type global_answer = {
 }
 
 
-let is_latin_lowercase char =
-  'a' <= char && char <= 'z'
-
-
 let space : string -> space option =
   IdentifierScheme.from_snake_case
 
