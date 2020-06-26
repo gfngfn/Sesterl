@@ -15,32 +15,21 @@ let stringify_base_constant (bc : base_constant) =
   | BinaryByInts(ns)  -> Printf.sprintf "<<%s>>" (ns |> List.map string_of_int |> String.concat ", ")
 
 
-let output_local name =
-  match OutputIdentifier.output name with
-  | OutputIdentifier.Local(s) -> s
-  | _                         -> assert false
-
-let output_global name =
-  match OutputIdentifier.output name with
-  | OutputIdentifier.Global(r) -> r.function_name
-  | _                          -> assert false
-
-
 let output_module_prefix = function
   | [] -> ""
   | ss -> ":" ^ String.concat "_" ss
 
 
-let output_single name =
-  match OutputIdentifier.output name with
-  | OutputIdentifier.Local(s) ->
-      s
+let output_single = function
+  | OutputIdentifier.Local(lname) ->
+      OutputIdentifier.output_local lname
 
-  | OutputIdentifier.Global(r) ->
+  | OutputIdentifier.Global(gname) ->
+      let r = OutputIdentifier.output_global gname in
       let sparam =
         List.init r.arity (fun _ ->
-          let name = OutputIdentifier.fresh () in
-          output_local name
+          let lname = OutputIdentifier.fresh () in
+          OutputIdentifier.output_local lname
         ) |> String.concat ", "
       in
       let smod = output_module_prefix r.module_names in
@@ -49,8 +38,8 @@ let output_single name =
         (* -- perform the eta expansion for global function names
               in order to avoid being confused with atoms -- *)
 
-  | _ ->
-      assert false
+  | OutputIdentifier.Operator(_) ->
+      failwith "TODO: output_single, Operator"
 
 
 let rec stringify_ast (ast : ast) =
@@ -62,39 +51,42 @@ let rec stringify_ast (ast : ast) =
       stringify_base_constant bc
 
   | ILambda(recopt, names, ast0) ->
-      let snames = names |> List.map output_local in
+      let snames = names |> List.map OutputIdentifier.output_local in
       let s0 = stringify_ast ast0 in
       let srec =
         match recopt with
         | None          -> ""
-        | Some(namerec) -> " " ^ output_local namerec
+        | Some(namerec) -> " " ^ OutputIdentifier.output_local namerec
       in
       Printf.sprintf "fun%s(%s) -> %s end" srec (String.concat ", " snames) s0
 
   | IApply(name, astargs) ->
       let sargs = astargs |> List.map stringify_ast in
       begin
-        match (OutputIdentifier.output name, sargs) with
-        | (OutputIdentifier.Local(sname), _) ->
-            Printf.sprintf "%s(%s)" sname (String.concat ", " sargs)
+        match (name, sargs) with
+        | (OutputIdentifier.Local(lname), _) ->
+            let s = OutputIdentifier.output_local lname in
+            Printf.sprintf "%s(%s)" s (String.concat ", " sargs)
 
-        | (OutputIdentifier.Global(r), _) ->
+        | (OutputIdentifier.Global(gname), _) ->
+            let r = OutputIdentifier.output_global gname in
             let smod = output_module_prefix r.module_names in
             let sfun = r.function_name in
             Printf.sprintf "%s%s(%s)" smod sfun (String.concat ", " sargs)
 
-        | (OutputIdentifier.Operator(sop), [sarg1; sarg2]) ->
+        | (OutputIdentifier.Operator(op), [sarg1; sarg2]) ->
+            let sop = OutputIdentifier.output_operator op in
             Printf.sprintf "(%s %s %s)" sarg1 sop sarg2
 
         | _ ->
             assert false
       end
 
-  | ILetIn(name, ast1, ast2) ->
-      let sname = output_local name in
+  | ILetIn(lname, ast1, ast2) ->
+      let s0 = OutputIdentifier.output_local lname in
       let s1 = stringify_ast ast1 in
       let s2 = stringify_ast ast2 in
-      Printf.sprintf "begin %s = %s, %s end" sname s1 s2
+      Printf.sprintf "begin %s = %s, %s end" s0 s1 s2
 
   | ICase(ast1, [ IBranch(ipat, None, ast2) ]) ->
     (* -- slight optimization of case-expressions into pattern-matching let-expressions -- *)
@@ -136,9 +128,6 @@ let rec stringify_ast (ast : ast) =
             Printf.sprintf "{%s, %s}" sctor (String.concat ", " ss)
       end
 
-  | IAccess(_name0, _name) ->
-      failwith "TODO: IAccess"
-
 
 and stringify_branch (br : branch) =
   match br with
@@ -163,7 +152,7 @@ and stringify_pattern (ipat : pattern) =
   | IPBool(true)  -> "true"
   | IPBool(false) -> "false"
   | IPInt(n)      -> string_of_int n
-  | IPVar(name)   -> output_local name
+  | IPVar(lname)  -> OutputIdentifier.output_local lname
   | IPWildCard    -> "_"
   | IPListNil     -> "[]"
 
@@ -190,13 +179,13 @@ and stringify_pattern (ipat : pattern) =
 
 
 let stringify_binding (ibind : binding) : string list =
-  let val_single (_, namefun, _, ast) =
+  let val_single (_, gnamefun, _, ast) =
     match ast with
     | ILambda(None, nameparams, ast0) ->
-        let sfun = output_global namefun in
-        let sparams = nameparams |> List.map output_local in
+        let r = OutputIdentifier.output_global gnamefun in
+        let sparams = nameparams |> List.map OutputIdentifier.output_local in
         let s0 = stringify_ast ast0 in
-        Printf.sprintf "%s(%s) -> %s." sfun (String.concat ", " sparams) s0
+        Printf.sprintf "%s(%s) -> %s." r.function_name (String.concat ", " sparams) s0
 
     | _ ->
         assert false

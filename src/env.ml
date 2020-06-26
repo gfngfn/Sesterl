@@ -38,7 +38,7 @@ and functor_domain =
   | Domain of record_signature
 
 and module_entry = {
-  mod_name      : name;
+  mod_name      : space_name;
   mod_signature : module_signature;
 }
 
@@ -61,7 +61,7 @@ and record_signature =
 and record_signature_entry =
   | SRVal      of identifier * (poly_type * name)
   | SRRecTypes of (type_name * type_opacity) list
-  | SRModule   of module_name * (module_signature * name)
+  | SRModule   of module_name * (module_signature * space_name)
   | SRSig      of signature_name * module_signature abstracted
   | SRCtor     of constructor_name * constructor_entry
 
@@ -162,10 +162,10 @@ module Typeenv = struct
     )
 
 
-  let add_module (modnm : module_name) (modsig : module_signature) (name : name) (tyenv : t) : t =
+  let add_module (modnm : module_name) (modsig : module_signature) (sname : space_name) (tyenv : t) : t =
     let modentry =
       {
-        mod_name      = name;
+        mod_name      = sname;
         mod_signature = modsig;
       }
     in
@@ -174,7 +174,7 @@ module Typeenv = struct
     }
 
 
-  let find_module (modnm : module_name) (tyenv : t) : (module_signature * name) option =
+  let find_module (modnm : module_name) (tyenv : t) : (module_signature * space_name) option =
     tyenv.modules |> ModuleNameMap.find_opt modnm |> Option.map (fun modentry ->
       (modentry.mod_signature, modentry.mod_name)
     )
@@ -259,11 +259,11 @@ module SigRecord = struct
     Alist.extend sigr (SRRecTypes[ (tynm, (TypeID.Opaque(oid), kd)) ])
 
 
-  let add_module (modnm : module_name) (modsig : module_signature) (name : name) (sigr : t) : t =
-    Alist.extend sigr (SRModule(modnm, (modsig, name)))
+  let add_module (modnm : module_name) (modsig : module_signature) (sname : space_name) (sigr : t) : t =
+    Alist.extend sigr (SRModule(modnm, (modsig, sname)))
 
 
-  let find_module (modnm0 : module_name) (sigr : t) : (module_signature * name) option =
+  let find_module (modnm0 : module_name) (sigr : t) : (module_signature * space_name) option =
     sigr |> Alist.to_list |> List.find_map (function
     | SRModule(modnm, mentry) -> if String.equal modnm modnm0 then Some(mentry) else None
     | _                       -> None
@@ -284,7 +284,7 @@ module SigRecord = struct
   let fold (type a)
       ~v:(fv : identifier -> poly_type * name -> a -> a)
       ~t:(ft : (type_name * type_opacity) list -> a -> a)
-      ~m:(fm : module_name -> module_signature * name -> a -> a)
+      ~m:(fm : module_name -> module_signature * space_name -> a -> a)
       ~s:(fs : signature_name -> module_signature abstracted -> a -> a)
       ~c:(fc : constructor_name -> constructor_entry -> a -> a)
       (init : a) (sigr : t) : a =
@@ -301,7 +301,7 @@ module SigRecord = struct
   let map_and_fold (type a)
       ~v:(fv : poly_type * name -> a -> (poly_type * name) * a)
       ~t:(ft : type_opacity list -> a -> type_opacity list * a)
-      ~m:(fm : module_signature * name -> a -> (module_signature * name) * a)
+      ~m:(fm : module_signature * space_name -> a -> (module_signature * space_name) * a)
       ~s:(fs : module_signature abstracted -> a -> module_signature abstracted * a)
       ~c:(fc : constructor_entry -> a -> constructor_entry * a)
       (init : a) (sigr : t) : t * a =

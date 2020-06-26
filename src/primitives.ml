@@ -44,11 +44,13 @@ let initial_type_environment =
     [typaram] @-> u
   in
 
-  let op = OutputIdentifier.global_operator in
-  let normal n s =
+  let op s : name =
+    OutputIdentifier.Operator(OutputIdentifier.operator s)
+  in
+  let normal n s : name =
     match OutputIdentifier.global s n with
-    | Some(name) -> name
-    | None       -> assert false
+    | Some(gname) -> OutputIdentifier.Global(gname)
+    | None        -> assert false
   in
   List.fold_left (fun tyenv (x, ty, name) ->
     tyenv |> Typeenv.add_val x ty name

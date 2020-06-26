@@ -1,25 +1,50 @@
 
-type t
+type space
+(** The type for abstracting module names in outputs. *)
 
-type answer =
-  | Local    of string
-  | Global   of {
-      module_names  : string list;
-      function_name : string;
-      arity         : int;
-    }
-  | Operator of string
+type local
 
-val local : string -> t option
+type global
 
-val global : string -> int -> t option
+type operator
 
-val global_operator : string -> t
+type t =
+  | Local    of local
+  | Global   of global
+  | Operator of operator
 
-val output : t -> answer
+type global_answer = {
+  module_names  : string list;
+  function_name : string;
+  arity         : int;
+}
+
+val space : string -> space option
+
+val fresh : unit -> local
+
+val local : string -> local option
+
+val global : string -> int -> global option
+
+val push_space : space -> global -> global
+
+val operator : string -> operator
+
+val unused : local
+
+val output_local : local -> string
+
+val output_global : global -> global_answer
+
+val output_operator : operator -> string
+
+val pp_space : Format.formatter -> space -> unit
+
+val pp_local : Format.formatter -> local -> unit
+
+val pp_global : Format.formatter -> global -> unit
+
+val pp_operator : Format.formatter -> operator -> unit
 
 val pp : Format.formatter -> t -> unit
-
-val fresh : unit -> t
-
-val unused : t

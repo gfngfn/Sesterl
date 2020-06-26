@@ -47,9 +47,9 @@ module Typeenv : sig
 
   val find_type : type_name -> t -> (TypeID.t * int) option
 
-  val add_module : module_name -> module_signature -> name -> t -> t
+  val add_module : module_name -> module_signature -> space_name -> t -> t
 
-  val find_module : module_name -> t -> (module_signature * name) option
+  val find_module : module_name -> t -> (module_signature * space_name) option
 
   val add_signature : signature_name -> module_signature abstracted -> t -> t
 
@@ -77,9 +77,9 @@ module SigRecord : sig
 
   val add_opaque_type : type_name -> TypeID.Opaque.t -> kind -> t -> t
 
-  val add_module : module_name -> module_signature -> name -> t -> t
+  val add_module : module_name -> module_signature -> space_name -> t -> t
 
-  val find_module : module_name -> t -> (module_signature * name) option
+  val find_module : module_name -> t -> (module_signature * space_name) option
 
   val add_signature : signature_name -> module_signature abstracted -> t -> t
 
@@ -88,7 +88,7 @@ module SigRecord : sig
   val fold :
     v:(identifier -> poly_type * name -> 'a -> 'a) ->
     t:((type_name * type_opacity) list -> 'a -> 'a) ->
-    m:(module_name -> module_signature * name -> 'a -> 'a) ->
+    m:(module_name -> module_signature * space_name -> 'a -> 'a) ->
     s:(signature_name -> module_signature abstracted -> 'a -> 'a) ->
     c:(constructor_name -> constructor_entry -> 'a -> 'a) ->
     'a -> t -> 'a
@@ -96,7 +96,7 @@ module SigRecord : sig
   val map_and_fold :
     v:(poly_type * name -> 'a -> (poly_type * name) * 'a) ->
     t:(type_opacity list -> 'a -> type_opacity list * 'a) ->
-    m:(module_signature * name -> 'a -> (module_signature * name) * 'a) ->
+    m:(module_signature * space_name -> 'a -> (module_signature * space_name) * 'a) ->
     s:(module_signature abstracted -> 'a -> module_signature abstracted * 'a) ->
     c:(constructor_entry -> 'a -> constructor_entry * 'a) ->
     'a -> t -> t * 'a

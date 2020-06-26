@@ -532,6 +532,17 @@ let show_poly_type : poly_type -> string =
 let pp_poly_type ppf pty =
   Format.fprintf ppf "%s" (show_poly_type pty)
 
+type space_name = OutputIdentifier.space
+[@@deriving show { with_path = false; } ]
+
+type local_name = OutputIdentifier.local
+[@@deriving show { with_path = false; } ]
+
+type global_name = OutputIdentifier.global
+[@@deriving show { with_path = false; } ]
+
+type operator_name = OutputIdentifier.operator
+[@@deriving show { with_path = false; } ]
 
 type name = OutputIdentifier.t
 [@@deriving show { with_path = false; } ]
@@ -576,7 +587,7 @@ type pattern =
   | IPUnit
   | IPBool        of bool
   | IPInt         of int
-  | IPVar         of name
+  | IPVar         of local_name
   | IPWildCard
   | IPListNil
   | IPListCons    of pattern * pattern
@@ -596,26 +607,25 @@ type constructor_entry = {
 }
 
 type val_binding =
-  | INonRec of (identifier * name * poly_type * ast)
-  | IRec    of (identifier * name * poly_type * ast) list
+  | INonRec of (identifier * global_name * poly_type * ast)
+  | IRec    of (identifier * global_name * poly_type * ast) list
 
 and binding =
   | IBindVal     of val_binding
-  | IBindModule  of name * binding list
+  | IBindModule  of space_name * binding list
 
 and ast =
   | IBaseConst   of base_constant
   | IVar         of name
-  | ILambda      of name option * name list * ast
+  | ILambda      of local_name option * local_name list * ast
   | IApply       of name * ast list
-  | ILetIn       of name * ast * ast
+  | ILetIn       of local_name * ast * ast
   | ICase        of ast * branch list
   | IReceive     of branch list
   | ITuple       of ast TupleList.t
   | IListNil
   | IListCons    of ast * ast
   | IConstructor of ConstructorID.t * ast list
-  | IAccess      of name * name
 
 and branch =
   | IBranch of pattern * ast option * ast
