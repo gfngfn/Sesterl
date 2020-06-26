@@ -1209,10 +1209,14 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
 and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) : constructor_branch_map =
   ctorbrs |> List.fold_left (fun ctormap ctorbr ->
     match ctorbr with
-    | ConstructorBranch(ctornm, mtyargs) ->
+    | ConstructorBranch((rng, ctornm), mtyargs) ->
         let tyargs = mtyargs |> List.map (decode_manual_type pre.tyenv pre.local_type_parameters) in
         let ptyargs = tyargs |> List.map (generalize pre.level) in
-        let ctorid = ConstructorID.make ctornm in
+        let ctorid =
+          match ConstructorID.make ctornm with
+          | Some(ctorid) -> ctorid
+          | None         -> raise (InvalidIdentifier(rng, ctornm))
+        in
         ctormap |> ConstructorMap.add ctornm (ctorid, ptyargs)
   ) ConstructorMap.empty
 
@@ -1710,9 +1714,9 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
                     | Some(vid_to) ->
                         let (typarams, ctorbrs_from) = TypeSynonymStore.find_variant_type vid_from in
                         let ctorbrs_to =
-                          ConstructorMap.fold (fun ctornm (_, ptyargs_from) ctorbrs_to ->
+                          ConstructorMap.fold (fun ctornm (ctorid_from, ptyargs_from) ctorbrs_to ->
                             let ptyargs_to = ptyargs_from |> List.map (substitute_poly_type wtmap) in
-                            let ctorid_to = ConstructorID.make ctornm in
+                            let ctorid_to = ctorid_from in
                             ctorbrs_to |> ConstructorMap.add ctornm (ctorid_to, ptyargs_to)
                           ) ctorbrs_from ConstructorMap.empty
                         in

@@ -1,7 +1,7 @@
 
 type t
 
-val make : string -> t
+val make : string -> t option
 
 val pp : Format.formatter -> t -> unit
 

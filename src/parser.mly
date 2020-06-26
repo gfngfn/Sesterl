@@ -109,12 +109,10 @@ bindvalsingle:
 ;
 ctorbranch:
   | BAR; ctor=CTOR; {
-        let (_, ctornm) = ctor in
-        ConstructorBranch(ctornm, [])
+        ConstructorBranch(ctor, [])
       }
   | BAR; ctor=CTOR; LPAREN; paramtys=tys; RPAREN {
-        let (_, ctornm) = ctor in
-        ConstructorBranch(ctornm, paramtys)
+        ConstructorBranch(ctor, paramtys)
       }
 ;
 params:

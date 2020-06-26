@@ -69,7 +69,7 @@ and manual_type_main =
 and binder = identifier ranged * manual_type option
 
 and constructor_branch =
-  | ConstructorBranch of constructor_name * manual_type list
+  | ConstructorBranch of constructor_name ranged * manual_type list
 
 and synonym_or_variant =
   | BindSynonym of manual_type
