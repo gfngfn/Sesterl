@@ -1,63 +1,110 @@
 
-type answer =
-  | Local    of string
-  | Global   of string * int
-  | Operator of string
+type t =
+  | ReprLocal of {
+      number : int;
+      hint   : IdentifierScheme.t option;
+    }
+  | ReprGlobal of {
+      module_names  : IdentifierScheme.t list;
+      function_name : IdentifierScheme.t;
+      arity         : int;
+    }
+  | ReprOperator of string
+  | ReprUnused
 
-type t = answer
+type answer =
+  | Local of string
+  | Global of {
+      module_names  : string list;
+      function_name : string;
+      arity         : int;
+    }
+  | Operator of string
 
 
 let is_latin_lowercase char =
   'a' <= char && char <= 'z'
 
 
-let fresh =
+let fresh_number : unit -> int =
   let current_max = ref 0 in
   (fun () ->
     incr current_max;
-    let s = Printf.sprintf "GenSym%d" (!current_max) in
-    Local(s)
+    !current_max
   )
 
 
-let scheme (f : string -> t) (should_capitalize : bool) (s : string) : t =
-  if String.length s <= 0 then
-    assert false
-  else
-    let char = String.get s 0 in
-    if is_latin_lowercase char then
-      let sret =
-        if should_capitalize then
-          String.make 1 (Char.uppercase_ascii char) ^ (String.sub s 1 (String.length s - 1))
-        else
-          s
-      in
-      f sret
-    else
-      fresh ()
+let fresh () : t =
+  let n = fresh_number () in
+  ReprLocal{ hint = None; number = n }
 
 
-let local (s : string) : t =
-  scheme (fun x -> Local(x)) true s
+let local (s : string) : t option =
+  IdentifierScheme.from_snake_case s |> Option.map (fun ident ->
+    let n = fresh_number () in
+    ReprLocal{ hint = Some(ident); number = n }
+  )
 
 
-let global (s : string) (arity : int) : t =
-  scheme (fun x -> Global(x, arity)) false s
+let global (s : string) (arity : int) : t option =
+  IdentifierScheme.from_snake_case s |> Option.map (fun ident ->
+    ReprGlobal{
+      module_names  = [];
+      function_name = ident;
+      arity         = arity;
+    }
+  )
 
 
 let global_operator (s : string) : t =
-  Operator(s)
+  ReprOperator(s)
 
 
-let output (ans : t) : answer =
-  ans
+let output (x : t) : answer =
+  match x with
+  | ReprLocal(r) ->
+      let hint =
+        match r.hint with
+        | None        -> ""
+        | Some(ident) -> IdentifierScheme.to_upper_camel_case ident
+      in
+      Local(Printf.sprintf "S%d%s" r.number hint)
+
+  | ReprGlobal(r) ->
+      Global{
+        module_names  = r.module_names |> List.map IdentifierScheme.to_snake_case;
+        function_name = r.function_name |> IdentifierScheme.to_snake_case;
+        arity         = r.arity;
+      }
+
+  | ReprOperator(s) ->
+      Operator(s)
+
+  | ReprUnused ->
+      Local("_")
 
 
 let pp ppf (ans : t) =
   match ans with
-  | Local(s) | Operator(s) -> Format.fprintf ppf "\"%s\"" s
-  | Global(s, arity)       -> Format.fprintf ppf "\"%s/%d\"" s arity
+  | ReprLocal(r) ->
+      begin
+        match r.hint with
+        | None        -> Format.fprintf ppf "L%d" r.number
+        | Some(ident) -> Format.fprintf ppf "L%d%a" r.number IdentifierScheme.pp ident
+      end
+
+  | ReprGlobal(r) ->
+      Format.fprintf ppf "\"%a:%a/%d\""
+        (Format.pp_print_list IdentifierScheme.pp) r.module_names
+        IdentifierScheme.pp r.function_name
+        r.arity
+
+  | ReprOperator(s) ->
+      Format.fprintf ppf "O\"%s\"" s
+
+  | ReprUnused ->
+      Format.fprintf ppf "UNUSED"
 
 
-let unused =
-  Local("_")
+let unused : t =
+  ReprUnused

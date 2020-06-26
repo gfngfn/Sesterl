@@ -37,6 +37,7 @@ exception OpaqueIDExtrudesScopeViaValue           of Range.t * poly_type
 exception OpaqueIDExtrudesScopeViaType            of Range.t * type_opacity
 exception OpaqueIDExtrudesScopeViaSignature       of Range.t * module_signature abstracted
 exception SupportOnlyFirstOrderFunctor            of Range.t
+exception InvalidIdentifier                   of Range.t * identifier
 
 module BindingMap = Map.Make(String)
 
@@ -624,10 +625,15 @@ let check_properly_used (tyenv : Typeenv.t) ((rng, x) : identifier ranged) =
 
 
 
-let generate_output_identifier scope _rng x =
-  match scope with
-  | Local         -> OutputIdentifier.local x
-  | Global(arity) -> OutputIdentifier.global x arity
+let generate_output_identifier scope rng x =
+  let opt =
+    match scope with
+    | Local         -> OutputIdentifier.local x
+    | Global(arity) -> OutputIdentifier.global x arity
+  in
+  match opt with
+  | Some(name) -> name
+  | None       -> raise (InvalidIdentifier(rng, x))
 
 
 let type_of_base_constant (rng : Range.t) (bc : base_constant) =

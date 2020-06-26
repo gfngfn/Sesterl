@@ -22,8 +22,13 @@ let output_local name =
 
 let output_global name =
   match OutputIdentifier.output name with
-  | OutputIdentifier.Global(s, _) -> s
-  | _                             -> assert false
+  | OutputIdentifier.Global(r) -> r.function_name
+  | _                          -> assert false
+
+
+let output_module_prefix = function
+  | [] -> ""
+  | ss -> ":" ^ String.concat "_" ss
 
 
 let output_single name =
@@ -31,14 +36,16 @@ let output_single name =
   | OutputIdentifier.Local(s) ->
       s
 
-  | OutputIdentifier.Global(s, arity) ->
+  | OutputIdentifier.Global(r) ->
       let sparam =
-        List.init arity (fun _ ->
+        List.init r.arity (fun _ ->
           let name = OutputIdentifier.fresh () in
           output_local name
         ) |> String.concat ", "
       in
-      Printf.sprintf "(fun(%s) -> %s(%s) end)" sparam s sparam
+      let smod = output_module_prefix r.module_names in
+      let sfun = r.function_name in
+      Printf.sprintf "(fun(%s) -> %s%s(%s) end)" sparam smod sfun sparam
         (* -- perform the eta expansion for global function names
               in order to avoid being confused with atoms -- *)
 
@@ -68,9 +75,13 @@ let rec stringify_ast (ast : ast) =
       let sargs = astargs |> List.map stringify_ast in
       begin
         match (OutputIdentifier.output name, sargs) with
-        | (OutputIdentifier.Local(sname), _)
-        | (OutputIdentifier.Global(sname, _), _) ->
+        | (OutputIdentifier.Local(sname), _) ->
             Printf.sprintf "%s(%s)" sname (String.concat ", " sargs)
+
+        | (OutputIdentifier.Global(r), _) ->
+            let smod = output_module_prefix r.module_names in
+            let sfun = r.function_name in
+            Printf.sprintf "%s%s(%s)" smod sfun (String.concat ", " sargs)
 
         | (OutputIdentifier.Operator(sop), [sarg1; sarg2]) ->
             Printf.sprintf "(%s %s %s)" sarg1 sop sarg2

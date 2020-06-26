@@ -1,14 +1,18 @@
 
-type answer =
-  | Local    of string
-  | Global   of string * int
-  | Operator of string
-
 type t
 
-val local : string -> t
+type answer =
+  | Local    of string
+  | Global   of {
+      module_names  : string list;
+      function_name : string;
+      arity         : int;
+    }
+  | Operator of string
 
-val global : string -> int -> t
+val local : string -> t option
+
+val global : string -> int -> t option
 
 val global_operator : string -> t
 
