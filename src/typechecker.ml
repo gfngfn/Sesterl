@@ -2299,8 +2299,8 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       (absmodsig, [])
 
   | ModApply(modident1, modident2) ->
-      let (modsig1, _name1) = find_module tyenv modident1 in
-      let (modsig2, name2) = find_module tyenv modident2 in
+      let (modsig1, _) = find_module tyenv modident1 in
+      let (modsig2, sname2) = find_module tyenv modident2 in
       begin
         match modsig1 with
         | ConcStructure(_) ->
@@ -2319,7 +2319,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
               | Some(modident0, utmodC, tyenv0) ->
                   let tyenv0 =
                     let (_, m0) = modident0 in
-                    tyenv0 |> Typeenv.add_module m0 modsig2 name2
+                    tyenv0 |> Typeenv.add_module m0 modsig2 sname2
                   in
                   let (_, ibinds) = typecheck_module tyenv0 utmodC in
 
