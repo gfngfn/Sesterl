@@ -25,6 +25,11 @@ module Typeenv : sig
 
   val empty : t
 
+  val map :
+    v:(poly_type * name -> poly_type * name) ->
+    m:(module_signature * space_name -> module_signature * space_name) ->
+    t -> t
+
   val add_val : identifier -> poly_type -> name -> t -> t
 
   val find_val : identifier -> t -> (poly_type * name) option
@@ -100,6 +105,14 @@ module SigRecord : sig
     s:(module_signature abstracted -> 'a -> module_signature abstracted * 'a) ->
     c:(constructor_entry -> 'a -> constructor_entry * 'a) ->
     'a -> t -> t * 'a
+
+  val map :
+    v:(poly_type * name -> poly_type * name) ->
+    t:(type_opacity list -> type_opacity list) ->
+    m:(module_signature * space_name -> module_signature * space_name) ->
+    s:(module_signature abstracted -> module_signature abstracted) ->
+    c:(constructor_entry -> constructor_entry) ->
+    t -> t
 
   val disjoint_union : Range.t -> t -> t -> t
 

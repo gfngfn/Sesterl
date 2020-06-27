@@ -233,6 +233,40 @@ let make_type_parameter_assoc (lev : int) (tyvarnms : (type_variable_name ranged
   ) TypeParameterAssoc.empty
 
 
+let push_space_to_name (sname : space_name) (name : name) : name =
+  match name with
+  | OutputIdentifier.Global(gname) -> OutputIdentifier.Global(OutputIdentifier.push_space sname gname)
+  | _                              -> name
+
+
+let rec push_space_to_signature (sname : space_name) (modsig : module_signature) : module_signature =
+  match modsig with
+  | ConcStructure(sigr) ->
+      let sigr =
+        sigr |> SigRecord.map
+            ~v:(fun (pty, name) -> (pty, push_space_to_name sname name))
+            ~t:(fun t -> t)
+            ~m:(fun (modsig0, sname0) -> (push_space_to_signature sname modsig0, sname0))
+            ~s:(fun s -> s)
+            ~c:(fun c -> c)
+      in
+      ConcStructure(sigr)
+
+  | ConcFunctor(sigftor) ->
+      let closure =
+        sigftor.closure |> Option.map (fun (modident, utmod, tyenv) ->
+          (modident, utmod, push_space_to_type_environment sname tyenv)
+        )
+      in
+      ConcFunctor({ sigftor with closure = closure })
+
+
+and push_space_to_type_environment (sname : space_name) (tyenv : Typeenv.t) : Typeenv.t =
+  tyenv |> Typeenv.map
+      ~v:(fun (pty, name) -> (pty, push_space_to_name sname name))
+      ~m:(fun (modsig0, sname0) -> (push_space_to_signature sname modsig0, sname0))
+
+
 module SynonymIDHashSet = Hashtbl.Make(TypeID.Synonym)
 
 
@@ -2167,8 +2201,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       let (absmodsig, ibindssub) = typecheck_module tyenv utmod in
       let (oidset, modsig) = absmodsig in
       let sname = get_space_name rngm m in
-        (* temporary; it may be appropriate to generate name from `m` *)
-      let sigr = SigRecord.empty |> SigRecord.add_module m modsig sname in
+      let sigr = SigRecord.empty |> SigRecord.add_module m (push_space_to_signature sname modsig) sname in
       let ibinds =
         match ibindssub with
         | []     -> []

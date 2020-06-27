@@ -70,6 +70,7 @@ module Typeenv = struct
 
   type t = environment
 
+
   let empty = {
     vals         = ValNameMap.empty;
     type_names   = TypeNameMap.empty;
@@ -78,6 +79,25 @@ module Typeenv = struct
     modules      = ModuleNameMap.empty;
     signatures   = SignatureNameMap.empty;
   }
+
+
+  let map
+      ~v:(fv : poly_type * name -> poly_type * name)
+      ~m:(fm : module_signature * space_name -> module_signature * space_name)
+      (tyenv : t) : t =
+    let vals =
+      tyenv.vals |> ValNameMap.map (fun ventry ->
+        let (typ, name) = fv (ventry.typ, ventry.name) in
+        { ventry with typ = typ; name = name }
+      )
+    in
+    let modules =
+      tyenv.modules |> ModuleNameMap.map (fun mentry ->
+        let (modsig, sname) = fm (mentry.mod_signature, mentry.mod_name) in
+        { mod_signature = modsig; mod_name = sname }
+      )
+    in
+    { tyenv with vals = vals; modules = modules }
 
 
   let add_val x pty name tyenv =
@@ -328,6 +348,25 @@ module SigRecord = struct
             let (ctorentry, acc) = fc ctorentry acc in
             (Alist.extend sigracc (SRCtor(ctor, ctorentry)), acc)
       ) (Alist.empty, init)
+
+
+  let map (type a)
+      ~v:(fv : poly_type * name -> poly_type * name)
+      ~t:(ft : type_opacity list -> type_opacity list)
+      ~m:(fm : module_signature * space_name -> module_signature * space_name)
+      ~s:(fs : module_signature abstracted -> module_signature abstracted)
+      ~c:(fc : constructor_entry -> constructor_entry)
+      (sigr : t) : t =
+    let (sigr, ()) =
+      sigr |> map_and_fold
+          ~v:(fun v () -> (fv v, ()))
+          ~t:(fun t () -> (ft t, ()))
+          ~m:(fun m () -> (fm m, ()))
+          ~s:(fun s () -> (fs s, ()))
+          ~c:(fun c () -> (fc c, ()))
+          ()
+    in
+    sigr
 
 (*
   let overwrite (superior : t) (inferior : t) : t =
