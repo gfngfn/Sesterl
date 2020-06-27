@@ -55,12 +55,19 @@ rule token = parse
         let pos = Range.from_lexbuf lexbuf in
         CTOR(pos, s)
       }
+  | ("." (constructor as s)) {
+        let pos = Range.from_lexbuf lexbuf in
+        DOTCTOR(pos, s)
+      }
+  | ("." (identifier as s)) {
+        let pos = Range.from_lexbuf lexbuf in
+        DOTIDENT(pos, s)
+      }
   | ("0" | nzdigit (digit*) | ("0x" | "0X") hex+) {
         let s = Lexing.lexeme lexbuf in
         let rng = Range.from_lexbuf lexbuf in
           INT(rng, int_of_string s)
       }
-  | "."  { DOT(Range.from_lexbuf lexbuf) }
   | "_"  { UNDERSCORE(Range.from_lexbuf lexbuf) }
   | ","  { COMMA(Range.from_lexbuf lexbuf) }
   | "("  { LPAREN(Range.from_lexbuf lexbuf) }
