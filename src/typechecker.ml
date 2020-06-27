@@ -232,7 +232,7 @@ let make_type_parameter_assoc (lev : int) (tyvarnms : (type_variable_name ranged
     | Some(assoc) -> assoc
   ) TypeParameterAssoc.empty
 
-
+(*
 let push_space_to_name (sname : space_name) (name : name) : name =
   match name with
   | OutputIdentifier.Global(gname) -> OutputIdentifier.Global(OutputIdentifier.push_space sname gname)
@@ -265,7 +265,7 @@ and push_space_to_type_environment (sname : space_name) (tyenv : Typeenv.t) : Ty
   tyenv |> Typeenv.map
       ~v:(fun (pty, name) -> (pty, push_space_to_name sname name))
       ~m:(fun (modsig0, sname0) -> (push_space_to_signature sname modsig0, sname0))
-
+*)
 
 module SynonymIDHashSet = Hashtbl.Make(TypeID.Synonym)
 
@@ -2201,7 +2201,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       let (absmodsig, ibindssub) = typecheck_module tyenv utmod in
       let (oidset, modsig) = absmodsig in
       let sname = get_space_name rngm m in
-      let sigr = SigRecord.empty |> SigRecord.add_module m (push_space_to_signature sname modsig) sname in
+      let sigr = SigRecord.empty |> SigRecord.add_module m modsig sname in
       let ibinds =
         match ibindssub with
         | []     -> []
