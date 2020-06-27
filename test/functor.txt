@@ -15,10 +15,13 @@ module Int = struct
   let zero() = 0
 end
 
-module Bool = struct
-  type t = bool
-  let zero() = false
+module Sub = struct
+  module Bool = struct
+    type t = bool
+    let zero() = false
+  end
 end
 
 module G = F(Int)
-module M = G(Bool)
+module B = Sub.Bool
+module M = G(B)
