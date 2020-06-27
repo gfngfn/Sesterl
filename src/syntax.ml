@@ -629,4 +629,67 @@ and ast =
 
 and branch =
   | IBranch of pattern * ast option * ast
-[@@deriving show { with_path = false; } ]
+
+
+let pp_sep_comma ppf () =
+  Format.fprintf ppf ",@ "
+
+
+let rec pp_val_binding_sub ppf (gname, e) =
+  Format.fprintf ppf "%a =@[<hov>@ %a@]@,"
+    OutputIdentifier.pp_global gname
+    pp_ast e
+
+
+and pp_val_binding ppf = function
+  | INonRec(_, gname, _, e) ->
+      Format.fprintf ppf "val %a"
+        pp_val_binding_sub (gname, e)
+
+  | IRec(recbinds) ->
+      let pairs = recbinds |> List.map (fun (_, gname, _, e) -> (gname, e)) in
+      Format.fprintf ppf "val %a"
+        (Format.pp_print_list ~pp_sep:pp_sep_comma pp_val_binding_sub) pairs
+
+
+and pp_binding ppf = function
+  | IBindVal(valbind) ->
+      pp_val_binding ppf valbind
+
+  | IBindModule(sname, ibinds) ->
+      Format.fprintf ppf "module %a = @[<v2>{%a}@]@,"
+        OutputIdentifier.pp_space sname
+        (Format.pp_print_list pp_binding) ibinds
+
+
+and pp_ast ppf = function
+  | IBaseConst(bc) ->
+      pp_base_constant ppf bc
+
+  | IVar(name) ->
+      OutputIdentifier.pp ppf name
+
+  | ILambda(None, lnameargs, e) ->
+      Format.fprintf ppf "\\(%a) ->@[<hov2>@ %a@]"
+        (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameargs
+        pp_ast e
+
+  | ILambda(Some(lnamerec), lnameparams, e) ->
+      Format.fprintf ppf "\\%a(%a) ->@[<hov2>@ %a@]"
+        OutputIdentifier.pp_local lnamerec
+        (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameparams
+        pp_ast e
+
+  | IApply(name, eargs) ->
+      Format.fprintf ppf "%a@[<hov2>(%a)@]"
+        OutputIdentifier.pp name
+        (Format.pp_print_list ~pp_sep:pp_sep_comma pp_ast) eargs
+
+  | ILetIn(lname, e1, e2) ->
+      Format.fprintf ppf "let %a =@[<hov2>@ %a@]@ in@ %a"
+        OutputIdentifier.pp_local lname
+        pp_ast e1
+        pp_ast e2
+
+  | _ ->
+      Format.fprintf ppf "..."

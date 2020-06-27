@@ -207,12 +207,13 @@ let stringify_binding (ibind : binding) : string list =
       valbinds |> List.map val_single
 
   | IBindModule(name, ibinds) ->
+
       failwith "TODO: IBindModule"
 
 
 let main (modname : string) (binds : binding list) : string =
 
-  Format.printf "%a\n" (Format.pp_print_list pp_binding) binds;
+  Format.printf "@[<v>%a@]" (Format.pp_print_list pp_binding) binds;
 
   let sbinds = binds |> List.map stringify_binding |> List.concat in
   let lines =
