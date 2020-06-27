@@ -17,25 +17,25 @@ exception TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
 exception InvalidByte                         of Range.t
 exception CyclicSynonymTypeDefinition         of (type_name ranged) list
 exception UnboundModuleName                   of Range.t * module_name
-exception NotOfStructureType                  of Range.t * module_signature
-exception NotOfFunctorType                    of Range.t * module_signature
-exception NotAFunctorSignature                of Range.t * module_signature
-exception NotAStructureSignature              of Range.t * module_signature
+exception NotOfStructureType                  of Range.t * concrete_module_signature
+exception NotOfFunctorType                    of Range.t * concrete_module_signature
+exception NotAFunctorSignature                of Range.t * no_name_module_signature
+exception NotAStructureSignature              of Range.t * no_name_module_signature
 exception UnboundSignatureName                of Range.t * signature_name
 exception CannotRestrictTransparentType       of Range.t * type_opacity
 exception PolymorphicContradiction            of Range.t * identifier * poly_type * poly_type
 exception PolymorphicInclusion                of Range.t * FreeID.t * poly_type * poly_type
 exception MissingRequiredValName              of Range.t * identifier * poly_type
 exception MissingRequiredTypeName             of Range.t * type_name * type_opacity
-exception MissingRequiredModuleName           of Range.t * module_name * module_signature
-exception MissingRequiredSignatureName        of Range.t * signature_name * module_signature abstracted
-exception NotASubtype                         of Range.t * module_signature * module_signature
+exception MissingRequiredModuleName           of Range.t * module_name * poly_type module_signature
+exception MissingRequiredSignatureName        of Range.t * signature_name * abstract_module_signature
+exception NotASubtype                         of Range.t * poly_type module_signature * poly_type module_signature
 exception NotASubtypeTypeOpacity              of Range.t * type_name * type_opacity * type_opacity
 exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t * constructor_name
 exception NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t
 exception OpaqueIDExtrudesScopeViaValue       of Range.t * poly_type
 exception OpaqueIDExtrudesScopeViaType        of Range.t * type_opacity
-exception OpaqueIDExtrudesScopeViaSignature   of Range.t * module_signature abstracted
+exception OpaqueIDExtrudesScopeViaSignature   of Range.t * abstract_module_signature
 exception SupportOnlyFirstOrderFunctor        of Range.t
 exception InvalidIdentifier                   of Range.t * identifier
 
@@ -173,8 +173,8 @@ let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
   | Some(v) -> v
 
 
-let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Typeenv.t) : Typeenv.t =
-  sigr |> SigRecord.fold
+let update_type_environment_by_signature_record (sigr : NamedSigRecord.t) (tyenv : Typeenv.t) : Typeenv.t =
+  sigr |> NamedSigRecord.fold
     ~v:(fun x (pty, name) ->
       Typeenv.add_val x pty name
     )
@@ -239,11 +239,11 @@ let push_space_to_name (sname : space_name) (name : name) : name =
   | _                              -> name
 
 
-let rec push_space_to_signature (sname : space_name) (modsig : module_signature) : module_signature =
+let rec push_space_to_signature (sname : space_name) (modsig : concrete_module_signature) : concrete_module_signature =
   match modsig with
   | ConcStructure(sigr) ->
       let sigr =
-        sigr |> SigRecord.map
+        sigr |> NamedSigRecord.map
             ~v:(fun (pty, name) -> (pty, push_space_to_name sname name))
             ~t:(fun t -> t)
             ~m:(fun (modsig0, sname0) -> (push_space_to_signature sname modsig0, sname0))
@@ -458,7 +458,7 @@ and opaque_occurs_in_type_id (oidset : OpaqueIDSet.t) (tyid : TypeID.t) : bool =
       opaque_occurs_in_poly_type oidset pty
 
 
-let rec opaque_occurs (oidset : OpaqueIDSet.t) (modsig : module_signature) : bool =
+let rec opaque_occurs (oidset : OpaqueIDSet.t) (modsig : poly_type module_signature) : bool =
   match modsig with
   | ConcStructure(sigr) ->
       opaque_occurs_in_structure oidset sigr
@@ -469,9 +469,9 @@ let rec opaque_occurs (oidset : OpaqueIDSet.t) (modsig : module_signature) : boo
       opaque_occurs_in_structure oidset sigr || opaque_occurs oidset modsigcod
 
 
-and opaque_occurs_in_structure (oidset : OpaqueIDSet.t) (sigr : SigRecord.t) : bool =
-  sigr |> SigRecord.fold
-      ~v:(fun _ (pty, _) b ->
+and opaque_occurs_in_structure (oidset : OpaqueIDSet.t) (sigr : NoNameSigRecord.t) : bool =
+  sigr |> NoNameSigRecord.fold
+      ~v:(fun _ pty b ->
         b || opaque_occurs_in_poly_type oidset pty
       )
       ~t:(fun tydefs b ->
@@ -747,7 +747,7 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
 
             | ConcStructure(sigr) ->
                 begin
-                  match sigr |> SigRecord.find_type tynm2 with
+                  match sigr |> NamedSigRecord.find_type tynm2 with
                   | None ->
                       raise (UndefinedTypeName(rng2, tynm2))
 
@@ -1024,7 +1024,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
         | ConcStructure(sigr1) ->
             begin
-              match sigr1 |> SigRecord.find_val x2 with
+              match sigr1 |> NamedSigRecord.find_val x2 with
               | None ->
                   raise (UnboundVariable(rng2, x2))
 
@@ -1504,20 +1504,20 @@ and lookup_type_opacity (tynm : type_name) (tyopac1 : type_opacity) (tyopac2 : t
         None
 
 
-and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module_signature) : WitnessMap.t =
+and lookup_record (rng : Range.t) (modsig1 : no_name_module_signature) (modsig2 : no_name_module_signature) : WitnessMap.t =
     match (modsig1, modsig2) with
     | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
         (* --
            perform signature matching by looking up signature `sigr1` and `sigr2` and associate type IDs in them
            so that we can check whether subtyping relation `sigr1 <= sigr2` holds
            -- *)
-        sigr2 |> SigRecord.fold
+        sigr2 |> NoNameSigRecord.fold
             ~v:(fun _ _ wtmapacc ->
               wtmapacc
             )
             ~t:(fun tydefs2 wtmapacc ->
               tydefs2 |> List.fold_left (fun wtmapacc (tynm2, tyopac2) ->
-                match sigr1 |> SigRecord.find_type tynm2 with
+                match sigr1 |> NoNameSigRecord.find_type tynm2 with
                 | None ->
                     raise (MissingRequiredTypeName(rng, tynm2, tyopac2))
 
@@ -1530,7 +1530,7 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
               ) wtmapacc
             )
             ~m:(fun modnm2 (modsig2, _) wtmapacc ->
-              match sigr1 |> SigRecord.find_module modnm2 with
+              match sigr1 |> NoNameSigRecord.find_module modnm2 with
               | None ->
                   raise (MissingRequiredModuleName(rng, modnm2, modsig2))
 
@@ -1598,13 +1598,13 @@ and check_well_formedness_of_witness_map (rng : Range.t) (wtmap : WitnessMap.t) 
       ()
 
 
-and subtype_abstract_with_abstract (rng : Range.t) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : unit =
+and subtype_abstract_with_abstract (rng : Range.t) (absmodsig1 : abstract_module_signature) (absmodsig2 : abstract_module_signature) : unit =
   let (_, modsig1) = absmodsig1 in
   let _ = subtype_concrete_with_abstract rng modsig1 absmodsig2 in
   ()
 
 
-and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsig1 : module_signature) (modsig2 : module_signature) : unit =
+and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsig1 : no_name_module_signature) (modsig2 : no_name_module_signature) : unit =
   match (modsig1, modsig2) with
   | (ConcFunctor(sigftor1), ConcFunctor(sigftor2)) ->
       let (oidset1, Domain(sigr1), absmodsigcod1) = (sigftor1.opaques, sigftor1.domain, sigftor1.codomain) in
@@ -1623,13 +1623,13 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
          from opaque types to types and one
          from variant types to variant types
          -- *)
-      sigr2 |> SigRecord.fold
-          ~v:(fun x2 (pty2, _) () ->
-            match sigr1 |> SigRecord.find_val x2 with
+      sigr2 |> NoNameSigRecord.fold
+          ~v:(fun x2 pty2 () ->
+            match sigr1 |> NoNameSigRecord.find_val x2 with
             | None ->
                 raise (MissingRequiredValName(rng, x2, pty2))
 
-            | Some(pty1, _) ->
+            | Some(pty1) ->
                if subtype_poly_type wtmap pty1 pty2 then
                  ()
                else
@@ -1639,7 +1639,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
             ()
           )
           ~m:(fun modnm2 (modsig2, _) () ->
-            match sigr1 |> SigRecord.find_module modnm2 with
+            match sigr1 |> NoNameSigRecord.find_module modnm2 with
             | None ->
                 raise (MissingRequiredModuleName(rng, modnm2, modsig2))
 
@@ -1647,7 +1647,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
                 subtype_concrete_with_concrete rng wtmap modsig1 modsig2
           )
           ~s:(fun signm2 absmodsig2 () ->
-            match sigr1 |> SigRecord.find_signature signm2 with
+            match sigr1 |> NoNameSigRecord.find_signature signm2 with
             | None ->
                 raise (MissingRequiredSignatureName(rng, signm2, absmodsig2))
 
@@ -1666,7 +1666,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
       raise (NotASubtype(rng, modsig1, modsig2))
 
 
-and subtype_concrete_with_abstract (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : WitnessMap.t =
+and subtype_concrete_with_abstract (rng : Range.t) (modsig1 : no_name_module_signature) (absmodsig2 : abstract_module_signature) : WitnessMap.t =
   let (oidset2, modsig2) = absmodsig2 in
   let wtmap = lookup_record rng modsig1 modsig2 in
   check_well_formedness_of_witness_map rng wtmap;
@@ -1675,11 +1675,12 @@ and subtype_concrete_with_abstract (rng : Range.t) (modsig1 : module_signature) 
   wtmap
 
 
-and subtype_signature (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : WitnessMap.t =
+and subtype_signature (rng : Range.t) (modsig1 : no_name_module_signature) (absmodsig2 : abstract_module_signature) : WitnessMap.t =
   subtype_concrete_with_abstract rng modsig1 absmodsig2
 
 
-and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : module_signature =
+and substitute_concrete : WitnessMap.t -> concrete_module_signature -> concrete_module_signature =
+fun wtmap modsig ->
   match modsig with
   | ConcFunctor(sigftor) ->
       let (oidset, Domain(sigr), absmodsigcod) = (sigftor.opaques, sigftor.domain, sigftor.codomain) in
@@ -1700,9 +1701,9 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
       ConcStructure(sigr)
 
 
-and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord.t =
+and substitute_structure (wtmap : WitnessMap.t) (sigr : NamedSigRecord.t) : NamedSigRecord.t =
   let (sigr, _wtmap) =
-    sigr |> SigRecord.map_and_fold
+    sigr |> NamedSigRecord.map_and_fold
         ~v:(fun (pty, name) wtmap ->
           let ventry = (substitute_poly_type wtmap pty, name) in
           (ventry, wtmap)
@@ -1785,7 +1786,7 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
   sigr
 
 
-and substitute_abstract (wtmap : WitnessMap.t) (absmodsig : module_signature abstracted) : module_signature abstracted =
+and substitute_abstract (wtmap : WitnessMap.t) (absmodsig : abstract_module_signature) : abstract_module_signature =
   let (oidset, modsig) = absmodsig in
   (oidset, substitute_concrete wtmap modsig)
     (* -- Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. -- *)
@@ -1836,7 +1837,7 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
   aux pty
 
 
-and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
+and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : NoNameSigRecord.t abstracted =
   let (_, utdeclmain) = utdecl in
   match utdeclmain with
   | DeclVal(ident, tyvaridents, mty) ->
@@ -1845,8 +1846,7 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       let localtyparams = TypeParameterMap.empty |> add_local_type_parameter typaramassoc in
       let ty = decode_manual_type tyenv localtyparams mty in
       let pty = generalize 0 ty in
-      let lname = OutputIdentifier.fresh () in
-      let sigr = SigRecord.empty |> SigRecord.add_val x pty (OutputIdentifier.Local(lname)) in
+      let sigr = NoNameSigRecord.empty |> NoNameSigRecord.add_val x pty in
       (OpaqueIDSet.empty, sigr)
 
   | DeclTypeTrans(_tyident, _mty) ->
@@ -1857,7 +1857,7 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       let (_, tynm) = tyident in
       let kd = mkd in
       let oid = TypeID.Opaque.fresh tynm in
-      let sigr = SigRecord.empty |> SigRecord.add_opaque_type tynm oid kd in
+      let sigr = NoNameSigRecord.empty |> NoNameSigRecord.add_opaque_type tynm oid kd in
       (OpaqueIDSet.singleton oid, sigr)
 
   | DeclModule(modident, utsig) ->
@@ -1865,13 +1865,13 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       let absmodsig = typecheck_signature tyenv utsig in
       let (oidset, modsig) = absmodsig in
       let sname = get_space_name rngm m in
-      let sigr = SigRecord.empty |> SigRecord.add_module m modsig sname in
+      let sigr = NoNameSigRecord.empty |> NoNameSigRecord.add_module m modsig sname in
       (oidset, sigr)
 
   | DeclSig(sigident, utsig) ->
       let (_, signm) = sigident in
       let absmodsig = typecheck_signature tyenv utsig in
-      let sigr = SigRecord.empty |> SigRecord.add_signature signm absmodsig in
+      let sigr = NoNameSigRecord.empty |> NoNameSigRecord.add_signature signm absmodsig in
       (OpaqueIDSet.empty, sigr)
 
   | DeclInclude(utsig) ->
@@ -1888,20 +1888,20 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       end
 
 
-and typecheck_declaration_list (tyenv : Typeenv.t) (utdecls : untyped_declaration list) : SigRecord.t abstracted =
+and typecheck_declaration_list (tyenv : Typeenv.t) (utdecls : untyped_declaration list) : NoNameSigRecord.t abstracted =
   let (oidsetacc, sigracc, _) =
     utdecls |> List.fold_left (fun (oidsetacc, sigracc, tyenv) ((rng, _) as utdecl) ->
       let (oidset, sigr) = typecheck_declaration tyenv utdecl in
       let oidsetacc = OpaqueIDSet.union oidsetacc oidset in
-      let sigracc = SigRecord.disjoint_union rng sigracc sigr in
+      let sigracc = NoNameSigRecord.disjoint_union rng sigracc sigr in
       let tyenv = tyenv |> update_type_environment_by_signature_record sigr in
       (oidsetacc, sigracc, tyenv)
-    ) (OpaqueIDSet.empty, SigRecord.empty, tyenv)
+    ) (OpaqueIDSet.empty, NoNameSigRecord.empty, tyenv)
   in
   (oidsetacc, sigracc)
 
 
-and copy_abstract_signature (absmodsig_from : module_signature abstracted) : module_signature abstracted =
+and copy_abstract_signature (absmodsig_from : abstract_module_signature) : abstract_module_signature =
   let (oidset_from, modsig_from) = absmodsig_from in
   let (oidset_to, wtmap) =
     OpaqueIDSet.fold (fun oid_from (oidset_to, wtmap) ->
@@ -1915,7 +1915,7 @@ and copy_abstract_signature (absmodsig_from : module_signature abstracted) : mod
   (oidset_to, modsig_to)
 
 
-and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
+and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : abstract_module_signature =
   let (rng, utsigmain) = utsig in
   match utsigmain with
   | SigVar(signm) ->
@@ -1956,7 +1956,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
         | ConcStructure(sigr1) ->
             let (rng2, signm2) = sigident2 in
             begin
-              match sigr1 |> SigRecord.find_signature signm2 with
+              match sigr1 |> NamedSigRecord.find_signature signm2 with
               | None ->
                   raise (UnboundSignatureName(rng2, signm2))
 
@@ -2018,7 +2018,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
 
           | ConcStructure(sigr) ->
               begin
-                match sigr |> SigRecord.find_module modnm with
+                match sigr |> NoNameSigRecord.find_module modnm with
                 | None            -> raise (UnboundModuleName(rng, modnm))
                 | Some(modsig, _) -> (rng, modsig)
               end
@@ -2032,7 +2032,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
 
         | ConcStructure(sigrlast) ->
             begin
-              match sigrlast |> SigRecord.find_type tynm1 with
+              match sigrlast |> NoNameSigRecord.find_type tynm1 with
               | None ->
                   raise (UndefinedTypeName(rng1, tynm1))
 
@@ -2065,7 +2065,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
       end
 
 
-and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding list =
+and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : NamedSigRecord.t abstracted * binding list =
   let (_, utbindmain) = utbind in
   match utbindmain with
   | BindVal(rec_or_nonrec) ->
@@ -2092,10 +2092,10 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             let recbinds = typecheck_letrec_mutual namef namef proj pre valbinds in
             let (sigr, irecbindacc) =
               recbinds |> List.fold_left (fun (sigr, irecbindacc) (x, pty, gname_outer, _, e) ->
-                let sigr = sigr |> SigRecord.add_val x pty (proj gname_outer) in
+                let sigr = sigr |> NamedSigRecord.add_val x (pty, proj gname_outer) in
                 let irecbindacc = Alist.extend irecbindacc (x, gname_outer, pty, e) in
                 (sigr, irecbindacc)
-              ) (SigRecord.empty, Alist.empty)
+              ) (NamedSigRecord.empty, Alist.empty)
             in
             (sigr, IRec(Alist.to_list irecbindacc))
 
@@ -2106,7 +2106,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
               typecheck_let (get_global_name arity) pre valbind
             in
             let (_, x) = valbind.vb_identifier in
-            let sigr = SigRecord.empty |> SigRecord.add_val x pty (OutputIdentifier.Global(gname)) in
+            let sigr = NamedSigRecord.empty |> NamedSigRecord.add_val x (pty, OutputIdentifier.Global(gname)) in
             (sigr, INonRec(x, gname, pty, e))
       in
       ((OpaqueIDSet.empty, sigr), [IBindVal(i_rec_or_nonrec)])
@@ -2188,10 +2188,10 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         let tyidents = syns |> List.map (fun (tyident, _, _, _) -> tyident) in
         raise (CyclicSynonymTypeDefinition(tyidents))
       else
-        let sigr = SigRecord.empty |> SigRecord.add_types (tydefacc |> Alist.to_list) in
+        let sigr = NamedSigRecord.empty |> NamedSigRecord.add_types (tydefacc |> Alist.to_list) in
         let sigr =
           ctordefacc |> Alist.to_list |> List.fold_left (fun sigr (vid, typarams, ctorbrmap) ->
-            sigr |> SigRecord.add_constructors vid typarams ctorbrmap
+            sigr |> NamedSigRecord.add_constructors vid typarams ctorbrmap
           ) sigr
         in
         ((OpaqueIDSet.empty, sigr), [])
@@ -2201,7 +2201,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       let (absmodsig, ibindssub) = typecheck_module tyenv utmod in
       let (oidset, modsig) = absmodsig in
       let sname = get_space_name rngm m in
-      let sigr = SigRecord.empty |> SigRecord.add_module m (push_space_to_signature sname modsig) sname in
+      let sigr = NamedSigRecord.empty |> NamedSigRecord.add_module m (push_space_to_signature sname modsig) sname in
       let ibinds =
         match ibindssub with
         | []     -> []
@@ -2225,11 +2225,11 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
   | BindSig(sigident, sigbind) ->
       let (_, signm) = sigident in
       let absmodsig = typecheck_signature tyenv sigbind in
-      let sigr = SigRecord.empty |> SigRecord.add_signature signm absmodsig in
+      let sigr = NamedSigRecord.empty |> NamedSigRecord.add_signature signm absmodsig in
       ((OpaqueIDSet.empty, sigr), [])
 
 
-and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signature abstracted * binding list =
+and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : concrete_module_signature abstracted * binding list =
   let (rng, utmodmain) = utmod in
   match utmodmain with
   | ModVar(m) ->
@@ -2255,7 +2255,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
         | ConcStructure(sigr) ->
             let (rng, m) = modident in
             begin
-              match sigr |> SigRecord.find_module m with
+              match sigr |> NamedSigRecord.find_module m with
               | None ->
                   raise (UnboundModuleName(rng, m))
 
@@ -2344,7 +2344,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       (absmodsig, [])
 
 
-and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : SigRecord.t abstracted * binding list =
+and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) : NamedSigRecord.t abstracted * binding list =
   let (_tyenv, oidsetacc, sigracc, ibindacc) =
     utbinds |> List.fold_left (fun (tyenv, oidsetacc, sigracc, ibindacc) utbind ->
       let (abssigr, ibinds) = typecheck_binding tyenv utbind in
@@ -2353,7 +2353,7 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
       let oidsetacc = OpaqueIDSet.union oidsetacc oidset in
       let sigracc =
         let (rng, _) = utbind in
-        SigRecord.disjoint_union rng sigracc sigr in
+        NamedSigRecord.disjoint_union rng sigracc sigr in
         (* --
            In the original paper "F-ing modules" [Rossberg, Russo & Dreyer 2014],
            this operation is not disjoint union, but union with right-hand side precedence.
@@ -2361,11 +2361,11 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
            -- *)
       let ibindacc = Alist.append ibindacc ibinds in
       (tyenv, oidsetacc, sigracc, ibindacc)
-    ) (tyenv, OpaqueIDSet.empty, SigRecord.empty, Alist.empty)
+    ) (tyenv, OpaqueIDSet.empty, NamedSigRecord.empty, Alist.empty)
   in
   ((oidsetacc, sigracc), Alist.to_list ibindacc)
 
 
-let main (utbinds : untyped_binding list) : SigRecord.t abstracted * binding list =
+let main (utbinds : untyped_binding list) : NamedSigRecord.t abstracted * binding list =
   let tyenv = Primitives.initial_type_environment in
   typecheck_binding_list tyenv utbinds

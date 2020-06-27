@@ -23,27 +23,27 @@ type opaque_entry = {
   o_kind : kind;
 }
 
-type module_signature =
-  | ConcStructure of record_signature
-  | ConcFunctor   of functor_signature
+type 'v module_signature =
+  | ConcStructure of 'v record_signature
+  | ConcFunctor   of 'v functor_signature
 
-and functor_signature = {
+and 'v functor_signature = {
   opaques  : OpaqueIDSet.t;
-  domain   : functor_domain;
-  codomain : OpaqueIDSet.t * module_signature;
+  domain   : 'v functor_domain;
+  codomain : abstract_module_signature;
   closure  : (module_name ranged * untyped_module * environment) option;
 }
 
-and functor_domain =
-  | Domain of record_signature
+and 'v functor_domain =
+  | Domain of 'v record_signature
 
 and module_entry = {
   mod_name      : space_name;
-  mod_signature : module_signature;
+  mod_signature : concrete_module_signature;
 }
 
 and signature_entry = {
-  sig_signature : module_signature abstracted;
+  sig_signature : abstract_module_signature;
 }
 
 and environment = {
@@ -55,15 +55,21 @@ and environment = {
   signatures   : signature_entry SignatureNameMap.t;
 }
 
-and record_signature =
-  record_signature_entry Alist.t
+and 'v record_signature =
+  ('v record_signature_entry) Alist.t
 
-and record_signature_entry =
-  | SRVal      of identifier * (poly_type * name)
+and 'v record_signature_entry =
+  | SRVal      of identifier * 'v
   | SRRecTypes of (type_name * type_opacity) list
-  | SRModule   of module_name * (module_signature * space_name)
-  | SRSig      of signature_name * module_signature abstracted
+  | SRModule   of module_name * ('v module_signature * space_name)
+  | SRSig      of signature_name * abstract_module_signature
   | SRCtor     of constructor_name * constructor_entry
+
+and no_name_module_signature = poly_type module_signature
+
+and abstract_module_signature = no_name_module_signature abstracted
+
+and concrete_module_signature = (poly_type * name) module_signature
 
 
 module Typeenv = struct
@@ -83,7 +89,7 @@ module Typeenv = struct
 
   let map
       ~v:(fv : poly_type * name -> poly_type * name)
-      ~m:(fm : module_signature * space_name -> module_signature * space_name)
+      ~m:(fm : concrete_module_signature * space_name -> concrete_module_signature * space_name)
       (tyenv : t) : t =
     let vals =
       tyenv.vals |> ValNameMap.map (fun ventry ->
@@ -182,7 +188,7 @@ module Typeenv = struct
     )
 
 
-  let add_module (modnm : module_name) (modsig : module_signature) (sname : space_name) (tyenv : t) : t =
+  let add_module (modnm : module_name) (modsig : concrete_module_signature) (sname : space_name) (tyenv : t) : t =
     let modentry =
       {
         mod_name      = sname;
@@ -194,13 +200,13 @@ module Typeenv = struct
     }
 
 
-  let find_module (modnm : module_name) (tyenv : t) : (module_signature * space_name) option =
+  let find_module (modnm : module_name) (tyenv : t) : (concrete_module_signature * space_name) option =
     tyenv.modules |> ModuleNameMap.find_opt modnm |> Option.map (fun modentry ->
       (modentry.mod_signature, modentry.mod_name)
     )
 
 
-  let add_signature (signm : signature_name) (absmodsig : module_signature abstracted) (tyenv : t) : t =
+  let add_signature (signm : signature_name) (absmodsig : abstract_module_signature) (tyenv : t) : t =
     let sigentry =
       {
         sig_signature = absmodsig;
@@ -211,7 +217,7 @@ module Typeenv = struct
     }
 
 
-  let find_signature (signm : signature_name) (tyenv : t) : (module_signature abstracted) option =
+  let find_signature (signm : signature_name) (tyenv : t) : abstract_module_signature option =
     tyenv.signatures |> SignatureNameMap.find_opt signm |> Option.map (fun sigentry ->
       sigentry.sig_signature
     )
@@ -219,19 +225,81 @@ module Typeenv = struct
 end
 
 
-module SigRecord = struct
+module type SigRecordS = sig
 
-  type t = record_signature
+  type val_entry
+
+  type t = val_entry record_signature
+
+  val empty : t
+
+  val add_val : identifier -> val_entry -> t -> t
+
+  val find_val : identifier -> t -> val_entry option
+
+  val add_types : (type_name * type_opacity) list -> t -> t
+
+  val add_constructors : TypeID.Variant.t -> BoundID.t list -> constructor_branch_map -> t -> t
+
+  val find_constructor : constructor_name -> t -> constructor_entry option
+
+  val find_type : type_name -> t -> type_opacity option
+
+  val add_opaque_type : type_name -> TypeID.Opaque.t -> kind -> t -> t
+
+  val add_module : module_name -> val_entry module_signature -> space_name -> t -> t
+
+  val find_module : module_name -> t -> (val_entry module_signature * space_name) option
+
+  val add_signature : signature_name -> abstract_module_signature -> t -> t
+
+  val find_signature : signature_name -> t -> abstract_module_signature option
+
+  val fold :
+    v:(identifier -> val_entry -> 'a -> 'a) ->
+    t:((type_name * type_opacity) list -> 'a -> 'a) ->
+    m:(module_name -> val_entry module_signature * space_name -> 'a -> 'a) ->
+    s:(signature_name -> abstract_module_signature -> 'a -> 'a) ->
+    c:(constructor_name -> constructor_entry -> 'a -> 'a) ->
+    'a -> t -> 'a
+
+  val map_and_fold :
+    v:(val_entry -> 'a -> val_entry * 'a) ->
+    t:(type_opacity list -> 'a -> type_opacity list * 'a) ->
+    m:(val_entry module_signature * space_name -> 'a -> (val_entry module_signature * space_name) * 'a) ->
+    s:(abstract_module_signature -> 'a -> abstract_module_signature * 'a) ->
+    c:(constructor_entry -> 'a -> constructor_entry * 'a) ->
+    'a -> t -> t * 'a
+
+  val map :
+    v:(val_entry -> val_entry) ->
+    t:(type_opacity list -> type_opacity list) ->
+    m:(val_entry module_signature * space_name -> val_entry module_signature * space_name) ->
+    s:(abstract_module_signature -> abstract_module_signature) ->
+    c:(constructor_entry -> constructor_entry) ->
+    t -> t
+
+  val disjoint_union : Range.t -> t -> t -> t
+
+end
+
+
+
+module SigRecordScheme(M : sig type v end) = struct
+
+  type val_entry = M.v
+
+  type t = M.v record_signature
 
   let empty : t =
     Alist.empty
 
 
-  let add_val (x : identifier) (pty : poly_type) (name : name) (sigr : t) : t =
-    Alist.extend sigr (SRVal(x, (pty, name)))
+  let add_val (x : identifier) (ventry : val_entry) (sigr : t) : t =
+    Alist.extend sigr (SRVal(x, ventry))
 
 
-  let find_val (x0 : identifier) (sigr : t) : (poly_type * name) option =
+  let find_val (x0 : identifier) (sigr : t) : val_entry option =
     sigr |> Alist.to_rev_list |> List.find_map (function
     | SRVal(x, ventry) -> if String.equal x x0 then Some(ventry) else None
     | _                -> None
@@ -279,22 +347,22 @@ module SigRecord = struct
     Alist.extend sigr (SRRecTypes[ (tynm, (TypeID.Opaque(oid), kd)) ])
 
 
-  let add_module (modnm : module_name) (modsig : module_signature) (sname : space_name) (sigr : t) : t =
+  let add_module (modnm : module_name) (modsig : val_entry module_signature) (sname : space_name) (sigr : t) : t =
     Alist.extend sigr (SRModule(modnm, (modsig, sname)))
 
 
-  let find_module (modnm0 : module_name) (sigr : t) : (module_signature * space_name) option =
+  let find_module (modnm0 : module_name) (sigr : t) : (val_entry module_signature * space_name) option =
     sigr |> Alist.to_list |> List.find_map (function
     | SRModule(modnm, mentry) -> if String.equal modnm modnm0 then Some(mentry) else None
     | _                       -> None
     )
 
 
-  let add_signature (signm : signature_name) (absmodsig : module_signature abstracted) (sigr : t) : t =
+  let add_signature (signm : signature_name) (absmodsig : abstract_module_signature) (sigr : t) : t =
     Alist.extend sigr (SRSig(signm, absmodsig))
 
 
-  let find_signature (signm0 : signature_name) (sigr : t) : (module_signature abstracted) option =
+  let find_signature (signm0 : signature_name) (sigr : t) : abstract_module_signature option =
     sigr |> Alist.to_list |> List.find_map (function
     | SRSig(signm, absmodsig) -> if String.equal signm signm0 then Some(absmodsig) else None
     | _                       -> None
@@ -302,10 +370,10 @@ module SigRecord = struct
 
 
   let fold (type a)
-      ~v:(fv : identifier -> poly_type * name -> a -> a)
+      ~v:(fv : identifier -> val_entry -> a -> a)
       ~t:(ft : (type_name * type_opacity) list -> a -> a)
-      ~m:(fm : module_name -> module_signature * space_name -> a -> a)
-      ~s:(fs : signature_name -> module_signature abstracted -> a -> a)
+      ~m:(fm : module_name -> val_entry module_signature * space_name -> a -> a)
+      ~s:(fs : signature_name -> abstract_module_signature -> a -> a)
       ~c:(fc : constructor_name -> constructor_entry -> a -> a)
       (init : a) (sigr : t) : a =
     sigr |> Alist.to_list |> List.fold_left (fun acc entry ->
@@ -319,10 +387,10 @@ module SigRecord = struct
 
 
   let map_and_fold (type a)
-      ~v:(fv : poly_type * name -> a -> (poly_type * name) * a)
+      ~v:(fv : val_entry -> a -> val_entry * a)
       ~t:(ft : type_opacity list -> a -> type_opacity list * a)
-      ~m:(fm : module_signature * space_name -> a -> (module_signature * space_name) * a)
-      ~s:(fs : module_signature abstracted -> a -> module_signature abstracted * a)
+      ~m:(fm : val_entry module_signature * space_name -> a -> (val_entry module_signature * space_name) * a)
+      ~s:(fs : abstract_module_signature -> a -> abstract_module_signature * a)
       ~c:(fc : constructor_entry -> a -> constructor_entry * a)
       (init : a) (sigr : t) : t * a =
       sigr |> Alist.to_list |> List.fold_left (fun (sigracc, acc) entry ->
@@ -351,10 +419,10 @@ module SigRecord = struct
 
 
   let map (type a)
-      ~v:(fv : poly_type * name -> poly_type * name)
+      ~v:(fv : val_entry -> val_entry)
       ~t:(ft : type_opacity list -> type_opacity list)
-      ~m:(fm : module_signature * space_name -> module_signature * space_name)
-      ~s:(fs : module_signature abstracted -> module_signature abstracted)
+      ~m:(fm : val_entry module_signature * space_name -> val_entry module_signature * space_name)
+      ~s:(fs : abstract_module_signature -> abstract_module_signature)
       ~c:(fc : constructor_entry -> constructor_entry)
       (sigr : t) : t =
     let (sigr, ()) =
@@ -398,3 +466,12 @@ module SigRecord = struct
     ) sigr1
 
 end
+
+
+module NamedSigRecord = SigRecordScheme(struct
+  type v = poly_type * name
+end)
+
+module NoNameSigRecord = SigRecordScheme(struct
+  type v = poly_type
+end)

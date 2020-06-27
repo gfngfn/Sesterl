@@ -3,21 +3,27 @@ open Syntax
 
 type environment
 
-type record_signature
+type 'v record_signature
 
-type module_signature =
-  | ConcStructure of record_signature
-  | ConcFunctor   of functor_signature
+type 'v module_signature =
+  | ConcStructure of 'v record_signature
+  | ConcFunctor   of 'v functor_signature
 
-and functor_signature = {
+and 'v functor_signature = {
   opaques  : OpaqueIDSet.t;
-  domain   : functor_domain;
-  codomain : OpaqueIDSet.t * module_signature;
+  domain   : 'v functor_domain;
+  codomain : abstract_module_signature;
   closure  : (module_name ranged * untyped_module * environment) option;
 }
 
-and functor_domain =
-  | Domain of record_signature
+and 'v functor_domain =
+  | Domain of 'v record_signature
+
+and concrete_module_signature = (poly_type * name) module_signature
+
+and no_name_module_signature = poly_type module_signature
+
+and abstract_module_signature = no_name_module_signature abstracted
 
 module Typeenv : sig
 
@@ -27,7 +33,7 @@ module Typeenv : sig
 
   val map :
     v:(poly_type * name -> poly_type * name) ->
-    m:(module_signature * space_name -> module_signature * space_name) ->
+    m:(concrete_module_signature * space_name -> concrete_module_signature * space_name) ->
     t -> t
 
   val add_val : identifier -> poly_type -> name -> t -> t
@@ -52,25 +58,27 @@ module Typeenv : sig
 
   val find_type : type_name -> t -> (TypeID.t * int) option
 
-  val add_module : module_name -> module_signature -> space_name -> t -> t
+  val add_module : module_name -> concrete_module_signature -> space_name -> t -> t
 
-  val find_module : module_name -> t -> (module_signature * space_name) option
+  val find_module : module_name -> t -> (concrete_module_signature * space_name) option
 
-  val add_signature : signature_name -> module_signature abstracted -> t -> t
+  val add_signature : signature_name -> abstract_module_signature -> t -> t
 
-  val find_signature : signature_name -> t -> (module_signature abstracted) option
+  val find_signature : signature_name -> t -> abstract_module_signature option
 
 end
 
-module SigRecord : sig
+module type SigRecordS = sig
 
-  type t = record_signature
+  type val_entry
+
+  type t = val_entry record_signature
 
   val empty : t
 
-  val add_val : identifier -> poly_type -> name -> t -> t
+  val add_val : identifier -> val_entry -> t -> t
 
-  val find_val : identifier -> t -> (poly_type * name) option
+  val find_val : identifier -> t -> val_entry option
 
   val add_types : (type_name * type_opacity) list -> t -> t
 
@@ -82,38 +90,42 @@ module SigRecord : sig
 
   val add_opaque_type : type_name -> TypeID.Opaque.t -> kind -> t -> t
 
-  val add_module : module_name -> module_signature -> space_name -> t -> t
+  val add_module : module_name -> val_entry module_signature -> space_name -> t -> t
 
-  val find_module : module_name -> t -> (module_signature * space_name) option
+  val find_module : module_name -> t -> (val_entry module_signature * space_name) option
 
-  val add_signature : signature_name -> module_signature abstracted -> t -> t
+  val add_signature : signature_name -> abstract_module_signature -> t -> t
 
-  val find_signature : signature_name -> t -> (module_signature abstracted) option
+  val find_signature : signature_name -> t -> abstract_module_signature option
 
   val fold :
-    v:(identifier -> poly_type * name -> 'a -> 'a) ->
+    v:(identifier -> val_entry -> 'a -> 'a) ->
     t:((type_name * type_opacity) list -> 'a -> 'a) ->
-    m:(module_name -> module_signature * space_name -> 'a -> 'a) ->
-    s:(signature_name -> module_signature abstracted -> 'a -> 'a) ->
+    m:(module_name -> val_entry module_signature * space_name -> 'a -> 'a) ->
+    s:(signature_name -> abstract_module_signature -> 'a -> 'a) ->
     c:(constructor_name -> constructor_entry -> 'a -> 'a) ->
     'a -> t -> 'a
 
   val map_and_fold :
-    v:(poly_type * name -> 'a -> (poly_type * name) * 'a) ->
+    v:(val_entry -> 'a -> val_entry * 'a) ->
     t:(type_opacity list -> 'a -> type_opacity list * 'a) ->
-    m:(module_signature * space_name -> 'a -> (module_signature * space_name) * 'a) ->
-    s:(module_signature abstracted -> 'a -> module_signature abstracted * 'a) ->
+    m:(val_entry module_signature * space_name -> 'a -> (val_entry module_signature * space_name) * 'a) ->
+    s:(abstract_module_signature -> 'a -> abstract_module_signature * 'a) ->
     c:(constructor_entry -> 'a -> constructor_entry * 'a) ->
     'a -> t -> t * 'a
 
   val map :
-    v:(poly_type * name -> poly_type * name) ->
+    v:(val_entry -> val_entry) ->
     t:(type_opacity list -> type_opacity list) ->
-    m:(module_signature * space_name -> module_signature * space_name) ->
-    s:(module_signature abstracted -> module_signature abstracted) ->
+    m:(val_entry module_signature * space_name -> val_entry module_signature * space_name) ->
+    s:(abstract_module_signature -> abstract_module_signature) ->
     c:(constructor_entry -> constructor_entry) ->
     t -> t
 
   val disjoint_union : Range.t -> t -> t -> t
 
 end
+
+module NamedSigRecord : (SigRecordS with type val_entry = poly_type * name)
+
+module NoNameSigRecord : (SigRecordS with type val_entry = poly_type)
