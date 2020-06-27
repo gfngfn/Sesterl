@@ -31,7 +31,7 @@ type global_answer = {
 
 
 let space : string -> space option =
-  IdentifierScheme.from_snake_case
+  IdentifierScheme.from_upper_camel_case
 
 
 let fresh_number : unit -> int =
@@ -75,6 +75,10 @@ let unused : local =
 let push_space (space : space) = function
   | ReprGlobal(r) ->
       ReprGlobal{ r with module_names = space :: r.module_names }
+
+
+let output_space =
+  IdentifierScheme.to_snake_case
 
 
 let output_local = function

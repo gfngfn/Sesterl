@@ -33,6 +33,8 @@ val operator : string -> operator
 
 val unused : local
 
+val output_space : space -> string
+
 val output_local : local -> string
 
 val output_global : global -> global_answer

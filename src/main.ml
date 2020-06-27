@@ -264,6 +264,11 @@ let main fpath_in fpath_out =
         Range.pp rng
         ctor
 
+  | Typechecker.InvalidIdentifier(rng, s) ->
+      Format.printf "%a: invalid identifier '%s'\n"
+        Range.pp rng
+        s
+
 
 let flag_output =
   let open Cmdliner in

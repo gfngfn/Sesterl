@@ -187,7 +187,7 @@ and stringify_pattern (ipat : pattern) =
       end
 
 
-let stringify_binding (ibind : binding) : string list =
+let rec stringify_binding (ibind : binding) : string list =
   let val_single (_, gnamefun, _, ast) =
     match ast with
     | ILambda(None, nameparams, ast0) ->
@@ -206,9 +206,14 @@ let stringify_binding (ibind : binding) : string list =
   | IBindVal(IRec(valbinds)) ->
       valbinds |> List.map val_single
 
-  | IBindModule(name, ibinds) ->
-
-      failwith "TODO: IBindModule"
+  | IBindModule(space, ibinds) ->
+      let sspace = OutputIdentifier.output_space space in
+      let ss = ibinds |> List.map stringify_binding |> List.concat in
+      List.concat [
+        [ Printf.sprintf "%% module %s = {" sspace ];
+        ss |> List.map (fun s -> "% " ^ s);
+        [ "% }" ];
+      ]
 
 
 let main (modname : string) (binds : binding list) : string =
