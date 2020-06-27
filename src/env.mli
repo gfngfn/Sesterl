@@ -19,6 +19,8 @@ and functor_signature = {
 and functor_domain =
   | Domain of record_signature
 
+val pp_module_signature : Format.formatter -> module_signature -> unit
+
 module Typeenv : sig
 
   type t = environment
@@ -117,3 +119,7 @@ module SigRecord : sig
   val disjoint_union : Range.t -> t -> t -> t
 
 end
+
+val display_signature : int -> module_signature -> unit
+
+val display_structure : int -> SigRecord.t -> unit

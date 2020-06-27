@@ -571,6 +571,17 @@ module VariantIDHashTable = Hashtbl.Make(TypeID.Variant)
 
 module OpaqueIDSet = Set.Make(TypeID.Opaque)
 
+
+let stringify_opaque_id_set oidset =
+  OpaqueIDSet.fold (fun oid acc ->
+    Alist.extend acc (Format.asprintf "%a" TypeID.Opaque.pp oid)
+  ) oidset Alist.empty |> Alist.to_list |> List.map (fun s -> " " ^ s) |> String.concat ","
+
+
+let pp_opaque_id_set ppf oidset =
+  Format.fprintf ppf "%s" (stringify_opaque_id_set oidset)
+
+
 module OpaqueIDMap = Map.Make(TypeID.Opaque)
 
 module OpaqueIDHashTable = Hashtbl.Make(TypeID.Opaque)
@@ -605,6 +616,7 @@ type constructor_entry = {
   type_variables  : BoundID.t list;
   parameter_types : poly_type list;
 }
+[@@deriving show { with_path = false; } ]
 
 type val_binding =
   | INonRec of (identifier * global_name * poly_type * ast)
@@ -686,10 +698,26 @@ and pp_ast ppf = function
         (Format.pp_print_list ~pp_sep:pp_sep_comma pp_ast) eargs
 
   | ILetIn(lname, e1, e2) ->
-      Format.fprintf ppf "let %a =@[<hov2>@ %a@]@ in@ %a"
+      Format.fprintf ppf "(let %a =@[<hov2>@ %a@]@ in@ %a)"
         OutputIdentifier.pp_local lname
         pp_ast e1
         pp_ast e2
 
+  | ICase(e0, ibrs) ->
+      Format.fprintf ppf "(case@[<hov2>@ %a@]@ of@[<hov2>@ %a@]@ end)"
+        pp_ast e0
+        (Format.pp_print_list pp_branch) ibrs
+
+  | ITuple(es) ->
+      Format.fprintf ppf "{%a}"
+        (Format.pp_print_list ~pp_sep:pp_sep_comma pp_ast) (es |> TupleList.to_list)
+
   | _ ->
       Format.fprintf ppf "..."
+
+
+and pp_branch ppf = function
+  | IBranch(ipat, _, e) ->
+      Format.fprintf ppf "%a (when ...) ->@[<hov2>@ %a@];@ "
+        pp_pattern ipat
+        pp_ast e

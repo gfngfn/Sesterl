@@ -29,11 +29,23 @@ type module_signature =
 
 and functor_signature = {
   opaques  : OpaqueIDSet.t;
+    [@printer pp_opaque_id_set]
   domain   : functor_domain;
   codomain : OpaqueIDSet.t * module_signature;
+    [@printer (fun ppf (oidset, modsig) -> Format.fprintf ppf "(%a, _)" pp_opaque_id_set oidset)]
   closure  : (module_name ranged * untyped_module * environment) option;
 }
-
+(*
+[@@printer (fun ppf sigftor ->
+  let oidset1 = sigftor.opaques in
+  let (oidset2, cod) = sigftor.codomain in
+  Format.fprintf ppf "(forall%s) %a@ ->@ (exists%s) %a"
+    (stringify_opaque_id_set oidset1)
+    pp_functor_domain sigftor.domain
+    (stringify_opaque_id_set oidset2)
+    pp_module_signature cod
+)]
+*)
 and functor_domain =
   | Domain of record_signature
 
@@ -44,26 +56,39 @@ and module_entry = {
 
 and signature_entry = {
   sig_signature : module_signature abstracted;
+    [@printer (fun ppf (oidset, _) -> Format.fprintf ppf "(%a, _)" pp_opaque_id_set oidset)]
 }
 
 and environment = {
   vals         : val_entry ValNameMap.t;
+    [@printer (fun ppf _ -> Format.fprintf ppf "<vals>")]
   type_names   : (type_entry * int) TypeNameMap.t;
+    [@printer (fun ppf _ -> Format.fprintf ppf "<type_names>")]
   opaques      : opaque_entry OpaqueIDMap.t;
+    [@printer (fun ppf _ -> Format.fprintf ppf "<opaques>")]
   constructors : constructor_entry ConstructorMap.t;
+    [@printer (fun ppf _ -> Format.fprintf ppf "<constructors>")]
   modules      : module_entry ModuleNameMap.t;
+    [@printer (fun ppf _ -> Format.fprintf ppf "<modules>")]
   signatures   : signature_entry SignatureNameMap.t;
+    [@printer (fun ppf _ -> Format.fprintf ppf "<signatures>")]
 }
 
 and record_signature =
   record_signature_entry Alist.t
+[@printer (fun ppf acc ->
+  Format.fprintf ppf "%a" (Format.pp_print_list pp_record_signature_entry) (Alist.to_list acc)
+)]
 
 and record_signature_entry =
   | SRVal      of identifier * (poly_type * name)
   | SRRecTypes of (type_name * type_opacity) list
+      [@printer (fun ppf _ -> Format.fprintf ppf "<SRRecTypes>")]
   | SRModule   of module_name * (module_signature * space_name)
   | SRSig      of signature_name * module_signature abstracted
+      [@printer (fun ppf _ -> Format.fprintf ppf "<SRSig>")]
   | SRCtor     of constructor_name * constructor_entry
+[@@deriving show { with_path = false }]
 
 
 module Typeenv = struct
@@ -398,3 +423,71 @@ module SigRecord = struct
     ) sigr1
 
 end
+
+
+let pp_comma ppf () =
+  Format.fprintf ppf ", "
+
+
+let rec display_signature (depth : int) (modsig : module_signature) : unit =
+  let indent = String.make (depth * 2) ' ' in
+  match modsig with
+  | ConcStructure(sigr) ->
+      Format.printf "%ssig\n" indent;
+      display_structure (depth + 1) sigr;
+      Format.printf "%send\n" indent
+
+  | ConcFunctor(sigftor) ->
+      let (oidset1, Domain(sigr1), (oidset2, modsigcod)) = (sigftor.opaques, sigftor.domain, sigftor.codomain) in
+      let modsigdom = ConcStructure(sigr1) in
+      let sx1 = stringify_opaque_id_set oidset1 in
+      let sx2 = stringify_opaque_id_set oidset2 in
+      Format.printf "%s(forall%s) fun(\n" indent sx1;
+      display_signature (depth + 1) modsigdom;
+      Format.printf "%s) -> (exists%s)\n" indent sx2;
+      display_signature (depth + 1) modsigcod
+
+
+and display_structure (depth : int) (sigr : SigRecord.t) : unit =
+  let indent = String.make (depth * 2) ' ' in
+  sigr |> SigRecord.fold
+      ~v:(fun x (pty, _) () ->
+        Format.printf "%sval %s: %a\n" indent x pp_poly_type pty
+      )
+      ~t:(fun tydefs () ->
+        tydefs |> List.iter (fun (tynm, tyopac) ->
+          let (tyid, arity) = tyopac in
+          match tyid with
+          | TypeID.Synonym(sid) ->
+              let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
+              Format.printf "%stype %a<%a> = %a\n"
+                indent
+                TypeID.Synonym.pp sid
+                (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
+                pp_poly_type ptyreal
+
+          | TypeID.Variant(vid) ->
+              let (typarams, _ctorbrs) = TypeSynonymStore.find_variant_type vid in
+              Format.printf "%stype %a<%a> = (variant)\n"
+                indent
+                TypeID.Variant.pp vid
+                (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
+
+          | TypeID.Opaque(oid) ->
+              Format.printf "%stype %a:: %d\n"
+                indent
+                TypeID.Opaque.pp oid
+                arity
+        )
+      )
+      ~m:(fun modnm (modsig, _) () ->
+        Format.printf "%smodule %s:\n" indent modnm;
+        display_signature (depth + 1) modsig;
+      )
+      ~s:(fun signm _ () ->
+        Format.printf "signature %s\n" signm
+      )
+      ~c:(fun ctornm _ () ->
+        Format.printf "constructor %s\n" ctornm
+      )
+      ()
