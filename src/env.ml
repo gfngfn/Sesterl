@@ -59,7 +59,7 @@ and record_signature =
   record_signature_entry Alist.t
 
 and record_signature_entry =
-  | SRVal      of identifier * (poly_type * name option)
+  | SRVal      of identifier * (poly_type * name)
   | SRRecTypes of (type_name * type_opacity) list
   | SRModule   of module_name * (module_signature * space_name)
   | SRSig      of signature_name * module_signature abstracted
@@ -227,11 +227,11 @@ module SigRecord = struct
     Alist.empty
 
 
-  let add_val (x : identifier) (pty : poly_type) (name : name option) (sigr : t) : t =
+  let add_val (x : identifier) (pty : poly_type) (name : name) (sigr : t) : t =
     Alist.extend sigr (SRVal(x, (pty, name)))
 
 
-  let find_val (x0 : identifier) (sigr : t) : (poly_type * name option) option =
+  let find_val (x0 : identifier) (sigr : t) : (poly_type * name) option =
     sigr |> Alist.to_rev_list |> List.find_map (function
     | SRVal(x, ventry) -> if String.equal x x0 then Some(ventry) else None
     | _                -> None
@@ -302,7 +302,7 @@ module SigRecord = struct
 
 
   let fold (type a)
-      ~v:(fv : identifier -> poly_type * name option -> a -> a)
+      ~v:(fv : identifier -> poly_type * name -> a -> a)
       ~t:(ft : (type_name * type_opacity) list -> a -> a)
       ~m:(fm : module_name -> module_signature * space_name -> a -> a)
       ~s:(fs : signature_name -> module_signature abstracted -> a -> a)
@@ -319,7 +319,7 @@ module SigRecord = struct
 
 
   let map_and_fold (type a)
-      ~v:(fv : poly_type * name option -> a -> (poly_type * name option) * a)
+      ~v:(fv : poly_type * name -> a -> (poly_type * name) * a)
       ~t:(ft : type_opacity list -> a -> type_opacity list * a)
       ~m:(fm : module_signature * space_name -> a -> (module_signature * space_name) * a)
       ~s:(fs : module_signature abstracted -> a -> module_signature abstracted * a)
@@ -351,7 +351,7 @@ module SigRecord = struct
 
 
   let map (type a)
-      ~v:(fv : poly_type * name option -> poly_type * name option)
+      ~v:(fv : poly_type * name -> poly_type * name)
       ~t:(ft : type_opacity list -> type_opacity list)
       ~m:(fm : module_signature * space_name -> module_signature * space_name)
       ~s:(fs : module_signature abstracted -> module_signature abstracted)
