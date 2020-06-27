@@ -17,7 +17,7 @@ let stringify_base_constant (bc : base_constant) =
 
 let output_module_prefix = function
   | [] -> ""
-  | ss -> ":" ^ String.concat "_" ss
+  | ss -> String.concat "_" ss ^ ":"
 
 
 let output_single = function
@@ -35,11 +35,20 @@ let output_single = function
       let smod = output_module_prefix r.module_names in
       let sfun = r.function_name in
       Printf.sprintf "(fun(%s) -> %s%s(%s) end)" sparam smod sfun sparam
-        (* -- perform the eta expansion for global function names
-              in order to avoid being confused with atoms -- *)
+        (*  Performs the eta expansion for global function names
+            in order to avoid being confused with atoms.
+            Note that we cannot simply use `(fun ?MODULE:F/A)` here
+            because it is not valid for private functions. *)
 
-  | OutputIdentifier.Operator(_) ->
-      failwith "TODO: output_single, Operator"
+  | OutputIdentifier.Operator(oname) ->
+      let sop = OutputIdentifier.output_operator oname in
+      let gensym () =
+        let lname = OutputIdentifier.fresh () in
+        OutputIdentifier.output_local lname
+      in
+      let s1 = gensym () in
+      let s2 = gensym () in
+      Printf.sprintf "(fun(%s, %s) -> %s %s %s end)" s1 s2 s1 sop s2
 
 
 let rec stringify_ast (ast : ast) =
