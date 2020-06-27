@@ -1,0 +1,17 @@
+
+signature S = sig
+  type t:: 0
+  val zero: fun() -> t
+end
+
+module F = fun(X: S) -> struct
+  let f(x: X.t): X.t = x
+  let zeroes() = (X.zero(), X.zero())
+end
+
+module Int = struct
+  type t = int
+  let zero() = 0
+end
+
+module M = F(Int)
