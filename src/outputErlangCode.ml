@@ -32,7 +32,7 @@ let output_single = function
           OutputIdentifier.output_local lname
         ) |> String.concat ", "
       in
-      let smod = output_module_prefix r.module_names in
+      let smod = failwith "TODO: Global, module names" in
       let sfun = r.function_name in
       Printf.sprintf "(fun(%s) -> %s%s(%s) end)" sparam smod sfun sparam
         (*  Performs the eta expansion for global function names
@@ -79,7 +79,7 @@ let rec stringify_ast (ast : ast) =
 
         | (OutputIdentifier.Global(gname), _) ->
             let r = OutputIdentifier.output_global gname in
-            let smod = output_module_prefix r.module_names in
+            let smod = failwith "TODO: IApply, module names" in
             let sfun = r.function_name in
             Printf.sprintf "%s%s(%s)" smod sfun (String.concat ", " sargs)
 

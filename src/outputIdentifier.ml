@@ -10,7 +10,7 @@ type local =
 
 type global =
   | ReprGlobal of {
-      module_names  : IdentifierScheme.t list;
+      number        : int;
       function_name : IdentifierScheme.t;
       arity         : int;
     }
@@ -24,7 +24,6 @@ type t =
   | Operator of operator
 
 type global_answer = {
-  module_names  : string list;
   function_name : string;
   arity         : int;
 }
@@ -47,17 +46,18 @@ let fresh () : local =
   ReprLocal{ hint = None; number = n }
 
 
-let local (s : string) : local option =
+let generate_local (s : string) : local option =
   IdentifierScheme.from_snake_case s |> Option.map (fun ident ->
     let n = fresh_number () in
     ReprLocal{ hint = Some(ident); number = n }
   )
 
 
-let global (s : string) (arity : int) : global option =
+let generate_global (s : string) (arity : int) : global option =
   IdentifierScheme.from_snake_case s |> Option.map (fun ident ->
+    let n = fresh_number () in
     ReprGlobal{
-      module_names  = [];
+      number        = n;
       function_name = ident;
       arity         = arity;
     }
@@ -70,11 +70,6 @@ let operator (s : string) : operator =
 
 let unused : local =
   ReprUnused
-
-
-let push_space (space : space) = function
-  | ReprGlobal(r) ->
-      ReprGlobal{ r with module_names = space :: r.module_names }
 
 
 let output_space =
@@ -97,7 +92,6 @@ let output_local = function
 let output_global = function
   | ReprGlobal(r) ->
       {
-        module_names  = r.module_names |> List.map IdentifierScheme.to_snake_case;
         function_name = r.function_name |> IdentifierScheme.to_snake_case;
         arity         = r.arity;
       }
@@ -126,8 +120,8 @@ let pp_local ppf = function
 
 let pp_global ppf = function
   | ReprGlobal(r) ->
-      Format.fprintf ppf "\"%a:%a/%d\""
-        (Format.pp_print_list IdentifierScheme.pp) r.module_names
+      Format.fprintf ppf "G%d%a/%d"
+        r.number
         IdentifierScheme.pp r.function_name
         r.arity
 

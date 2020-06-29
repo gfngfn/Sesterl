@@ -48,7 +48,7 @@ let initial_type_environment =
     OutputIdentifier.Operator(OutputIdentifier.operator s)
   in
   let normal n s : name =
-    match OutputIdentifier.global s n with
+    match OutputIdentifier.generate_global s n with
     | Some(gname) -> OutputIdentifier.Global(gname)
     | None        -> assert false
   in

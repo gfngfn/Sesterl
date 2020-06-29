@@ -14,7 +14,6 @@ type t =
   | Operator of operator
 
 type global_answer = {
-  module_names  : string list;
   function_name : string;
   arity         : int;
 }
@@ -23,11 +22,9 @@ val space : string -> space option
 
 val fresh : unit -> local
 
-val local : string -> local option
+val generate_local : string -> local option
 
-val global : string -> int -> global option
-
-val push_space : space -> global -> global
+val generate_global : string -> int -> global option
 
 val operator : string -> operator
 

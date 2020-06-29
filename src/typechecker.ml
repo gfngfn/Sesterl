@@ -656,13 +656,13 @@ let get_space_name (rng : Range.t) (m : module_name) : space_name =
 
 
 let generate_local_name (rng : Range.t) (x : identifier) : local_name =
-  match OutputIdentifier.local x with
+  match OutputIdentifier.generate_local x with
   | None        -> raise (InvalidIdentifier(rng, x))
   | Some(lname) -> lname
 
 
-let get_global_name (arity : int) (rng : Range.t) (x : identifier) : global_name =
-  match OutputIdentifier.global x arity with
+let generate_global_name (arity : int) (rng : Range.t) (x : identifier) : global_name =
+  match OutputIdentifier.generate_global x arity with
   | None        -> raise (InvalidIdentifier(rng, x))
   | Some(gname) -> gname
 
@@ -882,13 +882,14 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       (ty2, ILetIn(lname, e1, e2))
 
   | LetIn(Rec(letbinds), utast2) ->
-      let name_inner_f letbind =
+      let namesf letbind =
         let (rngv, x) = letbind.vb_identifier in
-        generate_local_name rngv x
+        let lname_inner = generate_local_name rngv x in
+        let lname_outer = OutputIdentifier.fresh () in
+        (lname_inner, lname_outer)
       in
-      let name_outer_f _ = OutputIdentifier.fresh () in
       let proj lname = OutputIdentifier.Local(lname) in
-      let binds = typecheck_letrec_mutual name_inner_f name_outer_f proj pre letbinds in
+      let binds = typecheck_letrec_mutual namesf proj pre letbinds in
       let (ty2, e2) =
         let tyenv =
           binds |> List.fold_left (fun tyenv (x, pty, lname_outer, _, _) ->
@@ -1185,27 +1186,26 @@ fun namef pre letbind ->
   (pty1, name, e1)
 
 
-and typecheck_letrec_mutual : 'n. (untyped_let_binding -> 'n) -> (untyped_let_binding -> 'n) -> ('n -> name) -> pre -> untyped_let_binding list -> (identifier * poly_type * 'n * 'n * ast) list =
-fun name_inner_f name_outer_f proj pre letbinds ->
+and typecheck_letrec_mutual : 'n. (untyped_let_binding -> 'n * 'n) -> ('n -> name) -> pre -> untyped_let_binding list -> (identifier * poly_type * 'n * 'n * ast) list =
+fun namesf proj pre letbinds ->
 
   (* -- register type variables and names for output corresponding to bound names
         before traversing definitions -- *)
   let (tupleacc, tyenv) =
     letbinds |> List.fold_left (fun (tupleacc, tyenv) letbind ->
       let (rngv, x) = letbind.vb_identifier in
-      let name_inner = name_inner_f letbind in
+      let (name_inner, name_outer) = namesf letbind in
       let levS = pre.level + 1 in
       let tyf = fresh_type ~name:x levS rngv in
       let tyenv = tyenv |> Typeenv.add_val x (lift tyf) (proj name_inner) in
-      (Alist.extend tupleacc (letbind, name_inner, tyf), tyenv)
+      (Alist.extend tupleacc (letbind, name_inner, name_outer, tyf), tyenv)
     ) (Alist.empty, pre.tyenv)
   in
 
   let pre = { pre with tyenv } in
   let bindacc =
-    tupleacc |> Alist.to_list |> List.fold_left (fun bindacc (letbind, name_inner, tyf) ->
+    tupleacc |> Alist.to_list |> List.fold_left (fun bindacc (letbind, name_inner, name_outer, tyf) ->
       let (pty, e1) = typecheck_letrec_single pre letbind tyf in
-      let name_outer = name_outer_f letbind in
       let (_, x) = letbind.vb_identifier in
       Alist.extend bindacc (x, pty, name_outer, name_inner, e1)
     ) Alist.empty
@@ -2082,14 +2082,15 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             assert false
 
         | Rec(valbinds) ->
-            let namef valbind =
+            let namesf valbind =
               let params = valbind.vb_parameters in
               let arity = List.length params in
               let (rngv, x) = valbind.vb_identifier in
-              get_global_name arity rngv x
+              let gname = generate_global_name arity rngv x in
+              (gname, gname)
             in
             let proj gname = OutputIdentifier.Global(gname) in
-            let recbinds = typecheck_letrec_mutual namef namef proj pre valbinds in
+            let recbinds = typecheck_letrec_mutual namesf proj pre valbinds in
             let (sigr, irecbindacc) =
               recbinds |> List.fold_left (fun (sigr, irecbindacc) (x, pty, gname_outer, _, e) ->
                 let sigr = sigr |> SigRecord.add_val x pty (proj gname_outer) in
@@ -2103,7 +2104,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             let (pty, gname, e) =
               let params = valbind.vb_parameters in
               let arity = List.length params in
-              typecheck_let (get_global_name arity) pre valbind
+              let gname = generate_global_name arity in
+              typecheck_let gname pre valbind
             in
             let (_, x) = valbind.vb_identifier in
             let sigr = SigRecord.empty |> SigRecord.add_val x pty (OutputIdentifier.Global(gname)) in
