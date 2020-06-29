@@ -1,5 +1,12 @@
 
+open MyUtil
 open Syntax
+
+
+module GlobalNameMap = Map.Make(OutputIdentifier.Global)
+
+type global_name_map = string GlobalNameMap.t
+(* The type for maps tracking which module every global name belongs to. *)
 
 
 let unit_atom = "ok"
@@ -15,12 +22,13 @@ let stringify_base_constant (bc : base_constant) =
   | BinaryByInts(ns)  -> Printf.sprintf "<<%s>>" (ns |> List.map string_of_int |> String.concat ", ")
 
 
-let output_module_prefix = function
-  | [] -> ""
-  | ss -> String.concat "_" ss ^ ":"
+let get_module_string (gmap : global_name_map) (gname : global_name) : string =
+  match gmap |> GlobalNameMap.find_opt gname with
+  | None       -> assert false
+  | Some(smod) -> smod
 
 
-let output_single = function
+let output_single (gmap : global_name_map) = function
   | OutputIdentifier.Local(lname) ->
       OutputIdentifier.output_local lname
 
@@ -32,9 +40,9 @@ let output_single = function
           OutputIdentifier.output_local lname
         ) |> String.concat ", "
       in
-      let smod = failwith "TODO: Global, module names" in
+      let smod = get_module_string gmap gname in
       let sfun = r.function_name in
-      Printf.sprintf "(fun(%s) -> %s%s(%s) end)" sparam smod sfun sparam
+      Printf.sprintf "(fun(%s) -> %s:%s(%s) end)" sparam smod sfun sparam
         (*  Performs the eta expansion for global function names
             in order to avoid being confused with atoms.
             Note that we cannot simply use `(fun ?MODULE:F/A)` here
@@ -51,17 +59,18 @@ let output_single = function
       Printf.sprintf "(fun(%s, %s) -> %s %s %s end)" s1 s2 s1 sop s2
 
 
-let rec stringify_ast (ast : ast) =
+let rec stringify_ast (gmap : global_name_map) (ast : ast) =
+  let iter = stringify_ast gmap in
   match ast with
   | IVar(name) ->
-      output_single name
+      output_single gmap name
 
   | IBaseConst(bc) ->
       stringify_base_constant bc
 
   | ILambda(recopt, names, ast0) ->
       let snames = names |> List.map OutputIdentifier.output_local in
-      let s0 = stringify_ast ast0 in
+      let s0 = iter ast0 in
       let srec =
         match recopt with
         | None          -> ""
@@ -70,7 +79,7 @@ let rec stringify_ast (ast : ast) =
       Printf.sprintf "fun%s(%s) -> %s end" srec (String.concat ", " snames) s0
 
   | IApply(name, astargs) ->
-      let sargs = astargs |> List.map stringify_ast in
+      let sargs = astargs |> List.map iter in
       begin
         match (name, sargs) with
         | (OutputIdentifier.Local(lname), _) ->
@@ -79,9 +88,9 @@ let rec stringify_ast (ast : ast) =
 
         | (OutputIdentifier.Global(gname), _) ->
             let r = OutputIdentifier.output_global gname in
-            let smod = failwith "TODO: IApply, module names" in
+            let smod = get_module_string gmap gname in
             let sfun = r.function_name in
-            Printf.sprintf "%s%s(%s)" smod sfun (String.concat ", " sargs)
+            Printf.sprintf "%s:%s(%s)" smod sfun (String.concat ", " sargs)
 
         | (OutputIdentifier.Operator(op), [sarg1; sarg2]) ->
             let sop = OutputIdentifier.output_operator op in
@@ -93,36 +102,36 @@ let rec stringify_ast (ast : ast) =
 
   | ILetIn(lname, ast1, ast2) ->
       let s0 = OutputIdentifier.output_local lname in
-      let s1 = stringify_ast ast1 in
-      let s2 = stringify_ast ast2 in
+      let s1 = iter ast1 in
+      let s2 = iter ast2 in
       Printf.sprintf "begin %s = %s, %s end" s0 s1 s2
 
   | ICase(ast1, [ IBranch(ipat, None, ast2) ]) ->
     (* -- slight optimization of case-expressions into pattern-matching let-expressions -- *)
       let spat = stringify_pattern ipat in
-      let s1 = stringify_ast ast1 in
-      let s2 = stringify_ast ast2 in
+      let s1 = iter ast1 in
+      let s2 = iter ast2 in
       Printf.sprintf "begin %s = %s, %s end" spat s1 s2
 
   | ICase(ast0, branches) ->
-      let s0 = stringify_ast ast0 in
-      let sbrs = branches |> List.map stringify_branch in
+      let s0 = iter ast0 in
+      let sbrs = branches |> List.map (stringify_branch gmap) in
       Printf.sprintf "case %s of %s end" s0 (String.concat "; " sbrs)
 
   | IReceive(branches) ->
-      let sbrs = branches |> List.map stringify_branch in
+      let sbrs = branches |> List.map (stringify_branch gmap) in
       Printf.sprintf "receive %s end" (String.concat "; " sbrs)
 
   | ITuple(es) ->
-      let ss = es |> TupleList.to_list |> List.map stringify_ast in
+      let ss = es |> TupleList.to_list |> List.map iter in
       Printf.sprintf "{%s}" (String.concat ", " ss)
 
   | IListNil ->
       "[]"
 
   | IListCons(e1, e2) ->
-      let s1 = stringify_ast e1 in
-      let s2 = stringify_ast e2 in
+      let s1 = iter e1 in
+      let s2 = iter e2 in
       Printf.sprintf "[%s | %s]" s1 s2
 
   | IConstructor(ctorid, es) ->
@@ -133,12 +142,12 @@ let rec stringify_ast (ast : ast) =
             sctor
 
         | _ :: _ ->
-            let ss = es |> List.map stringify_ast in
+            let ss = es |> List.map iter in
             Printf.sprintf "{%s, %s}" sctor (String.concat ", " ss)
       end
 
 
-and stringify_branch (br : branch) =
+and stringify_branch (gmap : global_name_map) (br : branch) =
   match br with
   | IBranch(pat, ast0opt, ast1) ->
       let spat = stringify_pattern pat in
@@ -148,10 +157,10 @@ and stringify_branch (br : branch) =
             ""
 
         | Some(ast0) ->
-            let s0 = stringify_ast ast0 in
+            let s0 = stringify_ast gmap ast0 in
             Printf.sprintf " when %s" s0
       in
-      let s1 = stringify_ast ast1 in
+      let s1 = stringify_ast gmap ast1 in
       Printf.sprintf "%s%s -> %s" spat swhen s1
 
 
@@ -187,40 +196,111 @@ and stringify_pattern (ipat : pattern) =
       end
 
 
-let rec stringify_binding (ibind : binding) : string list =
-  let val_single (_, gnamefun, _, ast) =
-    match ast with
-    | ILambda(None, nameparams, ast0) ->
-        let r = OutputIdentifier.output_global gnamefun in
-        let sparams = nameparams |> List.map OutputIdentifier.output_local in
-        let s0 = stringify_ast ast0 in
-        Printf.sprintf "%s(%s) -> %s." r.function_name (String.concat ", " sparams) s0
+type val_binding_output =
+  | OBindVal of global_name * local_name list * global_name_map * ast
 
-    | _ ->
-        assert false
-  in
-  match ibind with
-  | IBindVal(INonRec(valbind)) ->
-      [ val_single valbind ]
+type module_binding_output =
+  | OBindModule of string * val_binding_output list
 
-  | IBindVal(IRec(valbinds)) ->
-      valbinds |> List.map val_single
 
-  | IBindModule(space, ibinds) ->
-      let sspace = OutputIdentifier.output_space space in
-      let ss = ibinds |> List.map stringify_binding |> List.concat in
+let stringify_val_binding_output : val_binding_output -> string = function
+  | OBindVal(gnamefun, lnameparams, gmap, ast0) ->
+      let r = OutputIdentifier.output_global gnamefun in
+      let sparams = lnameparams |> List.map OutputIdentifier.output_local in
+      let s0 = stringify_ast gmap ast0 in
+      Printf.sprintf "%s(%s) -> %s." r.function_name (String.concat ", " sparams) s0
+
+
+let stringify_module_binding_output : module_binding_output -> string list = function
+  | OBindModule(smod, ovalbinds) ->
+      let ss = ovalbinds |> List.map stringify_val_binding_output in
       List.concat [
-        [ Printf.sprintf "%% module %s = {" sspace ];
-        ss |> List.map (fun s -> "% " ^ s);
+        [ Printf.sprintf "%% module %s = {" smod ];
+        ss |> List.map (fun s -> "%   " ^ s);
         [ "% }" ];
       ]
 
 
-let main (modname : string) (binds : binding list) : string =
+let traverse_val_single (gmap : global_name_map) (_, gnamefun, _, ast) : val_binding_output =
+  match ast with
+  | ILambda(None, lnameparams, ast0) -> OBindVal(gnamefun, lnameparams, gmap, ast0)
+  | _                                -> assert false
 
-  Format.printf "@[<v>%a@]" (Format.pp_print_list pp_binding) binds;
 
-  let sbinds = binds |> List.map stringify_binding |> List.concat in
+let make_module_string (spacepath : space_name Alist.t) : string =
+  spacepath |> Alist.to_list |> List.map OutputIdentifier.output_space |> String.concat "_"
+
+
+let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name Alist.t) (ibinds : binding list) : module_binding_output list * global_name_map =
+
+  let smod = make_module_string spacepath in
+
+  (* Associates value identifiers in the current space with `spacepath` beforehand. *)
+  let gmap =
+    ibinds |> List.fold_left (fun gmap ibind ->
+      match ibind with
+      | IBindVal(INonRec(valbind)) ->
+          let (_, gnamefun, _, _) = valbind in
+          gmap |> GlobalNameMap.add gnamefun smod
+
+      | IBindVal(IRec(valbinds)) ->
+          valbinds |> List.fold_left (fun gmap valbind ->
+            let (_, gnamefun, _, _) = valbind in
+            gmap |> GlobalNameMap.add gnamefun smod
+          ) gmap
+
+      | IBindModule(_) ->
+          gmap
+    ) gmap
+  in
+
+  (* Make the output module corresponding to the current space (if not empty). *)
+  let omodbindacc =
+    let ovalbinds =
+      ibinds |> List.map (fun ibind ->
+        match ibind with
+        | IBindVal(INonRec(valbind)) -> [ traverse_val_single gmap valbind ]
+        | IBindVal(IRec(valbinds))   -> valbinds |> List.map (traverse_val_single gmap)
+        | IBindModule(_)             -> []
+      ) |> List.concat
+    in
+    match ovalbinds with
+    | [] ->
+        Alist.empty
+
+    | _ :: _ ->
+        let omodbind = OBindModule(smod, ovalbinds) in
+        Alist.extend Alist.empty omodbind
+  in
+
+  let (omodbindacc, gmap) =
+    ibinds |> List.fold_left (fun ((omodbindacc, gmap) as original) ibind ->
+      match ibind with
+      | IBindVal(_) ->
+          original
+
+      | IBindModule(sname, ibindssub) ->
+          let (omodbindssub, gmap) =
+            let spacepathsub = Alist.extend spacepath sname in
+            traverse_binding_list gmap spacepathsub ibindssub
+          in
+          (Alist.append omodbindacc omodbindssub, gmap)
+
+    ) (omodbindacc, gmap)
+  in
+  (Alist.to_list omodbindacc, gmap)
+
+
+let main (modname : string) (ibinds : binding list) : string =
+
+  Format.printf "@[<v>%a@]" (Format.pp_print_list pp_binding) ibinds;
+
+  let (omodbinds, _) =
+    let gmap = GlobalNameMap.empty in
+    let spacepath = Alist.empty in
+    traverse_binding_list gmap spacepath ibinds
+  in
+  let sbinds = omodbinds |> List.map stringify_module_binding_output |> List.concat in
   let lines =
     List.append [
       Printf.sprintf "-module(%s)." modname;
