@@ -30,6 +30,22 @@ val operator : string -> operator
 
 val unused : local
 
+module Local : sig
+
+  type t = local
+
+  val compare : t -> t -> int
+
+end
+
+module Global : sig
+
+  type t = global
+
+  val compare : t -> t -> int
+
+end
+
 val output_space : space -> string
 
 val output_local : local -> string

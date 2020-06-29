@@ -72,6 +72,34 @@ let unused : local =
   ReprUnused
 
 
+module Local = struct
+
+  type t = local
+
+
+  let compare lname1 lname2 =
+    match (lname1, lname2) with
+    | (ReprUnused, ReprUnused)       -> 0
+    | (ReprUnused, _)                -> -1
+    | (_, ReprUnused)                -> 1
+    | (ReprLocal(r1), ReprLocal(r2)) -> r2.number - r1.number
+
+end
+
+
+module Global = struct
+
+  type t = global
+
+
+  let compare gname1 gname2 =
+    match (gname1, gname2) with
+    | (ReprGlobal(r1), ReprGlobal(r2)) ->
+        r2.number - r1.number
+
+end
+
+
 let output_space =
   IdentifierScheme.to_snake_case
 
