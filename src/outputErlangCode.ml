@@ -283,9 +283,16 @@ let stringify_val_binding_output : val_binding_output -> string = function
 let stringify_module_binding_output (omodbind : module_binding_output) =
   match omodbind with
   | OBindModule(smod, ovalbinds) ->
+      let exports =
+        ovalbinds |> List.map (function OBindVal(gnamefun, _, _, _) ->
+          let r = OutputIdentifier.output_global gnamefun in
+          Printf.sprintf "%s/%d" r.function_name r.arity
+        )
+      in
       let ss = ovalbinds |> List.map stringify_val_binding_output in
       List.concat [
         [ Printf.sprintf "%% -module(%s)." smod ];
+        [ Printf.sprintf "%% -export([%s])." (String.concat ", " exports) ];
         [ "% {" ];
         ss |> List.map (fun s -> "%   " ^ s);
         [ "% }" ];
