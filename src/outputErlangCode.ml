@@ -211,11 +211,13 @@ let stringify_val_binding_output : val_binding_output -> string = function
       Printf.sprintf "%s(%s) -> %s." r.function_name (String.concat ", " sparams) s0
 
 
-let stringify_module_binding_output : module_binding_output -> string list = function
+let stringify_module_binding_output (omodbind : module_binding_output) =
+  match omodbind with
   | OBindModule(smod, ovalbinds) ->
       let ss = ovalbinds |> List.map stringify_val_binding_output in
       List.concat [
-        [ Printf.sprintf "%% module %s = {" smod ];
+        [ Printf.sprintf "%% -module(%s)." smod ];
+        [ "% {" ];
         ss |> List.map (fun s -> "%   " ^ s);
         [ "% }" ];
       ]
