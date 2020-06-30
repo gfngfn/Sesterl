@@ -3,11 +3,6 @@ open MyUtil
 open Syntax
 
 
-module GlobalNameMap = Map.Make(OutputIdentifier.Global)
-
-type global_name_map = string GlobalNameMap.t
-(* The type for maps tracking which module every global name belongs to. *)
-
 type val_binding_output =
   | OBindVal of global_name * local_name list * global_name_map * ast
 
@@ -314,7 +309,7 @@ let main (dir_out : string) (sname : space_name) (ibinds : binding list) : unit 
   Format.printf "@[<v>%a@]" (Format.pp_print_list pp_binding) ibinds;
 
   let (omodbinds, _) =
-    let gmap = GlobalNameMap.empty in
+    let (_, gmap) = Primitives.initial_environment in
     let spacepath = Alist.extend Alist.empty sname in
     traverse_binding_list gmap spacepath ibinds
   in

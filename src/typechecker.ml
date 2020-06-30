@@ -2389,7 +2389,7 @@ let main (modident : module_name ranged) (utmod : untyped_module) : SigRecord.t 
     | None        -> raise (InvalidIdentifier(rng, modname))
     | Some(sname) -> sname
   in
-  let tyenv = Primitives.initial_type_environment in
+  let (tyenv, _) = Primitives.initial_environment in
   let (absmodsig, ibinds) = typecheck_module tyenv utmod in
   let (oidset, modsig) = absmodsig in
   match modsig with

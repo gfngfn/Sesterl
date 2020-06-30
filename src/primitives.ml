@@ -2,12 +2,17 @@
 open Syntax
 open Env
 
+
+let primitive_module_name =
+  "sesterl_internal_prim"
+
+
 let fresh_bound () =
   let bid = BoundID.fresh () in
   (Range.dummy "primitives-bound", TypeVar(Bound(bid)))
 
 
-let initial_type_environment =
+let initial_environment =
   let dr = Range.dummy "primitives" in
   let u = (dr, BaseType(UnitType)) in
   let b = (dr, BaseType(BoolType)) in
@@ -44,33 +49,47 @@ let initial_type_environment =
     [typaram] @-> u
   in
 
-  let op s : name =
-    OutputIdentifier.Operator(OutputIdentifier.operator s)
+  let add_operators (ops : (string * poly_type * string) list) ((tyenv, gmap) : Typeenv.t * global_name_map) : Typeenv.t * global_name_map =
+    let tyenv =
+      ops |> List.fold_left (fun tyenv (x, pty, target) ->
+        let name = OutputIdentifier.Operator(OutputIdentifier.operator target) in
+        tyenv |> Typeenv.add_val x pty name
+      ) tyenv
+    in
+    (tyenv, gmap)
   in
-  let normal n s : name =
-    match OutputIdentifier.generate_global s n with
-    | Some(gname) -> OutputIdentifier.Global(gname)
-    | None        -> assert false
+  let add_primitives (prims : (string * poly_type * string * int) list) ((tyenv, gmap) : Typeenv.t * global_name_map) : Typeenv.t * global_name_map =
+    prims |> List.fold_left (fun (tyenv, gmap) (x, pty, target, arity) ->
+      let gname =
+        match OutputIdentifier.generate_global target arity with
+        | None        -> assert false
+        | Some(gname) -> gname
+      in
+      let tyenv = tyenv |> Typeenv.add_val x pty (OutputIdentifier.Global(gname)) in
+      let gmap = gmap |> GlobalNameMap.add gname primitive_module_name in
+      (tyenv, gmap)
+    ) (tyenv, gmap)
   in
-  List.fold_left (fun tyenv (x, ty, name) ->
-    tyenv |> Typeenv.add_val x ty name
-  ) Typeenv.empty [
-    ("&&", tylogic, op "and");
-    ("||", tylogic, op "or" );
-    ("==", tycomp , op "==" );
-    ("<=", tycomp , op "=<" );
-    (">=", tycomp , op ">=" );
-    ("<" , tycomp , op "<"  );
-    (">" , tycomp , op ">"  );
-    ("*" , tyarith, op "*"  );
-    ("/" , tyarith, op "div");
-    ("+" , tyarith, op "+"  );
-    ("-" , tyarith, op "-"  );
 
-    ("spawn" , tyspawn , normal 1 "thunk_spawn" );
-    ("send"  , tysend  , normal 2 "thunk_send"  );
-    ("return", tyreturn, normal 1 "thunk_return");
-    ("self"  , tyself  , normal 0 "thunk_self"  );
+  (Typeenv.empty, GlobalNameMap.empty)
+    |> add_operators [
+      ("&&", tylogic, "and");
+      ("||", tylogic, "or" );
+      ("==", tycomp , "==" );
+      ("<=", tycomp , "=<" );
+      (">=", tycomp , ">=" );
+      ("<" , tycomp , "<"  );
+      (">" , tycomp , ">"  );
+      ("*" , tyarith, "*"  );
+      ("/" , tyarith, "div");
+      ("+" , tyarith, "+"  );
+      ("-" , tyarith, "-"  );
+    ]
+    |> add_primitives [
+      ("spawn" , tyspawn , "thunk_spawn" , 1);
+      ("send"  , tysend  , "thunk_send"  , 2);
+      ("return", tyreturn, "thunk_return", 1);
+      ("self"  , tyself  , "thunk_self"  , 0);
 
-    ("print_debug", typrintdebug, normal 1 "print_debug");
-  ]
+      ("print_debug", typrintdebug, "print_debug", 1);
+    ]

@@ -721,3 +721,10 @@ and pp_branch ppf = function
       Format.fprintf ppf "%a (when ...) ->@[<hov2>@ %a@];@ "
         pp_pattern ipat
         pp_ast e
+
+
+module GlobalNameMap = Map.Make(OutputIdentifier.Global)
+
+type global_name_map = string GlobalNameMap.t
+(* The type for maps tracking which module every global name belongs to.
+   This is used by 'Primitives' and 'OutputErlangCode'. *)
