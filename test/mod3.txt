@@ -1,21 +1,25 @@
 
-module List = struct
-  type t<$a> = list<$a>
+module Mod3 = struct
 
-  let empty<$b>(): t<$b> =
-    []
+  module List = struct
+    type t<$a> = list<$a>
 
-  letrec foldl(f, i, l) =
-    case l of
-    | []      -> i
-    | x :: xs -> foldl(f, f(i, x), xs)
-    end
+    let empty<$b>(): t<$b> =
+      []
 
-  let reverse<$c>(xs: list<$c>): list<$c> =
-    foldl(fun(acc, x) -> x :: acc, [], xs)
-end
+    letrec foldl(f, i, l) =
+      case l of
+      | []      -> i
+      | x :: xs -> foldl(f, f(i, x), xs)
+      end
 
-signature Eq = sig
-  type t:: 0
-  val equal: fun(t, t) -> bool
+    let reverse<$c>(xs: list<$c>): list<$c> =
+      foldl(fun(acc, x) -> x :: acc, [], xs)
+  end
+
+  signature Eq = sig
+    type t:: 0
+    val equal: fun(t, t) -> bool
+  end
+
 end
