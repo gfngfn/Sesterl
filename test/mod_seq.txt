@@ -1,36 +1,40 @@
 
-type option<$a> =
-  | None
-  | Some($a)
+module ModSeq = struct
 
-signature Decomposable = sig
-  type s:: 1
-  val decompose<$a>: fun(s<$a>) -> option<($a, s<$a>)>
-end
+  type option<$a> =
+    | None
+    | Some($a)
 
-module Seq = fun(D: Decomposable) ->
-  struct
-    type t<$a> = D.s<$a>
-    let to_reversed_list<$a>(xs: t<$a>): list<$a> =
-      letrec aux(acc, xs) =
-        case D.decompose(xs) of
-        | None            -> acc
-        | Some((x, tail)) -> aux(x :: acc, tail)
-        end
-      in
-      aux([], xs)
+  signature Decomposable = sig
+    type s:: 1
+    val decompose<$a>: fun(s<$a>) -> option<($a, s<$a>)>
   end
 
-module ListD = struct
-  type s<$a> = list<$a>
-  let decompose(xs) =
-    case xs of
-    | []        -> None
-    | x :: tail -> Some((x, xs))
+  module Seq = fun(D: Decomposable) ->
+    struct
+      type t<$a> = D.s<$a>
+      let to_reversed_list<$a>(xs: t<$a>): list<$a> =
+        letrec aux(acc: list<$a>, xs: t<$a>) =
+          case D.decompose(xs) of
+          | None            -> acc
+          | Some((x, tail)) -> aux(x :: acc, tail)
+          end
+        in
+        aux([], xs)
     end
+
+  module ListD = struct
+    type s<$a> = list<$a>
+    let decompose(xs) =
+      case xs of
+      | []        -> None
+      | x :: tail -> Some((x, tail))
+      end
+  end
+
+  module ListSeq = Seq(ListD)
+
+  let main() =
+    ListSeq.to_reversed_list([3, 1, 4])
+
 end
-
-module ListSeq = Seq(ListD)
-
-let f() =
-  ListSeq.to_reversed_list([3, 1, 4])
