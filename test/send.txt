@@ -1,54 +1,58 @@
 
-type bintree<$a> =
-  | Node($a, bintree<$a>, bintree<$a>)
-  | Empty
+module Send = struct
 
-let bintree_of_int(n: int): bintree<int> =
-  letrec aux(top, n) =
-  if n <= 0 then
-    Empty
-  else
-    let n1 = (n - 1) / 2 in
-    let n2 = (n - 1) - n1 in
-    let tr1 = aux(top + 1, n1) in
-    let tr2 = aux(top + n1 + 1, n2) in
-    Node(top, tr1, tr2)
-  in
-  aux(1, n)
+  type bintree<$a> =
+    | Node($a, bintree<$a>, bintree<$a>)
+    | Empty
 
-let reverse_list<$a>(xs: list<$a>): list<$a> =
-  letrec aux(rev: list<$a>, xs: list<$a>) =
-    case xs of
-    | []        -> rev
-    | x :: tail -> aux(x :: rev, tail)
-    end
-  in
-  aux([], xs)
+  let bintree_of_int(n: int): bintree<int> =
+    letrec aux(top, n) =
+    if n <= 0 then
+      Empty
+    else
+      let n1 = (n - 1) / 2 in
+      let n2 = (n - 1) - n1 in
+      let tr1 = aux(top + 1, n1) in
+      let tr2 = aux(top + n1 + 1, n2) in
+      Node(top, tr1, tr2)
+    in
+    aux(1, n)
 
-letrec wait_all<$b>(r: $b, n: int) =
-  if n <= 0 then
-    let _ = print_debug(<<"\"end!\"">>) in
-    return(r)
-  else
-    receive
-    | msg ->
-        let _ = print_debug(msg) in
-        wait_all(r, n - 1)
-    end
+  let reverse_list<$a>(xs: list<$a>): list<$a> =
+    letrec aux(rev: list<$a>, xs: list<$a>) =
+      case xs of
+      | []        -> rev
+      | x :: tail -> aux(x :: rev, tail)
+      end
+    in
+    aux([], xs)
 
-letrec spawn_all<$m>(acc, n: int): [(pid<$m>, bintree<int>)]list<pid<$m>> =
-  if n <= 0 then
-    return(reverse_list(acc))
-  else
-    do parent <- self in
-    do pid: pid<$m> <- spawn(
-      do me <- self in
-      send(parent, (me, bintree_of_int(n)))
-    ) in
-    spawn_all(pid :: acc, n - 1)
+  letrec wait_all<$b>(r: $b, n: int) =
+    if n <= 0 then
+      let _ = print_debug(<<"\"end!\"">>) in
+      return(r)
+    else
+      receive
+      | msg ->
+          let _ = print_debug(msg) in
+          wait_all(r, n - 1)
+      end
 
-let main() =
-  let m = 10 in
-  do pids <- spawn_all([], m) in
-  let _ = print_debug(pids) in
-  wait_all((), m)
+  letrec spawn_all<$m>(acc, n: int): [(pid<$m>, bintree<int>)]list<pid<$m>> =
+    if n <= 0 then
+      return(reverse_list(acc))
+    else
+      do parent <- self in
+      do pid: pid<$m> <- spawn(
+        do me <- self in
+        send(parent, (me, bintree_of_int(n)))
+      ) in
+      spawn_all(pid :: acc, n - 1)
+
+  let main() =
+    let m = 10 in
+    do pids <- spawn_all([], m) in
+    let _ = print_debug(pids) in
+    wait_all((), m)
+
+end
