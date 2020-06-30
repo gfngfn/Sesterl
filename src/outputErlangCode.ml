@@ -339,9 +339,9 @@ let write_primitive_module_to_file (dir_out : string) : unit =
 
 
 let main (dir_out : string) (sname : space_name) (ibinds : binding list) : unit =
-
+(*
   Format.printf "@[<v>%a@]" (Format.pp_print_list pp_binding) ibinds;
-
+*)
   let (omodbinds, _) =
     let (_, gmap) = Primitives.initial_environment in
     let spacepath = Alist.extend Alist.empty sname in

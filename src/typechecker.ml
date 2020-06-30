@@ -2277,10 +2277,10 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       let (absmodsigcod, _) =
         let (rngm, m) = modident in
         let sname = get_space_name rngm m in
-
+(*
         Printf.printf "MOD-FUNCTOR %s\n" m;  (* for debug *)
         display_signature 0 modsigdom;  (* for debug *)
-
+*)
         let tyenv = tyenv |> Typeenv.add_module m modsigdom sname in
         typecheck_module tyenv utmod0
       in
@@ -2328,17 +2328,17 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
                   let (absmodsigres, ibinds) =
                     let tyenv0 =
                       let (_, m0) = modident0 in
-
+(*
                       Format.printf "APP %s ---> %a\n" m0 OutputIdentifier.pp_space sname2;  (* for debug *)
                       display_signature 0 modsig2;  (* for debug *)
-
+*)
                       tyenv0 |> Typeenv.add_module m0 modsig2 sname2
                     in
                     typecheck_module tyenv0 utmodC
                   in
-
+(*
                   Format.printf "BINDS %a\n" (Format.pp_print_list ~pp_sep:pp_sep_comma pp_binding) ibinds;  (* for debug *)
-
+*)
                   let _wtmap =
                     let (rng2, _) = modident2 in
                     let modsigdom1 = ConcStructure(sigrdom1) in
