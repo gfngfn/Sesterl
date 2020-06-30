@@ -57,7 +57,7 @@ let from_upper_camel_case (original : string) : t option =
       if is_uppercase ch then
         let fragment = string_of_chars (List.rev chacc) in
         aux (fragment :: fragacc) [ to_lowercase ch ] (index + 1)
-      else if is_lowercase ch then
+      else if is_lowercase ch || is_digit ch then
         aux fragacc (ch :: chacc) (index + 1)
       else if ch = '_' then
         let ch2 = String.get original (index + 1) in
@@ -68,8 +68,6 @@ let from_upper_camel_case (original : string) : t option =
           None
       else
         None
-
-
   in
   try
     let ch0 = String.get original 0 in
