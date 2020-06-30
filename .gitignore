@@ -2,5 +2,5 @@ _build/
 *~
 .merlin
 .DS_Store
-main
+sesterl
 test/_generated/

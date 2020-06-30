@@ -1,0 +1,32 @@
+module Functor = struct
+
+  let n() = 42
+
+  signature S = sig
+    type t:: 0
+    val zero: fun() -> t
+  end
+
+  module F = fun(X: S) -> fun(Y: S) -> struct
+    let f(x: X.t): X.t = x
+    let g(y: Y.t): Y.t = y
+    let m() = n()
+    let zeroes() = (X.zero(), Y.zero())
+  end
+
+  module Int = struct
+    type t = int
+    let zero() = 0
+  end
+
+  module Sub = struct
+    module Bool = struct
+      type t = bool
+      let zero() = false
+    end
+  end
+
+  module G = F(Int)
+  module B = Sub.Bool
+  module M = G(B)
+end

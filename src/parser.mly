@@ -22,9 +22,9 @@
     (rng, Apply((rngop, Var(vop)), [e1; e2]))
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC VAL MODULE STRUCT SIGNATURE SIG DOT
+%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC VAL MODULE STRUCT SIGNATURE SIG
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
-%token<Range.t * string> IDENT CTOR TYPARAM BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
+%token<Range.t * string> IDENT DOTIDENT CTOR DOTCTOR TYPARAM BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
 %token<Range.t * string> STRING
@@ -32,15 +32,19 @@
 
 %start main
 %type<Syntax.untyped_binding> bindtop
-%type<Syntax.untyped_binding list> main
+%type<Syntax.module_name Syntax.ranged * Syntax.untyped_module> main
 %type<Syntax.manual_type> ty
 %type<Syntax.binder list> params
 %type<Syntax.untyped_let_binding> bindvalsingle
 %type<Range.t * Syntax.rec_or_nonrec> bindvaltop
+%type<Syntax.untyped_module> modexprbot
 
 %%
 main:
-  | binds=list(bindtop); EOI { binds }
+  | bindmod=bindmod; EOI {
+        let (_, modident, utmod) = bindmod in
+        (modident, utmod)
+      }
 ;
 ident:
   | ident=IDENT { ident }
@@ -55,13 +59,19 @@ bindtop:
         let (_, valbinding) = bindval in
         (rng, BindVal(valbinding))
       }
-  | MODULE; modident=CTOR; DEFEQ; utmod=modexpr {
-        let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
+  | bindmod=bindmod {
+        let (rng, modident, utmod) = bindmod in
         (rng, BindModule(modident, utmod))
       }
   | SIGNATURE; sigident=CTOR; DEFEQ; utsig=sigexpr {
         let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
         (rng, BindSig(sigident, utsig))
+      }
+;
+bindmod:
+  | tokL=MODULE; modident=CTOR; DEFEQ; utmod=modexpr {
+        let rng = make_range (Token(tokL)) (Ranged(utmod)) in
+        (rng, modident, utmod)
       }
 ;
 bindtypesingle:
@@ -108,12 +118,10 @@ bindvalsingle:
 ;
 ctorbranch:
   | BAR; ctor=CTOR; {
-        let (_, ctornm) = ctor in
-        ConstructorBranch(ctornm, [])
+        ConstructorBranch(ctor, [])
       }
   | BAR; ctor=CTOR; LPAREN; paramtys=tys; RPAREN {
-        let (_, ctornm) = ctor in
-        ConstructorBranch(ctornm, paramtys)
+        ConstructorBranch(ctor, paramtys)
       }
 ;
 params:
@@ -135,6 +143,10 @@ decl:
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, DeclTypeOpaque(tyident, mkind))
       }
+  | tokL=MODULE; modident=CTOR; COLON; utsig=sigexpr {
+        let rng = make_range (Token(tokL)) (Ranged(utsig)) in
+        (rng, DeclModule(modident, utsig))
+      }
 ;
 modexpr:
   | tokL=LAMBDA; LPAREN; modident=CTOR; COLON; utsig=sigexpr; RPAREN; ARROW; utmod=modexpr {
@@ -144,7 +156,7 @@ modexpr:
   | utmod=modexprchain { utmod }
 ;
 modexprchain:
-  | utmod=modexprchain; DOT; modident=CTOR {
+  | utmod=modexprchain; modident=DOTCTOR {
         let rng = make_range (Ranged(utmod)) (Ranged(modident)) in
         (rng, ModProjMod(utmod, modident))
       }
@@ -181,7 +193,7 @@ sigexprbot:
         let (rng, signm) = sigident in
         (rng, SigVar(signm))
       }
-  | LPAREN; utmod=modexprbot; DOT; sigident=CTOR; RPAREN {
+  | LPAREN; utmod=modexprbot; sigident=DOTCTOR; RPAREN {
         let rng = make_range (Ranged(utmod)) (Ranged(sigident)) in
         (rng, SigPath(utmod, sigident))
       }
@@ -288,9 +300,9 @@ exprapp:
         let (rng, ctornm) = ctor in
         (rng, Constructor(ctornm, []))
       }
-  | utmod=modexprbot; DOT; ident=IDENT {
-        let rng = make_range (Ranged(utmod)) (Ranged(ident)) in
-        (rng, ModProjVal(utmod, ident))
+  | modident=CTOR; ident=DOTIDENT {
+        let rng = make_range (Ranged(modident)) (Ranged(ident)) in
+        (rng, ModProjVal(modident, ident))
       }
   | e=exprbot { e }
 ;
@@ -388,11 +400,11 @@ tys:
   | mty=ty; COMMA; tail=tys { mty :: tail }
 ;
 ty:
-  | utmod=modexprbot; DOT; tyident=IDENT {
+  | utmod=modexprchain; tyident=DOTIDENT {
         let rng = make_range (Ranged(utmod)) (Ranged(tyident)) in
         (rng, MModProjType(utmod, tyident, []))
       }
-  | utmod=modexprbot; DOT; tyident=IDENT; tylparen; mtyargs=tys; tokR=tyrparen {
+  | utmod=modexprchain; tyident=DOTIDENT; tylparen; mtyargs=tys; tokR=tyrparen {
         let rng = make_range (Ranged(utmod)) (Token(tokR)) in
         (rng, MModProjType(utmod, tyident, mtyargs))
       }

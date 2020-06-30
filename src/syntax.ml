@@ -69,7 +69,7 @@ and manual_type_main =
 and binder = identifier ranged * manual_type option
 
 and constructor_branch =
-  | ConstructorBranch of constructor_name * manual_type list
+  | ConstructorBranch of constructor_name ranged * manual_type list
 
 and synonym_or_variant =
   | BindSynonym of manual_type
@@ -94,7 +94,7 @@ and untyped_ast_main =
   | Case         of untyped_ast * untyped_branch list
   | Constructor  of constructor_name * untyped_ast list
   | BinaryByList of (int ranged) list
-  | ModProjVal   of untyped_module * identifier ranged
+  | ModProjVal   of module_name ranged * identifier ranged
 
 and rec_or_nonrec =
   | NonRec of untyped_let_binding
@@ -532,6 +532,17 @@ let show_poly_type : poly_type -> string =
 let pp_poly_type ppf pty =
   Format.fprintf ppf "%s" (show_poly_type pty)
 
+type space_name = OutputIdentifier.space
+[@@deriving show { with_path = false; } ]
+
+type local_name = OutputIdentifier.local
+[@@deriving show { with_path = false; } ]
+
+type global_name = OutputIdentifier.global
+[@@deriving show { with_path = false; } ]
+
+type operator_name = OutputIdentifier.operator
+[@@deriving show { with_path = false; } ]
 
 type name = OutputIdentifier.t
 [@@deriving show { with_path = false; } ]
@@ -560,13 +571,20 @@ module VariantIDHashTable = Hashtbl.Make(TypeID.Variant)
 
 module OpaqueIDSet = Set.Make(TypeID.Opaque)
 
+
+let stringify_opaque_id_set oidset =
+  OpaqueIDSet.fold (fun oid acc ->
+    Alist.extend acc (Format.asprintf "%a" TypeID.Opaque.pp oid)
+  ) oidset Alist.empty |> Alist.to_list |> List.map (fun s -> " " ^ s) |> String.concat ","
+
+
+let pp_opaque_id_set ppf oidset =
+  Format.fprintf ppf "%s" (stringify_opaque_id_set oidset)
+
+
 module OpaqueIDMap = Map.Make(TypeID.Opaque)
 
 module OpaqueIDHashTable = Hashtbl.Make(TypeID.Opaque)
-
-type 'r module_signature_ =
-  | ConcStructure of 'r
-  | ConcFunctor   of OpaqueIDSet.t * 'r module_signature_ * (OpaqueIDSet.t * 'r module_signature_)
 
 module ValNameMap = Map.Make(String)
 
@@ -580,7 +598,7 @@ type pattern =
   | IPUnit
   | IPBool        of bool
   | IPInt         of int
-  | IPVar         of name
+  | IPVar         of local_name
   | IPWildCard
   | IPListNil
   | IPListCons    of pattern * pattern
@@ -598,207 +616,115 @@ type constructor_entry = {
   type_variables  : BoundID.t list;
   parameter_types : poly_type list;
 }
-
-type signature_record =
-  signature_record_entry Alist.t
-
-and signature_record_entry =
-  | SRVal      of identifier * (poly_type * name)
-  | SRRecTypes of (type_name * type_opacity) list
-  | SRModule   of module_name * (signature_record module_signature_ * name)
-  | SRSig      of signature_name * (signature_record module_signature_) abstracted
-  | SRCtor     of constructor_name * constructor_entry
-
-type module_signature = signature_record module_signature_
+[@@deriving show { with_path = false; } ]
 
 type val_binding =
-  | INonRec of (identifier * name * poly_type * ast)
-  | IRec    of (identifier * name * poly_type * ast) list
+  | INonRec of (identifier * global_name * poly_type * ast)
+  | IRec    of (identifier * global_name * poly_type * ast) list
 
 and binding =
   | IBindVal     of val_binding
-  | IBindType
-  | IBindModule  of name * ast
-  | IBindSig
-  | IBindInclude of ast
+  | IBindModule  of space_name * binding list
 
 and ast =
   | IBaseConst   of base_constant
   | IVar         of name
-  | ILambda      of name option * name list * ast
+  | ILambda      of local_name option * local_name list * ast
   | IApply       of name * ast list
-  | ILetIn       of name * ast * ast
+  | ILetIn       of local_name * ast * ast
   | ICase        of ast * branch list
   | IReceive     of branch list
   | ITuple       of ast TupleList.t
   | IListNil
   | IListCons    of ast * ast
   | IConstructor of ConstructorID.t * ast list
-  | IStructure   of binding list
-  | IAccess      of ast * name
 
 and branch =
   | IBranch of pattern * ast option * ast
 
 
-module SigRecord = struct
-
-  type t = signature_record
-
-
-  let empty : t =
-    Alist.empty
+let pp_sep_comma ppf () =
+  Format.fprintf ppf ",@ "
 
 
-  let add_val (x : identifier) (pty : poly_type) (name : name) (sigr : t) : t =
-    Alist.extend sigr (SRVal(x, (pty, name)))
+let rec pp_val_binding_sub ppf (gname, e) =
+  Format.fprintf ppf "%a =@[<hov>@ %a@]@,"
+    OutputIdentifier.pp_global gname
+    pp_ast e
 
 
-  let find_val (x0 : identifier) (sigr : t) : (poly_type * name) option =
-    sigr |> Alist.to_rev_list |> List.find_map (function
-    | SRVal(x, ventry) -> if String.equal x x0 then Some(ventry) else None
-    | _                -> None
-    )
+and pp_val_binding ppf = function
+  | INonRec(_, gname, _, e) ->
+      Format.fprintf ppf "val %a"
+        pp_val_binding_sub (gname, e)
+
+  | IRec(recbinds) ->
+      let pairs = recbinds |> List.map (fun (_, gname, _, e) -> (gname, e)) in
+      Format.fprintf ppf "val %a"
+        (Format.pp_print_list ~pp_sep:pp_sep_comma pp_val_binding_sub) pairs
 
 
-  let add_types (tydefs : (type_name * type_opacity) list) (sigr : t) : t =
-    Alist.extend sigr (SRRecTypes(tydefs))
+and pp_binding ppf = function
+  | IBindVal(valbind) ->
+      pp_val_binding ppf valbind
+
+  | IBindModule(sname, ibinds) ->
+      Format.fprintf ppf "module %a = @[<v2>{%a}@]@,"
+        OutputIdentifier.pp_space sname
+        (Format.pp_print_list pp_binding) ibinds
 
 
-  let add_constructors (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrs : constructor_branch_map) (sigr : t) : t =
-    ConstructorMap.fold (fun ctornm (ctorid, ptys) sigr ->
-      let ctorentry =
-        {
-          belongs         = vid;
-          constructor_id  = ctorid;
-          type_variables  = typarams;
-          parameter_types = ptys;
-        }
-      in
-      Alist.extend sigr (SRCtor(ctornm, ctorentry))
-    ) ctorbrs sigr
+and pp_ast ppf = function
+  | IBaseConst(bc) ->
+      pp_base_constant ppf bc
+
+  | IVar(name) ->
+      OutputIdentifier.pp ppf name
+
+  | ILambda(None, lnameargs, e) ->
+      Format.fprintf ppf "\\(%a) ->@[<hov2>@ %a@]"
+        (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameargs
+        pp_ast e
+
+  | ILambda(Some(lnamerec), lnameparams, e) ->
+      Format.fprintf ppf "\\%a(%a) ->@[<hov2>@ %a@]"
+        OutputIdentifier.pp_local lnamerec
+        (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameparams
+        pp_ast e
+
+  | IApply(name, eargs) ->
+      Format.fprintf ppf "%a@[<hov2>(%a)@]"
+        OutputIdentifier.pp name
+        (Format.pp_print_list ~pp_sep:pp_sep_comma pp_ast) eargs
+
+  | ILetIn(lname, e1, e2) ->
+      Format.fprintf ppf "(let %a =@[<hov2>@ %a@]@ in@ %a)"
+        OutputIdentifier.pp_local lname
+        pp_ast e1
+        pp_ast e2
+
+  | ICase(e0, ibrs) ->
+      Format.fprintf ppf "(case@[<hov2>@ %a@]@ of@[<hov2>@ %a@]@ end)"
+        pp_ast e0
+        (Format.pp_print_list pp_branch) ibrs
+
+  | ITuple(es) ->
+      Format.fprintf ppf "{%a}"
+        (Format.pp_print_list ~pp_sep:pp_sep_comma pp_ast) (es |> TupleList.to_list)
+
+  | _ ->
+      Format.fprintf ppf "..."
 
 
-  let find_constructor (ctornm0 : constructor_name) (sigr : t) : constructor_entry option =
-    sigr |> Alist.to_rev_list |> List.find_map (function
-    | SRCtor(ctornm, entry) -> if String.equal ctornm ctornm0 then Some(entry) else None
-    | _                     -> None
-    )
+and pp_branch ppf = function
+  | IBranch(ipat, _, e) ->
+      Format.fprintf ppf "%a (when ...) ->@[<hov2>@ %a@];@ "
+        pp_pattern ipat
+        pp_ast e
 
 
-  let find_type (tynm0 : type_name) (sigr : t) : type_opacity option =
-    sigr |> Alist.to_rev_list |> List.find_map (function
-    | SRRecTypes(tydefs) ->
-        tydefs |> List.find_map (fun (tynm, tyopac) ->
-          if String.equal tynm tynm0 then Some(tyopac) else None
-        )
+module GlobalNameMap = Map.Make(OutputIdentifier.Global)
 
-    | _ ->
-        None
-    )
-
-
-  let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (kd : kind) (sigr : t) : t =
-    Alist.extend sigr (SRRecTypes[ (tynm, (TypeID.Opaque(oid), kd)) ])
-
-
-  let add_module (modnm : module_name) (modsig : module_signature) (name : name) (sigr : t) : t =
-    Alist.extend sigr (SRModule(modnm, (modsig, name)))
-
-
-  let find_module (modnm0 : module_name) (sigr : t) : (module_signature * name) option =
-    sigr |> Alist.to_list |> List.find_map (function
-    | SRModule(modnm, mentry) -> if String.equal modnm modnm0 then Some(mentry) else None
-    | _                       -> None
-    )
-
-
-  let add_signature (signm : signature_name) (absmodsig : module_signature abstracted) (sigr : t) : t =
-    Alist.extend sigr (SRSig(signm, absmodsig))
-
-
-  let find_signature (signm0 : signature_name) (sigr : t) : (module_signature abstracted) option =
-    sigr |> Alist.to_list |> List.find_map (function
-    | SRSig(signm, absmodsig) -> if String.equal signm signm0 then Some(absmodsig) else None
-    | _                       -> None
-    )
-
-
-  let fold (type a)
-      ~v:(fv : identifier -> poly_type * name -> a -> a)
-      ~t:(ft : (type_name * type_opacity) list -> a -> a)
-      ~m:(fm : module_name -> module_signature * name -> a -> a)
-      ~s:(fs : signature_name -> module_signature abstracted -> a -> a)
-      ~c:(fc : constructor_name -> constructor_entry -> a -> a)
-      (init : a) (sigr : t) : a =
-    sigr |> Alist.to_list |> List.fold_left (fun acc entry ->
-      match entry with
-      | SRVal(x, ventry)        -> fv x ventry acc
-      | SRRecTypes(tydefs)      -> ft tydefs acc
-      | SRModule(modnm, mentry) -> fm modnm mentry acc
-      | SRSig(signm, absmodsig) -> fs signm absmodsig acc
-      | SRCtor(ctor, ctorentry) -> fc ctor ctorentry acc
-    ) init
-
-
-  let map_and_fold (type a)
-      ~v:(fv : poly_type * name -> a -> (poly_type * name) * a)
-      ~t:(ft : type_opacity list -> a -> type_opacity list * a)
-      ~m:(fm : module_signature * name -> a -> (module_signature * name) * a)
-      ~s:(fs : module_signature abstracted -> a -> module_signature abstracted * a)
-      ~c:(fc : constructor_entry -> a -> constructor_entry * a)
-      (init : a) (sigr : t) : t * a =
-      sigr |> Alist.to_list |> List.fold_left (fun (sigracc, acc) entry ->
-        match entry with
-        | SRVal(x, ventry) ->
-            let (ventry, acc) = fv ventry acc in
-            (Alist.extend sigracc (SRVal(x, ventry)), acc)
-
-        | SRRecTypes(tydefs) ->
-            let tynms = tydefs |> List.map fst in
-            let (tyopacs, acc) = ft (tydefs |> List.map snd) acc in
-            (Alist.extend sigracc (SRRecTypes(List.combine tynms tyopacs)), acc)
-
-        | SRModule(modnm, mentry) ->
-            let (mentry, acc) = fm mentry acc in
-            (Alist.extend sigracc (SRModule(modnm, mentry)), acc)
-
-        | SRSig(signm, absmodsig) ->
-            let (absmodsig, acc) = fs absmodsig acc in
-            (Alist.extend sigracc (SRSig(signm, absmodsig)), acc)
-
-        | SRCtor(ctor, ctorentry) ->
-            let (ctorentry, acc) = fc ctorentry acc in
-            (Alist.extend sigracc (SRCtor(ctor, ctorentry)), acc)
-      ) (Alist.empty, init)
-
-(*
-  let overwrite (superior : t) (inferior : t) : t =
-    let left _ x _ = Some(x) in
-    let sr_vals    = ValNameMap.union       left superior.sr_vals    inferior.sr_vals in
-    let sr_types   = TypeNameMap.union      left superior.sr_types   inferior.sr_types in
-    let sr_modules = ModuleNameMap.union    left superior.sr_modules inferior.sr_modules in
-    let sr_sigs    = SignatureNameMap.union left superior.sr_sigs    inferior.sr_sigs in
-    let sr_ctors   = ConstructorMap.union   left superior.sr_ctors   inferior.sr_ctors in
-    { sr_vals; sr_types; sr_modules; sr_sigs; sr_ctors }
-*)
-
-  let disjoint_union (rng : Range.t) (sigr1 : t) (sigr2 : t) : t =
-    let check_none s opt =
-      match opt with
-      | None    -> ()
-      | Some(_) -> raise (ConflictInSignature(rng, s))
-    in
-    sigr2 |> Alist.to_list |> List.fold_left (fun sigracc entry ->
-      let () =
-        match entry with
-        | SRVal(x, _)        -> check_none x (find_val x sigr1)
-        | SRRecTypes(tydefs) -> tydefs |> List.iter (fun (tynm, _) -> check_none tynm (find_type tynm sigr1))
-        | SRModule(modnm, _) -> check_none modnm (find_module modnm sigr1)
-        | SRSig(signm, _)    -> check_none signm (find_signature signm sigr1)
-        | SRCtor(ctor, _)    -> check_none ctor (find_constructor ctor sigr1)
-      in
-      Alist.extend sigracc entry
-    ) sigr1
-
-end
+type global_name_map = string GlobalNameMap.t
+(* The type for maps tracking which module every global name belongs to.
+   This is used by 'Primitives' and 'OutputErlangCode'. *)

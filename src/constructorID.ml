@@ -1,25 +1,14 @@
 
-type t = string
+type t = IdentifierScheme.t
 
 
-let is_latin_uppercase (ch : char) =
-  'A' <= ch && ch <= 'Z'
+let make : string -> t option =
+  IdentifierScheme.from_upper_camel_case
 
 
-let make (s : string) : t =
-  if String.length s <= 0 then
-    assert false
-  else
-    let char = String.get s 0 in
-    if is_latin_uppercase char then
-      String.make 1 (Char.lowercase_ascii char) ^ (String.sub s 1 (String.length s - 1))
-    else
-      assert false
-
-
-let pp ppf ctor =
-  Format.fprintf ppf "\"%s\"" ctor
+let pp ppf ctorid =
+  Format.fprintf ppf "C\"%a\"" IdentifierScheme.pp ctorid
 
 
 let output (ctorid : t) : string =
-  ctorid
+  Printf.sprintf "'%s'" (IdentifierScheme.to_snake_case ctorid)

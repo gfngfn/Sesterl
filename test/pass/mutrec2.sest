@@ -1,13 +1,18 @@
 
-let main() =
+module Mutrec2 = struct
+
   letrec odd(n) =
     let _ = print_debug(n) in
     even(n - 1)
+
   andrec even(n) =
     let _ = print_debug(n) in
     if n <= 0 then
       ()
     else
       odd(n - 1)
-  in
-  even(10)
+
+  let main() =
+    even(10)
+
+end

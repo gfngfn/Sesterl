@@ -1,5 +1,6 @@
 
 open Syntax
+open Env
 
 exception UnboundVariable                     of Range.t * identifier
 exception ContradictionError                  of mono_type * mono_type
@@ -26,11 +27,14 @@ exception MissingRequiredValName              of Range.t * identifier * poly_typ
 exception MissingRequiredTypeName             of Range.t * type_name * type_opacity
 exception MissingRequiredModuleName           of Range.t * module_name * module_signature
 exception MissingRequiredSignatureName        of Range.t * signature_name * module_signature abstracted
-exception MissingRequiredConstructor          of Range.t * constructor_name * constructor_entry
 exception NotASubtype                         of Range.t * module_signature * module_signature
 exception NotASubtypeTypeOpacity              of Range.t * type_name * type_opacity * type_opacity
 exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t * constructor_name
 exception NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t
-exception MismatchedNumberOfConstructorParameters of Range.t * constructor_name * constructor_entry * constructor_entry
+exception OpaqueIDExtrudesScopeViaValue       of Range.t * poly_type
+exception OpaqueIDExtrudesScopeViaType        of Range.t * type_opacity
+exception OpaqueIDExtrudesScopeViaSignature   of Range.t * module_signature abstracted
+exception SupportOnlyFirstOrderFunctor        of Range.t
+exception InvalidIdentifier                   of Range.t * string
 
-val main : untyped_binding list -> SigRecord.t abstracted * binding list
+val main : module_name ranged -> untyped_module -> SigRecord.t abstracted * space_name * binding list
