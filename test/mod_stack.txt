@@ -1,21 +1,25 @@
 
-type option<$a> =
-  | None
-  | Some($a)
+module ModStack = struct
+
+  type option<$a> =
+    | None
+    | Some($a)
 
 
-module Stack = struct
+  module Stack = struct
 
-  type t<$a> = list<$a>
+    type t<$a> = list<$a>
 
-  let empty() = []
+    let empty() = []
 
-  let pop<$a>(s: t<$a>): option<($a, t<$a>)> =
-    case s of
-    | []          -> None
-    | top :: rest -> Some((top, rest))
-    end
+    let pop<$a>(s: t<$a>): option<($a, t<$a>)> =
+      case s of
+      | []          -> None
+      | top :: rest -> Some((top, rest))
+      end
 
-  let push(s, x) = x :: s
+    let push(s, x) = x :: s
+
+  end
 
 end
