@@ -8,6 +8,82 @@ module GlobalNameMap = Map.Make(OutputIdentifier.Global)
 type global_name_map = string GlobalNameMap.t
 (* The type for maps tracking which module every global name belongs to. *)
 
+type val_binding_output =
+  | OBindVal of global_name * local_name list * global_name_map * ast
+
+type module_binding_output =
+  | OBindModule of string * val_binding_output list
+
+
+let traverse_val_single (gmap : global_name_map) (_, gnamefun, _, ast) : val_binding_output =
+  match ast with
+  | ILambda(None, lnameparams, ast0) -> OBindVal(gnamefun, lnameparams, gmap, ast0)
+  | _                                -> assert false
+
+
+let make_module_string (spacepath : space_name Alist.t) : string =
+  spacepath |> Alist.to_list |> List.map OutputIdentifier.output_space |> String.concat "_"
+
+
+let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name Alist.t) (ibinds : binding list) : module_binding_output list * global_name_map =
+
+  let smod = make_module_string spacepath in
+
+  (* Associates value identifiers in the current space with `spacepath` beforehand. *)
+  let gmap =
+    ibinds |> List.fold_left (fun gmap ibind ->
+      match ibind with
+      | IBindVal(INonRec(valbind)) ->
+          let (_, gnamefun, _, _) = valbind in
+          gmap |> GlobalNameMap.add gnamefun smod
+
+      | IBindVal(IRec(valbinds)) ->
+          valbinds |> List.fold_left (fun gmap valbind ->
+            let (_, gnamefun, _, _) = valbind in
+            gmap |> GlobalNameMap.add gnamefun smod
+          ) gmap
+
+      | IBindModule(_) ->
+          gmap
+    ) gmap
+  in
+
+  (* Make the output module corresponding to the current space (if not empty). *)
+  let omodbindacc =
+    let ovalbinds =
+      ibinds |> List.map (fun ibind ->
+        match ibind with
+        | IBindVal(INonRec(valbind)) -> [ traverse_val_single gmap valbind ]
+        | IBindVal(IRec(valbinds))   -> valbinds |> List.map (traverse_val_single gmap)
+        | IBindModule(_)             -> []
+      ) |> List.concat
+    in
+    match ovalbinds with
+    | [] ->
+        Alist.empty
+
+    | _ :: _ ->
+        let omodbind = OBindModule(smod, ovalbinds) in
+        Alist.extend Alist.empty omodbind
+  in
+
+  let (omodbindacc, gmap) =
+    ibinds |> List.fold_left (fun ((omodbindacc, gmap) as original) ibind ->
+      match ibind with
+      | IBindVal(_) ->
+          original
+
+      | IBindModule(sname, ibindssub) ->
+          let (omodbindssub, gmap) =
+            let spacepathsub = Alist.extend spacepath sname in
+            traverse_binding_list gmap spacepathsub ibindssub
+          in
+          (Alist.append omodbindacc omodbindssub, gmap)
+
+    ) (omodbindacc, gmap)
+  in
+  (Alist.to_list omodbindacc, gmap)
+
 
 let unit_atom = "ok"
 
@@ -28,7 +104,7 @@ let get_module_string (gmap : global_name_map) (gname : global_name) : string =
   | Some(smod) -> smod
 
 
-let output_single (gmap : global_name_map) = function
+let stringify_single (gmap : global_name_map) = function
   | OutputIdentifier.Local(lname) ->
       OutputIdentifier.output_local lname
 
@@ -63,7 +139,7 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
   let iter = stringify_ast gmap in
   match ast with
   | IVar(name) ->
-      output_single gmap name
+      stringify_single gmap name
 
   | IBaseConst(bc) ->
       stringify_base_constant bc
@@ -196,13 +272,6 @@ and stringify_pattern (ipat : pattern) =
       end
 
 
-type val_binding_output =
-  | OBindVal of global_name * local_name list * global_name_map * ast
-
-type module_binding_output =
-  | OBindModule of string * val_binding_output list
-
-
 let stringify_val_binding_output : val_binding_output -> string = function
   | OBindVal(gnamefun, lnameparams, gmap, ast0) ->
       let r = OutputIdentifier.output_global gnamefun in
@@ -221,76 +290,6 @@ let stringify_module_binding_output (omodbind : module_binding_output) =
         ss |> List.map (fun s -> "%   " ^ s);
         [ "% }" ];
       ]
-
-
-let traverse_val_single (gmap : global_name_map) (_, gnamefun, _, ast) : val_binding_output =
-  match ast with
-  | ILambda(None, lnameparams, ast0) -> OBindVal(gnamefun, lnameparams, gmap, ast0)
-  | _                                -> assert false
-
-
-let make_module_string (spacepath : space_name Alist.t) : string =
-  spacepath |> Alist.to_list |> List.map OutputIdentifier.output_space |> String.concat "_"
-
-
-let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name Alist.t) (ibinds : binding list) : module_binding_output list * global_name_map =
-
-  let smod = make_module_string spacepath in
-
-  (* Associates value identifiers in the current space with `spacepath` beforehand. *)
-  let gmap =
-    ibinds |> List.fold_left (fun gmap ibind ->
-      match ibind with
-      | IBindVal(INonRec(valbind)) ->
-          let (_, gnamefun, _, _) = valbind in
-          gmap |> GlobalNameMap.add gnamefun smod
-
-      | IBindVal(IRec(valbinds)) ->
-          valbinds |> List.fold_left (fun gmap valbind ->
-            let (_, gnamefun, _, _) = valbind in
-            gmap |> GlobalNameMap.add gnamefun smod
-          ) gmap
-
-      | IBindModule(_) ->
-          gmap
-    ) gmap
-  in
-
-  (* Make the output module corresponding to the current space (if not empty). *)
-  let omodbindacc =
-    let ovalbinds =
-      ibinds |> List.map (fun ibind ->
-        match ibind with
-        | IBindVal(INonRec(valbind)) -> [ traverse_val_single gmap valbind ]
-        | IBindVal(IRec(valbinds))   -> valbinds |> List.map (traverse_val_single gmap)
-        | IBindModule(_)             -> []
-      ) |> List.concat
-    in
-    match ovalbinds with
-    | [] ->
-        Alist.empty
-
-    | _ :: _ ->
-        let omodbind = OBindModule(smod, ovalbinds) in
-        Alist.extend Alist.empty omodbind
-  in
-
-  let (omodbindacc, gmap) =
-    ibinds |> List.fold_left (fun ((omodbindacc, gmap) as original) ibind ->
-      match ibind with
-      | IBindVal(_) ->
-          original
-
-      | IBindModule(sname, ibindssub) ->
-          let (omodbindssub, gmap) =
-            let spacepathsub = Alist.extend spacepath sname in
-            traverse_binding_list gmap spacepathsub ibindssub
-          in
-          (Alist.append omodbindacc omodbindssub, gmap)
-
-    ) (omodbindacc, gmap)
-  in
-  (Alist.to_list omodbindacc, gmap)
 
 
 let main (sname : space_name) (ibinds : binding list) : string =
