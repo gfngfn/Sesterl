@@ -37,7 +37,7 @@ exception OpaqueIDExtrudesScopeViaValue       of Range.t * poly_type
 exception OpaqueIDExtrudesScopeViaType        of Range.t * type_opacity
 exception OpaqueIDExtrudesScopeViaSignature   of Range.t * module_signature abstracted
 exception SupportOnlyFirstOrderFunctor        of Range.t
-exception InvalidIdentifier                   of Range.t * identifier
+exception RootModuleMustBeStructure           of Range.t
 
 module BindingMap = Map.Make(String)
 
@@ -2380,6 +2380,14 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
   ((oidsetacc, sigracc), Alist.to_list ibindacc)
 
 
-let main (utbinds : untyped_binding list) : SigRecord.t abstracted * binding list =
+let main (utmod : untyped_module) : SigRecord.t abstracted * binding list =
   let tyenv = Primitives.initial_type_environment in
-  typecheck_binding_list tyenv utbinds
+  let (absmodsig, ibinds) = typecheck_module tyenv utmod in
+  let (oidset, modsig) = absmodsig in
+  match modsig with
+  | ConcFunctor(_) ->
+      let (rng, _) = utmod in
+      raise (RootModuleMustBeStructure(rng))
+
+  | ConcStructure(sigr) ->
+      ((oidset, sigr), ibinds)

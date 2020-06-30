@@ -8,16 +8,11 @@ let main fpath_in fpath_out =
   try
     let inc = open_in fpath_in in
     let lexbuf = Lexing.from_channel inc in
-    let utdecls = ParserInterface.process lexbuf in
+    let (modident, utmod) = ParserInterface.process lexbuf in
     close_in inc;
-    let ((_, sigr), decls) = Typechecker.main utdecls in
+    let ((_, sigr), binds) = Typechecker.main utmod in
     display_structure 0 sigr;
-    let scode =
-      let modname =
-        Filename.remove_extension (Filename.basename fpath_out)
-      in
-      OutputErlangCode.main modname decls
-    in
+    let scode = OutputErlangCode.main modident binds in
     let outc = open_out fpath_out in
     output_string outc scode;
     close_out outc;
@@ -190,7 +185,7 @@ let main fpath_in fpath_out =
         Range.pp rng
         ctor
 
-  | Typechecker.InvalidIdentifier(rng, s) ->
+  | InvalidIdentifier(rng, s) ->
       Format.printf "%a: invalid identifier '%s'\n"
         Range.pp rng
         s

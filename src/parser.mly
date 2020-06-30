@@ -32,7 +32,7 @@
 
 %start main
 %type<Syntax.untyped_binding> bindtop
-%type<Syntax.untyped_binding list> main
+%type<Syntax.module_name Syntax.ranged * Syntax.untyped_module> main
 %type<Syntax.manual_type> ty
 %type<Syntax.binder list> params
 %type<Syntax.untyped_let_binding> bindvalsingle
@@ -41,7 +41,10 @@
 
 %%
 main:
-  | binds=list(bindtop); EOI { binds }
+  | bindmod=bindmod; EOI {
+        let (_, modident, utmod) = bindmod in
+        (modident, utmod)
+      }
 ;
 ident:
   | ident=IDENT { ident }
@@ -56,13 +59,19 @@ bindtop:
         let (_, valbinding) = bindval in
         (rng, BindVal(valbinding))
       }
-  | MODULE; modident=CTOR; DEFEQ; utmod=modexpr {
-        let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
+  | bindmod=bindmod {
+        let (rng, modident, utmod) = bindmod in
         (rng, BindModule(modident, utmod))
       }
   | SIGNATURE; sigident=CTOR; DEFEQ; utsig=sigexpr {
         let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
         (rng, BindSig(sigident, utsig))
+      }
+;
+bindmod:
+  | tokL=MODULE; modident=CTOR; DEFEQ; utmod=modexpr {
+        let rng = make_range (Token(tokL)) (Ranged(utmod)) in
+        (rng, modident, utmod)
       }
 ;
 bindtypesingle:

@@ -291,19 +291,26 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
   (Alist.to_list omodbindacc, gmap)
 
 
-let main (modname : string) (ibinds : binding list) : string =
+let main (modident : module_name ranged) (ibinds : binding list) : string =
+
+  let (rng, modname) = modident in
+  let sname =
+    match OutputIdentifier.space modname with
+    | None        -> raise (InvalidIdentifier(rng, modname))
+    | Some(sname) -> sname
+  in
 
   Format.printf "@[<v>%a@]" (Format.pp_print_list pp_binding) ibinds;
 
   let (omodbinds, _) =
     let gmap = GlobalNameMap.empty in
-    let spacepath = Alist.empty in
+    let spacepath = Alist.extend Alist.empty sname in
     traverse_binding_list gmap spacepath ibinds
   in
   let sbinds = omodbinds |> List.map stringify_module_binding_output |> List.concat in
   let lines =
     List.append [
-      Printf.sprintf "-module(%s)." modname;
+      Printf.sprintf "-module(%s)." (OutputIdentifier.output_space sname);
       "-export([main/0]).";
       "thunk_return(X) -> fun() -> X end.";
       "thunk_spawn(X) -> fun() -> erlang:spawn(X) end.";
