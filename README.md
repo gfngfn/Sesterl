@@ -183,51 +183,74 @@ As mentioned earlier, supporting session types is an important future work. One 
 
 ### Module system
 
-One of the largest features developed these days is the support for a subset of *F-ing modules* \[Rossberg, Russo & Dreyer 2014\], where kinds are restricted to first-order (i.e., type constructors cannot take type constructors as their arguments). For example, Sesterl can type-check the following definition of modules and functors:
+One of the largest features developed these days is the support for a subset of *F-ing modules* \[Rossberg, Russo & Dreyer 2014\], where kinds and functors are restricted to first-order (i.e., type constructors cannot take type constructors as arguments and functors cannot take functors as arguments). For example, Sesterl can type-check the following definition of modules and functors:
 
 ```
-type option<$a> =
-  | None
-  | Some($a)
+/* mod.sest */
 
-signature Ord = sig
-  type s:: 0
-  val compare: fun(s, s) -> int
-end
+module Mod = struct
 
-module Map = fun(Elem: Ord) ->
-  struct
-    type elem = Elem.s
-    type t<$a> = list<(elem, $a)>
-    letrec find<$b>(x: elem, assoc: t<$b>): option<$b> =
-      case assoc of
-      | [] ->
-          None
+  type option<$a> =
+    | None
+    | Some($a)
 
-      | (k, v) :: tail ->
-          if Elem.compare(k, x) == 0 then
-            Some(v)
-          else
-            find(x, tail)
-      end
+  signature Ord = sig
+    type s:: 0
+    val compare: fun(s, s) -> int
   end
 
-module Int = struct
-  type s = int
-  let compare(x: int, y: int) = y - x
-end
+  module Map = fun(Elem: Ord) ->
+    struct
+      type elem = Elem.s
+      type t<$a> = list<(elem, $a)>
+      letrec find<$b>(x: elem, assoc: t<$b>): option<$b> =
+        case assoc of
+        | [] ->
+            None
 
-module IntMap = Map(Int)
+        | (k, v) :: tail ->
+            if Elem.compare(k, x) == 0 then
+              Some(v)
+            else
+              find(x, tail)
+        end
+    end
+
+  module Int = struct
+    type s = int
+    let compare(x: int, y: int) = y - x
+  end
+
+  module IntMap = Map(Int)
+
+end
 ```
 
-Currently, however, back-end Erlang code generator has not supported modules yet; for now, only type checking can be performed for modules.
+The program above is compiled to the following Erlang modules:
+
+```erlang
+-module(mod_int).
+-export([compare/2]).
+compare(S13X, S14Y) -> (S14Y - S13X).
+```
+
+```erlang
+-module(mod_int_map).
+-export([find/2]).
+find(S17X, S18Assoc) -> case S18Assoc of [] -> 'none'; [{S19K, S20V} | S21Tail] -> case (mod_int:compare(S19K, S17X) == 0) of true -> {'some', S20V}; false -> mod_int_map:find(S17X, S21Tail) end end.
+```
+
+Note that nested modules are flattened and given lowercased names. This conforms to the naming convention of modules in Erlang.
+
+What is more important here is that functors are eliminated *at compilation time*. This is realized by the technique of so-called the *static interpretation* \[Elsman, Henriksen, Annenkov & Oancea 2018\].
 
 
 ## References
 
-* Simon Fowler. *Typed Concurrent Functional Programming with Channels, Actors, and Sessions*. PhD thesis, University of Edinburgh, 2019.
-* Dominic Orchard and Nobuko Yoshida. Effects as sessions, sessions as effects. In *Proceedings of the 43rd Annual ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL’16)*, pp. 568–581, 2016.
-* Andreas Rossberg, Claudio Russo, and Derek Dreyer. F-ing modules. *Journal of Functional Programming*, **24**(5), pp. 529–607, 2014.
+* Martin Elsman, Troels Henriksen, Danil Annenkov, and Cosmin E. Oancea. [Static interpretation of higher-order modules in Futhark: functional GPU programming in the large](https://dl.acm.org/doi/10.1145/3236792). *Proceedings of the ACM on Programming Languages* 2, ICFP, Article 97, 2018.
+* Simon Fowler. [*Typed Concurrent Functional Programming with Channels, Actors, and Sessions*](https://era.ed.ac.uk/handle/1842/35873). PhD thesis, University of Edinburgh, 2019.
+* Dominic Orchard and Nobuko Yoshida. [Effects as sessions, sessions as effects](https://dl.acm.org/doi/10.1145/2837614.2837634). In *Proceedings of the 43rd Annual ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL’16)*, pp. 568–581, 2016.
+* Andreas Rossberg, Claudio Russo, and Derek Dreyer. [F-ing modules](https://people.mpi-sws.org/~rossberg/f-ing/). *Journal of Functional Programming*, **24**(5), pp. 529–607, 2014.
 
 
 ## TODO
@@ -254,4 +277,6 @@ Currently, however, back-end Erlang code generator has not supported modules yet
 * [x] Mutual recursion by generalized `letrec`-expressions
 * [x] Pattern matching by generalized `let`-expressions
 * [x] Module system
+  * [x] Support for F-ing modules
+  * [x] Compilation using the static interpretation
 * [ ] (Multiparty) session types
