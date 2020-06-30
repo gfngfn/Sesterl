@@ -4,7 +4,7 @@ open Syntax
 open Env
 
 
-let main fpath_in fpath_out =
+let main fpath_in dir_out =
   try
     let inc = open_in fpath_in in
     let lexbuf = Lexing.from_channel inc in
@@ -12,11 +12,13 @@ let main fpath_in fpath_out =
     close_in inc;
     let ((_, sigr), sname, binds) = Typechecker.main modident utmod in
     display_structure 0 sigr;
-    let scode = OutputErlangCode.main sname binds in
+    OutputErlangCode.main dir_out sname binds
+(*
     let outc = open_out fpath_out in
     output_string outc scode;
     close_out outc;
     Format.printf "output written on '%s'\n" fpath_out;
+*)
   with
   | Failure(msg) ->
       Format.printf "unsupported \"%s\"\n" msg

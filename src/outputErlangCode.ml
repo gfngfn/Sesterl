@@ -280,7 +280,7 @@ let stringify_val_binding_output : val_binding_output -> string = function
       Printf.sprintf "%s(%s) -> %s." r.function_name (String.concat ", " sparams) s0
 
 
-let stringify_module_binding_output (omodbind : module_binding_output) =
+let stringify_module_binding_output (omodbind : module_binding_output) : string list =
   match omodbind with
   | OBindModule(smod, ovalbinds) ->
       let exports =
@@ -291,15 +291,25 @@ let stringify_module_binding_output (omodbind : module_binding_output) =
       in
       let ss = ovalbinds |> List.map stringify_val_binding_output in
       List.concat [
-        [ Printf.sprintf "%% -module(%s)." smod ];
-        [ Printf.sprintf "%% -export([%s])." (String.concat ", " exports) ];
-        [ "% {" ];
-        ss |> List.map (fun s -> "%   " ^ s);
-        [ "% }" ];
+        [ Printf.sprintf "-module(%s)." smod ];
+        [ Printf.sprintf "-export([%s])." (String.concat ", " exports) ];
+        ss;
       ]
 
 
-let main (sname : space_name) (ibinds : binding list) : string =
+let write_module_to_file (dir_out : string) (omodbind : module_binding_output) : unit =
+  let smod = match omodbind with OBindModule(smod, _) -> smod in
+  let lines = stringify_module_binding_output omodbind in
+  let fpath_out = Filename.concat dir_out (Printf.sprintf "%s.erl" smod) in
+  let fout = open_out fpath_out in
+  lines |> List.iter (fun line ->
+    output_string fout (line ^ "\n")
+  );
+  close_out fout;
+  Printf.printf "output written on '%s'\n" fpath_out
+
+
+let main (dir_out : string) (sname : space_name) (ibinds : binding list) : unit =
 
   Format.printf "@[<v>%a@]" (Format.pp_print_list pp_binding) ibinds;
 
@@ -308,6 +318,10 @@ let main (sname : space_name) (ibinds : binding list) : string =
     let spacepath = Alist.extend Alist.empty sname in
     traverse_binding_list gmap spacepath ibinds
   in
+  omodbinds |> List.iter (fun omodbind ->
+    write_module_to_file dir_out omodbind
+  )
+(*
   let sbinds = omodbinds |> List.map stringify_module_binding_output |> List.concat in
   let lines =
     List.append [
@@ -321,3 +335,4 @@ let main (sname : space_name) (ibinds : binding list) : string =
     ] sbinds
   in
   lines |> List.map (fun s -> s ^ "\n") |> String.concat ""
+*)
