@@ -292,9 +292,7 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
       ]
 
 
-let write_module_to_file (dir_out : string) (omodbind : module_binding_output) : unit =
-  let smod = match omodbind with OBindModule(smod, _) -> smod in
-  let lines = stringify_module_binding_output omodbind in
+let write_file (dir_out : string) (smod : string) (lines : string list) : unit =
   let fpath_out = Filename.concat dir_out (Printf.sprintf "%s.erl" smod) in
   let fout = open_out fpath_out in
   lines |> List.iter (fun line ->
@@ -302,6 +300,40 @@ let write_module_to_file (dir_out : string) (omodbind : module_binding_output) :
   );
   close_out fout;
   Printf.printf "output written on '%s'\n" fpath_out
+
+
+let write_module_to_file (dir_out : string) (omodbind : module_binding_output) : unit =
+  let smod = match omodbind with OBindModule(smod, _) -> smod in
+  let lines = stringify_module_binding_output omodbind in
+  write_file dir_out smod lines
+
+
+let write_primitive_module_to_file (dir_out : string) : unit =
+  let smod = Primitives.primitive_module_name in
+  let primdefs = Primitives.primitive_definitions in
+  let exports =
+    primdefs |> List.map (fun primdef ->
+      let open Primitives in
+      let arity = List.length primdef.parameters in
+      Printf.sprintf "%s/%d" primdef.target_name arity
+    )
+  in
+  let lines =
+    List.concat [
+      [
+        Printf.sprintf "-module(%s)." smod;
+        Printf.sprintf "-export([%s])." (String.concat ", " exports);
+      ];
+      primdefs |> List.map (fun primdef ->
+        let open Primitives in
+        Printf.sprintf "%s(%s) -> %s."
+          primdef.target_name
+          (String.concat ", " primdef.parameters)
+          primdef.code
+      );
+    ]
+  in
+  write_file dir_out smod lines
 
 
 let main (dir_out : string) (sname : space_name) (ibinds : binding list) : unit =
@@ -313,21 +345,13 @@ let main (dir_out : string) (sname : space_name) (ibinds : binding list) : unit 
     let spacepath = Alist.extend Alist.empty sname in
     traverse_binding_list gmap spacepath ibinds
   in
+  write_primitive_module_to_file dir_out;
   omodbinds |> List.iter (fun omodbind ->
     write_module_to_file dir_out omodbind
   )
 (*
   let sbinds = omodbinds |> List.map stringify_module_binding_output |> List.concat in
   let lines =
-    List.append [
-      Printf.sprintf "-module(%s)." (OutputIdentifier.output_space sname);
-      "-export([main/0]).";
-      "thunk_return(X) -> fun() -> X end.";
-      "thunk_spawn(X) -> fun() -> erlang:spawn(X) end.";
-      "thunk_send(X, Y) -> fun() -> X ! Y, ok end.";
-      "thunk_self() -> erlang:self().";
-      "print_debug(X) -> io:format(\"~p~n\", [X]), ok.";
-    ] sbinds
   in
   lines |> List.map (fun s -> s ^ "\n") |> String.concat ""
 *)
