@@ -43,25 +43,7 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
     ) gmap
   in
 
-  (* Make the output module corresponding to the current space (if not empty). *)
-  let omodbindacc =
-    let ovalbinds =
-      ibinds |> List.map (fun ibind ->
-        match ibind with
-        | IBindVal(INonRec(valbind)) -> [ traverse_val_single gmap valbind ]
-        | IBindVal(IRec(valbinds))   -> valbinds |> List.map (traverse_val_single gmap)
-        | IBindModule(_)             -> []
-      ) |> List.concat
-    in
-    match ovalbinds with
-    | [] ->
-        Alist.empty
-
-    | _ :: _ ->
-        let omodbind = OBindModule(smod, ovalbinds) in
-        Alist.extend Alist.empty omodbind
-  in
-
+  (* Traverses all the submodules. *)
   let (omodbindacc, gmap) =
     ibinds |> List.fold_left (fun ((omodbindacc, gmap) as original) ibind ->
       match ibind with
@@ -75,8 +57,28 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
           in
           (Alist.append omodbindacc omodbindssub, gmap)
 
-    ) (omodbindacc, gmap)
+    ) (Alist.empty, gmap)
   in
+
+  (* Constructs the output module corresponding to the current space (if not empty). *)
+  let omodbindacc =
+    let ovalbinds =
+      ibinds |> List.map (fun ibind ->
+        match ibind with
+        | IBindVal(INonRec(valbind)) -> [ traverse_val_single gmap valbind ]
+        | IBindVal(IRec(valbinds))   -> valbinds |> List.map (traverse_val_single gmap)
+        | IBindModule(_)             -> []
+      ) |> List.concat
+    in
+    match ovalbinds with
+    | [] ->
+        omodbindacc
+
+    | _ :: _ ->
+        let omodbind = OBindModule(smod, ovalbinds) in
+        Alist.extend omodbindacc omodbind
+  in
+
   (Alist.to_list omodbindacc, gmap)
 
 
