@@ -6,6 +6,10 @@ all:
 test:
 	dune exec test/testRange.exe
 
+.PHONY: test-positive
+test-positive:
+	./run-test-to-pass.sh
+
 .PHONY: clean
 clean:
 	dune clean
