@@ -1,50 +1,54 @@
 
-letrec foldl(f, i, l) =
-  case l of
-  | []      -> i
-  | x :: xs -> foldl(f, f(i, x), xs)
-  end
+module Adt = struct
 
-let reverse_map(f, xs) =
-  foldl(fun(acc, x) -> f(x) :: acc, [], xs)
+  letrec foldl(f, i, l) =
+    case l of
+    | []      -> i
+    | x :: xs -> foldl(f, f(i, x), xs)
+    end
 
-let sum(ns) =
-  foldl(fun(m, n) -> m + n, 0, ns)
+  let reverse_map(f, xs) =
+    foldl(fun(acc, x) -> f(x) :: acc, [], xs)
 
-type tree<$a> =
-  | Node($a, list<tree<$a>>)
+  let sum(ns) =
+    foldl(fun(m, n) -> m + n, 0, ns)
 
-let leaf(x) =
-  Node(x, [])
+  type tree<$a> =
+    | Node($a, list<tree<$a>>)
 
-letrec tree_size(tr) =
-  let Node(_, children) = tr in
-  case children of
-  | []     -> 1
-  | _ :: _ -> 1 + sum(reverse_map(tree_size, children))
-  end
+  let leaf(x) =
+    Node(x, [])
 
-type oddlist<$a> =
-  | OddCons($a, evenlist<$a>)
-andrec evenlist<$b> =
-  | Nil
-  | EvenCons($b, oddlist<$b>)
+  letrec tree_size(tr) =
+    let Node(_, children) = tr in
+    case children of
+    | []     -> 1
+    | _ :: _ -> 1 + sum(reverse_map(tree_size, children))
+    end
 
-let main() =
-  let tr =
-    Node(3, [
-      Node(1, [
-        leaf(4),
+  type oddlist<$a> =
+    | OddCons($a, evenlist<$a>)
+  andrec evenlist<$b> =
+    | Nil
+    | EvenCons($b, oddlist<$b>)
+
+  let main() =
+    let tr =
+      Node(3, [
         Node(1, [
-          leaf(5),
-          leaf(9),
-        ]),
-        leaf(2),
+          leaf(4),
+          Node(1, [
+            leaf(5),
+            leaf(9),
+          ]),
+          leaf(2),
+        ])
       ])
-    ])
-  in
-  let size = tree_size(tr) in
-  let _ = print_debug(size) in
-  let t = OddCons(3, Nil()) in
-  let _ = print_debug(t) in
-  ()
+    in
+    let size = tree_size(tr) in
+    let _ = print_debug(size) in
+    let t = OddCons(3, Nil()) in
+    let _ = print_debug(t) in
+    ()
+
+end
