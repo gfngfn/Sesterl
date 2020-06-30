@@ -1808,21 +1808,23 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
       | DataType(TypeID.Opaque(oid_from), ptyargs) ->
           begin
             match wtmap |> WitnessMap.find_opaque oid_from with
-            | None          -> ptymain
-            | Some(tyid_to) -> DataType(tyid_to, ptyargs)
+            | None          -> DataType(TypeID.Opaque(oid_from), ptyargs |> List.map aux)
+            | Some(tyid_to) -> DataType(tyid_to, ptyargs |> List.map aux)
           end
 
       | DataType(TypeID.Synonym(sid_from), ptyargs) ->
           begin
             match wtmap |> WitnessMap.find_synonym sid_from with
-            | None         -> ptymain
+            | None         -> DataType(TypeID.Synonym(sid_from), ptyargs |> List.map aux)
+                (* TODO: DOUBTFUL; maybe we must traverse the definition of type synonyms beforehand. *)
             | Some(sid_to) -> DataType(TypeID.Synonym(sid_to), ptyargs |> List.map aux)
           end
 
       | DataType(TypeID.Variant(vid_from), ptyargs) ->
           begin
             match wtmap |> WitnessMap.find_variant vid_from with
-            | None         -> ptymain
+            | None         -> DataType(TypeID.Variant(vid_from), ptyargs |> List.map aux)
+                (* TODO: DOUBTFUL; maybe we must traverse the definition of variant types beforehand. *)
             | Some(vid_to) -> DataType(TypeID.Variant(vid_to), ptyargs |> List.map aux)
           end
     in
