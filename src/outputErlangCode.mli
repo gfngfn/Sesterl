@@ -1,4 +1,4 @@
 
 open Syntax
 
-val main : module_name ranged -> binding list -> string
+val main : space_name -> binding list -> string

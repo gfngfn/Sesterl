@@ -5,7 +5,6 @@ exception UnidentifiedToken           of Range.t * string
 exception SeeEndOfFileInComment       of Range.t
 exception SeeEndOfFileInStringLiteral of Range.t
 exception ConflictInSignature         of Range.t * string
-exception InvalidIdentifier           of Range.t * string
 
 
 type 'a ranged = Range.t * 'a

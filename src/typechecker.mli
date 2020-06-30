@@ -35,5 +35,6 @@ exception OpaqueIDExtrudesScopeViaValue       of Range.t * poly_type
 exception OpaqueIDExtrudesScopeViaType        of Range.t * type_opacity
 exception OpaqueIDExtrudesScopeViaSignature   of Range.t * module_signature abstracted
 exception SupportOnlyFirstOrderFunctor        of Range.t
+exception InvalidIdentifier                   of Range.t * string
 
-val main : untyped_module -> SigRecord.t abstracted * binding list
+val main : module_name ranged -> untyped_module -> SigRecord.t abstracted * space_name * binding list

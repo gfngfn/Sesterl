@@ -291,14 +291,7 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
   (Alist.to_list omodbindacc, gmap)
 
 
-let main (modident : module_name ranged) (ibinds : binding list) : string =
-
-  let (rng, modname) = modident in
-  let sname =
-    match OutputIdentifier.space modname with
-    | None        -> raise (InvalidIdentifier(rng, modname))
-    | Some(sname) -> sname
-  in
+let main (sname : space_name) (ibinds : binding list) : string =
 
   Format.printf "@[<v>%a@]" (Format.pp_print_list pp_binding) ibinds;
 
