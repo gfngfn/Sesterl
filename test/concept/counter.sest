@@ -60,10 +60,7 @@ module Counter = struct
     type response :: 1 =
       | Got : request<get>
 
-    let handle_cast(
-      msg: cast_message,
-      n: state
-    ): result<state, error> =
+    let handle_cast(msg : cast_message, n : state) : result<state, error> =
       case msg of
       | Increment -> Ok(n + 1)
       | Decrement -> Ok(n - 1)
