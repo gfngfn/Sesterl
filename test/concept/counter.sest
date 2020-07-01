@@ -64,6 +64,7 @@ module Counter = struct
       case msg of
       | Increment -> Ok(n + 1)
       | Decrement -> Ok(n - 1)
+      | Reset(m)  -> Ok(m)
       end
 
     let handle_call<$a>(msg : request<$a>, ses : GenServer.session<$a>, n : state) =
