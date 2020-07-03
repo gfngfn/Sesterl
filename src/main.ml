@@ -13,12 +13,6 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
     let ((_, sigr), sname, binds) = Typechecker.main modident utmod in
     if is_verbose then display_structure 0 sigr;
     OutputErlangCode.main dir_out sname binds
-(*
-    let outc = open_out fpath_out in
-    output_string outc scode;
-    close_out outc;
-    Format.printf "output written on '%s'\n" fpath_out;
-*)
   with
   | Failure(msg) ->
       Format.printf "unsupported \"%s\"\n" msg
