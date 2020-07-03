@@ -3,7 +3,10 @@ all:
 	cp _build/default/src/main.exe ./sesterl
 
 .PHONY: test
-test:
+test: test-unit test-positive
+
+.PHONY: test-unit
+test-unit:
 	dune exec test/testRange.exe
 	dune exec test/testIdentifierScheme.exe
 
