@@ -5,6 +5,7 @@ all:
 .PHONY: test
 test:
 	dune exec test/testRange.exe
+	dune exec test/testIdentifierScheme.exe
 
 .PHONY: test-positive
 test-positive:
