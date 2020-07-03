@@ -63,7 +63,7 @@ let from_upper_camel_case (original : string) : t option =
         let ch2 = String.get original (index + 1) in
         if is_digit ch2 then
           let fragment = string_of_chars (List.rev chacc) in
-          aux (fragment :: fragacc) [ ch ] (index + 2)
+          aux (fragment :: fragacc) [ ch2 ] (index + 2)
         else
           None
       else

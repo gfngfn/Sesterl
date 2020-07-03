@@ -1,5 +1,5 @@
 (tests
-  (names testRange testTypechecker)
+  (names testRange testIdentifierScheme)
   (libraries
     alcotest
     ocamlgraph
