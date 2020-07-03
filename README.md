@@ -4,8 +4,12 @@
 
 Contrary to its name, Sesterl has not supported session types yet; it only checks the type of messages every process can receive, and has type-level distinction between pure calculations and concurrent computations by a kind of monads \[Fowler 2019\].
 
-As mentioned below, however, many features as a typed functional language have already been furnished.
+As mentioned in the next section, however, many features as a typed functional language have already been furnished. Among them are the following:
 
+* First-class higher-order functions
+* ADTs and pattern matching
+* The standard *Damas–Milner polymorphism* (i.e. so-called the *let-polymorphism*) and *Hindley–Milner type inference* \[Hindley 1969\]\[Milner 1978\]
+* A module system equipped with functors based on *F-ing modules* \[Rossberg, Russo & Dreyer 2014\]
 
 ## Features
 
@@ -249,6 +253,8 @@ What is more important here is that functors are eliminated *at compilation time
 
 * Martin Elsman, Troels Henriksen, Danil Annenkov, and Cosmin E. Oancea. [Static interpretation of higher-order modules in Futhark: functional GPU programming in the large](https://dl.acm.org/doi/10.1145/3236792). *Proceedings of the ACM on Programming Languages* 2, ICFP, Article 97, 2018.
 * Simon Fowler. [*Typed Concurrent Functional Programming with Channels, Actors, and Sessions*](https://era.ed.ac.uk/handle/1842/35873). PhD thesis, University of Edinburgh, 2019.
+* Roger Hindley. The principal type-scheme of an object in combinatory logic. *Transactions of the American Mathematical Society*, **146**, pp. 29–60, 1969.
+* Robin Milner. A theory of type polymorphism in programming. *Journal of Computer and System Sciences*, **17**, pp. 348–375, 1978.
 * Dominic Orchard and Nobuko Yoshida. [Effects as sessions, sessions as effects](https://dl.acm.org/doi/10.1145/2837614.2837634). In *Proceedings of the 43rd Annual ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL’16)*, pp. 568–581, 2016.
 * Andreas Rossberg, Claudio Russo, and Derek Dreyer. [F-ing modules](https://people.mpi-sws.org/~rossberg/f-ing/). *Journal of Functional Programming*, **24**(5), pp. 529–607, 2014.
 
