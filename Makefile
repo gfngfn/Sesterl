@@ -3,7 +3,7 @@ all:
 	cp _build/default/src/main.exe ./sesterl
 
 .PHONY: test
-test: test-unit test-blackbox-positive
+test: test-blackbox-positive test-unit
 
 .PHONY: test-unit
 test-unit:

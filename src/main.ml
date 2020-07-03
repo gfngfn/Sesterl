@@ -4,14 +4,14 @@ open Syntax
 open Env
 
 
-let main fpath_in dir_out =
+let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
   try
     let inc = open_in fpath_in in
     let lexbuf = Lexing.from_channel inc in
     let (modident, utmod) = ParserInterface.process lexbuf in
     close_in inc;
     let ((_, sigr), sname, binds) = Typechecker.main modident utmod in
-    display_structure 0 sigr;
+    if is_verbose then display_structure 0 sigr;
     OutputErlangCode.main dir_out sname binds
 (*
     let outc = open_out fpath_out in
@@ -193,20 +193,26 @@ let main fpath_in dir_out =
         s
 
 
-let flag_output =
+let flag_output : string Cmdliner.Term.t =
   let open Cmdliner in
   let doc = "Specify output path." in
   Arg.(required (opt (some string) None (info [ "o"; "output" ] ~docv:"OUTPUT" ~doc)))
 
 
-let arg_in =
+let flag_verbose : bool Cmdliner.Term.t =
+  let open Cmdliner in
+  let doc = "Makes reports more detailed." in
+  Arg.(value (flag (info [ "verbose" ] ~doc)))
+
+
+let arg_in : string Cmdliner.Term.t =
   let open Cmdliner in
   Arg.(required (pos 0 (some file) None (info [])))
 
 
 let command_term : unit Cmdliner.Term.t =
   let open Cmdliner in
-  Term.(const main $ arg_in $ flag_output)
+  Term.(const main $ arg_in $ flag_output $ flag_verbose)
 
 
 let command_info : Cmdliner.Term.info =
