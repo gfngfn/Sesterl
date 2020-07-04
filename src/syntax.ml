@@ -1,10 +1,16 @@
 
 open MyUtil
 
-exception UnidentifiedToken           of Range.t * string
-exception SeeEndOfFileInComment       of Range.t
-exception SeeEndOfFileInStringLiteral of Range.t
-exception ConflictInSignature         of Range.t * string
+type lexer_error =
+  | UnidentifiedToken                of Range.t * string
+  | SeeEndOfFileInComment            of Range.t
+  | SeeEndOfFileInStringLiteral      of Range.t
+  | BlockClosedWithTooManyBackQuotes of Range.t
+  | SeeBreakInStringLiteral          of Range.t
+
+exception LexerError of lexer_error
+
+exception ConflictInSignature of Range.t * string
 
 
 type 'a ranged = Range.t * 'a
@@ -96,9 +102,21 @@ and untyped_ast_main =
   | BinaryByList of (int ranged) list
   | ModProjVal   of module_name ranged * identifier ranged
 
+and internal_or_external =
+  | Internal of rec_or_nonrec
+  | External of external_binding
+
 and rec_or_nonrec =
   | NonRec of untyped_let_binding
   | Rec    of untyped_let_binding list
+
+and external_binding = {
+  ext_identifier  : identifier ranged;
+  ext_type_params : type_variable_name ranged list;
+  ext_type_annot  : manual_type;
+  ext_arity       : int;
+  ext_code        : string;
+}
 
 and untyped_let_binding = {
   vb_identifier : identifier ranged;
@@ -142,10 +160,10 @@ and untyped_binding =
   untyped_binding_main ranged
 
 and untyped_binding_main =
-  | BindVal    of rec_or_nonrec
-  | BindType   of (type_name ranged * (type_variable_name ranged) list * synonym_or_variant) list
-  | BindModule of module_name ranged * untyped_module
-  | BindSig    of signature_name ranged * untyped_signature
+  | BindVal     of internal_or_external
+  | BindType    of (type_name ranged * (type_variable_name ranged) list * synonym_or_variant) list
+  | BindModule  of module_name ranged * untyped_module
+  | BindSig     of signature_name ranged * untyped_signature
   | BindInclude of untyped_module
 
 and untyped_signature =
@@ -619,8 +637,9 @@ type constructor_entry = {
 [@@deriving show { with_path = false; } ]
 
 type val_binding =
-  | INonRec of (identifier * global_name * poly_type * ast)
-  | IRec    of (identifier * global_name * poly_type * ast) list
+  | INonRec   of (identifier * global_name * poly_type * ast)
+  | IRec      of (identifier * global_name * poly_type * ast) list
+  | IExternal of global_name * string
 
 and binding =
   | IBindVal     of val_binding
@@ -662,6 +681,11 @@ and pp_val_binding ppf = function
       let pairs = recbinds |> List.map (fun (_, gname, _, e) -> (gname, e)) in
       Format.fprintf ppf "val %a"
         (Format.pp_print_list ~pp_sep:pp_sep_comma pp_val_binding_sub) pairs
+
+  | IExternal(gname, code) ->
+      Format.fprintf ppf "val %a = external@ \"%s\"@,"
+        OutputIdentifier.pp_global gname
+        code
 
 
 and pp_binding ppf = function

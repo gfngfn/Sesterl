@@ -1,6 +1,10 @@
 {
   open Syntax
   open Parser
+
+
+  let raise_error e =
+    raise (LexerError(e))
 }
 
 let space = [' ' '\t']
@@ -22,29 +26,30 @@ rule token = parse
         let s = Lexing.lexeme lexbuf in
         let pos = Range.from_lexbuf lexbuf in
           match s with
-          | "let"     -> LET(pos)
-          | "letrec"  -> LETREC(pos)
-          | "andrec"  -> ANDREC(pos)
-          | "in"      -> IN(pos)
-          | "fun"     -> LAMBDA(pos)
-          | "if"      -> IF(pos)
-          | "then"    -> THEN(pos)
-          | "else"    -> ELSE(pos)
-          | "true"    -> TRUE(pos)
-          | "false"   -> FALSE(pos)
-          | "do"      -> DO(pos)
-          | "receive" -> RECEIVE(pos)
-          | "when"    -> WHEN(pos)
-          | "end"     -> END(pos)
-          | "case"    -> CASE(pos)
-          | "of"      -> OF(pos)
-          | "val"     -> VAL(pos)
-          | "type"    -> TYPE(pos)
-          | "module"  -> MODULE(pos)
-          | "struct"  -> STRUCT(pos)
+          | "let"       -> LET(pos)
+          | "letrec"    -> LETREC(pos)
+          | "andrec"    -> ANDREC(pos)
+          | "in"        -> IN(pos)
+          | "fun"       -> LAMBDA(pos)
+          | "if"        -> IF(pos)
+          | "then"      -> THEN(pos)
+          | "else"      -> ELSE(pos)
+          | "true"      -> TRUE(pos)
+          | "false"     -> FALSE(pos)
+          | "do"        -> DO(pos)
+          | "receive"   -> RECEIVE(pos)
+          | "when"      -> WHEN(pos)
+          | "end"       -> END(pos)
+          | "case"      -> CASE(pos)
+          | "of"        -> OF(pos)
+          | "val"       -> VAL(pos)
+          | "type"      -> TYPE(pos)
+          | "module"    -> MODULE(pos)
+          | "struct"    -> STRUCT(pos)
           | "signature" -> SIGNATURE(pos)
           | "sig"       -> SIG(pos)
-          | _         -> IDENT(pos, s)
+          | "external"  -> EXTERNAL(pos)
+          | _           -> IDENT(pos, s)
       }
   | ("$" (identifier as s)) {
         let pos = Range.from_lexbuf lexbuf in
@@ -109,22 +114,52 @@ rule token = parse
   | "\"" {
       let posL = Range.from_lexbuf lexbuf in
       let strbuf = Buffer.create 128 in
-      let (s, posR) = string posL strbuf lexbuf in
-      STRING(Range.unite posL posR, s)
+      string posL strbuf lexbuf
+    }
+
+  | ("`" +) {
+      let posL = Range.from_lexbuf lexbuf in
+      let num_start = String.length (Lexing.lexeme lexbuf) in
+      let strbuf = Buffer.create 128 in
+      string_block num_start posL strbuf lexbuf
     }
 
   | eof  { EOI }
-  | _ as c { raise (UnidentifiedToken(Range.from_lexbuf lexbuf, String.make 1 c)) }
+  | _ as c { raise_error (UnidentifiedToken(Range.from_lexbuf lexbuf, String.make 1 c)) }
 
 and string posL strbuf = parse
   | "\\\"" { Buffer.add_char strbuf '"'; string posL strbuf lexbuf }
-  | "\""   { let posR = Range.from_lexbuf lexbuf in (Buffer.contents strbuf, posR) }
-  | eof    { raise (SeeEndOfFileInStringLiteral(posL)) }
+  | break  { raise_error (SeeBreakInStringLiteral(posL)) }
+  | "\""   { let posR = Range.from_lexbuf lexbuf in STRING(Range.unite posL posR, Buffer.contents strbuf) }
+  | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
   | _ as c { Buffer.add_char strbuf c; string posL strbuf lexbuf }
 
+and string_block num_start posL strbuf = parse
+  | ("`" +) {
+      let posR = Range.from_lexbuf lexbuf in
+      let s = Lexing.lexeme lexbuf in
+      let num_end = String.length s in
+      if num_end > num_start then
+        raise_error (BlockClosedWithTooManyBackQuotes(posR))
+      else if num_end = num_start then
+        STRING_BLOCK(Range.unite posL posR, Buffer.contents strbuf)
+      else begin
+        Buffer.add_string strbuf s;
+        string_block num_start posL strbuf lexbuf
+      end
+    }
+  | break {
+      let s = Lexing.lexeme lexbuf in
+      Lexing.new_line lexbuf;
+      Buffer.add_string strbuf s;
+      string_block num_start posL strbuf lexbuf
+    }
+  | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
+  | _ as c { Buffer.add_char strbuf c; string_block num_start posL strbuf lexbuf }
+
 and comment rng = parse
-  | "/*" { comment (Range.from_lexbuf lexbuf) lexbuf; comment rng lexbuf }
-  | "*/" { () }
+  | "/*"  { comment (Range.from_lexbuf lexbuf) lexbuf; comment rng lexbuf }
+  | "*/"  { () }
   | break { Lexing.new_line lexbuf; comment rng lexbuf }
-  | eof  { raise (SeeEndOfFileInComment(rng)) }
-  | _    { comment rng lexbuf }
+  | eof   { raise_error (SeeEndOfFileInComment(rng)) }
+  | _     { comment rng lexbuf }

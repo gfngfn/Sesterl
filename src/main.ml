@@ -4,6 +4,31 @@ open Syntax
 open Env
 
 
+let report_lexer_error (e : lexer_error) : unit =
+  match e with
+  | UnidentifiedToken(rng, s) ->
+      Format.printf "%a: unidentified token '%s'\n"
+        Range.pp rng
+        s
+
+  | SeeEndOfFileInComment(rngL) ->
+      Format.printf "%a: an unclosed comment begins here\n"
+        Range.pp rngL
+
+  | SeeEndOfFileInStringLiteral(rngL) ->
+      Format.printf "%a: an unclosed string literal begins here\n"
+        Range.pp rngL
+
+  | SeeBreakInStringLiteral(rngL) ->
+      Format.printf "%a: a string literal that contains a break begins here\n"
+        Range.pp rngL
+
+  | BlockClosedWithTooManyBackQuotes(rngR) ->
+      Format.printf "%a: a string block ends with too many back quotes\n"
+        Range.pp rngR
+
+
+
 let report_type_error (e : Typechecker.error) : unit =
   let open Typechecker in
   begin
@@ -204,20 +229,12 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       Format.printf "unsupported \"%s\"\n" msg;
       exit 1
 
+  | LexerError(e) ->
+      report_lexer_error e;
+      exit 1
+
   | ParserInterface.Error(rng) ->
       Format.printf "%a: syntax error\n" Range.pp rng;
-      exit 1
-
-  | UnidentifiedToken(rng, s) ->
-      Format.printf "%a: unidentified token '%s'\n" Range.pp rng s;
-      exit 1
-
-  | SeeEndOfFileInComment(rngL) ->
-      Format.printf "%a: unclosed comment begins here\n" Range.pp rngL;
-      exit 1
-
-  | SeeEndOfFileInStringLiteral(rngL) ->
-      Format.printf "%a: unclosed string literal begins here\n" Range.pp rngL;
       exit 1
 
   | ConflictInSignature(rng, x) ->
