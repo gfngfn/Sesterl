@@ -3,13 +3,13 @@ module Functor = struct
   let n() = 42
 
   signature S = sig
-    type t:: 0
-    val zero: fun() -> t
+    type t :: 0
+    val zero : fun() -> t
   end
 
-  module F = fun(X: S) -> fun(Y: S) -> struct
-    let f(x: X.t): X.t = x
-    let g(y: Y.t): Y.t = y
+  module F = fun(X : S) -> fun(Y : S) -> struct
+    let f(x : X.t) : X.t = x
+    let g(y : Y.t) : Y.t = y
     let m() = n()
     let zeroes() = (X.zero(), Y.zero())
   end

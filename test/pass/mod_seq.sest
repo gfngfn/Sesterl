@@ -6,15 +6,15 @@ module ModSeq = struct
     | Some($a)
 
   signature Decomposable = sig
-    type s:: 1
-    val decompose<$a>: fun(s<$a>) -> option<($a, s<$a>)>
+    type s :: 1
+    val decompose<$a> : fun(s<$a>) -> option<($a, s<$a>)>
   end
 
-  module Seq = fun(D: Decomposable) ->
+  module Seq = fun(D : Decomposable) ->
     struct
       type t<$a> = D.s<$a>
-      let to_reversed_list<$a>(xs: t<$a>): list<$a> =
-        letrec aux(acc: list<$a>, xs: t<$a>) =
+      let to_reversed_list<$a>(xs : t<$a>) : list<$a> =
+        letrec aux(acc : list<$a>, xs : t<$a>) =
           case D.decompose(xs) of
           | None            -> acc
           | Some((x, tail)) -> aux(x :: acc, tail)

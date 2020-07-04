@@ -5,7 +5,7 @@ module Send = struct
     | Node($a, bintree<$a>, bintree<$a>)
     | Empty
 
-  let bintree_of_int(n: int): bintree<int> =
+  let bintree_of_int(n : int) : bintree<int> =
     letrec aux(top, n) =
     if n <= 0 then
       Empty
@@ -18,8 +18,8 @@ module Send = struct
     in
     aux(1, n)
 
-  let reverse_list<$a>(xs: list<$a>): list<$a> =
-    letrec aux(rev: list<$a>, xs: list<$a>) =
+  let reverse_list<$a>(xs : list<$a>) : list<$a> =
+    letrec aux(rev : list<$a>, xs : list<$a>) =
       case xs of
       | []        -> rev
       | x :: tail -> aux(x :: rev, tail)
@@ -27,7 +27,7 @@ module Send = struct
     in
     aux([], xs)
 
-  letrec wait_all<$b>(r: $b, n: int) =
+  letrec wait_all<$b>(r : $b, n : int) =
     if n <= 0 then
       let _ = print_debug(<<"\"end!\"">>) in
       return(r)
@@ -38,12 +38,12 @@ module Send = struct
           wait_all(r, n - 1)
       end
 
-  letrec spawn_all<$m>(acc, n: int): [(pid<$m>, bintree<int>)]list<pid<$m>> =
+  letrec spawn_all<$m>(acc, n : int) : [(pid<$m>, bintree<int>)]list<pid<$m>> =
     if n <= 0 then
       return(reverse_list(acc))
     else
       do parent <- self in
-      do pid: pid<$m> <- spawn(
+      do pid : pid<$m> <- spawn(
         do me <- self in
         send(parent, (me, bintree_of_int(n)))
       ) in

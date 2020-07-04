@@ -1,20 +1,20 @@
 module Functor3 = struct
 
   signature S = sig
-    type t:: 0
-    val zero: fun() -> t
+    type t :: 0
+    val zero : fun() -> t
   end
 
   signature T = sig
-    module M: S
-    module N: S
+    module M : S
+    module N : S
   end
 
-  module F = fun(X: T) -> struct
+  module F = fun(X : T) -> struct
     module P = X.M
     module Q = X.N
-    let f(x: P.t,): P.t = x  /* inserting a comma is a temporary dirty hack for parsing */
-    let g(y: Q.t,): Q.t = y
+    let f(x : P.t,) : P.t = x  /* inserting a comma is a temporary dirty hack for parsing */
+    let g(y : Q.t,) : Q.t = y
     let zeroes() = (P.zero(), Q.zero())
   end
 

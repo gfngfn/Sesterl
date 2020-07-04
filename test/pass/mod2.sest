@@ -3,8 +3,8 @@ module Mod2 = struct
 
   module Counter = struct
     type t = int
-    let initial(): t = 0
-    let increment(c: t): t =
+    let initial() : t = 0
+    let increment(c : t) : t =
       c + 1
   end
 
