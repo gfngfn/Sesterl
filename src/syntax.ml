@@ -1,12 +1,16 @@
 
 open MyUtil
 
-exception UnidentifiedToken           of Range.t * string
-exception SeeEndOfFileInComment       of Range.t
-exception SeeEndOfFileInStringLiteral of Range.t
-exception BlockClosedWithTooManyBackQuotes of Range.t
-exception SeeBreakInStringLiteral     of Range.t
-exception ConflictInSignature         of Range.t * string
+type lexer_error =
+  | UnidentifiedToken                of Range.t * string
+  | SeeEndOfFileInComment            of Range.t
+  | SeeEndOfFileInStringLiteral      of Range.t
+  | BlockClosedWithTooManyBackQuotes of Range.t
+  | SeeBreakInStringLiteral          of Range.t
+
+exception LexerError of lexer_error
+
+exception ConflictInSignature of Range.t * string
 
 
 type 'a ranged = Range.t * 'a

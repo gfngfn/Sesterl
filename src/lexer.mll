@@ -1,6 +1,10 @@
 {
   open Syntax
   open Parser
+
+
+  let raise_error e =
+    raise (LexerError(e))
 }
 
 let space = [' ' '\t']
@@ -121,13 +125,13 @@ rule token = parse
     }
 
   | eof  { EOI }
-  | _ as c { raise (UnidentifiedToken(Range.from_lexbuf lexbuf, String.make 1 c)) }
+  | _ as c { raise_error (UnidentifiedToken(Range.from_lexbuf lexbuf, String.make 1 c)) }
 
 and string posL strbuf = parse
   | "\\\"" { Buffer.add_char strbuf '"'; string posL strbuf lexbuf }
-  | break  { raise (SeeBreakInStringLiteral(posL)) }
+  | break  { raise_error (SeeBreakInStringLiteral(posL)) }
   | "\""   { let posR = Range.from_lexbuf lexbuf in STRING(Range.unite posL posR, Buffer.contents strbuf) }
-  | eof    { raise (SeeEndOfFileInStringLiteral(posL)) }
+  | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
   | _ as c { Buffer.add_char strbuf c; string posL strbuf lexbuf }
 
 and string_block num_start posL strbuf = parse
@@ -136,7 +140,7 @@ and string_block num_start posL strbuf = parse
       let s = Lexing.lexeme lexbuf in
       let num_end = String.length s in
       if num_end > num_start then
-        raise (BlockClosedWithTooManyBackQuotes(posR))
+        raise_error (BlockClosedWithTooManyBackQuotes(posR))
       else if num_end = num_start then
         STRING_BLOCK(Range.unite posL posR, Buffer.contents strbuf)
       else begin
@@ -144,18 +148,18 @@ and string_block num_start posL strbuf = parse
         string_block num_start posL strbuf lexbuf
       end
     }
-  | break  {
+  | break {
       let s = Lexing.lexeme lexbuf in
       Lexing.new_line lexbuf;
       Buffer.add_string strbuf s;
       string_block num_start posL strbuf lexbuf
     }
-  | eof    { raise (SeeEndOfFileInStringLiteral(posL)) }
+  | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
   | _ as c { Buffer.add_char strbuf c; string_block num_start posL strbuf lexbuf }
 
 and comment rng = parse
-  | "/*" { comment (Range.from_lexbuf lexbuf) lexbuf; comment rng lexbuf }
-  | "*/" { () }
+  | "/*"  { comment (Range.from_lexbuf lexbuf) lexbuf; comment rng lexbuf }
+  | "*/"  { () }
   | break { Lexing.new_line lexbuf; comment rng lexbuf }
-  | eof  { raise (SeeEndOfFileInComment(rng)) }
-  | _    { comment rng lexbuf }
+  | eof   { raise_error (SeeEndOfFileInComment(rng)) }
+  | _     { comment rng lexbuf }
