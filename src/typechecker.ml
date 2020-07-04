@@ -2077,7 +2077,10 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
 and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding list =
   let (_, utbindmain) = utbind in
   match utbindmain with
-  | BindVal(rec_or_nonrec) ->
+  | BindVal(External(extbind)) ->
+      failwith "TODO: BindVal, External"
+
+  | BindVal(Internal(rec_or_nonrec)) ->
       let pre =
         {
           level                 = 0;

@@ -44,6 +44,7 @@ rule token = parse
           | "struct"  -> STRUCT(pos)
           | "signature" -> SIGNATURE(pos)
           | "sig"       -> SIG(pos)
+          | "external"  -> EXTERNAL(pos)
           | _         -> IDENT(pos, s)
       }
   | ("$" (identifier as s)) {

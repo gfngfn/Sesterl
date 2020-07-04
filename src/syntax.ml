@@ -96,9 +96,20 @@ and untyped_ast_main =
   | BinaryByList of (int ranged) list
   | ModProjVal   of module_name ranged * identifier ranged
 
+and internal_or_external =
+  | Internal of rec_or_nonrec
+  | External of external_binding
+
 and rec_or_nonrec =
   | NonRec of untyped_let_binding
   | Rec    of untyped_let_binding list
+
+and external_binding = {
+  ext_identifier : identifier ranged;
+  ext_type_annot : manual_type;
+  ext_arity      : int;
+  ext_code       : string;
+}
 
 and untyped_let_binding = {
   vb_identifier : identifier ranged;
@@ -142,7 +153,7 @@ and untyped_binding =
   untyped_binding_main ranged
 
 and untyped_binding_main =
-  | BindVal    of rec_or_nonrec
+  | BindVal    of internal_or_external
   | BindType   of (type_name ranged * (type_variable_name ranged) list * synonym_or_variant) list
   | BindModule of module_name ranged * untyped_module
   | BindSig    of signature_name ranged * untyped_signature
