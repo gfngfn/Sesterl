@@ -4,7 +4,7 @@ open Syntax
 
 
 type val_binding_output =
-  | OBindVal of global_name * local_name list * global_name_map * ast
+  | OBindVal         of global_name * local_name list * global_name_map * ast
   | OBindValExternal of global_name * string
 
 type module_binding_output =

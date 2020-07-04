@@ -154,10 +154,10 @@ and untyped_binding =
   untyped_binding_main ranged
 
 and untyped_binding_main =
-  | BindVal    of internal_or_external
-  | BindType   of (type_name ranged * (type_variable_name ranged) list * synonym_or_variant) list
-  | BindModule of module_name ranged * untyped_module
-  | BindSig    of signature_name ranged * untyped_signature
+  | BindVal     of internal_or_external
+  | BindType    of (type_name ranged * (type_variable_name ranged) list * synonym_or_variant) list
+  | BindModule  of module_name ranged * untyped_module
+  | BindSig     of signature_name ranged * untyped_signature
   | BindInclude of untyped_module
 
 and untyped_signature =
@@ -631,8 +631,8 @@ type constructor_entry = {
 [@@deriving show { with_path = false; } ]
 
 type val_binding =
-  | INonRec of (identifier * global_name * poly_type * ast)
-  | IRec    of (identifier * global_name * poly_type * ast) list
+  | INonRec   of (identifier * global_name * poly_type * ast)
+  | IRec      of (identifier * global_name * poly_type * ast) list
   | IExternal of global_name * string
 
 and binding =
