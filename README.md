@@ -235,18 +235,85 @@ The program above is compiled to the following Erlang modules:
 ```erlang
 -module(mod_int).
 -export([compare/2]).
+
 compare(S13X, S14Y) -> (S14Y - S13X).
 ```
 
 ```erlang
 -module(mod_int_map).
 -export([find/2]).
-find(S17X, S18Assoc) -> case S18Assoc of [] -> 'none'; [{S19K, S20V} | S21Tail] -> case (mod_int:compare(S19K, S17X) == 0) of true -> {'some', S20V}; false -> mod_int_map:find(S17X, S21Tail) end end.
+
+find(S17X, S18Assoc) ->
+  case S18Assoc of
+    [] ->
+      'none';
+
+    [{S19K, S20V} | S21Tail] ->
+      case (mod_int:compare(S19K, S17X) == 0) of
+        true  -> {'some', S20V};
+        false -> mod_int_map:find(S17X, S21Tail)
+      end
+  end.
 ```
 
 Note that nested modules are flattened and given lowercased names. This conforms to the naming convention of modules in Erlang.
 
 What is more important here is that functors are eliminated *at compilation time*. This is realized by the technique of so-called the *static interpretation* \[Elsman, Henriksen, Annenkov & Oancea 2018\].
+
+
+### FFI
+
+Functions written in Erlang can be called from Sesterl via FFI as follows:
+
+````
+module Ffi = struct
+
+  type option<$a> =
+    | None
+    | Some($a)
+
+  let assoc<$a> : fun(int, list<(int, $a)>) -> option<($a, list<(int, $a)>)>
+    = external 2
+  ```
+    assoc(Key, Xs) ->
+        case lists:keytake(Key, 1, Xs) of
+            false                 -> none;
+            {value, {_, V}, Rest} -> {some, {V, Rest}}
+        end.
+  ```
+
+  let main() =
+    assoc(1, [
+      (3, <<"Komaba">>),
+      (1, <<"Hongo">>),
+      (4, <<"Yayoi">>),
+      (1, <<"Asano">>),
+      (5, <<"Kashiwa">>)
+    ])
+
+end
+````
+
+This program compiles to the following implementation:
+
+```erlang
+-module(ffi).
+-export([assoc/2, main/0]).
+
+assoc(Key, Xs) ->
+  case lists:keytake(Key, 1, Xs) of
+    false                 -> none;
+    {value, {_, V}, Rest} -> {some, {V, Rest}}
+  end.
+
+main() ->
+  ffi:assoc(1, [
+    {3, <<"Komaba">>},
+    {1, <<"Hongo">>},
+    {4, <<"Yayoi">>},
+    {1, <<"Asano">>},
+    {5, <<"Kashiwa">>}]).
+```
 
 
 ## References
@@ -271,7 +338,7 @@ What is more important here is that functors are eliminated *at compilation time
 * [x] Principal type inference
 * [x] Type annotation
 * [x] Output Erlang code
-* [ ] FFI
+* [x] FFI
 * [ ] Data types
   * [x] Strings/Binaries
   * [x] Product types
