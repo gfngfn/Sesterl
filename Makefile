@@ -3,7 +3,7 @@ all:
 	cp _build/default/src/main.exe ./sesterl
 
 .PHONY: test
-test: test-blackbox-positive test-unit
+test: test-blackbox-positive test-blackbox-negative test-unit
 
 .PHONY: test-unit
 test-unit:
@@ -13,6 +13,10 @@ test-unit:
 .PHONY: test-blackbox-positive
 test-blackbox-positive:
 	./run-positive-blackbox-tests.sh
+
+.PHONY: test-blackbox-negative
+test-blackbox-negative:
+	./run-negative-blackbox-tests.sh
 
 .PHONY: clean
 clean:
