@@ -112,19 +112,10 @@ let stringify_single (gmap : global_name_map) = function
 
   | OutputIdentifier.Global(gname) ->
       let r = OutputIdentifier.output_global gname in
-      let sparam =
-        List.init r.arity (fun _ ->
-          let lname = OutputIdentifier.fresh () in
-          OutputIdentifier.output_local lname
-        ) |> String.concat ", "
-      in
       let smod = get_module_string gmap gname in
-      let sfun = r.function_name in
-      Printf.sprintf "(fun(%s) -> %s:%s(%s) end)" sparam smod sfun sparam
-        (*  Performs the eta expansion for global function names
-            in order to avoid being confused with atoms.
-            Note that we cannot simply use `(fun ?MODULE:F/A)` here
-            because it is not valid for private functions. *)
+      Printf.sprintf "(fun %s:%s/%d)" smod r.function_name r.arity
+        (*  Use syntax `fun M:F/Arity` for global function names
+            in order to avoid being confused with atoms. *)
 
   | OutputIdentifier.Operator(oname) ->
       let sop = OutputIdentifier.output_operator oname in
