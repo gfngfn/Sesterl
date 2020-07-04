@@ -105,10 +105,11 @@ and rec_or_nonrec =
   | Rec    of untyped_let_binding list
 
 and external_binding = {
-  ext_identifier : identifier ranged;
-  ext_type_annot : manual_type;
-  ext_arity      : int;
-  ext_code       : string;
+  ext_identifier  : identifier ranged;
+  ext_type_params : type_variable_name ranged list;
+  ext_type_annot  : manual_type;
+  ext_arity       : int;
+  ext_code        : string;
 }
 
 and untyped_let_binding = {
@@ -632,6 +633,7 @@ type constructor_entry = {
 type val_binding =
   | INonRec of (identifier * global_name * poly_type * ast)
   | IRec    of (identifier * global_name * poly_type * ast) list
+  | IExternal of global_name * string
 
 and binding =
   | IBindVal     of val_binding
@@ -673,6 +675,11 @@ and pp_val_binding ppf = function
       let pairs = recbinds |> List.map (fun (_, gname, _, e) -> (gname, e)) in
       Format.fprintf ppf "val %a"
         (Format.pp_print_list ~pp_sep:pp_sep_comma pp_val_binding_sub) pairs
+
+  | IExternal(gname, code) ->
+      Format.fprintf ppf "val %a = external@ \"%s\"@,"
+        OutputIdentifier.pp_global gname
+        code
 
 
 and pp_binding ppf = function

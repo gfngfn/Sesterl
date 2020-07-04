@@ -5,6 +5,7 @@ open Syntax
 
 type val_binding_output =
   | OBindVal of global_name * local_name list * global_name_map * ast
+  | OBindValExternal of global_name * string
 
 type module_binding_output =
   | OBindModule of string * val_binding_output list
@@ -38,6 +39,9 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
             gmap |> GlobalNameMap.add gnamefun smod
           ) gmap
 
+      | IBindVal(IExternal(gnamefun, _)) ->
+          gmap |> GlobalNameMap.add gnamefun smod
+
       | IBindModule(_) ->
           gmap
     ) gmap
@@ -67,6 +71,7 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
         match ibind with
         | IBindVal(INonRec(valbind)) -> [ traverse_val_single gmap valbind ]
         | IBindVal(IRec(valbinds))   -> valbinds |> List.map (traverse_val_single gmap)
+        | IBindVal(IExternal(gname, code)) -> [ OBindValExternal(gname, code) ]
         | IBindModule(_)             -> []
       ) |> List.concat
     in
@@ -276,14 +281,19 @@ let stringify_val_binding_output : val_binding_output -> string = function
       let s0 = stringify_ast gmap ast0 in
       Printf.sprintf "%s(%s) -> %s." r.function_name (String.concat ", " sparams) s0
 
+  | OBindValExternal(_, code) ->
+      code
+
 
 let stringify_module_binding_output (omodbind : module_binding_output) : string list =
   match omodbind with
   | OBindModule(smod, ovalbinds) ->
       let exports =
-        ovalbinds |> List.map (function OBindVal(gnamefun, _, _, _) ->
-          let r = OutputIdentifier.output_global gnamefun in
-          Printf.sprintf "%s/%d" r.function_name r.arity
+        ovalbinds |> List.map (function
+        | OBindVal(gnamefun, _, _, _)
+        | OBindValExternal(gnamefun, _) ->
+            let r = OutputIdentifier.output_global gnamefun in
+            Printf.sprintf "%s/%d" r.function_name r.arity
         )
       in
       let ss = ovalbinds |> List.map stringify_val_binding_output in

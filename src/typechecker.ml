@@ -2078,7 +2078,19 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
   let (_, utbindmain) = utbind in
   match utbindmain with
   | BindVal(External(extbind)) ->
-      failwith "TODO: BindVal, External"
+      let mty = extbind.ext_type_annot in
+      let typarams = extbind.ext_type_params in
+      let (rngv, x) = extbind.ext_identifier in
+      let arity = extbind.ext_arity in
+      let typaramassoc = make_type_parameter_assoc 1 typarams in
+      let pty =
+        let localtyparams = TypeParameterMap.empty |> add_local_type_parameter typaramassoc in
+        let ty = decode_manual_type tyenv localtyparams mty in
+        generalize 0 ty
+      in
+      let gname = generate_global_name arity rngv x in
+      let sigr = SigRecord.empty |> SigRecord.add_val x pty (OutputIdentifier.Global(gname)) in
+      ((OpaqueIDSet.empty, sigr), [IBindVal(IExternal(gname, extbind.ext_code))])
 
   | BindVal(Internal(rec_or_nonrec)) ->
       let pre =
