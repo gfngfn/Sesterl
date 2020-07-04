@@ -1,9 +1,13 @@
 
-type foo =
-  (int, bar)
+module ErrorMutrec = struct
 
-andrec baz<$a> =
-  | Baz(foo, bar)
+  type foo =
+    (int, bar)
 
-andrec bar =
-  (bool, baz<foo>)
+  andrec baz<$a> =
+    | Baz(foo, bar)
+
+  andrec bar =
+    (bool, baz<foo>)
+
+end

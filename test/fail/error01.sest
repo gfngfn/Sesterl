@@ -1,2 +1,5 @@
-
-let x = /* here is /* a comment */  1 in x
+module Error01 = struct
+  let main() =
+    let x = /* here is /* a comment */  1 in
+    x
+end

@@ -1,8 +1,12 @@
 
-signature S = sig
-  type t:: 0
-end
+module ErrorFunctor = struct
 
-module F = fun(X: S) -> fun(Y: S) -> struct
-  let f(x: X.t): Y.t = x
+  signature S = sig
+    type t :: 0
+  end
+
+  module F = fun(X : S) -> fun(Y : S) -> struct
+    let f(x : X.t) : Y.t = x
+  end
+
 end
