@@ -3,42 +3,47 @@ open MyUtil
 open Syntax
 open Env
 
+type error =
+  | UnboundVariable                     of Range.t * identifier
+  | ContradictionError                  of mono_type * mono_type
+  | InclusionError                      of FreeID.t * mono_type * mono_type
+  | BoundMoreThanOnceInPattern          of Range.t * identifier
+  | UnboundTypeParameter                of Range.t * type_variable_name
+  | UndefinedConstructor                of Range.t * constructor_name
+  | InvalidNumberOfConstructorArguments of Range.t * constructor_name * int * int
+  | UndefinedTypeName                   of Range.t * type_name
+  | InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
+  | TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
+  | InvalidByte                         of Range.t
+  | CyclicSynonymTypeDefinition         of (type_name ranged) list
+  | UnboundModuleName                   of Range.t * module_name
+  | NotOfStructureType                  of Range.t * module_signature
+  | NotOfFunctorType                    of Range.t * module_signature
+  | NotAFunctorSignature                of Range.t * module_signature
+  | NotAStructureSignature              of Range.t * module_signature
+  | UnboundSignatureName                of Range.t * signature_name
+  | CannotRestrictTransparentType       of Range.t * type_opacity
+  | PolymorphicContradiction            of Range.t * identifier * poly_type * poly_type
+  | PolymorphicInclusion                of Range.t * FreeID.t * poly_type * poly_type
+  | MissingRequiredValName              of Range.t * identifier * poly_type
+  | MissingRequiredTypeName             of Range.t * type_name * type_opacity
+  | MissingRequiredModuleName           of Range.t * module_name * module_signature
+  | MissingRequiredSignatureName        of Range.t * signature_name * module_signature abstracted
+  | NotASubtype                         of Range.t * module_signature * module_signature
+  | NotASubtypeTypeOpacity              of Range.t * type_name * type_opacity * type_opacity
+  | NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t * constructor_name
+  | NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t
+  | OpaqueIDExtrudesScopeViaValue       of Range.t * poly_type
+  | OpaqueIDExtrudesScopeViaType        of Range.t * type_opacity
+  | OpaqueIDExtrudesScopeViaSignature   of Range.t * module_signature abstracted
+  | SupportOnlyFirstOrderFunctor        of Range.t
+  | RootModuleMustBeStructure           of Range.t
+  | InvalidIdentifier                   of Range.t * string
 
-exception UnboundVariable                     of Range.t * identifier
-exception ContradictionError                  of mono_type * mono_type
-exception InclusionError                      of FreeID.t * mono_type * mono_type
-exception BoundMoreThanOnceInPattern          of Range.t * identifier
-exception UnboundTypeParameter                of Range.t * type_variable_name
-exception UndefinedConstructor                of Range.t * constructor_name
-exception InvalidNumberOfConstructorArguments of Range.t * constructor_name * int * int
-exception UndefinedTypeName                   of Range.t * type_name
-exception InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
-exception TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
-exception InvalidByte                         of Range.t
-exception CyclicSynonymTypeDefinition         of (type_name ranged) list
-exception UnboundModuleName                   of Range.t * module_name
-exception NotOfStructureType                  of Range.t * module_signature
-exception NotOfFunctorType                    of Range.t * module_signature
-exception NotAFunctorSignature                of Range.t * module_signature
-exception NotAStructureSignature              of Range.t * module_signature
-exception UnboundSignatureName                of Range.t * signature_name
-exception CannotRestrictTransparentType       of Range.t * type_opacity
-exception PolymorphicContradiction            of Range.t * identifier * poly_type * poly_type
-exception PolymorphicInclusion                of Range.t * FreeID.t * poly_type * poly_type
-exception MissingRequiredValName              of Range.t * identifier * poly_type
-exception MissingRequiredTypeName             of Range.t * type_name * type_opacity
-exception MissingRequiredModuleName           of Range.t * module_name * module_signature
-exception MissingRequiredSignatureName        of Range.t * signature_name * module_signature abstracted
-exception NotASubtype                         of Range.t * module_signature * module_signature
-exception NotASubtypeTypeOpacity              of Range.t * type_name * type_opacity * type_opacity
-exception NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t * constructor_name
-exception NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t
-exception OpaqueIDExtrudesScopeViaValue       of Range.t * poly_type
-exception OpaqueIDExtrudesScopeViaType        of Range.t * type_opacity
-exception OpaqueIDExtrudesScopeViaSignature   of Range.t * module_signature abstracted
-exception SupportOnlyFirstOrderFunctor        of Range.t
-exception RootModuleMustBeStructure           of Range.t
-exception InvalidIdentifier                   of Range.t * string
+exception Error of error
+
+let raise_error e =
+  raise (Error(e))
 
 
 module BindingMap = Map.Make(String)
@@ -52,7 +57,7 @@ type binding_map = (mono_type * local_name * Range.t) BindingMap.t
 
 let binding_map_union rng =
   BindingMap.union (fun x _ _ ->
-    raise (BoundMoreThanOnceInPattern(rng, x))
+    raise_error (BoundMoreThanOnceInPattern(rng, x))
   )
 
 
@@ -171,7 +176,7 @@ end
 
 let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
   match tyenv |> Typeenv.find_module m with
-  | None    -> raise (UnboundModuleName(rng, m))
+  | None    -> raise_error (UnboundModuleName(rng, m))
   | Some(v) -> v
 
 
@@ -230,7 +235,7 @@ let make_type_parameter_assoc (lev : int) (tyvarnms : (type_variable_name ranged
     Format.printf "MUST-BE-BOUND %s : L%d %a\n" tyvarnm lev MustBeBoundID.pp mbbid;  (* for debug *)
 *)
     match assoc |> TypeParameterAssoc.add_last tyvarnm mbbid with
-    | None        -> raise (TypeParameterBoundMoreThanOnce(rng, tyvarnm))
+    | None        -> raise_error (TypeParameterBoundMoreThanOnce(rng, tyvarnm))
     | Some(assoc) -> assoc
   ) TypeParameterAssoc.empty
 
@@ -629,8 +634,8 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
   let res = aux tyact tyexp in
   match res with
   | Consistent     -> ()
-  | Contradiction  -> raise (ContradictionError(tyact, tyexp))
-  | Inclusion(fid) -> raise (InclusionError(fid, tyact, tyexp))
+  | Contradiction  -> raise_error (ContradictionError(tyact, tyexp))
+  | Inclusion(fid) -> raise_error (InclusionError(fid, tyact, tyexp))
 
 
 let fresh_type ?name:_nameopt (lev : int) (rng : Range.t) : mono_type =
@@ -653,19 +658,19 @@ let check_properly_used (tyenv : Typeenv.t) ((rng, x) : identifier ranged) =
 
 let get_space_name (rng : Range.t) (m : module_name) : space_name =
   match OutputIdentifier.space m with
-  | None        -> raise (InvalidIdentifier(rng, m))
+  | None        -> raise_error (InvalidIdentifier(rng, m))
   | Some(sname) -> sname
 
 
 let generate_local_name (rng : Range.t) (x : identifier) : local_name =
   match OutputIdentifier.generate_local x with
-  | None        -> raise (InvalidIdentifier(rng, x))
+  | None        -> raise_error (InvalidIdentifier(rng, x))
   | Some(lname) -> lname
 
 
 let generate_global_name (arity : int) (rng : Range.t) (x : identifier) : global_name =
   match OutputIdentifier.generate_global x arity with
-  | None        -> raise (InvalidIdentifier(rng, x))
+  | None        -> raise_error (InvalidIdentifier(rng, x))
   | Some(gname) -> gname
 
 
@@ -680,7 +685,7 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
 
 let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (mty : manual_type) : mono_type =
   let invalid rng tynm ~expect:len_expected ~actual:len_actual =
-    raise (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
+    raise_error (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
   in
   let rec aux (rng, mtymain) =
     let tymain =
@@ -705,7 +710,7 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                   | ("list", _)     -> invalid rng "list" ~expect:1 ~actual:len_actual
                   | ("pid", [ty])   -> PidType(Pid(ty))
                   | ("pid", _)      -> invalid rng "pid" ~expect:1 ~actual:len_actual
-                  | _               -> raise (UndefinedTypeName(rng, tynm))
+                  | _               -> raise_error (UndefinedTypeName(rng, tynm))
                 end
 
             | Some(tyid, len_expected) ->
@@ -731,7 +736,7 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
           begin
             match typarams |> TypeParameterMap.find_opt typaram with
             | None ->
-                raise (UnboundTypeParameter(rng, typaram))
+                raise_error (UnboundTypeParameter(rng, typaram))
 
             | Some(mbbid) ->
                 TypeVar(MustBeBound(mbbid))
@@ -745,13 +750,13 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
             match modsig1 with
             | ConcFunctor(_) ->
                 let (rng1, _) = utmod1 in
-                raise (NotOfStructureType(rng1, modsig1))
+                raise_error (NotOfStructureType(rng1, modsig1))
 
             | ConcStructure(sigr) ->
                 begin
                   match sigr |> SigRecord.find_type tynm2 with
                   | None ->
-                      raise (UndefinedTypeName(rng2, tynm2))
+                      raise_error (UndefinedTypeName(rng2, tynm2))
 
                   | Some(tyopac2) ->
                       let tyargs = mtyargs |> List.map aux in
@@ -763,12 +768,12 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                            in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
                            we must assert that opaque type variables do not extrude their scope.
                         *)
-                          raise (OpaqueIDExtrudesScopeViaType(rng, tyopac2))
+                          raise_error (OpaqueIDExtrudesScopeViaType(rng, tyopac2))
                         else
                           DataType(tyid2, tyargs)
                       else
                         let (_, tynm2) = tyident2 in
-                        raise (InvalidNumberOfTypeArguments(rng, tynm2, arity_expected, arity_actual))
+                        raise_error (InvalidNumberOfTypeArguments(rng, tynm2, arity_expected, arity_actual))
                 end
           end
     in
@@ -838,7 +843,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       begin
         match pre.tyenv |> Typeenv.find_val x with
         | None ->
-            raise (UnboundVariable(rng, x))
+            raise_error (UnboundVariable(rng, x))
 
         | Some((_, ptymain), name) ->
             let ty = instantiate pre.level (rng, ptymain) in
@@ -1002,14 +1007,14 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         | Invalid_argument(_) ->
             let len_expected = List.length tys_expected in
             let len_actual = List.length utastargs in
-            raise (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
+            raise_error (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
       end
 
   | BinaryByList(nrs) ->
       let ns =
         nrs |> List.map (fun (rngn, n) ->
           if 0 <= n && n <= 255 then n else
-            raise (InvalidByte(rngn))
+            raise_error (InvalidByte(rngn))
         )
       in
       ((rng, BaseType(BinaryType)), IBaseConst(BinaryByInts(ns)))
@@ -1023,13 +1028,13 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         match modsig1 with
         | ConcFunctor(_) ->
             let (rng1, _) = modident1 in
-            raise (NotOfStructureType(rng1, modsig1))
+            raise_error (NotOfStructureType(rng1, modsig1))
 
         | ConcStructure(sigr1) ->
             begin
               match sigr1 |> SigRecord.find_val x2 with
               | None ->
-                  raise (UnboundVariable(rng2, x2))
+                  raise_error (UnboundVariable(rng2, x2))
 
               | Some((_, ptymain2), name2) ->
                   let pty2 = (rng, ptymain2) in
@@ -1039,7 +1044,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
                      in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
                      we must assert that opaque type variables do not extrude their scope.
                   *)
-                    raise (OpaqueIDExtrudesScopeViaValue(rng, pty2))
+                    raise_error (OpaqueIDExtrudesScopeViaValue(rng, pty2))
                   else
 *)
                     let ty = instantiate pre.level pty2 in
@@ -1051,7 +1056,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name) =
   match pre.tyenv |> Typeenv.find_constructor ctornm with
   | None ->
-      raise (UndefinedConstructor(rng, ctornm))
+      raise_error (UndefinedConstructor(rng, ctornm))
 
   | Some(tyid, ctorid, typarams, ptys) ->
       let lev = pre.level in
@@ -1155,7 +1160,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
         | Invalid_argument(_) ->
             let len_expected = List.length tys_expected in
             let len_actual = List.length pats in
-            raise (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
+            raise_error (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
       end
 
 
@@ -1251,7 +1256,7 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
         let ctorid =
           match ConstructorID.make ctornm with
           | Some(ctorid) -> ctorid
-          | None         -> raise (InvalidIdentifier(rng, ctornm))
+          | None         -> raise_error (InvalidIdentifier(rng, ctornm))
         in
         ctormap |> ConstructorMap.add ctornm (ctorid, ptyargs)
   ) ConstructorMap.empty
@@ -1521,12 +1526,12 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
               tydefs2 |> List.fold_left (fun wtmapacc (tynm2, tyopac2) ->
                 match sigr1 |> SigRecord.find_type tynm2 with
                 | None ->
-                    raise (MissingRequiredTypeName(rng, tynm2, tyopac2))
+                    raise_error (MissingRequiredTypeName(rng, tynm2, tyopac2))
 
                 | Some(tyopac1) ->
                     begin
                       match lookup_type_opacity tynm2 tyopac1 tyopac2 with
-                      | None        -> raise (NotASubtypeTypeOpacity(rng, tynm2, tyopac1, tyopac2))
+                      | None        -> raise_error (NotASubtypeTypeOpacity(rng, tynm2, tyopac1, tyopac2))
                       | Some(wtmap) -> WitnessMap.union wtmapacc wtmap
                     end
               ) wtmapacc
@@ -1534,7 +1539,7 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
             ~m:(fun modnm2 (modsig2, _) wtmapacc ->
               match sigr1 |> SigRecord.find_module modnm2 with
               | None ->
-                  raise (MissingRequiredModuleName(rng, modnm2, modsig2))
+                  raise_error (MissingRequiredModuleName(rng, modnm2, modsig2))
 
               | Some(modsig1, _) ->
                   let wtmap = lookup_record rng modsig1 modsig2 in
@@ -1558,8 +1563,8 @@ and check_well_formedness_of_witness_map (rng : Range.t) (wtmap : WitnessMap.t) 
       (opt1 : (ConstructorID.t * poly_type list) option)
       (opt2 : (ConstructorID.t * poly_type list) option) =
     match (opt1, opt2) with
-    | (None, _)                -> raise (NotASubtypeVariant(rng, vid1, vid2, ctor))
-    | (_, None)                -> raise (NotASubtypeVariant(rng, vid1, vid2, ctor))
+    | (None, _)                -> raise_error (NotASubtypeVariant(rng, vid1, vid2, ctor))
+    | (_, None)                -> raise_error (NotASubtypeVariant(rng, vid1, vid2, ctor))
     | (Some(def1), Some(def2)) -> Some(def1, def2)
   in
   wtmap |> WitnessMap.fold
@@ -1572,7 +1577,7 @@ and check_well_formedness_of_witness_map (rng : Range.t) (wtmap : WitnessMap.t) 
           let (_, ptyargs2) = def2 in
           match List.combine ptyargs1 ptyargs2 with
           | exception Invalid_argument(_) ->
-              raise (NotASubtypeVariant(rng, vid1, vid2, ctor))
+              raise_error (NotASubtypeVariant(rng, vid1, vid2, ctor))
 
           | ptyargpairs ->
               ptyargpairs |> List.iter (fun (ptyarg1, ptyarg2) ->
@@ -1581,7 +1586,7 @@ and check_well_formedness_of_witness_map (rng : Range.t) (wtmap : WitnessMap.t) 
                 if subtype_type_abstraction wtmap ptyfun1 ptyfun2 then
                   ()
                 else
-                  raise (NotASubtypeVariant(rng, vid1, vid2, ctor))
+                  raise_error (NotASubtypeVariant(rng, vid1, vid2, ctor))
               )
         )
       )
@@ -1591,7 +1596,7 @@ and check_well_formedness_of_witness_map (rng : Range.t) (wtmap : WitnessMap.t) 
         if subtype_type_abstraction wtmap ptyfun1 ptyfun2 then
           ()
         else
-          raise (NotASubtypeSynonym(rng, sid1, sid2))
+          raise_error (NotASubtypeSynonym(rng, sid1, sid2))
       )
       ~opaque:(fun oid2 tyid1 () ->
         ()
@@ -1629,13 +1634,13 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
           ~v:(fun x2 (pty2, _) () ->
             match sigr1 |> SigRecord.find_val x2 with
             | None ->
-                raise (MissingRequiredValName(rng, x2, pty2))
+                raise_error (MissingRequiredValName(rng, x2, pty2))
 
             | Some(pty1, _) ->
                if subtype_poly_type wtmap pty1 pty2 then
                  ()
                else
-                 raise (PolymorphicContradiction(rng, x2, pty1, pty2))
+                 raise_error (PolymorphicContradiction(rng, x2, pty1, pty2))
           )
           ~t:(fun _ () ->
             ()
@@ -1643,7 +1648,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
           ~m:(fun modnm2 (modsig2, _) () ->
             match sigr1 |> SigRecord.find_module modnm2 with
             | None ->
-                raise (MissingRequiredModuleName(rng, modnm2, modsig2))
+                raise_error (MissingRequiredModuleName(rng, modnm2, modsig2))
 
             | Some(modsig1, _) ->
                 subtype_concrete_with_concrete rng wtmap modsig1 modsig2
@@ -1651,7 +1656,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
           ~s:(fun signm2 absmodsig2 () ->
             match sigr1 |> SigRecord.find_signature signm2 with
             | None ->
-                raise (MissingRequiredSignatureName(rng, signm2, absmodsig2))
+                raise_error (MissingRequiredSignatureName(rng, signm2, absmodsig2))
 
             | Some(absmodsig1) ->
                 subtype_abstract_with_abstract rng absmodsig1 absmodsig2;
@@ -1665,7 +1670,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
           ()
 
   | _ ->
-      raise (NotASubtype(rng, modsig1, modsig2))
+      raise_error (NotASubtype(rng, modsig1, modsig2))
 
 
 and subtype_concrete_with_abstract (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : WitnessMap.t =
@@ -1885,7 +1890,7 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
         match modsig with
         | ConcFunctor(_) ->
             let (rng, _) = utsig in
-            raise (NotAFunctorSignature(rng, modsig))
+            raise_error (NotAFunctorSignature(rng, modsig))
 
         | ConcStructure(sigr) ->
             (oidset, sigr)
@@ -1926,7 +1931,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
       begin
         match tyenv |> Typeenv.find_signature signm with
         | None ->
-            raise (UnboundSignatureName(rng, signm))
+            raise_error (UnboundSignatureName(rng, signm))
 
         | Some(absmodsig) ->
             copy_abstract_signature absmodsig
@@ -1955,18 +1960,18 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
         match modsig1 with
         | ConcFunctor(_) ->
             let (rng1, _) = utmod1 in
-            raise (NotOfStructureType(rng1, modsig1))
+            raise_error (NotOfStructureType(rng1, modsig1))
 
         | ConcStructure(sigr1) ->
             let (rng2, signm2) = sigident2 in
             begin
               match sigr1 |> SigRecord.find_signature signm2 with
               | None ->
-                  raise (UnboundSignatureName(rng2, signm2))
+                  raise_error (UnboundSignatureName(rng2, signm2))
 
               | Some((_, modsig2) as absmodsig2) ->
                   if opaque_occurs oidset1 modsig2 then
-                    raise (OpaqueIDExtrudesScopeViaSignature(rng, absmodsig2))
+                    raise_error (OpaqueIDExtrudesScopeViaSignature(rng, absmodsig2))
                   else
                     absmodsig2
                     (* Combining typing rules (P-Mod) and (S-Path)
@@ -2007,7 +2012,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
             (OpaqueIDSet.empty, ConcFunctor(sigftor))
 
         | _ ->
-            raise (SupportOnlyFirstOrderFunctor(rng))
+            raise_error (SupportOnlyFirstOrderFunctor(rng))
       end
 
   | SigWith(utsig0, modidents, tyident1, tyvaridents, mty) ->
@@ -2018,12 +2023,12 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
         modidents |> List.fold_left (fun (rngpre, modsig) (rng, modnm) ->
           match modsig with
           | ConcFunctor(_) ->
-              raise (NotAStructureSignature(rngpre, modsig))
+              raise_error (NotAStructureSignature(rngpre, modsig))
 
           | ConcStructure(sigr) ->
               begin
                 match sigr |> SigRecord.find_module modnm with
-                | None            -> raise (UnboundModuleName(rng, modnm))
+                | None            -> raise_error (UnboundModuleName(rng, modnm))
                 | Some(modsig, _) -> (rng, modsig)
               end
         ) (rng0, modsig0)
@@ -2032,13 +2037,13 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
       begin
         match modsiglast with
         | ConcFunctor(_) ->
-            raise (NotAStructureSignature(rnglast, modsiglast))
+            raise_error (NotAStructureSignature(rnglast, modsiglast))
 
         | ConcStructure(sigrlast) ->
             begin
               match sigrlast |> SigRecord.find_type tynm1 with
               | None ->
-                  raise (UndefinedTypeName(rng1, tynm1))
+                  raise_error (UndefinedTypeName(rng1, tynm1))
 
               | Some(TypeID.Opaque(oid), kd) ->
                   assert (oidset0 |> OpaqueIDSet.mem oid);
@@ -2061,10 +2066,10 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                     in
                     (oidset0 |> OpaqueIDSet.remove oid, modsigret)
                   else
-                    raise (InvalidNumberOfTypeArguments(rng1, tynm1, kd, arity_actual))
+                    raise_error (InvalidNumberOfTypeArguments(rng1, tynm1, kd, arity_actual))
 
               | Some(tyopac) ->
-                  raise (CannotRestrictTransparentType(rng1, tyopac))
+                  raise_error (CannotRestrictTransparentType(rng1, tyopac))
             end
       end
 
@@ -2192,7 +2197,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       in
       if DependencyGraph.has_cycle graph then
         let tyidents = syns |> List.map (fun (tyident, _, _, _) -> tyident) in
-        raise (CyclicSynonymTypeDefinition(tyidents))
+        raise_error (CyclicSynonymTypeDefinition(tyidents))
       else
         let sigr = SigRecord.empty |> SigRecord.add_types (tydefacc |> Alist.to_list) in
         let sigr =
@@ -2222,7 +2227,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         match modsig with
         | ConcFunctor(_) ->
             let (rng, _) = utmod in
-            raise (NotOfStructureType(rng, modsig))
+            raise_error (NotOfStructureType(rng, modsig))
 
         | ConcStructure(sigr) ->
             ((oidset, sigr), ibinds)
@@ -2256,14 +2261,14 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
         match modsig with
         | ConcFunctor(_) ->
             let (rng, _) = utmod in
-            raise (NotOfStructureType(rng, modsig))
+            raise_error (NotOfStructureType(rng, modsig))
 
         | ConcStructure(sigr) ->
             let (rng, m) = modident in
             begin
               match sigr |> SigRecord.find_module m with
               | None ->
-                  raise (UnboundModuleName(rng, m))
+                  raise_error (UnboundModuleName(rng, m))
 
               | Some(modsigp, name) ->
                   let absmodsigp = (oidset, modsigp) in
@@ -2299,7 +2304,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
               (OpaqueIDSet.empty, ConcFunctor(sigftor))
 
           | _ ->
-              raise (SupportOnlyFirstOrderFunctor(rng))
+              raise_error (SupportOnlyFirstOrderFunctor(rng))
         end
       in
       (absmodsig, [])
@@ -2311,7 +2316,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
         match modsig1 with
         | ConcStructure(_) ->
             let (rng1, _) = modident1 in
-            raise (NotOfFunctorType(rng1, modsig1))
+            raise_error (NotOfFunctorType(rng1, modsig1))
 
         | ConcFunctor(sigftor1) ->
             let oidset           = sigftor1.opaques in
@@ -2388,7 +2393,7 @@ let main (modident : module_name ranged) (utmod : untyped_module) : SigRecord.t 
   let sname =
     let (rng, modname) = modident in
     match OutputIdentifier.space modname with
-    | None        -> raise (InvalidIdentifier(rng, modname))
+    | None        -> raise_error (InvalidIdentifier(rng, modname))
     | Some(sname) -> sname
   in
   let (tyenv, _) = Primitives.initial_environment in
@@ -2397,7 +2402,7 @@ let main (modident : module_name ranged) (utmod : untyped_module) : SigRecord.t 
   match modsig with
   | ConcFunctor(_) ->
       let (rng, _) = utmod in
-      raise (RootModuleMustBeStructure(rng))
+      raise_error (RootModuleMustBeStructure(rng))
 
   | ConcStructure(sigr) ->
       ((oidset, sigr), sname, ibinds)
