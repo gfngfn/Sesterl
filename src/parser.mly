@@ -311,13 +311,17 @@ exprplus:
 exprapp:
   | efun=exprapp; LPAREN; eargs=exprargs; tokR=RPAREN {
         let rng = make_range (Ranged(efun)) (Token(tokR)) in
-        (rng, Apply(efun, eargs))
+        match efun with
+        | (_, Constructor(ctornm, [])) -> (rng, Constructor(ctornm, eargs))
+        | _                            -> (rng, Apply(efun, eargs))
       }
+(*
   | ctor=CTOR; LPAREN; eargs=exprargs; tokR=RPAREN {
         let (tokL, ctornm) = ctor in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, Constructor(ctornm, eargs))
       }
+*)
   | ctor=CTOR {
         let (rng, ctornm) = ctor in
         (rng, Constructor(ctornm, []))
