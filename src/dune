@@ -1,24 +1,15 @@
 (executable
- (public_name sesterl)
- (package sesterl)
- (name main)
- (flags (-w -3 -bin-annot -thread))
- (libraries
+  (public_name sesterl)
+  (package sesterl)
+  (name main)
+  (flags (-w -3 -bin-annot -thread))
+  (libraries
     menhirLib
     cmdliner
-    ocamlgraph
-    )
- (preprocess
+    ocamlgraph)
+  (preprocess
     (pps
-       ppx_deriving.show
-       )
-    )
- )
-
-;; dune requires all the .ml/.mli files to be in the same directory as the jbuild.
-;; https://github.com/ocaml/dune/issues/109
-;;(copy_files# ./*.{ml,mli})
-;;(copy_files  ./*.{mll,mly})
+      ppx_deriving.show)))
 
 (ocamllex
  (modules lexer))
