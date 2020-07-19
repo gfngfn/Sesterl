@@ -13,7 +13,7 @@ As mentioned in the next section, however, many features as a typed functional l
 
 ## Features
 
-Sesterl provides many ML-inspired features (i.e. basically resembles OCaml, Standard ML, Reason, etc.).
+Sesterl provides many ML-inspired features (i.e. basically resembles OCaml, Standard ML, F\#, Reason, etc.).
 
 
 ### Function definition
@@ -24,12 +24,12 @@ Function definition is performed by `let`-expressions:
 let add(x, y) = x + y
 ```
 
-Unlike ML family, however, in order to realize seemless compilation to top-level function definitions in Erlang, functions have their own arity (i.e. not curried by nature) and thereby have types of the form `fun(τ_1, …, τ_n) -> τ`. The function `add` defined above, for instance, has type `fun(int, int) -> int`, which is **not** equivalent to `fun(int) -> fun(int) -> int`.
+Unlike ML family, however, in order to realize seemless compilation to top-level function definitions in Erlang, functions have their own arity (i.e. not curried by nature) and thereby have types of the form `fun(τ_1, …, τ_n) -> τ`. The function `add` defined above, for instance, has type `fun(int, int) -> int`, which is **NOT** equivalent to `fun(int) -> (fun(int) -> int)`.
 
 Incidentally, you do not have to annotate types of arguments or return values; they will be reconstructed by standard *Hindley–Milner type inference*. you can nonetheless add type annotation like the following:
 
 ```
-let add(x: int, y: int): int = x + y
+let add(x : int, y : int) : int = x + y
 ```
 
 You can define higher-order functions, of course:
@@ -70,7 +70,7 @@ let proj1(x, y) = x
 Instead of relying upon type inference, you can also annotate polymorphic types and check that the defined function is indeed polymorphic:
 
 ```
-let proj1<$a, $b>(x: $a, y: $b): $a = x
+let proj1<$a, $b>(x : $a, y : $b) : $a = x
 ```
 
 
@@ -106,7 +106,7 @@ List-generating constructors, `[]` (nil) and `::` (cons), are also supported by 
 You can decompose values of ADTs by using `case`-expression in an ordinary way like the following:
 
 ```
-let reverse<$a>(xs: list<$a>): list<$a> =
+let reverse<$a>(xs : list<$a>) : list<$a> =
   letrec aux(acc, xs) =
     case xs of
     | []        -> acc
@@ -115,7 +115,7 @@ let reverse<$a>(xs: list<$a>): list<$a> =
   in
   aux([], xs)
 
-letrec tree_size(t: bintree<$a>) =
+letrec tree_size(t : bintree<$a>) =
   case t of
   | Empty           -> 0
   | Node(_, t1, t2) -> 1 + tree_size(t1) + tree_size(t2)
@@ -127,9 +127,9 @@ letrec tree_size(t: bintree<$a>) =
 
 As in Erlang, you can use primitives `self`, `send`, and `spawn` for message-passing concurrency. They are given types by using a kind of monadic types `[τ_0]τ_1` and types `pid<τ>` for PIDs (i.e. process identifiers) as follows:
 
-* `self<$p>: [$p]pid<$p>`
-* `send<$p, $q>: fun(pid<$q>, $q) -> [$p]unit`
-* `spawn<$p, $q>: fun([$q]unit) -> [$p]pid<$q>`
+* `self<$p> : [$p]pid<$p>`
+* `send<$p, $q> : fun(pid<$q>, $q) -> [$p]unit`
+* `spawn<$p, $q> : fun([$q]unit) -> [$p]pid<$q>`
 
 This formalization is based on *λ\_\{act\}* \[Fowler 2019\].
 
@@ -175,12 +175,12 @@ let main() =
   …
 ```
 
-Here, the primitive `return<$p, $a>: fun($a) -> [$p]$a` lifts a pure value to the computation that has no effect and simply returns the value.
+Here, the primitive `return<$p, $a> : fun($a) -> [$p]$a` lifts a pure value to the computation that has no effect and simply returns the value.
 
 The function `spawn_all` takes an integer `n`, spawns `n` processes that perform some heavy calculation in parallel, and returns their PIDs. `wait_all`, on the other hand, waits all the messages sent from the processes spawned by `spawn_all` and makes a list from the messages. These functions are typed as follows, supposing `some_heavy_calculation` is of type `fun(int) -> answer`:
 
-* `spawn_all<$p, $q>: fun(list<pid<$q>>, int) -> [$p]list<pid<$q>>`
-* `wait_all<$q>: fun(list<answer>, list<pid<$q>>) -> [(pid<$q>, answer)]list<answer>`
+* `spawn_all<$p, $q> : fun(list<pid<$q>>, int) -> [$p]list<pid<$q>>`
+* `wait_all<$q> : fun(list<answer>, list<pid<$q>>) -> [(pid<$q>, answer)]list<answer>`
 
 As mentioned earlier, supporting session types is an important future work. One possible way of supporting session types would be adopting types of the form `[S]τ` where `S` is a session type by using theories like \[Orchard & Yoshida 2016\].
 
@@ -199,15 +199,15 @@ module Mod = struct
     | Some($a)
 
   signature Ord = sig
-    type s:: 0
-    val compare: fun(s, s) -> int
+    type s :: 0
+    val compare : fun(s, s) -> int
   end
 
-  module Map = fun(Elem: Ord) ->
+  module Map = fun(Elem : Ord) ->
     struct
       type elem = Elem.s
       type t<$a> = list<(elem, $a)>
-      letrec find<$b>(x: elem, assoc: t<$b>): option<$b> =
+      letrec find<$b>(x : elem, assoc : t<$b>) : option<$b> =
         case assoc of
         | [] ->
             None
@@ -222,7 +222,7 @@ module Mod = struct
 
   module Int = struct
     type s = int
-    let compare(x: int, y: int) = y - x
+    let compare(x : int, y : int) = y - x
   end
 
   module IntMap = Map(Int)
@@ -347,6 +347,7 @@ main() ->
   * [x] Pattern matching
   * [x] Type synonyms
   * [ ] Records
+  * [ ] GADTs (for synchronous messages)
 * [x] Mutual recursion by generalized `letrec`-expressions
 * [x] Pattern matching by generalized `let`-expressions
 * [x] Module system
