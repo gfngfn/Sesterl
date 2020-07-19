@@ -12,6 +12,29 @@ As mentioned in the section “Features” below, however, many features as a ty
 * A module system equipped with functors based on *F-ing modules* \[Rossberg, Russo & Dreyer 2014\]
 
 
+## How to install (by using OPAM)
+
+Under the condition that Dune (≥ 2.5) and OPAM are installed, invoke:
+
+```console
+$ git clone https://github.com/gfngfn/Sesterl.git
+$ cd Sesterl
+$ opam pin add sesterl .
+  # Probably this command asks you whether to install the package (and its dependencies).
+  # You may answer Y to do so.
+$ sesterl --version
+```
+
+
+## How to build source files for development
+
+Under the condition that Dune (≥ 2.5) and Make are installed, invoke:
+
+```
+$ make
+```
+
+
 ## Features
 
 Sesterl provides many ML-inspired features (i.e. basically resembles OCaml, Standard ML, F\#, Reason, etc.).
@@ -231,7 +254,7 @@ module Mod = struct
 end
 ```
 
-The program above is compiled to the following Erlang modules:
+The program above is compiled to the following Erlang modules (where line breaks and indentation are manually added for clarity):
 
 ```erlang
 -module(mod_int).
@@ -264,7 +287,7 @@ What is more important here is that functors are eliminated *at compilation time
 
 ### FFI
 
-Functions written in Erlang can be called from Sesterl via FFI as follows:
+Functions written in Erlang can be called from Sesterl via FFI (foreign function interface) as follows:
 
 ````
 module Ffi = struct
@@ -317,13 +340,27 @@ main() ->
 ```
 
 
+## Future Work
+
+* Support record expressions.
+  - Here, records will probably be made polymorphic based on the same type system as SML\# has \[Ohori 1995\].
+  - Records in Sesterl does NOT need to compile to Erlang’s record. If needed, you can write FFI that associates records in Sesterl and ones in Erlang.
+* Support GADTs.
+  - This is mainly for typing `gen_server` callbacks as to synchronous messages.
+  - The formalization of such a type system and a type inference algorithm will probably be based on *choice types* \[Chen & Erwig 2016\].
+* Support (multiparty) session types.
+  - Type checking based on session types may well be optional or something like gradual types. This is because message passing is quite frequent in typical uses of Erlang-style concurrency and thereby strict assertion for sessions may rather complicate in the short term how to program concurrent computations.
+
+
 ## References
 
+* Sheng Chen and Matin Erwig. [Principal type inference for GADTs](https://doi.org/10.1145/2837614.2837665). In *Proceedings of the 43rd Annual ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL ’16)*, pp. 416–428, 2016.
 * Martin Elsman, Troels Henriksen, Danil Annenkov, and Cosmin E. Oancea. [Static interpretation of higher-order modules in Futhark: functional GPU programming in the large](https://dl.acm.org/doi/10.1145/3236792). *Proceedings of the ACM on Programming Languages* 2, ICFP, Article 97, 2018.
 * Simon Fowler. [*Typed Concurrent Functional Programming with Channels, Actors, and Sessions*](https://era.ed.ac.uk/handle/1842/35873). PhD thesis, University of Edinburgh, 2019.
 * Roger Hindley. The principal type-scheme of an object in combinatory logic. *Transactions of the American Mathematical Society*, **146**, pp. 29–60, 1969.
 * Robin Milner. A theory of type polymorphism in programming. *Journal of Computer and System Sciences*, **17**, pp. 348–375, 1978.
-* Dominic Orchard and Nobuko Yoshida. [Effects as sessions, sessions as effects](https://dl.acm.org/doi/10.1145/2837614.2837634). In *Proceedings of the 43rd Annual ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL’16)*, pp. 568–581, 2016.
+* Atsushi Ohori. [A polymorphic record calculus and its compilation](https://dl.acm.org/doi/10.1145/218570.218572). *ACM Transactions on Programming Languages and Systems*, **17**(6), pp. 844–895, 1995.
+* Dominic Orchard and Nobuko Yoshida. [Effects as sessions, sessions as effects](https://dl.acm.org/doi/10.1145/2837614.2837634). In *Proceedings of the 43rd Annual ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL ’16)*, pp. 568–581, 2016.
 * Andreas Rossberg, Claudio Russo, and Derek Dreyer. [F-ing modules](https://people.mpi-sws.org/~rossberg/f-ing/). *Journal of Functional Programming*, **24**(5), pp. 529–607, 2014.
 
 
