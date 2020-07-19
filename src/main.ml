@@ -273,7 +273,7 @@ let command_term : unit Cmdliner.Term.t =
 let command_info : Cmdliner.Term.info =
   let open Cmdliner in
   Term.info
-    ~version: "0.0.0"
+    ~version: "0.0.1"
     "sesterl"
 
 

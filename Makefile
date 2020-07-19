@@ -1,5 +1,5 @@
 all:
-	dune build src/main.exe
+	dune build -p sesterl
 	cp _build/default/src/main.exe ./sesterl
 
 .PHONY: test
