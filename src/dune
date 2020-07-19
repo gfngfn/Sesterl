@@ -1,6 +1,7 @@
 (executable
+ (public_name sesterl)
+ (package sesterl)
  (name main)
-; (public_name langprocbase)
  (flags (-w -3 -bin-annot -thread))
  (libraries
     menhirLib
