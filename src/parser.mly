@@ -25,7 +25,7 @@
   let syntax_sugar_module_application : Range.t -> untyped_module -> untyped_module -> untyped_module =
     let fresh =
       let r = ref 0 in
-      (fun () -> incr r; Printf.sprintf "sesterl_internal_module%d" !r)
+      (fun () -> incr r; Printf.sprintf "SesterlInternalModule%d" !r)
     in
     (* TODO: sophisticate how to generate dummy module identifiers *)
     fun rng utmod1 utmod2 ->
