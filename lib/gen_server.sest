@@ -4,20 +4,22 @@ module GenServer = struct
 
     type init_arg :: 0
 
-    type request :: 0  /* temporary */
+    type request :: 0
+      /* temporary; should be a unary GADT */
 
-    type response :: 0  /* temporary */
-
+    type response :: 0
+      /* temporary; should be a unary GADT  */
+/*
     type cast_message :: 0
-
+*/
     type state :: 0
 
     val init : fun(init_arg) -> state
 
     val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
-
+/*
     val handle_cast : fun(cast_message, state) -> state
-
+*/
   end
 
   module Make = fun(Callback : Behaviour) -> struct
@@ -25,7 +27,7 @@ module GenServer = struct
     let init(arg : Callback.init_arg) =
       Callback.init(arg)
 
-    let handle_call_impl<$a>(msg : Callback.request, pid : pid<$a>, state : Callback.state) : (Callback.response, Callback.state) =
+    let handle_call_impl<$a>(msg : Callback.request, pid : pid<$a>, state : Callback.state) =
       Callback.handle_call(msg, pid, state)
 
     let handle_call<$a> : $a = external 3 ```
@@ -35,6 +37,42 @@ module GenServer = struct
          {reply, Response, State1}
     ```
 
+  end
+
+  module Example = struct
+
+    module C = struct
+
+      type init_arg =
+        (int, binary)
+
+      type request =
+        | GetNumber
+        | GetName
+
+      type response =
+        | Number(int)
+        | Name(binary)
+
+      type state =
+        (int, binary)
+
+      let init(state) =
+        state
+
+      let handle_call(msg, pid, state) =
+        let (n, s) = state in
+        case msg of
+        | GetNumber ->
+            (Number(n), state)
+
+        | GetName ->
+            (Name(s), state)
+        end
+
+    end
+
+    module Main = Make(C)
   end
 
 end
