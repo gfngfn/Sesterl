@@ -36,8 +36,17 @@ module Prim = struct
 
       type proc = pid<gen_server>
 
-      let init(arg : Callback.init_arg) =
+      type start_result =
+        | StartOk(proc)
+
+      let init_impl(arg : Callback.init_arg) =
         Callback.init(arg)
+
+      let init<$a> : $a = external 1 ```
+        init(Args) ->
+            State = ?MODULE:init_impl(Args),
+            {ok, State}.
+      ```
 
       let handle_call_impl<$a>(req : Callback.request, pid : pid<$a>, state : Callback.state) =
         Callback.handle_call(req, pid, state)
@@ -45,7 +54,7 @@ module Prim = struct
       let handle_call<$a> : $a = external 3 ```
         handle_call(Msg, From, State0) ->
             {Pid, _} = From,
-            {Response, State1} = handle_call_impl(Msg, Pid, State0),
+            {Response, State1} = ?MODULE:handle_call_impl(Msg, Pid, State0),
             {reply, Response, State1}.
       ```
 
@@ -54,7 +63,7 @@ module Prim = struct
 
       let handle_cast<$a> : $a = external 2 ```
         handle_cast(Msg, State0) ->
-            State1 = handle_cast_impl(Msg, State0),
+            State1 = ?MODULE:handle_cast_impl(Msg, State0),
             {noreply, State1}.
       ```
 
@@ -66,6 +75,15 @@ module Prim = struct
       let cast<$a> : fun(proc, cast_message) -> [$a]unit = external 2 ```
         cast(Pid, Msg) ->
             fun() -> gen_server:cast(Pid, Msg) end.
+      ```
+
+      let start_link<$a> : fun(Callback.init_arg) -> [$a]start_result = external 1 ```
+        start_link(Args) ->
+            case gen_server:start_link(?MODULE, Args, []) of
+                {ok, Pid}       -> {start_ok, Pid};
+                ignore          -> erlang:error(unsupported_ignore);
+                {error, Reason} -> erlang:error(Reason)
+            end.
       ```
 
     end
