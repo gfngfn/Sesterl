@@ -42,7 +42,7 @@
     (rng, ModProjMod((Range.dummy "appB", ModBinds(utbinds)), modidentA))
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC VAL MODULE STRUCT SIGNATURE SIG EXTERNAL
+%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC VAL MODULE STRUCT SIGNATURE SIG EXTERNAL INCLUDE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
 %token<Range.t * string> IDENT DOTIDENT CTOR DOTCTOR TYPARAM BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
@@ -84,9 +84,13 @@ bindtop:
         let (rng, modident, utmod) = bindmod in
         (rng, BindModule(modident, utmod))
       }
-  | SIGNATURE; sigident=CTOR; DEFEQ; utsig=sigexpr {
-        let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
+  | tokL=SIGNATURE; sigident=CTOR; DEFEQ; utsig=sigexpr {
+        let rng = make_range (Token(tokL)) (Ranged(utsig)) in
         (rng, BindSig(sigident, utsig))
+      }
+  | tokL=INCLUDE; utmod=modexpr {
+        let rng = make_range (Token(tokL)) (Ranged(utmod)) in
+        (rng, BindInclude(utmod))
       }
 ;
 bindmod:
