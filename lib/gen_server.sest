@@ -111,10 +111,14 @@ module Prim = struct
 
     end
 
-    module Impl = GenServer.Make(C)
+    include GenServer.Make(C)
+
+  end
+
+  module Main = struct
 
     let call(pid, msg) =
-      Impl.call(pid, msg)
+      Example.call(pid, msg)
 
   end
 
