@@ -4,4 +4,5 @@ _build/
 .DS_Store
 sesterl
 test/_generated/
+lib/_generated/
 *.install

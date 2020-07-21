@@ -1,0 +1,40 @@
+module GenServer = struct
+
+  signature Behaviour = sig
+
+    type init_arg :: 0
+
+    type request :: 0  /* temporary */
+
+    type response :: 0  /* temporary */
+
+    type cast_message :: 0
+
+    type state :: 0
+
+    val init : fun(init_arg) -> state
+
+    val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
+
+    val handle_cast : fun(cast_message, state) -> state
+
+  end
+
+  module Make = fun(Callback : Behaviour) -> struct
+
+    let init(arg : Callback.init_arg) =
+      Callback.init(arg)
+
+    let handle_call_impl<$a>(msg : Callback.request, pid : pid<$a>, state : Callback.state) : (Callback.response, Callback.state) =
+      Callback.handle_call(msg, pid, state)
+
+    let handle_call<$a> : $a = external 3 ```
+      handle_call(Msg, From, State0) ->
+         {Pid, _} = From,
+         {Response, State1} = handle_call_impl(Msg, Pid, State0),
+         {reply, Response, State1}
+    ```
+
+  end
+
+end
