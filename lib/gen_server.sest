@@ -58,14 +58,14 @@ module Prim = struct
             {noreply, State1}.
       ```
 
-      let call : fun(proc, request) -> response = external 2 ```
+      let call<$a> : fun(proc, request) -> [$a]response = external 2 ```
         call(Pid, Msg) ->
-            gen_server:call(Pid, Msg).
+            fun() -> gen_server:call(Pid, Msg) end.
       ```
 
-      let cast : fun(proc, cast_message) -> unit = external 2 ```
+      let cast<$a> : fun(proc, cast_message) -> [$a]unit = external 2 ```
         cast(Pid, Msg) ->
-            gen_server:cast(Pid, Msg).
+            fun() -> gen_server:cast(Pid, Msg) end.
       ```
 
     end
