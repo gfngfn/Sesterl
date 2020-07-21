@@ -49,6 +49,7 @@ rule token = parse
           | "signature" -> SIGNATURE(pos)
           | "sig"       -> SIG(pos)
           | "external"  -> EXTERNAL(pos)
+          | "include"   -> INCLUDE(pos)
           | _           -> IDENT(pos, s)
       }
   | ("$" (identifier as s)) {
