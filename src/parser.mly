@@ -204,7 +204,12 @@ modexpr:
 modapp:
   | utmod1=modchain; LPAREN; utmod2=modchain; tokR=RPAREN {
         let rng = make_range (Ranged(utmod1)) (Token(tokR)) in
-        syntax_sugar_module_application rng utmod1 utmod2
+        match (utmod1, utmod2) with
+        | ((rng1, ModVar(modnm1)), (rng2, ModVar(modnm2))) ->
+            (rng, ModApply((rng1, modnm1), (rng2, modnm2)))
+
+        | _ ->
+            syntax_sugar_module_application rng utmod1 utmod2
       }
   | utmod=modexprbot { utmod }
 ;
