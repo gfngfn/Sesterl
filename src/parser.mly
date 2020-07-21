@@ -20,6 +20,25 @@
     let rng = make_range (Ranged(e1)) (Ranged(e2)) in
     let (rngop, vop) = op in
     (rng, Apply((rngop, Var(vop)), [e1; e2]))
+
+
+  let syntax_sugar_module_application : Range.t -> untyped_module -> untyped_module -> untyped_module =
+    let fresh =
+      let r = ref 0 in
+      (fun () -> incr r; Printf.sprintf "sesterl_internal_module_%d" !r)
+    in
+    fun rng utmod1 utmod2 ->
+    let modident1 = (Range.dummy "appident1", fresh ()) in
+    let modident2 = (Range.dummy "appident2", fresh ()) in
+    let modidentA = (Range.dummy "appidentA", fresh ()) in
+    let utbinds =
+      [
+        (Range.dummy "appbind1", BindModule(modident1, utmod1));
+        (Range.dummy "appbind2", BindModule(modident2, utmod2));
+        (Range.dummy "appbindA", BindModule(modidentA, (Range.dummy "appA", ModApply(modident1, modident2))));
+      ]
+    in
+    (rng, ModProjMod((Range.dummy "appB", ModBinds(utbinds)), modidentA))
 %}
 
 %token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC VAL MODULE STRUCT SIGNATURE SIG EXTERNAL
@@ -175,24 +194,16 @@ modexpr:
         let rng = make_range (Token(tokL)) (Ranged(utmod)) in
         (rng, ModFunctor(modident, utsig, utmod))
       }
-  | utmod=modexprchain { utmod }
+  | utmod=modapp { utmod }
 ;
-modexprchain:
-  | utmod=modexprchain; modident=DOTCTOR {
-        let rng = make_range (Ranged(utmod)) (Ranged(modident)) in
-        (rng, ModProjMod(utmod, modident))
+modapp:
+  | utmod1=modchain; LPAREN; utmod2=modchain; tokR=RPAREN {
+        let rng = make_range (Ranged(utmod1)) (Token(tokR)) in
+        syntax_sugar_module_application rng utmod1 utmod2
       }
   | utmod=modexprbot { utmod }
 ;
 modexprbot:
-  | modident=CTOR {
-        let (rng, modnm) = modident in
-        (rng, ModVar(modnm))
-      }
-  | modident1=CTOR; LPAREN; modident2=CTOR; tokR=RPAREN {
-        let rng = make_range (Ranged(modident1)) (Token(tokR)) in
-        (rng, ModApply(modident1, modident2))
-      }
   | tokL=STRUCT; utbinds=list(bindtop); tokR=END {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, ModBinds(utbinds))
@@ -201,6 +212,17 @@ modexprbot:
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         let (_, utmodmain) = utmod in
         (rng, utmodmain)
+      }
+  | utmod=modchain { utmod }
+;
+modchain:
+  | utmod=modchain; modident=DOTCTOR {
+        let rng = make_range (Ranged(utmod)) (Ranged(modident)) in
+        (rng, ModProjMod(utmod, modident))
+      }
+  | modident=CTOR {
+        let (rng, modnm) = modident in
+        (rng, ModVar(modnm))
       }
 ;
 sigexpr:
@@ -422,11 +444,11 @@ tys:
   | mty=ty; COMMA; tail=tys { mty :: tail }
 ;
 ty:
-  | utmod=modexprchain; tyident=DOTIDENT {
+  | utmod=modchain; tyident=DOTIDENT {
         let rng = make_range (Ranged(utmod)) (Ranged(tyident)) in
         (rng, MModProjType(utmod, tyident, []))
       }
-  | utmod=modexprchain; tyident=DOTIDENT; tylparen; mtyargs=tys; tokR=tyrparen {
+  | utmod=modchain; tyident=DOTIDENT; tylparen; mtyargs=tys; tokR=tyrparen {
         let rng = make_range (Ranged(utmod)) (Token(tokR)) in
         (rng, MModProjType(utmod, tyident, mtyargs))
       }
