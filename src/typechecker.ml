@@ -2336,40 +2336,24 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
         | ConcFunctor(sigftor1) ->
             let oidset           = sigftor1.opaques in
             let Domain(sigrdom1) = sigftor1.domain in
-(*
-            let absmodsigcod1    = sigftor1.codomain in
-*)
             begin
               match sigftor1.closure with
               | None ->
                   assert false
 
               | Some(modident0, utmodC, tyenv0) ->
-                  let (absmodsigres, ibinds) =
-                    let tyenv0 =
-                      let (_, m0) = modident0 in
-(*
-                      Format.printf "APP %s ---> %a\n" m0 OutputIdentifier.pp_space sname2;  (* for debug *)
-                      display_signature 0 modsig2;  (* for debug *)
-*)
-                      tyenv0 |> Typeenv.add_module m0 modsig2 sname2
-                    in
-                    typecheck_module tyenv0 utmodC
-                  in
-(*
-                  Format.printf "BINDS %a\n" (Format.pp_print_list ~pp_sep:pp_sep_comma pp_binding) ibinds;  (* for debug *)
-*)
                   let _wtmap =
                     let (rng2, _) = modident2 in
                     let modsigdom1 = ConcStructure(sigrdom1) in
                     subtype_signature rng2 modsig2 (oidset, modsigdom1)
                   in
-(*
-                  WitnessMap.print wtmap;  (* for debug *)
-*)
-(*
-                  let absmodsig = substitute_abstract wtmap absmodsigcod1 in
-*)
+                  let (absmodsigres, ibinds) =
+                    let tyenv0 =
+                      let (_, m0) = modident0 in
+                      tyenv0 |> Typeenv.add_module m0 modsig2 sname2
+                    in
+                    typecheck_module tyenv0 utmodC
+                  in
                   (absmodsigres, ibinds)
             end
       end
