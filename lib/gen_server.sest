@@ -1,70 +1,74 @@
-module GenServer = struct
+module Prim = struct
 
-  signature Behaviour = sig
+  module GenServer = struct
 
-    type init_arg :: 0
+    signature Behaviour = sig
 
-    type request :: 0
-      /* temporary; should be a unary GADT */
+      type init_arg :: 0
 
-    type response :: 0
-      /* temporary; should be a unary GADT  */
+      type request :: 0
+        /* temporary; should be a unary GADT */
 
-    type cast_message :: 0
+      type response :: 0
+        /* temporary; should be a unary GADT  */
 
-    type state :: 0
+      type cast_message :: 0
 
-    val init : fun(init_arg) -> state
+      type state :: 0
 
-    val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
+      val init : fun(init_arg) -> state
 
-    val handle_cast : fun(cast_message, state) -> state
+      val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
 
-  end
+      val handle_cast : fun(cast_message, state) -> state
 
-  module Make = fun(Callback : Behaviour) -> struct
+    end
 
-    type request = Callback.request
+    module Make = fun(Callback : Behaviour) -> struct
 
-    type response = Callback.response
+      type request = Callback.request
 
-    type cast_message = Callback.cast_message
+      type response = Callback.response
 
-    type gen_server = unit
+      type cast_message = Callback.cast_message
 
-    type proc = pid<gen_server>
+      type gen_server = unit
 
-    let init(arg : Callback.init_arg) =
-      Callback.init(arg)
+      type proc = pid<gen_server>
 
-    let handle_call_impl<$a>(req : Callback.request, pid : pid<$a>, state : Callback.state) =
-      Callback.handle_call(req, pid, state)
+      let init(arg : Callback.init_arg) =
+        Callback.init(arg)
 
-    let handle_call<$a> : $a = external 3 ```
-      handle_call(Msg, From, State0) ->
-          {Pid, _} = From,
-          {Response, State1} = handle_call_impl(Msg, Pid, State0),
-          {reply, Response, State1}.
-    ```
+      let handle_call_impl<$a>(req : Callback.request, pid : pid<$a>, state : Callback.state) =
+        Callback.handle_call(req, pid, state)
 
-    let handle_cast_impl(msg : Callback.cast_message, state : Callback.state) =
-      Callback.handle_cast(msg, state)
+      let handle_call<$a> : $a = external 3 ```
+        handle_call(Msg, From, State0) ->
+            {Pid, _} = From,
+            {Response, State1} = handle_call_impl(Msg, Pid, State0),
+            {reply, Response, State1}.
+      ```
 
-    let handle_cast<$a> : $a = external 2 ```
-      handle_cast(Msg, State0) ->
-          State1 = handle_cast_impl(Msg, State0),
-          {noreply, State1}.
-    ```
+      let handle_cast_impl(msg : Callback.cast_message, state : Callback.state) =
+        Callback.handle_cast(msg, state)
 
-    let call : fun(proc, request) -> response = external 2 ```
-      call(Pid, Msg) ->
-          gen_server:call(Pid, Msg).
-    ```
+      let handle_cast<$a> : $a = external 2 ```
+        handle_cast(Msg, State0) ->
+            State1 = handle_cast_impl(Msg, State0),
+            {noreply, State1}.
+      ```
 
-    let cast : fun(proc, cast_message) -> unit = external 2 ```
-      cast(Pid, Msg) ->
-          gen_server:cast(Pid, Msg).
-    ```
+      let call : fun(proc, request) -> response = external 2 ```
+        call(Pid, Msg) ->
+            gen_server:call(Pid, Msg).
+      ```
+
+      let cast : fun(proc, cast_message) -> unit = external 2 ```
+        cast(Pid, Msg) ->
+            gen_server:cast(Pid, Msg).
+      ```
+
+    end
 
   end
 
@@ -107,7 +111,10 @@ module GenServer = struct
 
     end
 
-    module Main = Make(C)
+    module Impl = GenServer.Make(C)
+
+    let call(pid, msg) =
+      Impl.call(pid, msg)
 
   end
 
