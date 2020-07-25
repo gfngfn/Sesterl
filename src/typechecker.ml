@@ -180,6 +180,31 @@ let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) =
   | Some(v) -> v
 
 
+let find_module_from_chain (tyenv : Typeenv.t) ((modident, projs) : module_name_chain) =
+  let init = find_module tyenv modident in
+  let (rng, _) = modident in
+  let (ret, _) =
+    projs |> List.fold_left (fun ((modsig, _), rng) proj ->
+      match modsig with
+      | ConcFunctor(_) ->
+          raise_error (NotOfStructureType(rng, modsig))
+
+      | ConcStructure(sigr) ->
+          let (rngproj, modnm) = proj in
+          begin
+            match sigr |> SigRecord.find_module modnm with
+            | None ->
+                raise_error (UnboundModuleName(rngproj, modnm))
+
+            | Some(modsig_and_sname) ->
+                let (rng, _) = proj in
+                (modsig_and_sname, rng)
+          end
+    ) (init, rng)
+  in
+  ret
+
+
 let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Typeenv.t) : Typeenv.t =
   sigr |> SigRecord.fold
     ~v:(fun x (pty, name) ->
@@ -2290,13 +2315,13 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       in
       (absmodsig, [])
 
-  | ModApply(modident1, modident2) ->
-      let (modsig1, _) = find_module tyenv modident1 in
-      let (modsig2, sname2) = find_module tyenv modident2 in
+  | ModApply(modidentchain1, modidentchain2) ->
+      let (modsig1, _) = find_module_from_chain tyenv modidentchain1 in
+      let (modsig2, sname2) = find_module_from_chain tyenv modidentchain2 in
       begin
         match modsig1 with
         | ConcStructure(_) ->
-            let (rng1, _) = modident1 in
+            let ((rng1, _), _) = modidentchain1 in
             raise_error (NotOfFunctorType(rng1, modsig1))
 
         | ConcFunctor(sigftor1) ->
@@ -2309,7 +2334,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
 
               | Some(modident0, utmodC, tyenv0) ->
                   let _wtmap =
-                    let (rng2, _) = modident2 in
+                    let ((rng2, _), _) = modidentchain2 in
                     let modsigdom1 = ConcStructure(sigrdom1) in
                     subtype_signature rng2 modsig2 (oidset, modsigdom1)
                   in

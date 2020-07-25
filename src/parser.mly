@@ -1,5 +1,6 @@
 %{
   open Syntax
+  open MyUtil
 
   type 'a range_spec =
     | Token of Range.t
@@ -21,7 +22,7 @@
     let (rngop, vop) = op in
     (rng, Apply((rngop, Var(vop)), [e1; e2]))
 
-
+(*
   let syntax_sugar_module_application : Range.t -> untyped_module -> untyped_module -> untyped_module =
     let fresh =
       let r = ref 0 in
@@ -40,6 +41,7 @@
       ]
     in
     (rng, ModProjMod((Range.dummy "appB", ModBinds(utbinds)), modidentA))
+*)
 %}
 
 %token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC VAL MODULE STRUCT SIGNATURE SIG EXTERNAL INCLUDE
@@ -202,14 +204,10 @@ modexpr:
   | utmod=modapp { utmod }
 ;
 modapp:
-  | utmod1=modchain; LPAREN; utmod2=modchain; tokR=RPAREN {
-        let rng = make_range (Ranged(utmod1)) (Token(tokR)) in
-        match (utmod1, utmod2) with
-        | ((rng1, ModVar(modnm1)), (rng2, ModVar(modnm2))) ->
-            (rng, ModApply((rng1, modnm1), (rng2, modnm2)))
-
-        | _ ->
-            syntax_sugar_module_application rng utmod1 utmod2
+  | modchain1=modchainraw; LPAREN; modchain2=modchainraw; tokR=RPAREN {
+        let (modident1, _) = modchain1 in
+        let rng = make_range (Ranged(modident1)) (Token(tokR)) in
+        (rng, ModApply(modchain1, modchain2))
       }
   | utmod=modexprbot { utmod }
 ;
@@ -226,13 +224,31 @@ modexprbot:
   | utmod=modchain { utmod }
 ;
 modchain:
-  | utmod=modchain; modident=DOTCTOR {
-        let rng = make_range (Ranged(utmod)) (Ranged(modident)) in
-        (rng, ModProjMod(utmod, modident))
+  | modchainraw=modchainraw {
+        let (modident, projs) = modchainraw in
+        let utmod =
+          let (rng, modnm) = modident in
+          (rng, ModVar(modnm))
+        in
+        projs |> List.fold_left (fun utmod proj ->
+          let rng = make_range (Ranged(utmod)) (Ranged(proj)) in
+          (rng, ModProjMod(utmod, proj))
+        ) utmod
+      }
+;
+modchainraw:
+  | modchainacc=modchainacc {
+        let (modident, projacc) = modchainacc in
+        (modident, Alist.to_list projacc)
+      }
+;
+modchainacc:
+  | former=modchainacc; proj=DOTCTOR {
+        let (modident, projacc) = former in
+        (modident, Alist.extend projacc proj)
       }
   | modident=CTOR {
-        let (rng, modnm) = modident in
-        (rng, ModVar(modnm))
+        (modident, Alist.empty)
       }
 ;
 sigexpr:
