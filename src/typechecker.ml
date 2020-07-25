@@ -1020,7 +1020,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       ((rng, BaseType(BinaryType)), IBaseConst(BinaryByInts(ns)))
 
   | ModProjVal(modident1, (rng2, x2)) ->
-      let (modsig1, _name1) = find_module pre.tyenv modident1 in
+      let (modsig1, _) = find_module pre.tyenv modident1 in
 (*
       let (oidset1, modsig1) = absmodsig1 in
 *)
@@ -2259,7 +2259,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
   let (rng, utmodmain) = utmod in
   match utmodmain with
   | ModVar(m) ->
-      let (modsig, name) = find_module tyenv (rng, m) in
+      let (modsig, _) = find_module tyenv (rng, m) in
       let absmodsig = (OpaqueIDSet.empty, modsig) in
       (absmodsig, [])
 
@@ -2285,7 +2285,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
               | None ->
                   raise_error (UnboundModuleName(rng, m))
 
-              | Some(modsigp, name) ->
+              | Some(modsigp, _) ->
                   let absmodsigp = (oidset, modsigp) in
                   (absmodsigp, ibinds)
             end
@@ -2359,7 +2359,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       end
 
   | ModCoerce(modident0, utsig) ->
-      let (modsig0, name0) = find_module tyenv modident0 in
+      let (modsig0, _) = find_module tyenv modident0 in
       let absmodsig = typecheck_signature tyenv utsig in
       let (rng0, _) = modident0 in
       let _ = subtype_signature rng0 modsig0 absmodsig in
@@ -2391,9 +2391,7 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
 let main (modident : module_name ranged) (utmod : untyped_module) : SigRecord.t abstracted * space_name * binding list =
   let sname =
     let (rng, modname) = modident in
-    match OutputIdentifier.space modname with
-    | None        -> raise_error (InvalidIdentifier(rng, modname))
-    | Some(sname) -> sname
+    get_space_name rng modname
   in
   let (tyenv, _) = Primitives.initial_environment in
   let (absmodsig, ibinds) = typecheck_module tyenv utmod in
