@@ -216,8 +216,17 @@ let report_type_error (e : Typechecker.error) : unit =
 let read_source (fpath_in : absolute_path) : absolute_path list * module_name ranged * untyped_module =
   let inc = open_in fpath_in in
   let lexbuf = Lexing.from_channel inc in
-  let (modident, utmod) = ParserInterface.process lexbuf in
-  let deps = [] in  (* TODO: get dependency from files *)
+  let (deps_raw, modident, utmod) = ParserInterface.process lexbuf in
+  let deps =
+    deps_raw |> List.map (fun dep ->
+      if Filename.is_relative dep then
+        let dir = Filename.dirname fpath_in in
+        Filename.concat dir dep
+          (* TODO: should be canonicalized *)
+      else
+        dep
+    )
+  in
   close_in inc;
   (deps, modident, utmod)
 
@@ -238,7 +247,15 @@ let read_source_recursively (fpath_in : absolute_path) : (absolute_path * (modul
 
 let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
   try
-    let sources = read_source_recursively fpath_in in
+    let abspath_in =
+      if Filename.is_relative fpath_in then
+        let dir = Sys.getcwd () in
+        Filename.concat dir fpath_in
+          (* TODO: should be canonicalized *)
+      else
+        fpath_in
+    in
+    let sources = read_source_recursively abspath_in in
     let outs =
       sources |> List.map (fun (_, (modident, utmod)) ->
         let ((_, sigr), sname, binds) = Typechecker.main modident utmod in

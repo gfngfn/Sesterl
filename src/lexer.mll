@@ -50,6 +50,7 @@ rule token = parse
           | "sig"       -> SIG(pos)
           | "external"  -> EXTERNAL(pos)
           | "include"   -> INCLUDE(pos)
+          | "require"   -> REQUIRE(pos)
           | _           -> IDENT(pos, s)
       }
   | ("$" (identifier as s)) {
