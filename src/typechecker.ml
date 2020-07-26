@@ -79,12 +79,17 @@ type opaque_entry =
   | OpaqueToSynonym of (BoundID.t list * poly_type) * type_name
 
 
+module GlobalNameMap = Map.Make(OutputIdentifier.Global)
+
+
 module WitnessMap : sig
   type t
   val empty : t
+  val add_name : global_name -> global_name -> t -> t
   val add_variant : TypeID.Variant.t -> TypeID.Variant.t -> t -> t
   val add_opaque : TypeID.Opaque.t -> TypeID.t -> t -> t
   val add_synonym : TypeID.Synonym.t -> TypeID.Synonym.t -> t -> t
+  val find_name : global_name -> t -> global_name option
   val find_synonym : TypeID.Synonym.t -> t -> TypeID.Synonym.t option
   val find_variant : TypeID.Variant.t -> t -> TypeID.Variant.t option
   val find_opaque : TypeID.Opaque.t -> t -> TypeID.t option
@@ -102,6 +107,7 @@ end = struct
     variants : TypeID.Variant.t VariantIDMap.t;
     synonyms : TypeID.Synonym.t SynonymIDMap.t;
     opaques  : TypeID.t OpaqueIDMap.t;
+    names    : global_name GlobalNameMap.t;
   }
 
 
@@ -110,16 +116,22 @@ end = struct
       variants = VariantIDMap.empty;
       synonyms = SynonymIDMap.empty;
       opaques  = OpaqueIDMap.empty;
+      names    = GlobalNameMap.empty;
     }
 
 
   let union (wtmap1 : t) (wtmap2 : t) : t =
     let f _ x y = Some(y) in
     {
-      variants = VariantIDMap.union f wtmap1.variants wtmap2.variants;
-      synonyms = SynonymIDMap.union f wtmap1.synonyms wtmap2.synonyms;
-      opaques  = OpaqueIDMap.union  f wtmap1.opaques  wtmap2.opaques;
+      variants = VariantIDMap.union  f wtmap1.variants wtmap2.variants;
+      synonyms = SynonymIDMap.union  f wtmap1.synonyms wtmap2.synonyms;
+      opaques  = OpaqueIDMap.union   f wtmap1.opaques  wtmap2.opaques;
+      names    = GlobalNameMap.union f wtmap1.names    wtmap2.names;
     }
+
+
+  let add_name (gname2 : global_name) (gname1 : global_name) (wtmap : t) : t =
+    { wtmap with names = wtmap.names |> GlobalNameMap.add gname2 gname1 }
 
 
   let add_variant (vid2 : TypeID.Variant.t) (vid1 : TypeID.Variant.t) (wtmap : t) : t =
@@ -132,6 +144,10 @@ end = struct
 
   let add_opaque (oid2 : TypeID.Opaque.t) (tyid1 : TypeID.t) (wtmap : t) : t =
     { wtmap with opaques = wtmap.opaques |> OpaqueIDMap.add oid2 tyid1 }
+
+
+  let find_name (gname : global_name) (wtmap : t) : global_name option =
+    wtmap.names |> GlobalNameMap.find_opt gname
 
 
   let find_variant (vid2 : TypeID.Variant.t) (wtmap : t) : TypeID.Variant.t option =
