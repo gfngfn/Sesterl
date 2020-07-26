@@ -11,6 +11,8 @@ module type S = sig
 
   val equal : t -> t -> bool
 
+  val name : t -> string
+
   val pp : Format.formatter -> t -> unit
 
 end

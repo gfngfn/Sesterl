@@ -11,6 +11,8 @@ module type S = sig
 
   val equal : t -> t -> bool
 
+  val name : t -> string
+
   val pp : Format.formatter -> t -> unit
 
 end
@@ -41,6 +43,9 @@ module Internal(A : sig val suffix : string end) = struct
 
   let equal tyid1 tyid2 =
     tyid1.number = tyid2.number
+
+  let name tyid =
+    tyid.name
 
   let pp ppf tyid =
     Format.fprintf ppf "%s/%d%s" tyid.name tyid.number A.suffix

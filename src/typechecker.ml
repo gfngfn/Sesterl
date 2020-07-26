@@ -1723,11 +1723,17 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
             tyopacs_from |> List.fold_left (fun wtmap (tyid_from, arity) ->
               match tyid_from with
               | TypeID.Synonym(sid_from) ->
-                  let sid_to = TypeID.Synonym.fresh "(nameS)" in
+                  let sid_to =
+                    let s = TypeID.Synonym.name sid_from in
+                    TypeID.Synonym.fresh s
+                  in
                   wtmap |> WitnessMap.add_synonym sid_from sid_to
 
               | TypeID.Variant(vid_from) ->
-                  let vid_to = TypeID.Variant.fresh "(nameV)" in
+                  let vid_to =
+                    let s = TypeID.Variant.name vid_from in
+                    TypeID.Variant.fresh s
+                  in
                   wtmap |> WitnessMap.add_variant vid_from vid_to
 
               | TypeID.Opaque(_) ->
@@ -1918,7 +1924,10 @@ and copy_abstract_signature (absmodsig_from : module_signature abstracted) : mod
   let (oidset_from, modsig_from) = absmodsig_from in
   let (oidset_to, wtmap) =
     OpaqueIDSet.fold (fun oid_from (oidset_to, wtmap) ->
-      let oid_to = TypeID.Opaque.fresh "(nameO)" in
+      let oid_to =
+        let s = TypeID.Opaque.name oid_from in
+        TypeID.Opaque.fresh s
+      in
       let oidset_to = oidset_to |> OpaqueIDSet.add oid_to in
       let wtmap = wtmap |> WitnessMap.add_opaque oid_from (TypeID.Opaque(oid_to)) in
       (oidset_to, wtmap)

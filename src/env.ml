@@ -419,6 +419,12 @@ let pp_comma ppf () =
   Format.fprintf ppf ", "
 
 
+let pp_type_parameters ppf typarams =
+  match typarams with
+  | []     -> ()
+  | _ :: _ -> Format.fprintf ppf "<%a>" (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
+
+
 let rec display_signature (depth : int) (modsig : module_signature) : unit =
   let indent = String.make (depth * 2) ' ' in
   match modsig with
@@ -450,18 +456,18 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
           match tyid with
           | TypeID.Synonym(sid) ->
               let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
-              Format.printf "%stype %a<%a> = %a\n"
+              Format.printf "%stype %a%a = %a\n"
                 indent
                 TypeID.Synonym.pp sid
-                (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
+                pp_type_parameters typarams
                 pp_poly_type ptyreal
 
           | TypeID.Variant(vid) ->
               let (typarams, _ctorbrs) = TypeSynonymStore.find_variant_type vid in
-              Format.printf "%stype %a<%a> = (variant)\n"
+              Format.printf "%stype %a%a = (variant)\n"
                 indent
                 TypeID.Variant.pp vid
-                (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
+                pp_type_parameters typarams
 
           | TypeID.Opaque(oid) ->
               Format.printf "%stype %a :: %d\n"
