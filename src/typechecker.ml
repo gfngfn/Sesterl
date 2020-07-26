@@ -79,12 +79,17 @@ type opaque_entry =
   | OpaqueToSynonym of (BoundID.t list * poly_type) * type_name
 
 
+module GlobalNameMap = Map.Make(OutputIdentifier.Global)
+
+
 module WitnessMap : sig
   type t
   val empty : t
+  val add_name : global_name -> global_name -> t -> t
   val add_variant : TypeID.Variant.t -> TypeID.Variant.t -> t -> t
   val add_opaque : TypeID.Opaque.t -> TypeID.t -> t -> t
   val add_synonym : TypeID.Synonym.t -> TypeID.Synonym.t -> t -> t
+  val find_name : global_name -> t -> global_name option
   val find_synonym : TypeID.Synonym.t -> t -> TypeID.Synonym.t option
   val find_variant : TypeID.Variant.t -> t -> TypeID.Variant.t option
   val find_opaque : TypeID.Opaque.t -> t -> TypeID.t option
@@ -102,6 +107,7 @@ end = struct
     variants : TypeID.Variant.t VariantIDMap.t;
     synonyms : TypeID.Synonym.t SynonymIDMap.t;
     opaques  : TypeID.t OpaqueIDMap.t;
+    names    : global_name GlobalNameMap.t;
   }
 
 
@@ -110,16 +116,22 @@ end = struct
       variants = VariantIDMap.empty;
       synonyms = SynonymIDMap.empty;
       opaques  = OpaqueIDMap.empty;
+      names    = GlobalNameMap.empty;
     }
 
 
   let union (wtmap1 : t) (wtmap2 : t) : t =
     let f _ x y = Some(y) in
     {
-      variants = VariantIDMap.union f wtmap1.variants wtmap2.variants;
-      synonyms = SynonymIDMap.union f wtmap1.synonyms wtmap2.synonyms;
-      opaques  = OpaqueIDMap.union  f wtmap1.opaques  wtmap2.opaques;
+      variants = VariantIDMap.union  f wtmap1.variants wtmap2.variants;
+      synonyms = SynonymIDMap.union  f wtmap1.synonyms wtmap2.synonyms;
+      opaques  = OpaqueIDMap.union   f wtmap1.opaques  wtmap2.opaques;
+      names    = GlobalNameMap.union f wtmap1.names    wtmap2.names;
     }
+
+
+  let add_name (gname2 : global_name) (gname1 : global_name) (wtmap : t) : t =
+    { wtmap with names = wtmap.names |> GlobalNameMap.add gname2 gname1 }
 
 
   let add_variant (vid2 : TypeID.Variant.t) (vid1 : TypeID.Variant.t) (wtmap : t) : t =
@@ -132,6 +144,10 @@ end = struct
 
   let add_opaque (oid2 : TypeID.Opaque.t) (tyid1 : TypeID.t) (wtmap : t) : t =
     { wtmap with opaques = wtmap.opaques |> OpaqueIDMap.add oid2 tyid1 }
+
+
+  let find_name (gname : global_name) (wtmap : t) : global_name option =
+    wtmap.names |> GlobalNameMap.find_opt gname
 
 
   let find_variant (vid2 : TypeID.Variant.t) (wtmap : t) : TypeID.Variant.t option =
@@ -207,8 +223,8 @@ let find_module_from_chain (tyenv : Typeenv.t) ((modident, projs) : module_name_
 
 let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Typeenv.t) : Typeenv.t =
   sigr |> SigRecord.fold
-    ~v:(fun x (pty, name) ->
-      Typeenv.add_val x pty name
+    ~v:(fun x (pty, gname) ->
+      Typeenv.add_val x pty (OutputIdentifier.Global(gname))
     )
     ~t:(fun tydefs tyenv ->
       tydefs |> List.fold_left (fun tyenv (tynm, tyopac) ->
@@ -1027,7 +1043,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
               | None ->
                   raise_error (UnboundVariable(rng2, x2))
 
-              | Some((_, ptymain2), name2) ->
+              | Some((_, ptymain2), gname2) ->
                   let pty2 = (rng, ptymain2) in
 (*
                   if opaque_occurs_in_poly_type oidset1 pty2 then
@@ -1039,7 +1055,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
                   else
 *)
                     let ty = instantiate pre.level pty2 in
-                    (ty, IVar(name2))
+                    (ty, IVar(OutputIdentifier.Global(gname2)))
             end
       end
 
@@ -1505,13 +1521,25 @@ and lookup_type_opacity (tynm : type_name) (tyopac1 : type_opacity) (tyopac2 : t
 and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module_signature) : WitnessMap.t =
     match (modsig1, modsig2) with
     | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
-        (* --
-           perform signature matching by looking up signature `sigr1` and `sigr2` and associate type IDs in them
-           so that we can check whether subtyping relation `sigr1 <= sigr2` holds
-           -- *)
+        (* Performs signature matching by looking up signatures `sigr1` and `sigr2`,
+           and associate type IDs in them
+           so that we can check whether subtyping relation `sigr1 <= sigr2` holds.
+           Here we do not check each type IDs indeed form a subtyping relation;
+           it will be done by `check_well_formedness_of_witness_map` afterwards.
+        *)
         sigr2 |> SigRecord.fold
-            ~v:(fun _ _ wtmapacc ->
-              wtmapacc
+            ~v:(fun x2 (pty2, gname2) wtmapacc ->
+              match sigr1 |> SigRecord.find_val x2 with
+              | None ->
+                  raise_error (MissingRequiredValName(rng, x2, pty2))
+
+              | Some(_, gname1) ->
+(*
+                  Format.printf "lookup substitution %a ---> %a\n"
+                    OutputIdentifier.pp_global gname2
+                    OutputIdentifier.pp_global gname1;  (* for debug *)
+*)
+                  wtmapacc |> WitnessMap.add_name gname2 gname1
             )
             ~t:(fun tydefs2 wtmapacc ->
               tydefs2 |> List.fold_left (fun wtmapacc (tynm2, tyopac2) ->
@@ -1548,6 +1576,14 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
         WitnessMap.empty
 
 
+(* Given `wtmap`, which was produced by `lookup_record`, this function checks whether
+
+   - for each mapping (`vid1` ↦ `vid2`) of variant IDs in `wtmap`,
+     the definition of `vid1` is indeed more specific than that of `vid2`, and
+
+   - for each mapping (`sid1` ↦ `sid2`) of synonym IDs in `wtmap`,
+     the definition of `sid1` is indeed more specific than that of `sid2`.
+*)
 and check_well_formedness_of_witness_map (rng : Range.t) (wtmap : WitnessMap.t) : unit =
   let mergef vid1 vid2
       (ctor : constructor_name)
@@ -1591,7 +1627,7 @@ and check_well_formedness_of_witness_map (rng : Range.t) (wtmap : WitnessMap.t) 
       )
       ~opaque:(fun oid2 tyid1 () ->
         ()
-          (* -- the consistency of arity has already been checked -- *)
+          (* The consistency of arity has already been checked by `lookup_record`. *)
       )
       ()
 
@@ -1616,11 +1652,9 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
       subtype_abstract_with_abstract rng absmodsigcod1 absmodsigcod2
 
   | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
-      (* --
-         First traverse the structure signature and extract a mapping
-         from opaque types to types and one
-         from variant types to variant types
-         -- *)
+      (* First traverse the structure signature and extract
+         a mapping from opaque types to types and one from variant types to variant types.
+      *)
       sigr2 |> SigRecord.fold
           ~v:(fun x2 (pty2, _) () ->
             match sigr1 |> SigRecord.find_val x2 with
@@ -1656,7 +1690,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
           )
           ~c:(fun ctornm2 ctorentry2 () ->
             ()
-              (* -- checking for constructors is performed by `check_well_formedness_of_witness_map` *)
+              (* Checking for constructors is performed by `check_well_formedness_of_witness_map`. *)
           )
           ()
 
@@ -1701,8 +1735,21 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
 and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord.t =
   let (sigr, _wtmap) =
     sigr |> SigRecord.map_and_fold
-        ~v:(fun (pty, name) wtmap ->
-          let ventry = (substitute_poly_type wtmap pty, name) in
+        ~v:(fun (pty, gname_from) wtmap ->
+          let gname_to =
+            match wtmap |> WitnessMap.find_name gname_from with
+            | None ->
+                gname_from
+
+            | Some(gname) ->
+(*
+                Format.printf "substitution performance %a ---> %a\n"
+                  OutputIdentifier.pp_global gname_from
+                  OutputIdentifier.pp_global gname;  (* for debug *)
+*)
+                gname
+          in
+          let ventry = (substitute_poly_type wtmap pty, gname_to) in
           (ventry, wtmap)
         )
         ~t:(fun tyopacs_from wtmap ->
@@ -1845,8 +1892,8 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       let localtyparams = TypeParameterMap.empty |> add_local_type_parameter typaramassoc in
       let ty = decode_manual_type tyenv localtyparams mty in
       let pty = generalize 0 ty in
-      let lname = OutputIdentifier.fresh () in
-      let sigr = SigRecord.empty |> SigRecord.add_val x pty (OutputIdentifier.Local(lname)) in
+      let gname = OutputIdentifier.fresh_global_dummy () in
+      let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
       (OpaqueIDSet.empty, sigr)
 
   | DeclTypeTrans(_tyident, _mty) ->
@@ -2080,7 +2127,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         generalize 0 ty
       in
       let gname = generate_global_name arity rngv x in
-      let sigr = SigRecord.empty |> SigRecord.add_val x pty (OutputIdentifier.Global(gname)) in
+      let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
       ((OpaqueIDSet.empty, sigr), [IBindVal(IExternal(gname, extbind.ext_code))])
 
   | BindVal(Internal(rec_or_nonrec)) ->
@@ -2108,7 +2155,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             let recbinds = typecheck_letrec_mutual namesf proj pre valbinds in
             let (sigr, irecbindacc) =
               recbinds |> List.fold_left (fun (sigr, irecbindacc) (x, pty, gname_outer, _, e) ->
-                let sigr = sigr |> SigRecord.add_val x pty (proj gname_outer) in
+                let sigr = sigr |> SigRecord.add_val x pty gname_outer in
                 let irecbindacc = Alist.extend irecbindacc (x, gname_outer, pty, e) in
                 (sigr, irecbindacc)
               ) (SigRecord.empty, Alist.empty)
@@ -2123,7 +2170,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
               typecheck_let gname pre valbind
             in
             let (_, x) = valbind.vb_identifier in
-            let sigr = SigRecord.empty |> SigRecord.add_val x pty (OutputIdentifier.Global(gname)) in
+            let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
             (sigr, INonRec(x, gname, pty, e))
       in
       ((OpaqueIDSet.empty, sigr), [IBindVal(i_rec_or_nonrec)])
@@ -2353,7 +2400,8 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       let (modsig0, _) = find_module tyenv modident0 in
       let absmodsig = typecheck_signature tyenv utsig in
       let (rng0, _) = modident0 in
-      let _ = subtype_signature rng0 modsig0 absmodsig in
+      let wtmap = subtype_signature rng0 modsig0 absmodsig in
+      let absmodsig = absmodsig |> substitute_abstract wtmap in
       (absmodsig, [])
 
 

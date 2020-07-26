@@ -83,6 +83,7 @@ rule token = parse
 
   | "::" { CONS(Range.from_lexbuf lexbuf) }
   | ":"  { COLON(Range.from_lexbuf lexbuf) }
+  | ":>" { COERCE(Range.from_lexbuf lexbuf) }
 
   | ("&" (nssymbol*)) { BINOP_AMP(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
 

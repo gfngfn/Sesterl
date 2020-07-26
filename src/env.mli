@@ -70,9 +70,9 @@ module SigRecord : sig
 
   val empty : t
 
-  val add_val : identifier -> poly_type -> name -> t -> t
+  val add_val : identifier -> poly_type -> global_name -> t -> t
 
-  val find_val : identifier -> t -> (poly_type * name) option
+  val find_val : identifier -> t -> (poly_type * global_name) option
 
   val add_types : (type_name * type_opacity) list -> t -> t
 
@@ -93,7 +93,7 @@ module SigRecord : sig
   val find_signature : signature_name -> t -> (module_signature abstracted) option
 
   val fold :
-    v:(identifier -> poly_type * name -> 'a -> 'a) ->
+    v:(identifier -> poly_type * global_name -> 'a -> 'a) ->
     t:((type_name * type_opacity) list -> 'a -> 'a) ->
     m:(module_name -> module_signature * space_name -> 'a -> 'a) ->
     s:(signature_name -> module_signature abstracted -> 'a -> 'a) ->
@@ -101,7 +101,7 @@ module SigRecord : sig
     'a -> t -> 'a
 
   val map_and_fold :
-    v:(poly_type * name -> 'a -> (poly_type * name) * 'a) ->
+    v:(poly_type * global_name -> 'a -> (poly_type * global_name) * 'a) ->
     t:(type_opacity list -> 'a -> type_opacity list * 'a) ->
     m:(module_signature * space_name -> 'a -> (module_signature * space_name) * 'a) ->
     s:(module_signature abstracted -> 'a -> module_signature abstracted * 'a) ->
@@ -109,7 +109,7 @@ module SigRecord : sig
     'a -> t -> t * 'a
 
   val map :
-    v:(poly_type * name -> poly_type * name) ->
+    v:(poly_type * global_name -> poly_type * global_name) ->
     t:(type_opacity list -> type_opacity list) ->
     m:(module_signature * space_name -> module_signature * space_name) ->
     s:(module_signature abstracted -> module_signature abstracted) ->

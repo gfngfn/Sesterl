@@ -14,6 +14,9 @@ type global =
       function_name : IdentifierScheme.t;
       arity         : int;
     }
+  | ReprDummy of {
+      number : int;
+    }
 
 type operator =
   | ReprOperator of string
@@ -45,6 +48,12 @@ let fresh () : local =
   let n = fresh_number () in
   ReprLocal{ hint = None; number = n }
 
+
+let fresh_global_dummy () : global =
+  let n = fresh_number () in
+  ReprDummy{
+    number = n;
+  }
 
 let generate_local (s : string) : local option =
   IdentifierScheme.from_snake_case s |> Option.map (fun ident ->
@@ -93,9 +102,11 @@ module Global = struct
 
 
   let compare gname1 gname2 =
-    match (gname1, gname2) with
-    | (ReprGlobal(r1), ReprGlobal(r2)) ->
-        r2.number - r1.number
+    let extract_number = function
+      | ReprDummy(r)  -> r.number
+      | ReprGlobal(r) -> r.number
+    in
+    extract_number gname2 - extract_number gname1
 
 end
 
@@ -123,6 +134,11 @@ let output_global = function
         function_name = r.function_name |> IdentifierScheme.to_snake_case;
         arity         = r.arity;
       }
+  | ReprDummy(r) ->
+(*
+      Format.printf "attempted to output G%d(dummy)\n" r.number;  (* for debug *)
+*)
+      assert false
 
 
 let output_operator = function
@@ -152,6 +168,10 @@ let pp_global ppf = function
         r.number
         IdentifierScheme.pp r.function_name
         r.arity
+
+  | ReprDummy(r) ->
+      Format.fprintf ppf "G%d(dummy)"
+        r.number
 
 
 let pp_operator ppf = function

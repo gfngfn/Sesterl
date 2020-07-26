@@ -1,0 +1,20 @@
+module Coercion = struct
+  module Sub = struct
+    module Impl = struct
+      letrec aux(acc, n, x) =
+        if n <= 0 then acc else
+          aux(x * acc, n - 1, x)
+
+      let power(n, x) =
+        aux(1, n, x)
+    end
+
+    include (Impl :> sig
+      val power : fun(int, int) -> int
+    end)
+  end
+
+  let main() =
+    Sub.power(4, 3)
+
+end

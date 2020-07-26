@@ -22,6 +22,8 @@ val space : string -> space option
 
 val fresh : unit -> local
 
+val fresh_global_dummy : unit -> global
+
 val generate_local : string -> local option
 
 val generate_global : string -> int -> global option
