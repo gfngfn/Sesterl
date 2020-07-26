@@ -15,21 +15,16 @@ module SampleProject = struct
     type cast_message_impl =
       | SetNumber(int)
 
-    module C = struct
+    module Callback = struct
 
-      type init_arg =
-        (int, binary)
-
+      type init_arg = (int, binary)
       type request = request_impl
       type response = response_impl
       type cast_message = cast_message_impl
-
-      type state =
-        (int, binary)
+      type state = (int, binary)
 
       let init(state) =
-        let _ = print_debug("init") in
-        let _ = print_debug(state) in
+        let _ = print_debug(("init", state)) in
         state
 
       let handle_call(req, pid, state) =
@@ -40,7 +35,7 @@ module SampleProject = struct
         end
 
      let handle_cast(msg, state) =
-       let _ = print_debug(("handle_cast, received:", msg)) in
+       let _ = print_debug(("handle_cast", msg)) in
        let (_, s) = state in
        case msg of
        | SetNumber(m) -> (m, s)
@@ -48,7 +43,7 @@ module SampleProject = struct
 
     end
 
-    include SesterlStdlib.GenServer.Make(C)
+    include SesterlStdlib.GenServer.Make(Callback)
 
     let set_number<$a>(pid : proc, m : int) : [$a]unit =
       cast(pid, SetNumber(m))
@@ -57,7 +52,6 @@ module SampleProject = struct
       do res <- call(pid, GetNumber) in
       case res of
       | Number(n) -> return(n)
-      | _         -> return(0)
       end
 
   end
