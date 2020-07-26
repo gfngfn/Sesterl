@@ -1,0 +1,8 @@
+require "require_depended.sest"
+
+module RequireDepending = struct
+
+  let main() =
+    RequireDepended.hello()
+
+end
