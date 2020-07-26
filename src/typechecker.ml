@@ -1505,10 +1505,12 @@ and lookup_type_opacity (tynm : type_name) (tyopac1 : type_opacity) (tyopac2 : t
 and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module_signature) : WitnessMap.t =
     match (modsig1, modsig2) with
     | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
-        (* --
-           perform signature matching by looking up signature `sigr1` and `sigr2` and associate type IDs in them
-           so that we can check whether subtyping relation `sigr1 <= sigr2` holds
-           -- *)
+        (* Performs signature matching by looking up signatures `sigr1` and `sigr2`,
+           and associate type IDs in them
+           so that we can check whether subtyping relation `sigr1 <= sigr2` holds.
+           Here we do not check each type IDs indeed form a subtyping relation;
+           it will be done by `check_well_formedness_of_witness_map` afterwards.
+        *)
         sigr2 |> SigRecord.fold
             ~v:(fun _ _ wtmapacc ->
               wtmapacc
@@ -1548,6 +1550,14 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
         WitnessMap.empty
 
 
+(* Given `wtmap`, which was produced by `lookup_record`, this function checks whether
+
+   - for each mapping (`vid1` ↦ `vid2`) of variant IDs in `wtmap`,
+     the definition of `vid1` is indeed more specific than that of `vid2`, and
+
+   - for each mapping (`sid1` ↦ `sid2`) of synonym IDs in `wtmap`,
+     the definition of `sid1` is indeed more specific than that of `sid2`.
+*)
 and check_well_formedness_of_witness_map (rng : Range.t) (wtmap : WitnessMap.t) : unit =
   let mergef vid1 vid2
       (ctor : constructor_name)
@@ -1591,7 +1601,7 @@ and check_well_formedness_of_witness_map (rng : Range.t) (wtmap : WitnessMap.t) 
       )
       ~opaque:(fun oid2 tyid1 () ->
         ()
-          (* -- the consistency of arity has already been checked -- *)
+          (* The consistency of arity has already been checked by `lookup_record`. *)
       )
       ()
 
@@ -1616,11 +1626,9 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
       subtype_abstract_with_abstract rng absmodsigcod1 absmodsigcod2
 
   | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
-      (* --
-         First traverse the structure signature and extract a mapping
-         from opaque types to types and one
-         from variant types to variant types
-         -- *)
+      (* First traverse the structure signature and extract
+         a mapping from opaque types to types and one from variant types to variant types.
+      *)
       sigr2 |> SigRecord.fold
           ~v:(fun x2 (pty2, _) () ->
             match sigr1 |> SigRecord.find_val x2 with
@@ -1656,7 +1664,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
           )
           ~c:(fun ctornm2 ctorentry2 () ->
             ()
-              (* -- checking for constructors is performed by `check_well_formedness_of_witness_map` *)
+              (* Checking for constructors is performed by `check_well_formedness_of_witness_map`. *)
           )
           ()
 
