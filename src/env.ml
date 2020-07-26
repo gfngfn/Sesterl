@@ -442,7 +442,7 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
   let indent = String.make (depth * 2) ' ' in
   sigr |> SigRecord.fold
       ~v:(fun x (pty, _) () ->
-        Format.printf "%sval %s: %a\n" indent x pp_poly_type pty
+        Format.printf "%sval %s : %a\n" indent x pp_poly_type pty
       )
       ~t:(fun tydefs () ->
         tydefs |> List.iter (fun (tynm, tyopac) ->
@@ -464,20 +464,23 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
                 (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
 
           | TypeID.Opaque(oid) ->
-              Format.printf "%stype %a:: %d\n"
+              Format.printf "%stype %a :: %d\n"
                 indent
                 TypeID.Opaque.pp oid
                 arity
         )
       )
       ~m:(fun modnm (modsig, _) () ->
-        Format.printf "%smodule %s:\n" indent modnm;
-        display_signature (depth + 1) modsig;
+        Format.printf "%smodule %s :\n" indent modnm;
+        display_signature (depth + 1) modsig
       )
-      ~s:(fun signm _ () ->
-        Format.printf "signature %s\n" signm
+      ~s:(fun signm (oidset, modsig) () ->
+        let sx = stringify_opaque_id_set oidset in
+        Format.printf "%ssignature %s =\n" indent signm;
+        Format.printf "%s  (exists%s)\n" indent sx;
+        display_signature (depth + 2) modsig
       )
       ~c:(fun ctornm _ () ->
-        Format.printf "constructor %s\n" ctornm
+        Format.printf "%sconstructor %s\n" indent ctornm
       )
       ()
