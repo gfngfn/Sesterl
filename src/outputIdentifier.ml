@@ -134,7 +134,10 @@ let output_global = function
         function_name = r.function_name |> IdentifierScheme.to_snake_case;
         arity         = r.arity;
       }
-  | ReprDummy(_) ->
+  | ReprDummy(r) ->
+
+      Format.printf "attempted to output G%d(dummy)\n" r.number;
+
       assert false
 
 
@@ -166,8 +169,9 @@ let pp_global ppf = function
         IdentifierScheme.pp r.function_name
         r.arity
 
-  | ReprDummy(_) ->
-      Format.fprintf ppf "G-dummy"
+  | ReprDummy(r) ->
+      Format.fprintf ppf "G%d(dummy)"
+        r.number
 
 
 let pp_operator ppf = function

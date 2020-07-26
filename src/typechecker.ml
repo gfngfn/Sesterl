@@ -1534,6 +1534,11 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
                   raise_error (MissingRequiredValName(rng, x2, pty2))
 
               | Some(_, gname1) ->
+
+                  Format.printf "lookup substitution %a ---> %a\n"
+                    OutputIdentifier.pp_global gname2
+                    OutputIdentifier.pp_global gname1;
+
                   wtmapacc |> WitnessMap.add_name gname2 gname1
             )
             ~t:(fun tydefs2 wtmapacc ->
@@ -1733,8 +1738,16 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
         ~v:(fun (pty, gname_from) wtmap ->
           let gname_to =
             match wtmap |> WitnessMap.find_name gname_from with
-            | None        -> gname_from
-            | Some(gname) -> gname
+            | None ->
+                gname_from
+
+            | Some(gname) ->
+
+                Format.printf "substitution performance %a ---> %a\n"
+                  OutputIdentifier.pp_global gname_from
+                  OutputIdentifier.pp_global gname;
+
+                gname
           in
           let ventry = (substitute_poly_type wtmap pty, gname_to) in
           (ventry, wtmap)
@@ -2387,7 +2400,8 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       let (modsig0, _) = find_module tyenv modident0 in
       let absmodsig = typecheck_signature tyenv utsig in
       let (rng0, _) = modident0 in
-      let _ = subtype_signature rng0 modsig0 absmodsig in
+      let wtmap = subtype_signature rng0 modsig0 absmodsig in
+      let absmodsig = absmodsig |> substitute_abstract wtmap in
       (absmodsig, [])
 
 
