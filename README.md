@@ -308,11 +308,11 @@ module Ffi = struct
 
   let main() =
     assoc(1, [
-      (3, <<"Komaba">>),
-      (1, <<"Hongo">>),
-      (4, <<"Yayoi">>),
-      (1, <<"Asano">>),
-      (5, <<"Kashiwa">>)
+      (3, "Komaba"),
+      (1, "Hongo"),
+      (4, "Yayoi"),
+      (1, "Asano"),
+      (5, "Kashiwa")
     ])
 
 end

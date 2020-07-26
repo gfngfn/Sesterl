@@ -408,9 +408,8 @@ exprbot:
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, BinaryByList(ns))
       }
-  | tokL=LTLT; strlit=STRING; tokR=gtgt {
-        let (_, s) = strlit in
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
+  | strlit=STRING {
+        let (rng, s) = strlit in
         (rng, BaseConst(BinaryByString(s)))
       }
 ;
