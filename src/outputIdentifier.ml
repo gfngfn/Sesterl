@@ -135,9 +135,9 @@ let output_global = function
         arity         = r.arity;
       }
   | ReprDummy(r) ->
-
-      Format.printf "attempted to output G%d(dummy)\n" r.number;
-
+(*
+      Format.printf "attempted to output G%d(dummy)\n" r.number;  (* for debug *)
+*)
       assert false
 
 
