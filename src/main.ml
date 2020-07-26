@@ -211,12 +211,17 @@ let report_type_error (e : Typechecker.error) : unit =
   end
 
 
+let read_source (fpath_in : string) : module_name ranged * untyped_module =
+  let inc = open_in fpath_in in
+  let lexbuf = Lexing.from_channel inc in
+  let ret = ParserInterface.process lexbuf in
+  close_in inc;
+  ret
+
+
 let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
   try
-    let inc = open_in fpath_in in
-    let lexbuf = Lexing.from_channel inc in
-    let (modident, utmod) = ParserInterface.process lexbuf in
-    close_in inc;
+    let (modident, utmod) = read_source fpath_in in
     let ((_, sigr), sname, binds) = Typechecker.main modident utmod in
     if is_verbose then display_structure 0 sigr;
     OutputErlangCode.main dir_out sname binds
