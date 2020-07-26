@@ -223,8 +223,8 @@ let find_module_from_chain (tyenv : Typeenv.t) ((modident, projs) : module_name_
 
 let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Typeenv.t) : Typeenv.t =
   sigr |> SigRecord.fold
-    ~v:(fun x (pty, name) ->
-      Typeenv.add_val x pty name
+    ~v:(fun x (pty, gname) ->
+      Typeenv.add_val x pty (OutputIdentifier.Global(gname))
     )
     ~t:(fun tydefs tyenv ->
       tydefs |> List.fold_left (fun tyenv (tynm, tyopac) ->
@@ -1043,7 +1043,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
               | None ->
                   raise_error (UnboundVariable(rng2, x2))
 
-              | Some((_, ptymain2), name2) ->
+              | Some((_, ptymain2), gname2) ->
                   let pty2 = (rng, ptymain2) in
 (*
                   if opaque_occurs_in_poly_type oidset1 pty2 then
@@ -1055,7 +1055,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
                   else
 *)
                     let ty = instantiate pre.level pty2 in
-                    (ty, IVar(name2))
+                    (ty, IVar(OutputIdentifier.Global(gname2)))
             end
       end
 
@@ -1870,7 +1870,7 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       let ty = decode_manual_type tyenv localtyparams mty in
       let pty = generalize 0 ty in
       let gname = OutputIdentifier.fresh_global_dummy () in
-      let sigr = SigRecord.empty |> SigRecord.add_val x pty (OutputIdentifier.Global(gname)) in
+      let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
       (OpaqueIDSet.empty, sigr)
 
   | DeclTypeTrans(_tyident, _mty) ->
@@ -2104,7 +2104,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         generalize 0 ty
       in
       let gname = generate_global_name arity rngv x in
-      let sigr = SigRecord.empty |> SigRecord.add_val x pty (OutputIdentifier.Global(gname)) in
+      let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
       ((OpaqueIDSet.empty, sigr), [IBindVal(IExternal(gname, extbind.ext_code))])
 
   | BindVal(Internal(rec_or_nonrec)) ->
@@ -2132,7 +2132,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             let recbinds = typecheck_letrec_mutual namesf proj pre valbinds in
             let (sigr, irecbindacc) =
               recbinds |> List.fold_left (fun (sigr, irecbindacc) (x, pty, gname_outer, _, e) ->
-                let sigr = sigr |> SigRecord.add_val x pty (proj gname_outer) in
+                let sigr = sigr |> SigRecord.add_val x pty gname_outer in
                 let irecbindacc = Alist.extend irecbindacc (x, gname_outer, pty, e) in
                 (sigr, irecbindacc)
               ) (SigRecord.empty, Alist.empty)
@@ -2147,7 +2147,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
               typecheck_let gname pre valbind
             in
             let (_, x) = valbind.vb_identifier in
-            let sigr = SigRecord.empty |> SigRecord.add_val x pty (OutputIdentifier.Global(gname)) in
+            let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
             (sigr, INonRec(x, gname, pty, e))
       in
       ((OpaqueIDSet.empty, sigr), [IBindVal(i_rec_or_nonrec)])
