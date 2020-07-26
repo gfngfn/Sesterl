@@ -302,7 +302,7 @@ let write_file (dir_out : string) (smod : string) (lines : string list) : unit =
     output_string fout (line ^ "\n")
   );
   close_out fout;
-  Printf.printf "output written on '%s'\n" fpath_out
+  Logging.output_written fpath_out
 
 
 let write_module_to_file (dir_out : string) (omodbind : module_binding_output) : unit =
@@ -339,22 +339,13 @@ let write_primitive_module_to_file (dir_out : string) : unit =
   write_file dir_out smod lines
 
 
-let main (dir_out : string) (sname : space_name) (ibinds : binding list) : unit =
-(*
-  Format.printf "@[<v>%a@]" (Format.pp_print_list pp_binding) ibinds;
-*)
-  let (omodbinds, _) =
-    let (_, gmap) = Primitives.initial_environment in
+let main (dir_out : string) (gmap : global_name_map) (sname : space_name) (ibinds : binding list) : global_name_map =
+  let (omodbinds, gmap_after) =
     let spacepath = Alist.extend Alist.empty sname in
     traverse_binding_list gmap spacepath ibinds
   in
   write_primitive_module_to_file dir_out;
   omodbinds |> List.iter (fun omodbind ->
     write_module_to_file dir_out omodbind
-  )
-(*
-  let sbinds = omodbinds |> List.map stringify_module_binding_output |> List.concat in
-  let lines =
-  in
-  lines |> List.map (fun s -> s ^ "\n") |> String.concat ""
-*)
+  );
+  gmap_after

@@ -44,7 +44,7 @@
 *)
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC VAL MODULE STRUCT SIGNATURE SIG EXTERNAL INCLUDE COERCE
+%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC VAL MODULE STRUCT SIGNATURE SIG EXTERNAL INCLUDE COERCE REQUIRE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
 %token<Range.t * string> IDENT DOTIDENT CTOR DOTCTOR TYPARAM BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
@@ -54,7 +54,7 @@
 
 %start main
 %type<Syntax.untyped_binding> bindtop
-%type<Syntax.module_name Syntax.ranged * Syntax.untyped_module> main
+%type<string list * Syntax.module_name Syntax.ranged * Syntax.untyped_module> main
 %type<Syntax.manual_type> ty
 %type<Syntax.binder list> params
 %type<Syntax.untyped_let_binding> bindvalsingle
@@ -64,10 +64,13 @@
 
 %%
 main:
-  | bindmod=bindmod; EOI {
+  | deps=list(dep); bindmod=bindmod; EOI {
         let (_, modident, utmod) = bindmod in
-        (modident, utmod)
+        (deps, modident, utmod)
       }
+;
+dep:
+  | REQUIRE; strlit=STRING { let (_, s) = strlit in s }
 ;
 ident:
   | ident=IDENT { ident }

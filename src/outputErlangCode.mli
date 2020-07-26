@@ -1,4 +1,4 @@
 
 open Syntax
 
-val main : string -> space_name -> binding list -> unit
+val main : string -> global_name_map -> space_name -> binding list -> global_name_map

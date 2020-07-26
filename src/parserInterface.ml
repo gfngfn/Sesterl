@@ -20,6 +20,6 @@ let k_fail chkpt =
       assert false
 
 
-let process (lexbuf : Lexing.lexbuf) : module_name ranged * untyped_module =
+let process (lexbuf : Lexing.lexbuf) : string list * module_name ranged * untyped_module =
   let supplier = I.lexer_lexbuf_to_supplier Lexer.token lexbuf in
   I.loop_handle k_success k_fail supplier (Parser.Incremental.main lexbuf.Lexing.lex_curr_p)
