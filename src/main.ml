@@ -242,6 +242,7 @@ type reading_state = {
 
 let read_source_recursively (abspath : absolute_path) : (absolute_path * (module_name ranged * untyped_module)) list =
   let rec aux (state : reading_state) (vertex : FileDependencyGraph.vertex) (abspath : absolute_path) : reading_state =
+    Format.printf "  parsing '%s' ...\n" abspath;
     let (deps, content) = read_source abspath in
     let loaded = state.loaded |> ContentMap.add abspath content in
     deps |> List.fold_left (fun state abspath_sub ->
@@ -249,7 +250,6 @@ let read_source_recursively (abspath : absolute_path) : (absolute_path * (module
       if graph |> FileDependencyGraph.mem abspath_sub then
         state
       else
-        let () = Format.printf "######## '%s' ---> '%s'\n" abspath abspath_sub in
         let (graph, vertex_sub) = graph |> FileDependencyGraph.add_vertex abspath_sub in
         let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
         aux { state with graph = graph } vertex_sub abspath_sub
@@ -282,7 +282,7 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
     let (_, outacc) =
       let (tyenv, _) = Primitives.initial_environment in
       sources |> List.fold_left (fun (tyenv, outacc) (abspath, (modident, utmod)) ->
-        Format.printf "type checking '%s' ...\n" abspath;
+        Format.printf "  type checking '%s' ...\n" abspath;
         let (tyenv, (oidset, sigr), sname, binds) = Typechecker.main tyenv modident utmod in
         if is_verbose then display_structure 0 sigr;
         let outacc = Alist.extend outacc (sname, binds) in

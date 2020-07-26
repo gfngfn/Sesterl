@@ -302,7 +302,7 @@ let write_file (dir_out : string) (smod : string) (lines : string list) : unit =
     output_string fout (line ^ "\n")
   );
   close_out fout;
-  Printf.printf "output written on '%s'\n" fpath_out
+  Printf.printf "  output written on '%s'.\n" fpath_out
 
 
 let write_module_to_file (dir_out : string) (omodbind : module_binding_output) : unit =
