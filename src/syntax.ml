@@ -40,6 +40,10 @@ let pp_identifier ppf s =
   Format.fprintf ppf "\"%s\"" s
 
 
+type module_name_chain =
+  module_name ranged * (module_name ranged) list
+[@@deriving show { with_path = false; } ]
+
 type base_type =
   | IntType
   | BoolType
@@ -153,7 +157,7 @@ and untyped_module_main =
   | ModBinds   of untyped_binding list
   | ModProjMod of untyped_module * module_name ranged
   | ModFunctor of module_name ranged * untyped_signature * untyped_module
-  | ModApply   of module_name ranged * module_name ranged
+  | ModApply   of module_name_chain * module_name_chain
   | ModCoerce  of module_name ranged * untyped_signature
 
 and untyped_binding =
