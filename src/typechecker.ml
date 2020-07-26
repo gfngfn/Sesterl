@@ -1869,8 +1869,8 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       let localtyparams = TypeParameterMap.empty |> add_local_type_parameter typaramassoc in
       let ty = decode_manual_type tyenv localtyparams mty in
       let pty = generalize 0 ty in
-      let lname = OutputIdentifier.fresh () in
-      let sigr = SigRecord.empty |> SigRecord.add_val x pty (OutputIdentifier.Local(lname)) in
+      let gname = OutputIdentifier.fresh_global_dummy () in
+      let sigr = SigRecord.empty |> SigRecord.add_val x pty (OutputIdentifier.Global(gname)) in
       (OpaqueIDSet.empty, sigr)
 
   | DeclTypeTrans(_tyident, _mty) ->
