@@ -30,3 +30,6 @@ end = struct
     | _ :: _ -> false
 
 end
+
+
+type absolute_path = string

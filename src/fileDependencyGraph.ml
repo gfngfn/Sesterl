@@ -29,20 +29,19 @@ let empty : t = {
 }
 
 
-let add_vertex ((fpath, content) : file_info) (graph : t) : t * vertex =
-  let vertex =
-    match graph.paths |> PathMap.find_opt fpath with
-    | None    -> GraphImpl.V.create fpath
-    | Some(r) -> r.vertex
-  in
-  let entry = { vertex = vertex; content = content; } in
-  let graph =
-    {
-      paths = graph.paths |> PathMap.add fpath entry;
-      main  = GraphImpl.add_vertex graph.main vertex;
-    }
-  in
-  (graph, vertex)
+let add_vertex ((fpath, content) : file_info) (graph : t) : (t * vertex) option =
+  if graph.paths |> PathMap.mem fpath then
+    None
+  else
+    let vertex = GraphImpl.V.create fpath in
+    let entry = { vertex = vertex; content = content; } in
+    let graph =
+      {
+        paths = graph.paths |> PathMap.add fpath entry;
+        main  = GraphImpl.add_vertex graph.main vertex;
+      }
+    in
+    Some(graph, vertex)
 
 
 let get_entry paths fpath =
@@ -51,8 +50,7 @@ let get_entry paths fpath =
   | Some(r) -> r
 
 
-let add_edge ~depending:(vertex2 : vertex) ~depended:(file1 : file_info) (graph : t) : t * vertex =
-  let (graph, vertex1) = graph |> add_vertex file1 in
+let add_edge ~depending:(vertex2 : vertex) ~depended:(vertex1 : vertex) (graph : t) : t * vertex =
   let graph = { graph with main = GraphImpl.add_edge graph.main vertex1 vertex2 } in
   (graph, vertex1)
 

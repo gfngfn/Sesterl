@@ -211,20 +211,40 @@ let report_type_error (e : Typechecker.error) : unit =
   end
 
 
-let read_source (fpath_in : string) : module_name ranged * untyped_module =
+let read_source (fpath_in : absolute_path) : absolute_path list * module_name ranged * untyped_module =
   let inc = open_in fpath_in in
   let lexbuf = Lexing.from_channel inc in
-  let ret = ParserInterface.process lexbuf in
+  let (modident, utmod) = ParserInterface.process lexbuf in
+  let deps = [] in  (* TODO: get dependency from files *)
   close_in inc;
-  ret
+  (deps, modident, utmod)
+
+
+let read_source_recursively (fpath_in : absolute_path) : (absolute_path * (module_name ranged * untyped_module)) list =
+  let rec aux (graph : FileDependencyGraph.t) (fpath_in : absolute_path) : FileDependencyGraph.t =
+    let (deps, modident, utmod) = read_source fpath_in in
+    let content = (modident, utmod) in
+    match graph |> FileDependencyGraph.add_vertex (fpath_in, content) with
+    | None                            -> graph
+    | Some((graph, vertex_depending)) -> deps |> List.fold_left aux graph
+  in
+  let graph = aux FileDependencyGraph.empty fpath_in in
+  FileDependencyGraph.topological_sort graph
 
 
 let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
   try
-    let (modident, utmod) = read_source fpath_in in
-    let ((_, sigr), sname, binds) = Typechecker.main modident utmod in
-    if is_verbose then display_structure 0 sigr;
-    OutputErlangCode.main dir_out sname binds
+    let sources = read_source_recursively fpath_in in
+    let outs =
+      sources |> List.map (fun (_, (modident, utmod)) ->
+        let ((_, sigr), sname, binds) = Typechecker.main modident utmod in
+        if is_verbose then display_structure 0 sigr;
+        (sname, binds)
+      )
+    in
+    outs |> List.iter (fun (sname, binds) ->
+      OutputErlangCode.main dir_out sname binds
+    )
   with
   | Sys_error(msg) ->
       Format.printf "system error: %s\n" msg;
