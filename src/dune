@@ -6,7 +6,8 @@
   (libraries
     menhirLib
     cmdliner
-    ocamlgraph)
+    ocamlgraph
+    core)
   (preprocess
     (pps
       ppx_deriving.show)))

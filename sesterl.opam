@@ -14,6 +14,7 @@ depends: [
   "menhirLib" {>= "20200211"}
   "cmdliner" {>= "1.0.4"}
   "ocamlgraph" {>= "1.8.8"}
+  "core" {>= "0.13.0"}
 ]
 build: [
   ["dune" "subst"] {pinned}

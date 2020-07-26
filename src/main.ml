@@ -215,8 +215,7 @@ let report_type_error (e : Typechecker.error) : unit =
 
 let make_absolute_path (dir : absolute_dir) (fpath : string) : absolute_path =
   if Filename.is_relative fpath then
-    Filename.concat dir fpath
-      (* TODO: should be canonicalized *)
+    Core.Filename.realpath (Filename.concat dir fpath)
   else
     fpath
 
