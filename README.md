@@ -391,4 +391,7 @@ main() ->
 * [x] Module system
   * [x] Support for F-ing modules
   * [x] Compilation using the static interpretation
+* [ ] Configuration
+  * [x] Loading external modules by `require`
+  * [ ] Embedding external modules as submodules
 * [ ] (Multiparty) session types
