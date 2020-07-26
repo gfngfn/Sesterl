@@ -33,3 +33,5 @@ end
 
 
 type absolute_path = string
+
+type absolute_dir = string
