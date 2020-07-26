@@ -3,6 +3,8 @@ open MyUtil
 open Syntax
 open Env
 
+exception CyclicFileDependencyFound
+
 
 let report_lexer_error (e : lexer_error) : unit =
   match e with
@@ -229,7 +231,9 @@ let read_source_recursively (fpath_in : absolute_path) : (absolute_path * (modul
     | Some((graph, vertex_depending)) -> deps |> List.fold_left aux graph
   in
   let graph = aux FileDependencyGraph.empty fpath_in in
-  FileDependencyGraph.topological_sort graph
+  match FileDependencyGraph.topological_sort graph with
+  | None          -> raise CyclicFileDependencyFound
+  | Some(sources) -> sources
 
 
 let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
@@ -260,6 +264,10 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
 
   | ParserInterface.Error(rng) ->
       Format.printf "%a: syntax error\n" Range.pp rng;
+      exit 1
+
+  | CyclicFileDependencyFound ->
+      Format.printf "cyclic file dependency found (TODO: detailed explanation)\n";
       exit 1
 
   | ConflictInSignature(rng, x) ->

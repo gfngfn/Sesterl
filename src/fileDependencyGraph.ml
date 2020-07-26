@@ -4,6 +4,8 @@ open Syntax
 
 module GraphImpl = Graph.Persistent.Digraph.Abstract(String)
 
+module TraverseImpl = Graph.Traverse.Dfs(GraphImpl)
+
 module TopologicalImpl = Graph.Topological.Make(GraphImpl)
 
 module PathMap = Map.Make(String)
@@ -55,13 +57,16 @@ let add_edge ~depending:(vertex2 : vertex) ~depended:(vertex1 : vertex) (graph :
   (graph, vertex1)
 
 
-let topological_sort (graph : t) : file_info list =
-  let paths = graph.paths in
-  let acc =
-    TopologicalImpl.fold (fun vertex acc ->
-      let fpath = GraphImpl.V.label vertex in
-      let content = (get_entry paths fpath).content in
-      Alist.extend acc (fpath, content)
-    ) graph.main Alist.empty
-  in
-  Alist.to_list acc
+let topological_sort (graph : t) : (file_info list) option =
+  if TraverseImpl.has_cycle graph.main then
+    None
+  else
+    let paths = graph.paths in
+    let acc =
+      TopologicalImpl.fold (fun vertex acc ->
+        let fpath = GraphImpl.V.label vertex in
+        let content = (get_entry paths fpath).content in
+        Alist.extend acc (fpath, content)
+      ) graph.main Alist.empty
+    in
+    Some(Alist.to_list acc)
