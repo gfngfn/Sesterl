@@ -340,9 +340,6 @@ let write_primitive_module_to_file (dir_out : string) : unit =
 
 
 let main (dir_out : string) (gmap : global_name_map) (sname : space_name) (ibinds : binding list) : global_name_map =
-(*
-  Format.printf "@[<v>%a@]" (Format.pp_print_list pp_binding) ibinds;
-*)
   let (omodbinds, gmap_after) =
     let spacepath = Alist.extend Alist.empty sname in
     traverse_binding_list gmap spacepath ibinds
@@ -352,11 +349,3 @@ let main (dir_out : string) (gmap : global_name_map) (sname : space_name) (ibind
     write_module_to_file dir_out omodbind
   );
   gmap_after
-
-
-(*
-  let sbinds = omodbinds |> List.map stringify_module_binding_output |> List.concat in
-  let lines =
-  in
-  lines |> List.map (fun s -> s ^ "\n") |> String.concat ""
-*)

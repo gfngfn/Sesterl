@@ -35,17 +35,7 @@ and functor_signature = {
     [@printer (fun ppf (oidset, modsig) -> Format.fprintf ppf "(%a, _)" pp_opaque_id_set oidset)]
   closure  : (module_name ranged * untyped_module * environment) option;
 }
-(*
-[@@printer (fun ppf sigftor ->
-  let oidset1 = sigftor.opaques in
-  let (oidset2, cod) = sigftor.codomain in
-  Format.fprintf ppf "(forall%s) %a@ ->@ (exists%s) %a"
-    (stringify_opaque_id_set oidset1)
-    pp_functor_domain sigftor.domain
-    (stringify_opaque_id_set oidset2)
-    pp_module_signature cod
-)]
-*)
+
 and functor_domain =
   | Domain of record_signature
 
