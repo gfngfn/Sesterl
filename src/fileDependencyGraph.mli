@@ -1,16 +1,17 @@
 
+open MyUtil
 open Syntax
 
 type vertex
 
 type t
 
-type file_info = string * (module_name ranged * untyped_module)
-
 val empty : t
 
-val add_vertex : file_info -> t -> (t * vertex) option
+val mem : absolute_path -> t -> bool
 
-val add_edge : depending:vertex -> depended:vertex -> t -> t * vertex
+val add_vertex : absolute_path -> t -> t * vertex
 
-val topological_sort : t -> (file_info list) option
+val add_edge : depending:vertex -> depended:vertex -> t -> t
+
+val topological_sort : t -> (absolute_path list) option

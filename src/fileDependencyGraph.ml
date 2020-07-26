@@ -12,11 +12,8 @@ module PathMap = Map.Make(String)
 
 type vertex = GraphImpl.V.t
 
-type file_info = string * (module_name ranged * untyped_module)
-
 type entry = {
   vertex  : vertex;
-  content : module_name ranged * untyped_module;
 }
 
 type t = {
@@ -31,42 +28,34 @@ let empty : t = {
 }
 
 
-let add_vertex ((fpath, content) : file_info) (graph : t) : (t * vertex) option =
-  if graph.paths |> PathMap.mem fpath then
-    None
-  else
-    let vertex = GraphImpl.V.create fpath in
-    let entry = { vertex = vertex; content = content; } in
-    let graph =
-      {
-        paths = graph.paths |> PathMap.add fpath entry;
-        main  = GraphImpl.add_vertex graph.main vertex;
-      }
-    in
-    Some(graph, vertex)
+let mem (fpath : absolute_path) (graph : t) : bool =
+  graph.paths |> PathMap.mem fpath
 
 
-let get_entry paths fpath =
-  match paths |> PathMap.find_opt fpath with
-  | None    -> assert false
-  | Some(r) -> r
+let add_vertex (abspath : absolute_path) (graph : t) : t * vertex =
+  let vertex = GraphImpl.V.create abspath in
+  let entry = { vertex = vertex; } in
+  let graph =
+    {
+      paths = graph.paths |> PathMap.add abspath entry;
+      main  = GraphImpl.add_vertex graph.main vertex;
+    }
+  in
+  (graph, vertex)
 
 
-let add_edge ~depending:(vertex2 : vertex) ~depended:(vertex1 : vertex) (graph : t) : t * vertex =
-  let graph = { graph with main = GraphImpl.add_edge graph.main vertex1 vertex2 } in
-  (graph, vertex1)
+let add_edge ~depending:(vertex2 : vertex) ~depended:(vertex1 : vertex) (graph : t) : t =
+  { graph with main = GraphImpl.add_edge graph.main vertex1 vertex2 }
 
 
-let topological_sort (graph : t) : (file_info list) option =
+let topological_sort (graph : t) : (absolute_path list) option =
   if TraverseImpl.has_cycle graph.main then
     None
   else
-    let paths = graph.paths in
     let acc =
       TopologicalImpl.fold (fun vertex acc ->
-        let fpath = GraphImpl.V.label vertex in
-        let content = (get_entry paths fpath).content in
-        Alist.extend acc (fpath, content)
+        let abspath = GraphImpl.V.label vertex in
+        Alist.extend acc abspath
       ) graph.main Alist.empty
     in
     Some(Alist.to_list acc)

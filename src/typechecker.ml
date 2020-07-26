@@ -2427,12 +2427,9 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
   ((oidsetacc, sigracc), Alist.to_list ibindacc)
 
 
-let main (modident : module_name ranged) (utmod : untyped_module) : SigRecord.t abstracted * space_name * binding list =
-  let sname =
-    let (rng, modname) = modident in
-    get_space_name rng modname
-  in
-  let (tyenv, _) = Primitives.initial_environment in
+let main (tyenv : Typeenv.t) (modident : module_name ranged) (utmod : untyped_module) : Typeenv.t * SigRecord.t abstracted * space_name * binding list =
+  let (rng, modnm) = modident in
+  let sname = get_space_name rng modnm in
   let (absmodsig, ibinds) = typecheck_module tyenv utmod in
   let (oidset, modsig) = absmodsig in
   match modsig with
@@ -2441,4 +2438,5 @@ let main (modident : module_name ranged) (utmod : untyped_module) : SigRecord.t 
       raise_error (RootModuleMustBeStructure(rng))
 
   | ConcStructure(sigr) ->
-      ((oidset, sigr), sname, ibinds)
+      let tyenv = tyenv |> Typeenv.add_module modnm modsig sname in
+      (tyenv, (oidset, sigr), sname, ibinds)

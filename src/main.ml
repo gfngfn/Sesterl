@@ -220,7 +220,7 @@ let make_absolute_path (dir : absolute_dir) (fpath : string) : absolute_path =
     fpath
 
 
-let read_source (fpath_in : absolute_path) : absolute_path list * module_name ranged * untyped_module =
+let read_source (fpath_in : absolute_path) : absolute_path list * (module_name ranged * untyped_module) =
   let inc = open_in fpath_in in
   let lexbuf = Lexing.from_channel inc in
   let (deps_raw, modident, utmod) = ParserInterface.process lexbuf in
@@ -229,21 +229,47 @@ let read_source (fpath_in : absolute_path) : absolute_path list * module_name ra
     deps_raw |> List.map (make_absolute_path dir)
   in
   close_in inc;
-  (deps, modident, utmod)
+  (deps, (modident, utmod))
 
 
-let read_source_recursively (fpath_in : absolute_path) : (absolute_path * (module_name ranged * untyped_module)) list =
-  let rec aux (graph : FileDependencyGraph.t) (fpath_in : absolute_path) : FileDependencyGraph.t =
-    let (deps, modident, utmod) = read_source fpath_in in
-    let content = (modident, utmod) in
-    match graph |> FileDependencyGraph.add_vertex (fpath_in, content) with
-    | None                            -> graph
-    | Some((graph, vertex_depending)) -> deps |> List.fold_left aux graph
+module ContentMap = Map.Make(String)
+
+type reading_state = {
+  loaded : (module_name ranged * untyped_module) ContentMap.t;
+  graph  : FileDependencyGraph.t;
+}
+
+
+let read_source_recursively (abspath : absolute_path) : (absolute_path * (module_name ranged * untyped_module)) list =
+  let rec aux (state : reading_state) (vertex : FileDependencyGraph.vertex) (abspath : absolute_path) : reading_state =
+    let (deps, content) = read_source abspath in
+    let loaded = state.loaded |> ContentMap.add abspath content in
+    deps |> List.fold_left (fun state abspath_sub ->
+      let graph = state.graph in
+      if graph |> FileDependencyGraph.mem abspath_sub then
+        state
+      else
+        let () = Format.printf "######## '%s' ---> '%s'\n" abspath abspath_sub in
+        let (graph, vertex_sub) = graph |> FileDependencyGraph.add_vertex abspath_sub in
+        let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
+        aux { state with graph = graph } vertex_sub abspath_sub
+    ) { state with loaded = loaded }
   in
-  let graph = aux FileDependencyGraph.empty fpath_in in
-  match FileDependencyGraph.topological_sort graph with
-  | None          -> raise CyclicFileDependencyFound
-  | Some(sources) -> sources
+  let state =
+    let (graph, vertex) = FileDependencyGraph.empty |> FileDependencyGraph.add_vertex abspath in
+    let state = { graph = graph; loaded = ContentMap.empty } in
+    aux state vertex abspath
+  in
+  match FileDependencyGraph.topological_sort state.graph with
+  | None ->
+      raise CyclicFileDependencyFound
+
+  | Some(sources) ->
+      sources |> List.map (fun abspath ->
+        match state.loaded |> ContentMap.find_opt abspath with
+        | None          -> assert false
+        | Some(content) -> (abspath, content)
+      )
 
 
 let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
@@ -253,16 +279,20 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       make_absolute_path dir fpath_in
     in
     let sources = read_source_recursively abspath_in in
-    let outs =
-      sources |> List.map (fun (_, (modident, utmod)) ->
-        let ((_, sigr), sname, binds) = Typechecker.main modident utmod in
+    let (_, outacc) =
+      let (tyenv, _) = Primitives.initial_environment in
+      sources |> List.fold_left (fun (tyenv, outacc) (abspath, (modident, utmod)) ->
+        Format.printf "type checking '%s' ...\n" abspath;
+        let (tyenv, (oidset, sigr), sname, binds) = Typechecker.main tyenv modident utmod in
         if is_verbose then display_structure 0 sigr;
-        (sname, binds)
-      )
+        let outacc = Alist.extend outacc (sname, binds) in
+        (tyenv, outacc)
+      ) (tyenv, Alist.empty)
     in
-    outs |> List.iter (fun (sname, binds) ->
-      OutputErlangCode.main dir_out sname binds
-    )
+    let (_, gmap) = Primitives.initial_environment in
+    outacc |> Alist.to_list |> List.fold_left (fun gmap (sname, binds) ->
+      OutputErlangCode.main dir_out gmap sname binds
+    ) gmap |> ignore
   with
   | Sys_error(msg) ->
       Format.printf "system error: %s\n" msg;
