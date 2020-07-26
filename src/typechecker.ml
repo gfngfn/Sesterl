@@ -1528,8 +1528,13 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
            it will be done by `check_well_formedness_of_witness_map` afterwards.
         *)
         sigr2 |> SigRecord.fold
-            ~v:(fun _ _ wtmapacc ->
-              wtmapacc
+            ~v:(fun x2 (pty2, gname2) wtmapacc ->
+              match sigr1 |> SigRecord.find_val x2 with
+              | None ->
+                  raise_error (MissingRequiredValName(rng, x2, pty2))
+
+              | Some(_, gname1) ->
+                  wtmapacc |> WitnessMap.add_name gname2 gname1
             )
             ~t:(fun tydefs2 wtmapacc ->
               tydefs2 |> List.fold_left (fun wtmapacc (tynm2, tyopac2) ->
@@ -1725,8 +1730,13 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
 and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord.t =
   let (sigr, _wtmap) =
     sigr |> SigRecord.map_and_fold
-        ~v:(fun (pty, name) wtmap ->
-          let ventry = (substitute_poly_type wtmap pty, name) in
+        ~v:(fun (pty, gname_from) wtmap ->
+          let gname_to =
+            match wtmap |> WitnessMap.find_name gname_from with
+            | None        -> gname_from
+            | Some(gname) -> gname
+          in
+          let ventry = (substitute_poly_type wtmap pty, gname_to) in
           (ventry, wtmap)
         )
         ~t:(fun tyopacs_from wtmap ->
