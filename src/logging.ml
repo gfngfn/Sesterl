@@ -25,7 +25,20 @@ let begin_to_typecheck (abspath : absolute_path) =
     abspath
 
 
+let report_unsupported_feature (msg : string) =
+  Format.printf "! [Unsupported] \"%s\"\n" msg
+
+
+let report_system_error (msg : string) =
+  Format.printf "! [Error] system error: %s\n" msg
+
+
+let report_parser_error (rng : Range.t) =
+  Format.printf "%a: syntax error\n" Range.pp rng
+
+
 let report_lexer_error (e : lexer_error) : unit =
+  Format.printf "! [Syntax error] ";
   match e with
   | UnidentifiedToken(rng, s) ->
       Format.printf "%a: unidentified token '%s'\n"
@@ -50,6 +63,7 @@ let report_lexer_error (e : lexer_error) : unit =
 
 
 let report_type_error (e : type_error) : unit =
+  Format.printf "! [Type error] ";
   match e with
   | UnboundVariable(rng, x) ->
       Format.printf "%a: unbound variable '%s'\n" Range.pp rng x
