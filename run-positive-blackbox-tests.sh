@@ -4,6 +4,8 @@ BIN="./sesterl"
 SOURCE_DIR="test/pass"
 TARGET_DIR="test/_generated"
 
+mkdir -p "$TARGET_DIR"
+
 ERRORS=()
 
 for SOURCE in "$SOURCE_DIR"/*.sest; do
