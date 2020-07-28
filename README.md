@@ -385,7 +385,8 @@ main() ->
   * [x] Pattern matching
   * [x] Type synonyms
   * [ ] Records
-  * [ ] GADTs (for synchronous messages)
+  * [ ] Functions with labeled parameters
+  * [ ] GADTs (especially for typing synchronous messages)
 * [x] Mutual recursion by generalized `letrec`-expressions
 * [x] Pattern matching by generalized `let`-expressions
 * [x] Module system
