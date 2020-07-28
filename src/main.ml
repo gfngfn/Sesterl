@@ -88,11 +88,11 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
     ) gmap |> ignore
   with
   | Sys_error(msg) ->
-      Format.printf "system error: %s\n" msg;
+      Logging.report_system_error msg;
       exit 1
 
   | Failure(msg) ->
-      Format.printf "unsupported \"%s\"\n" msg;
+      Logging.report_unsupported_feature msg;
       exit 1
 
   | LexerError(e) ->
@@ -100,15 +100,15 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       exit 1
 
   | ParserInterface.Error(rng) ->
-      Format.printf "%a: syntax error\n" Range.pp rng;
+      Logging.report_parser_error rng;
       exit 1
 
   | CyclicFileDependencyFound ->
-      Format.printf "cyclic file dependency found (TODO: detailed explanation)\n";
+      Format.printf "! [Build error] cyclic file dependency found (TODO: detailed explanation)\n";
       exit 1
 
   | ConflictInSignature(rng, x) ->
-      Format.printf "%a: '%s' is already defined in the signature\n"
+      Format.printf "! [Type error] %a: '%s' is already defined in the signature\n"
         Range.pp rng
         x;
       exit 1
