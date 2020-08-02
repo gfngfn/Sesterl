@@ -1,15 +1,6 @@
 
 open MyUtil
 
-type lexer_error =
-  | UnidentifiedToken                of Range.t * string
-  | SeeEndOfFileInComment            of Range.t
-  | SeeEndOfFileInStringLiteral      of Range.t
-  | BlockClosedWithTooManyBackQuotes of Range.t
-  | SeeBreakInStringLiteral          of Range.t
-
-exception LexerError of lexer_error
-
 
 type 'a ranged = Range.t * 'a
 

@@ -2,6 +2,13 @@
 open Syntax
 open Env
 
+type lexer_error =
+  | UnidentifiedToken                of Range.t * string
+  | SeeEndOfFileInComment            of Range.t
+  | SeeEndOfFileInStringLiteral      of Range.t
+  | BlockClosedWithTooManyBackQuotes of Range.t
+  | SeeBreakInStringLiteral          of Range.t
+
 type type_error =
   | UnboundVariable                     of Range.t * identifier
   | ContradictionError                  of mono_type * mono_type

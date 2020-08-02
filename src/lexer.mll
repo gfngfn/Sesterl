@@ -1,10 +1,14 @@
 {
   open Syntax
   open Parser
+  open TypeError
+
+
+  exception Error of lexer_error
 
 
   let raise_error e =
-    raise (LexerError(e))
+    raise (Error(e))
 }
 
 let space = [' ' '\t']

@@ -95,7 +95,7 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       Logging.report_unsupported_feature msg;
       exit 1
 
-  | LexerError(e) ->
+  | Lexer.Error(e) ->
       Logging.report_lexer_error e;
       exit 1
 
