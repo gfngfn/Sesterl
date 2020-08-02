@@ -10,7 +10,7 @@ let make_absolute_path (dir : absolute_dir) (fpath : string) : absolute_path =
   if Filename.is_relative fpath then
     Core.Filename.realpath (Filename.concat dir fpath)
   else
-    fpath
+    Core.Filename.realpath fpath
 
 
 let read_source (fpath_in : absolute_path) : absolute_path list * (module_name ranged * untyped_module) =
