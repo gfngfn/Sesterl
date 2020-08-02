@@ -38,3 +38,4 @@ type type_error =
   | SupportOnlyFirstOrderFunctor        of Range.t
   | RootModuleMustBeStructure           of Range.t
   | InvalidIdentifier                   of Range.t * string
+  | ConflictInSignature                 of Range.t * string

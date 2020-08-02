@@ -1912,7 +1912,11 @@ and typecheck_declaration_list (tyenv : Typeenv.t) (utdecls : untyped_declaratio
     utdecls |> List.fold_left (fun (oidsetacc, sigracc, tyenv) ((rng, _) as utdecl) ->
       let (oidset, sigr) = typecheck_declaration tyenv utdecl in
       let oidsetacc = OpaqueIDSet.union oidsetacc oidset in
-      let sigracc = SigRecord.disjoint_union rng sigracc sigr in
+      let sigracc =
+        match SigRecord.disjoint_union sigracc sigr with
+        | Ok(sigr) -> sigr
+        | Error(s) -> raise_error (ConflictInSignature(rng, s))
+      in
       let tyenv = tyenv |> update_type_environment_by_signature_record sigr in
       (oidsetacc, sigracc, tyenv)
     ) (OpaqueIDSet.empty, SigRecord.empty, tyenv)
@@ -2388,13 +2392,15 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
       let tyenv = tyenv |> update_type_environment_by_signature_record sigr in
       let oidsetacc = OpaqueIDSet.union oidsetacc oidset in
       let sigracc =
-        let (rng, _) = utbind in
-        SigRecord.disjoint_union rng sigracc sigr in
-        (* --
-           In the original paper "F-ing modules" [Rossberg, Russo & Dreyer 2014],
-           this operation is not disjoint union, but union with right-hand side precedence.
-           For the sake of clarity, however, we adopt disjoint union here, at least for now.
-           -- *)
+        match SigRecord.disjoint_union sigracc sigr with
+        | Ok(sigr) -> sigr
+        | Error(s) -> let (rng, _) = utbind in raise_error (ConflictInSignature(rng, s))
+          (* --
+             In the original paper "F-ing modules" [Rossberg, Russo & Dreyer 2014],
+             this operation is not disjoint union, but union with right-hand side precedence.
+             For the sake of clarity, however, we adopt disjoint union here, at least for now.
+             -- *)
+      in
       let ibindacc = Alist.append ibindacc ibinds in
       (tyenv, oidsetacc, sigracc, ibindacc)
     ) (tyenv, OpaqueIDSet.empty, SigRecord.empty, Alist.empty)

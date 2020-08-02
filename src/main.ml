@@ -107,12 +107,6 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       Format.printf "! [Build error] cyclic file dependency found (TODO: detailed explanation)\n";
       exit 1
 
-  | ConflictInSignature(rng, x) ->
-      Format.printf "! [Type error] %a: '%s' is already defined in the signature\n"
-        Range.pp rng
-        x;
-      exit 1
-
   | Typechecker.Error(e) ->
       Logging.report_type_error e;
       exit 1

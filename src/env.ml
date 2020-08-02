@@ -394,24 +394,32 @@ module SigRecord = struct
     { sr_vals; sr_types; sr_modules; sr_sigs; sr_ctors }
 *)
 
-  let disjoint_union (rng : Range.t) (sigr1 : t) (sigr2 : t) : t =
+  exception Conflict of string
+
+
+  let disjoint_union (sigr1 : t) (sigr2 : t) : (t, string) result =
     let check_none s opt =
       match opt with
       | None    -> ()
-      | Some(_) -> raise (ConflictInSignature(rng, s))
+      | Some(_) -> raise (Conflict(s))
     in
-    sigr2 |> Alist.to_list |> List.fold_left (fun sigracc entry ->
-      let () =
-        match entry with
-        | SRVal(x, _)        -> check_none x (find_val x sigr1)
-        | SRRecTypes(tydefs) -> tydefs |> List.iter (fun (tynm, _) -> check_none tynm (find_type tynm sigr1))
-        | SRModule(modnm, _) -> check_none modnm (find_module modnm sigr1)
-        | SRSig(signm, _)    -> check_none signm (find_signature signm sigr1)
-        | SRCtor(ctor, _)    -> check_none ctor (find_constructor ctor sigr1)
+    try
+      let sigr =
+        sigr2 |> Alist.to_list |> List.fold_left (fun sigracc entry ->
+          let () =
+            match entry with
+            | SRVal(x, _)        -> check_none x (find_val x sigr1)
+            | SRRecTypes(tydefs) -> tydefs |> List.iter (fun (tynm, _) -> check_none tynm (find_type tynm sigr1))
+            | SRModule(modnm, _) -> check_none modnm (find_module modnm sigr1)
+            | SRSig(signm, _)    -> check_none signm (find_signature signm sigr1)
+            | SRCtor(ctor, _)    -> check_none ctor (find_constructor ctor sigr1)
+          in
+          Alist.extend sigracc entry
+        ) sigr1
       in
-      Alist.extend sigracc entry
-    ) sigr1
-
+      Ok(sigr)
+    with
+    | Conflict(s) -> Error(s)
 end
 
 

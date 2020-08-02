@@ -116,7 +116,7 @@ module SigRecord : sig
     c:(constructor_entry -> constructor_entry) ->
     t -> t
 
-  val disjoint_union : Range.t -> t -> t -> t
+  val disjoint_union : t -> t -> (t, string) result
 
 end
 

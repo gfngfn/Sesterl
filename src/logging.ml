@@ -240,3 +240,8 @@ let report_type_error (e : type_error) : unit =
       Format.printf "%a: invalid identifier '%s'\n"
         Range.pp rng
         s
+
+  | ConflictInSignature(rng, x) ->
+      Format.printf "! [Type error] %a: '%s' is already defined in the signature\n"
+        Range.pp rng
+        x

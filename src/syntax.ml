@@ -10,8 +10,6 @@ type lexer_error =
 
 exception LexerError of lexer_error
 
-exception ConflictInSignature of Range.t * string
-
 
 type 'a ranged = Range.t * 'a
 
