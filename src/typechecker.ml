@@ -434,7 +434,7 @@ and opaque_occurs_in_type_id (oidset : OpaqueIDSet.t) (tyid : TypeID.t) : bool =
       false
 
   | TypeID.Synonym(sid) ->
-      let (_, pty) = TypeSynonymStore.find_synonym_type sid in
+      let (_, pty) = TypeDefinitionStore.find_synonym_type sid in
       opaque_occurs_in_poly_type oidset pty
 
 
@@ -472,7 +472,7 @@ and opaque_occurs_in_structure (oidset : OpaqueIDSet.t) (sigr : SigRecord.t) : b
 
 
 let get_real_type_scheme (type a) (substf : (a typ) BoundIDMap.t -> poly_type -> a typ) (sid : TypeID.Synonym.t) (tyargs : (a typ) list) : a typ =
-  let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
+  let (typarams, ptyreal) = TypeDefinitionStore.find_synonym_type sid in
   try
     let substmap =
       List.fold_left2 (fun substmap typaram tyarg ->
@@ -1562,8 +1562,8 @@ and check_well_formedness_of_witness_map (rng : Range.t) (wtmap : WitnessMap.t) 
   in
   wtmap |> WitnessMap.fold
       ~variant:(fun vid2 vid1 () ->
-        let (typarams1, ctorbrs1) = TypeSynonymStore.find_variant_type vid1 in
-        let (typarams2, ctorbrs2) = TypeSynonymStore.find_variant_type vid2 in
+        let (typarams1, ctorbrs1) = TypeDefinitionStore.find_variant_type vid1 in
+        let (typarams2, ctorbrs2) = TypeDefinitionStore.find_variant_type vid2 in
         let brpairs = ConstructorMap.merge (mergef vid1 vid2) ctorbrs1 ctorbrs2 in
         brpairs |> ConstructorMap.iter (fun ctor (def1, def2) ->
           let (_, ptyargs1) = def1 in
@@ -1584,8 +1584,8 @@ and check_well_formedness_of_witness_map (rng : Range.t) (wtmap : WitnessMap.t) 
         )
       )
       ~synonym:(fun sid2 sid1 () ->
-        let ptyfun1 = TypeSynonymStore.find_synonym_type sid1 in
-        let ptyfun2 = TypeSynonymStore.find_synonym_type sid2 in
+        let ptyfun1 = TypeDefinitionStore.find_synonym_type sid1 in
+        let ptyfun2 = TypeDefinitionStore.find_synonym_type sid2 in
         if subtype_type_abstraction wtmap ptyfun1 ptyfun2 then
           ()
         else
@@ -1744,7 +1744,7 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
             tyopacs_from |> List.map (fun (tyid_from, arity) ->
               match tyid_from with
               | TypeID.Synonym(sid_from) ->
-                  let (typarams, ptyreal_from) = TypeSynonymStore.find_synonym_type sid_from in
+                  let (typarams, ptyreal_from) = TypeDefinitionStore.find_synonym_type sid_from in
                   let ptyreal_to = ptyreal_from |> substitute_poly_type wtmap in
                   begin
                     match wtmap |> WitnessMap.find_synonym sid_from with
@@ -1752,7 +1752,7 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
                         assert false
 
                     | Some(sid_to) ->
-                        TypeSynonymStore.add_synonym_type sid_to typarams ptyreal_to;
+                        TypeDefinitionStore.add_synonym_type sid_to typarams ptyreal_to;
                         (TypeID.Synonym(sid_to), arity)
                   end
 
@@ -1763,7 +1763,7 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
                         assert false
 
                     | Some(vid_to) ->
-                        let (typarams, ctorbrs_from) = TypeSynonymStore.find_variant_type vid_from in
+                        let (typarams, ctorbrs_from) = TypeDefinitionStore.find_variant_type vid_from in
                         let ctorbrs_to =
                           ConstructorMap.fold (fun ctornm (ctorid_from, ptyargs_from) ctorbrs_to ->
                             let ptyargs_to = ptyargs_from |> List.map (substitute_poly_type wtmap) in
@@ -1771,7 +1771,7 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
                             ctorbrs_to |> ConstructorMap.add ctornm (ctorid_to, ptyargs_to)
                           ) ctorbrs_from ConstructorMap.empty
                         in
-                        TypeSynonymStore.add_variant_type vid_to typarams ctorbrs_to;
+                        TypeDefinitionStore.add_variant_type vid_to typarams ctorbrs_to;
                         (TypeID.Variant(vid_to), arity)
                   end
 
@@ -2071,7 +2071,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                   if arity_actual = kd then
                     let modsigret =
                       let sid = TypeID.Synonym.fresh tynm1 in
-                      TypeSynonymStore.add_synonym_type sid typarams pty;
+                      TypeDefinitionStore.add_synonym_type sid typarams pty;
                       let wtmap =
                         WitnessMap.empty |> WitnessMap.add_opaque oid (TypeID.Synonym(sid))
                       in
@@ -2197,7 +2197,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
               graph |> DependencyGraph.add_edge sid siddep
             ) dependencies
           in
-          TypeSynonymStore.add_synonym_type sid typarams ptyreal;
+          TypeDefinitionStore.add_synonym_type sid typarams ptyreal;
           let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Synonym(sid), List.length typarams)) in
 (*
           Format.printf "SYN %s %a <%d> = %a\n" tynm TypeID.Synonym.pp sid (List.length typarams) pp_poly_type ptyreal;  (* for debug *)
@@ -2217,7 +2217,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           let ctorbrmap =
             make_constructor_branch_map { pre with tyenv } ctorbrs
           in
-          TypeSynonymStore.add_variant_type vid typarams ctorbrmap;
+          TypeDefinitionStore.add_variant_type vid typarams ctorbrmap;
           let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Variant(vid), List.length typarams)) in
           let ctordefacc = Alist.extend ctordefacc (vid, typarams, ctorbrmap) in
           (tydefacc, ctordefacc)

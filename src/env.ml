@@ -455,7 +455,7 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
           let (tyid, arity) = tyopac in
           match tyid with
           | TypeID.Synonym(sid) ->
-              let (typarams, ptyreal) = TypeSynonymStore.find_synonym_type sid in
+              let (typarams, ptyreal) = TypeDefinitionStore.find_synonym_type sid in
               Format.printf "%stype %a%a = %a\n"
                 indent
                 TypeID.Synonym.pp sid
@@ -463,7 +463,7 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
                 pp_poly_type ptyreal
 
           | TypeID.Variant(vid) ->
-              let (typarams, _ctorbrs) = TypeSynonymStore.find_variant_type vid in
+              let (typarams, _ctorbrs) = TypeDefinitionStore.find_variant_type vid in
               Format.printf "%stype %a%a = (variant)\n"
                 indent
                 TypeID.Variant.pp vid
