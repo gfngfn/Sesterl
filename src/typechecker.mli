@@ -1,7 +1,7 @@
 
 open Syntax
 open Env
-open TypeError
+open Errors
 
 exception Error of type_error
 

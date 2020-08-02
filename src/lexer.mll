@@ -1,7 +1,7 @@
 {
   open Syntax
   open Parser
-  open TypeError
+  open Errors
 
 
   exception Error of lexer_error

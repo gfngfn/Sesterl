@@ -1,7 +1,7 @@
 
 open MyUtil
 open Syntax
-open TypeError
+open Errors
 
 
 let warn_val_not_used (rng : Range.t) (x : identifier) =
