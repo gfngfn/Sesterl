@@ -8,7 +8,7 @@ type t
 
 val empty : t
 
-val mem : absolute_path -> t -> bool
+val find_vertex : absolute_path -> t -> vertex option
 
 val add_vertex : absolute_path -> t -> t * vertex
 

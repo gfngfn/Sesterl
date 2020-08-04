@@ -28,8 +28,8 @@ let empty : t = {
 }
 
 
-let mem (fpath : absolute_path) (graph : t) : bool =
-  graph.paths |> PathMap.mem fpath
+let find_vertex (fpath : absolute_path) (graph : t) : vertex option =
+  graph.paths |> PathMap.find_opt fpath |> Option.map (fun entry -> entry.vertex)
 
 
 let add_vertex (abspath : absolute_path) (graph : t) : t * vertex =
@@ -45,6 +45,7 @@ let add_vertex (abspath : absolute_path) (graph : t) : t * vertex =
 
 
 let add_edge ~depending:(vertex2 : vertex) ~depended:(vertex1 : vertex) (graph : t) : t =
+  Format.printf "#### EDGE %s --> %s\n" (GraphImpl.V.label vertex1) (GraphImpl.V.label vertex2);
   { graph with main = GraphImpl.add_edge graph.main vertex1 vertex2 }
 
 

@@ -40,12 +40,15 @@ let read_source_recursively (abspath : absolute_path) : (absolute_path * (module
     let loaded = state.loaded |> ContentMap.add abspath content in
     deps |> List.fold_left (fun state abspath_sub ->
       let graph = state.graph in
-      if graph |> FileDependencyGraph.mem abspath_sub then
-        state
-      else
-        let (graph, vertex_sub) = graph |> FileDependencyGraph.add_vertex abspath_sub in
-        let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
-        aux { state with graph = graph } vertex_sub abspath_sub
+      match graph |> FileDependencyGraph.find_vertex abspath_sub with
+      | Some(vertex_sub) ->
+          let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
+          { state with graph = graph }
+
+      | None ->
+          let (graph, vertex_sub) = graph |> FileDependencyGraph.add_vertex abspath_sub in
+          let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
+          aux { state with graph = graph } vertex_sub abspath_sub
     ) { state with loaded = loaded }
   in
   let state =
