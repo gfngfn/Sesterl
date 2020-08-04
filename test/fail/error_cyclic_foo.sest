@@ -1,0 +1,5 @@
+require "./error_cyclic_bar.sest"
+
+module ErrorCyclicFoo = struct
+  let main() = ()
+end
