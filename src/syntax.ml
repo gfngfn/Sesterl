@@ -181,24 +181,34 @@ and untyped_declaration_main =
   | DeclInclude    of untyped_signature
 [@@deriving show { with_path = false; } ]
 
-type 'a typ =
-  ('a typ_main) ranged
+module LabelAssoc = Map.Make(String)
 
-and 'a typ_main =
+module FreeRowID = FreeID  (* temporary *)
+
+module BoundRowID = BoundID  (* temporary *)
+
+type ('a, 'b) typ =
+  (('a, 'b) typ_main) ranged
+
+and ('a, 'b) typ_main =
   | BaseType    of base_type
-  | FuncType    of ('a typ) list * 'a typ
-  | PidType     of 'a pid_type
-  | EffType     of 'a effect * 'a typ
+  | FuncType    of (('a, 'b) typ) list * ('a, 'b) row * ('a, 'b) typ
+  | PidType     of ('a, 'b) pid_type
+  | EffType     of ('a, 'b) effect * ('a, 'b) typ
   | TypeVar     of 'a
-  | ProductType of ('a typ) TupleList.t
-  | ListType    of 'a typ
-  | DataType    of TypeID.t * ('a typ) list
+  | ProductType of (('a, 'b) typ) TupleList.t
+  | ListType    of ('a, 'b) typ
+  | DataType    of TypeID.t * (('a, 'b) typ) list
 
-and 'a effect =
-  | Effect of 'a typ
+and ('a, 'b) effect =
+  | Effect of ('a, 'b) typ
 
-and 'a pid_type =
-  | Pid of 'a typ
+and ('a, 'b) pid_type =
+  | Pid of ('a, 'b) typ
+
+and ('a, 'b) row =
+  | FixedRow of (('a, 'b) typ) LabelAssoc.t
+  | RowVar   of 'b
 
 type mono_type_var_updatable =
   | Free of FreeID.t
@@ -208,15 +218,28 @@ and mono_type_var =
   | Updatable   of mono_type_var_updatable ref
   | MustBeBound of MustBeBoundID.t
 
-and mono_type = mono_type_var typ
+and mono_row_var_updatable =
+  | FreeRow of FreeRowID.t
+  | LinkRow of mono_type LabelAssoc.t
+
+and mono_row_var =
+  | UpdatableRow of mono_row_var_updatable ref
+
+and mono_type = (mono_type_var, mono_row_var) typ
 
 type poly_type_var =
   | Mono  of mono_type_var
   | Bound of BoundID.t
 
-type poly_type = poly_type_var typ
+type poly_row_var =
+  | MonoRow  of mono_row_var
+  | BoundRow of BoundRowID.t
+
+and poly_type = (poly_type_var, poly_row_var) typ
 
 module FreeIDHashTable = Hashtbl.Make(FreeID)
+
+module FreeRowIDHashTable = Hashtbl.Make(FreeRowID)
 
 
 (* --
@@ -227,6 +250,7 @@ Arguments:
 let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_type) : poly_type =
 
   let fidht = FreeIDHashTable.create 32 in
+  let fridht = FreeRowIDHashTable.create 32 in
 
   let intern fid =
     match FreeIDHashTable.find_opt fidht fid with
@@ -237,6 +261,17 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let bid = BoundID.fresh () in
         FreeIDHashTable.add fidht fid bid;
         bid
+  in
+
+  let intern_row frid =
+    match FreeRowIDHashTable.find_opt fridht frid with
+    | Some(brid) ->
+        brid
+
+    | None ->
+        let brid = BoundRowID.fresh () in
+        FreeRowIDHashTable.add fridht frid brid;
+        brid
   in
 
   let rec aux (rng, tymain) =
@@ -267,10 +302,10 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         in
         (rngf rng, TypeVar(ptv))
 
-    | FuncType(tydoms, tycod) ->
+    | FuncType(tydoms, optrow, tycod) ->
         let ptydoms = tydoms |> List.map aux in
         let ptycod = aux tycod in
-        (rngf rng, FuncType(ptydoms, ptycod))
+        (rngf rng, FuncType(ptydoms, aux_option_row optrow, ptycod))
 
     | EffType(eff, ty0) ->
         (rngf rng, EffType(aux_effect eff, aux ty0))
@@ -295,6 +330,23 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
   and aux_pid_type (Pid(ty)) =
     let pty = aux ty in
     Pid(pty)
+
+  and aux_option_row = function
+    | FixedRow(labmap) ->
+        let plabmap = labmap |> LabelAssoc.map aux in
+        FixedRow(plabmap)
+
+    | RowVar(UpdatableRow{contents = LinkRow(labmap)}) ->
+        let plabmap = labmap |> LabelAssoc.map aux in
+        FixedRow(plabmap)
+
+    | RowVar((UpdatableRow{contents = FreeRow(frid)}) as mrv) ->
+        if levpred (FreeRowID.get_level frid) then
+          let brid = intern_row frid in
+          RowVar(BoundRow(brid))
+        else
+          RowVar(MonoRow(mrv))
+
   in
   aux ty
 
@@ -319,11 +371,13 @@ let lift (ty : mono_type) : poly_type =
 
 module BoundIDHashTable = Hashtbl.Make(BoundID)
 
+module BoundRowIDHashTable = Hashtbl.Make(BoundRowID)
+
 module BoundIDMap = Map.Make(BoundID)
 
 
-let instantiate_scheme (type a) (intern : Range.t -> poly_type_var -> a typ) (pty : poly_type) : a typ =
-
+let instantiate_scheme : 'a 'b. (Range.t -> poly_type_var -> ('a, 'b) typ) -> (poly_row_var -> 'b) -> poly_type -> ('a, 'b) typ =
+fun intern intern_row pty ->
   let rec aux (rng, ptymain) =
     match ptymain with
     | BaseType(bty) ->
@@ -332,10 +386,19 @@ let instantiate_scheme (type a) (intern : Range.t -> poly_type_var -> a typ) (pt
     | TypeVar(ptv) ->
         intern rng ptv
 
-    | FuncType(ptydoms, ptycod) ->
+    | FuncType(ptydoms, optrow, ptycod) ->
         let tydoms = ptydoms |> List.map aux in
+        let poptrow =
+          match optrow with
+          | FixedRow(labmap) ->
+              let plabmap = labmap |> LabelAssoc.map aux in
+              FixedRow(plabmap)
+
+          | RowVar(prv) ->
+              RowVar(intern_row prv)
+        in
         let tycod = aux ptycod in
-        (rng, FuncType(tydoms, tycod))
+        (rng, FuncType(tydoms, poptrow, tycod))
 
     | EffType(peff, pty0) ->
         let eff = aux_effect peff in
@@ -369,7 +432,9 @@ let instantiate_scheme (type a) (intern : Range.t -> poly_type_var -> a typ) (pt
 
 let instantiate (lev : int) (pty : poly_type) : mono_type =
   let bidht = BoundIDHashTable.create 32 in
-    (* -- a hash table is created at every (non-partial) call of `instantiate` -- *)
+  let bridht = BoundRowIDHashTable.create 32 in
+    (* -- hash tables are created at every (non-partial) call of `instantiate` -- *)
+
   let intern (rng : Range.t) (ptv : poly_type_var) : mono_type =
     match ptv with
     | Mono(mtv) ->
@@ -389,7 +454,24 @@ let instantiate (lev : int) (pty : poly_type) : mono_type =
         in
         (rng, TypeVar(mtv))
   in
-  instantiate_scheme intern pty
+  let intern_row (prv : poly_row_var) : mono_row_var =
+    match prv with
+    | MonoRow(mrv) ->
+        mrv
+
+    | BoundRow(brid) ->
+        begin
+          match BoundRowIDHashTable.find_opt bridht brid with
+          | Some(mrvu) ->
+              UpdatableRow(mrvu)
+
+          | None ->
+              let frid = FreeRowID.fresh lev in
+              let mrvu = ref (FreeRow(frid)) in
+              UpdatableRow(mrvu)
+        end
+  in
+  instantiate_scheme intern intern_row pty
 
 
 let instantiate_by_map (bfmap : mono_type_var BoundIDMap.t) =
@@ -405,7 +487,10 @@ let instantiate_by_map (bfmap : mono_type_var BoundIDMap.t) =
           | Some(mtv) -> (rng, TypeVar(mtv))
         end
   in
-  instantiate_scheme intern
+  let intern_row (prv : poly_row_var) =
+    failwith "TODO: instantiate_by_map, intern_row"
+  in
+  instantiate_scheme intern intern_row
 
 
 let substitute_mono_type (substmap : mono_type BoundIDMap.t) : poly_type -> mono_type =
@@ -421,7 +506,10 @@ let substitute_mono_type (substmap : mono_type BoundIDMap.t) : poly_type -> mono
           | Some(ty) -> ty
         end
   in
-  instantiate_scheme intern
+  let intern_row (prv : poly_row_var) =
+    failwith "TODO: substitute_mono_type, intern_row"
+  in
+  instantiate_scheme intern intern_row
 
 
 let substitute_poly_type (substmap : poly_type BoundIDMap.t) : poly_type -> poly_type =
@@ -437,10 +525,13 @@ let substitute_poly_type (substmap : poly_type BoundIDMap.t) : poly_type -> poly
           | Some(pty) -> pty
         end
   in
-  instantiate_scheme intern
+  let intern_row (prv : poly_row_var) =
+    failwith "TODO: substitute_poly_type, intern_row"
+  in
+  instantiate_scheme intern intern_row
 
 
-let overwrite_range_of_type (type a) (rng : Range.t) ((_, tymain) : a typ) : a typ =
+let overwrite_range_of_type (rng : Range.t) (_, tymain) =
   (rng, tymain)
 
 
@@ -451,16 +542,30 @@ let show_base_type = function
   | BinaryType -> "binary"
 
 
-let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
+let rec show_label_assoc : 'a 'b. ('a -> string) -> ('b -> string) -> (('a, 'b) typ) LabelAssoc.t -> string =
+fun showtv showrv labmap ->
+  LabelAssoc.fold (fun label ty acc ->
+    let sty = show_mono_type_scheme showtv showrv ty in
+    Alist.extend acc ("?" ^ label ^ " : " ^ sty)
+  ) labmap Alist.empty |> Alist.to_list |> String.concat ", "
+
+
+and show_mono_type_scheme : 'a 'b. ('a -> string) -> ('b -> string) -> ('a, 'b) typ -> string =
+fun showtv showrv ty ->
   let rec aux (_, tymain) =
     match tymain with
     | BaseType(bty) ->
         show_base_type bty
 
-    | FuncType(tydoms, tycod) ->
+    | FuncType(tydoms, optrow, tycod) ->
         let sdoms = tydoms |> List.map aux in
+        let sopts =
+          match optrow with
+          | FixedRow(labmap) -> labmap |> show_label_assoc showtv showrv
+          | RowVar(rv)       -> showrv rv
+        in
         let scod = aux tycod in
-        "fun(" ^ (String.concat ", " sdoms) ^ ") -> " ^ scod
+        "fun(" ^ (String.concat ", " sdoms) ^ sopts ^ ") -> " ^ scod
 
     | EffType(eff, ty0) ->
         let seff = aux_effect eff in
@@ -503,28 +608,31 @@ let rec show_mono_type_scheme (type a) (showtv : a -> string) (ty : a typ) =
   aux ty
 
 
-and show_mono_type_var_scheme showty (mtv : mono_type_var) =
+and show_mono_type_var (mtv : mono_type_var) =
   match mtv with
   | MustBeBound(mbbid) -> Format.asprintf "%a" MustBeBoundID.pp mbbid
-  | Updatable(mtvu)    -> show_mono_type_var_updatable_scheme showty !mtvu
+  | Updatable(mtvu)    -> show_mono_type_var_updatable !mtvu
 
 
-and show_mono_type_var_updatable_scheme showty (mtvu : mono_type_var_updatable) =
+and show_mono_type_var_updatable (mtvu : mono_type_var_updatable) =
   match mtvu with
-  | Link(ty)  -> showty (show_mono_type_var_scheme showty) ty
+  | Link(ty)  -> show_mono_type_scheme show_mono_type_var show_mono_row_var ty
   | Free(fid) -> Format.asprintf "%a" FreeID.pp fid
 
 
-let show_mono_type_var_updatable =
-  show_mono_type_var_updatable_scheme show_mono_type_scheme
+and show_mono_row_var (mrv : mono_row_var) =
+  match mrv with
+  | UpdatableRow(mrvu) -> show_mono_row_var_updatable !mrvu
 
 
-let show_mono_type_var =
-  show_mono_type_var_scheme show_mono_type_scheme
+and show_mono_row_var_updatable (mrvu : mono_row_var_updatable) =
+  match mrvu with
+  | LinkRow(labmap) -> show_label_assoc show_mono_type_var show_mono_row_var labmap
+  | FreeRow(frid)   -> Format.asprintf "%a" FreeRowID.pp frid
 
 
 let show_mono_type : mono_type -> string =
-  show_mono_type_scheme show_mono_type_var
+  show_mono_type_scheme show_mono_type_var show_mono_row_var
 
 
 let pp_mono_type ppf ty =
@@ -536,8 +644,13 @@ let show_poly_type_var = function
   | Mono(mtv)  -> show_mono_type_var mtv
 
 
+let rec show_poly_row_var = function
+  | BoundRow(brid) -> Format.asprintf "%a" BoundRowID.pp brid
+  | MonoRow(mrv)   -> show_mono_row_var mrv
+
+
 let show_poly_type : poly_type -> string =
-  show_mono_type_scheme show_poly_type_var
+  show_mono_type_scheme show_poly_type_var show_poly_row_var
 
 
 let pp_poly_type ppf pty =
