@@ -330,10 +330,11 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     | BaseType(_) ->
         false
 
-    | FuncType(tydoms, tycod) ->
+    | FuncType(tydoms, optrow, tycod) ->
         let b1 = aux_list tydoms in
+        let bopt = aux_option_row optrow in
         let b2 = aux tycod in
-        b1 || b2
+        b1 || bopt || b2
           (* -- must not be short-circuit due to the level inference -- *)
 
     | ProductType(tys) ->
@@ -377,21 +378,35 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
   and aux_pid_type (Pid(ty)) =
     aux ty
 
+  and aux_option_row = function
+    | RowVar(mrv) ->
+        failwith "TODO: occurs, FuncType, optional parameters"
+          (* should traverse kinds *)
+
+    | FixedRow(labmap) ->
+        LabelAssoc.fold (fun _ ty bacc ->
+          let b = aux ty in
+          b || bacc
+        ) labmap false
+
   and aux_list tys =
     tys |> List.map aux |> List.fold_left ( || ) false
   in
   aux ty
 
 
-let opaque_occurs_in_type_scheme (type a) (tyidp : OpaqueIDSet.t -> TypeID.t -> bool) (tvp : a -> bool) (oidset : OpaqueIDSet.t) : a typ -> bool =
+let opaque_occurs_in_type_scheme : 'a 'b. (OpaqueIDSet.t -> TypeID.t -> bool) -> ('a -> bool) -> OpaqueIDSet.t -> ('a, 'b) typ -> bool =
+fun tyidp tvp oidset ->
   let rec aux (_, ptymain) =
     match ptymain with
     | BaseType(_)             -> false
-    | FuncType(tydoms, tycod) -> List.exists aux tydoms || aux tycod
     | PidType(typid)          -> aux_pid typid
     | EffType(tyeff, tysub)   -> aux_effect tyeff || aux tysub
     | ListType(tysub)         -> aux tysub
     | ProductType(tys)        -> tys |> TupleList.to_list |> List.exists aux
+
+    | FuncType(tydoms, optrow, tycod) ->
+        List.exists aux tydoms || aux_option_row optrow || aux tycod
 
     | DataType(tyid, tyargs) ->
         tyidp oidset tyid || List.exists aux tyargs
@@ -405,6 +420,15 @@ let opaque_occurs_in_type_scheme (type a) (tyidp : OpaqueIDSet.t -> TypeID.t -> 
   and aux_effect = function
     | Effect(ty) -> aux ty
 
+  and aux_option_row = function
+    | RowVar(_) ->
+        false
+
+    | FixedRow(labmap) ->
+        LabelAssoc.fold (fun _ ty bacc ->
+          let b = aux ty in
+          b || bacc
+        ) labmap false
   in
   aux
 
@@ -471,7 +495,8 @@ and opaque_occurs_in_structure (oidset : OpaqueIDSet.t) (sigr : SigRecord.t) : b
       false
 
 
-let get_real_type_scheme (type a) (substf : (a typ) BoundIDMap.t -> poly_type -> a typ) (sid : TypeID.Synonym.t) (tyargs : (a typ) list) : a typ =
+let get_real_type_scheme : 'a 'b. ((('a, 'b) typ) BoundIDMap.t -> poly_type -> ('a, 'b) typ) -> TypeID.Synonym.t -> (('a, 'b) typ) list -> ('a, 'b) typ =
+fun substf sid tyargs ->
   let (typarams, ptyreal) = TypeDefinitionStore.find_synonym_type sid in
   try
     let substmap =
@@ -531,10 +556,11 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
     | (BaseType(bt1), BaseType(bt2)) ->
         if bt1 = bt2 then Consistent else Contradiction
 
-    | (FuncType(ty1doms, ty1cod), FuncType(ty2doms, ty2cod)) ->
+    | (FuncType(ty1doms, optrow1, ty1cod), FuncType(ty2doms, optrow2, ty2cod)) ->
         let res1 = aux_list ty1doms ty2doms in
+        let resopt = aux_option_row optrow1 optrow2 in
         let res2 = aux ty1cod ty2cod in
-        res1 &&& res2
+        res1 &&& resopt &&& res2
 
     | (EffType(eff1, tysub1), EffType(eff2, tysub2)) ->
         let reseff = aux_effect eff1 eff2 in
@@ -603,6 +629,9 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
 
   and aux_pid_type (Pid(ty1)) (Pid(ty2)) =
     aux ty1 ty2
+
+  and aux_option_row optrow1 optrow2 =
+    failwith "TODO: unify, aux_option_row"
   in
   let res = aux tyact tyexp in
   match res with
@@ -697,7 +726,10 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
           end
 
       | MFuncType(mtydoms, mtycod) ->
-          FuncType(List.map aux mtydoms, aux mtycod)
+          let optrow =
+            failwith "TODO: decode_manual_type_scheme, labeled optional parameters"
+          in
+          FuncType(List.map aux mtydoms, optrow, aux mtycod)
 
       | MProductType(mtys) ->
           ProductType(TupleList.map aux mtys)
@@ -831,7 +863,10 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         add_parameters_to_type_environment pre binders
       in
       let (tycod, e0) = typecheck { pre with tyenv } utast0 in
-      let ty = (rng, FuncType(tydoms, tycod)) in
+      let optrow =
+        failwith "TODO: typecheck, Lambda, labeled optional parameters"
+      in
+      let ty = (rng, FuncType(tydoms, optrow, tycod)) in
       (ty, ilambda names e0)
 
   | Apply(utastfun, utastargs) ->
@@ -840,7 +875,10 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let tyargs = List.map fst tyeargs in
       let eargs = List.map snd tyeargs in
       let tyret = fresh_type pre.level rng in
-      unify tyfun (Range.dummy "Apply", FuncType(tyargs, tyret));
+      let optrow =
+        failwith "TODO: typecheck, Apply, labeled optional parameters"
+      in
+      unify tyfun (Range.dummy "Apply", FuncType(tyargs, optrow, tyret));
       (tyret, iapply efun eargs)
 
   | If(utast0, utast1, utast2) ->
@@ -1158,7 +1196,10 @@ fun namef pre letbind ->
     ) |> Option.value ~default:();
     (ty0, e0, tys, lnames)
   in
-  let ty1 = (rngv, FuncType(tys, ty0)) in
+  let optrow =
+    failwith "TODO: typecheck_let, labeled optional parameters"
+  in
+  let ty1 = (rngv, FuncType(tys, optrow, ty0)) in
   let e1 = ILambda(None, lnames, e0) in
 
   let pty1 = generalize pre.level ty1 in
@@ -1213,7 +1254,10 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
     ) |> Option.value ~default:();
     (ty0, e0, tys, names)
   in
-  let ty1 = (rngv, FuncType(tys, ty0)) in
+  let optrow =
+    failwith "TODO: typecheck_letrec_single, labeled optional parameters"
+  in
+  let ty1 = (rngv, FuncType(tys, optrow, ty0)) in
   let e1 = ILambda(None, names, e0) in
   unify ty1 tyf;
   let ptyf = generalize pre.level ty1 in
@@ -1259,10 +1303,11 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
     | (BaseType(bt1), BaseType(bt2)) ->
         bt1 = bt2
 
-    | (FuncType(ptydoms1, ptycod1), FuncType(ptydoms2, ptycod2)) ->
+    | (FuncType(ptydoms1, poptrow1, ptycod1), FuncType(ptydoms2, poptrow2, ptycod2)) ->
         let b1 = aux_list ptydoms1 ptydoms2 in
+        let bopt = aux_option_row poptrow1 poptrow2 in
         let b2 = aux ptycod1 ptycod2 in
-        b1 && b2
+        b1 && bopt && b2
 
     | (PidType(pidty1), PidType(pidty2)) ->
         aux_pid pidty1 pidty2
@@ -1353,6 +1398,9 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
 
   and aux_effect (Effect(pty1)) (Effect(pty2)) =
     aux pty1 pty2
+
+  and aux_option_row poptrow1 poptrow2 =
+    failwith "TODO: subtype_poly_type_scheme, aux_option_row"
   in
   aux pty1 pty2
 
@@ -1389,8 +1437,8 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
     | (BaseType(bty1), BaseType(bty2)) ->
         bty1 = bty2
 
-    | (FuncType(pty1doms, pty1cod), FuncType(pty2doms, pty2cod)) ->
-        aux_list pty1doms pty2doms && aux pty1cod pty2cod
+    | (FuncType(pty1doms, poptrow1, pty1cod), FuncType(pty2doms, poptrow2, pty2cod)) ->
+        aux_list pty1doms pty2doms && aux_option_row poptrow1 poptrow2 && aux pty1cod pty2cod
 
     | (EffType(peff1, ptysub1), EffType(peff2, ptysub2)) ->
         aux_effect peff1 peff2 && aux ptysub1 ptysub2
@@ -1429,6 +1477,8 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
   and aux_pid_type (Pid(pty1)) (Pid(pty2)) =
     aux pty1 pty2
 
+  and aux_option_row poptrow1 poptrow2 =
+    failwith "TODO: poly_type_equal, aux_option_row"
   in
   aux pty1 pty2
 
@@ -1813,12 +1863,14 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
     let ptymain =
       match ptymain with
       | BaseType(_)               -> ptymain
-      | FuncType(ptydoms, ptycod) -> FuncType(ptydoms |> List.map aux, aux ptycod)
       | PidType(ppid)             -> PidType(aux_pid ppid)
       | EffType(peff, ptysub)     -> EffType(aux_effect peff, aux ptysub)
       | TypeVar(_)                -> ptymain
       | ProductType(ptys)         -> ProductType(ptys |> TupleList.map aux)
       | ListType(ptysub)          -> ListType(aux ptysub)
+
+      | FuncType(ptydoms, poptrow, ptycod) ->
+          FuncType(ptydoms |> List.map aux, aux_option_row poptrow, aux ptycod)
 
       | DataType(TypeID.Opaque(oid_from), ptyargs) ->
           begin
@@ -1851,6 +1903,8 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
   and aux_effect = function
     | Effect(pty) -> Effect(aux pty)
 
+  and aux_option_row poptrow =
+    failwith "TODO: substitute_poly_type, aux_option_row"
   in
   aux pty
 
