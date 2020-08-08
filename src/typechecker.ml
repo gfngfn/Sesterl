@@ -379,15 +379,21 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     aux ty
 
   and aux_option_row = function
-    | RowVar(mrv) ->
-        failwith "TODO: occurs, FuncType, optional parameters"
-          (* should traverse kinds *)
+    | RowVar(UpdatableRow{contents = FreeRow(_)}) ->
+        false
+          (* DOUBTFUL: do we need to traverse the kind of the free row ID here? *)
+
+    | RowVar(UpdatableRow{contents = LinkRow(labmap)}) ->
+        aux_label_assoc labmap
 
     | FixedRow(labmap) ->
-        LabelAssoc.fold (fun _ ty bacc ->
-          let b = aux ty in
-          b || bacc
-        ) labmap false
+        aux_label_assoc labmap
+
+  and aux_label_assoc labmap =
+    LabelAssoc.fold (fun _ ty bacc ->
+      let b = aux ty in
+      b || bacc
+    ) labmap false
 
   and aux_list tys =
     tys |> List.map aux |> List.fold_left ( || ) false
