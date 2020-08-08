@@ -931,12 +931,18 @@ and decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) :
       decode_manual_type pre.tyenv pre.local_type_parameters mty
 
 
+and decode_parameter (pre : pre) (binder : binder) =
+  let ((rngv, x), _) = binder in
+  let tydom = decode_type_annotation_or_fresh pre binder in
+  let lname : local_name = generate_local_name rngv x in
+  (x, tydom, lname)
+
+
 and add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typeenv.t * mono_type list * local_name list =
   let (tyenv, lnameacc, tydomacc) =
-    List.fold_left (fun (tyenv, lnameacc, ptydomacc) (((rngv, x), _) as binder) ->
-      let tydom = decode_type_annotation_or_fresh pre binder in
+    List.fold_left (fun (tyenv, lnameacc, ptydomacc) binder ->
+      let (x, tydom, lname) = decode_parameter pre binder in
       let ptydom = lift tydom in
-      let lname : local_name = generate_local_name rngv x in
       let tyenv = tyenv |> Typeenv.add_val x ptydom (OutputIdentifier.Local(lname)) in
       (tyenv, Alist.extend lnameacc lname, Alist.extend ptydomacc tydom)
     ) (pre.tyenv, Alist.empty, Alist.empty) binders
@@ -973,20 +979,13 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let (labmap, tyenv) : mono_type LabelAssoc.t * Typeenv.t =
         optbinders |> List.fold_left (fun ((labmap, tyenv) : mono_type LabelAssoc.t * Typeenv.t) ((rlabel, binder) : label ranged * binder) ->
           let (rnglabel, label) = rlabel in
-          let ((rngx, x), mntyopt) = binder in
           if labmap |> LabelAssoc.mem label then
             raise_error (DuplicatedLabel(rnglabel, label))
           else
-            let mtv =
-              let fid = FreeID.fresh pre.level in
-              let mtvu = ref (Free(fid)) in
-              Updatable(mtvu)
-            in
-            let ty = (rngx, TypeVar(mtv)) in
-            let name = generate_local_name rngx x in
+            let (x, ty, lname) = decode_parameter pre binder in
             let labmap = labmap |> LabelAssoc.add label ty in
             let pty = lift (Primitives.option_type ty) in
-            let tyenv = tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(name)) in
+            let tyenv = tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname)) in
             (labmap, tyenv)
         ) (LabelAssoc.empty, tyenv)
       in
