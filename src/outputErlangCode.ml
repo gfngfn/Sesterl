@@ -3,8 +3,11 @@ open MyUtil
 open Syntax
 
 
+let option_map_parameter = "Options"
+
+
 type val_binding_output =
-  | OBindVal         of global_name * local_name list * global_name_map * ast
+  | OBindVal         of global_name * local_name list * local_name LabelAssoc.t * global_name_map * ast
   | OBindValExternal of global_name * string
 
 type module_binding_output =
@@ -13,8 +16,11 @@ type module_binding_output =
 
 let traverse_val_single (gmap : global_name_map) (_, gnamefun, _, ast) : val_binding_output =
   match ast with
-  | ILambda(None, lnameparams, ast0) -> OBindVal(gnamefun, lnameparams, gmap, ast0)
-  | _                                -> assert false
+  | ILambda(None, lnames, optnamemap, ast0) ->
+      OBindVal(gnamefun, lnames, optnamemap, gmap, ast0)
+
+  | _ ->
+      assert false
 
 
 let make_module_string (spacepath : space_name Alist.t) : string =
@@ -128,6 +134,21 @@ let stringify_single (gmap : global_name_map) = function
       Printf.sprintf "(fun(%s, %s) -> %s %s %s end)" s1 s2 s1 sop s2
 
 
+let stringify_option_decoding_operation (optnamemap : local_name LabelAssoc.t) : string =
+  LabelAssoc.fold (fun label lname acc ->
+    let sname = OutputIdentifier.output_local lname in
+    let s =
+      Printf.sprintf "%s = %s:%s(%s, %s), "
+        sname
+        Primitives.primitive_module_name
+        Primitives.decode_option_function
+        option_map_parameter
+        label
+    in
+    Alist.extend acc s
+  ) optnamemap Alist.empty |> Alist.to_list |> String.concat ""
+
+
 let rec stringify_ast (gmap : global_name_map) (ast : ast) =
   let iter = stringify_ast gmap in
   match ast with
@@ -137,15 +158,21 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
   | IBaseConst(bc) ->
       stringify_base_constant bc
 
-  | ILambda(recopt, names, ast0) ->
-      let snames = names |> List.map OutputIdentifier.output_local in
+  | ILambda(recopt, lnames, optnamemap, ast0) ->
+      let snames = lnames |> List.map OutputIdentifier.output_local in
+      let sgetopts = stringify_option_decoding_operation optnamemap in
       let s0 = iter ast0 in
       let srec =
         match recopt with
         | None          -> ""
         | Some(namerec) -> " " ^ OutputIdentifier.output_local namerec
       in
-      Printf.sprintf "fun%s(%s) -> %s end" srec (String.concat ", " snames) s0
+      Printf.sprintf "fun%s(%s, %s) -> %s%s end"
+        srec
+        (String.concat ", " snames)
+        option_map_parameter
+        sgetopts
+        s0
 
   | IApply(name, astargs) ->
       let sargs = astargs |> List.map iter in
@@ -265,15 +292,32 @@ and stringify_pattern (ipat : pattern) =
       end
 
 
-let stringify_val_binding_output : val_binding_output -> string = function
-  | OBindVal(gnamefun, lnameparams, gmap, ast0) ->
+let stringify_val_binding_output : val_binding_output -> string list = function
+  | OBindVal(gnamefun, lnames, optnamemap, gmap, ast0) ->
       let r = OutputIdentifier.output_global gnamefun in
-      let sparams = lnameparams |> List.map OutputIdentifier.output_local in
+      let sparams = lnames |> List.map OutputIdentifier.output_local in
+      let sparamscat = String.concat ", " sparams in
+      let sgetopts = stringify_option_decoding_operation optnamemap in
       let s0 = stringify_ast gmap ast0 in
-      Printf.sprintf "%s(%s) -> %s." r.function_name (String.concat ", " sparams) s0
+      let s_without_option =
+        Printf.sprintf "%s(%s) -> ?MODULE:%s(%s, #{})."
+          r.function_name
+          sparamscat
+          r.function_name
+          sparamscat
+      in
+      let s_with_option =
+        Printf.sprintf "%s(%s, %s) -> %s%s."
+          r.function_name
+          sparamscat
+          option_map_parameter
+          sgetopts
+          s0
+      in
+      [s_without_option; s_with_option]
 
   | OBindValExternal(_, code) ->
-      code
+      [code]
 
 
 let stringify_module_binding_output (omodbind : module_binding_output) : string list =
@@ -281,13 +325,21 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
   | OBindModule(smod, ovalbinds) ->
       let exports =
         ovalbinds |> List.map (function
-        | OBindVal(gnamefun, _, _, _)
+        | OBindVal(gnamefun, _, _, _, _) ->
+            let r = OutputIdentifier.output_global gnamefun in
+            [
+              Printf.sprintf "%s/%d" r.function_name r.arity;
+              Printf.sprintf "%s/%d" r.function_name (r.arity + 1);
+            ]
+
         | OBindValExternal(gnamefun, _) ->
             let r = OutputIdentifier.output_global gnamefun in
-            Printf.sprintf "%s/%d" r.function_name r.arity
-        )
+            [
+              Printf.sprintf "%s/%d" r.function_name r.arity;
+            ]
+        ) |> List.concat
       in
-      let ss = ovalbinds |> List.map stringify_val_binding_output in
+      let ss = ovalbinds |> List.map stringify_val_binding_output |> List.concat in
       List.concat [
         [ Printf.sprintf "-module(%s)." smod ];
         [ Printf.sprintf "-export([%s])." (String.concat ", " exports) ];
@@ -317,8 +369,9 @@ let write_primitive_module_to_file (dir_out : string) : unit =
   let exports =
     primdefs |> List.map (fun primdef ->
       let open Primitives in
-      let arity = List.length primdef.parameters in
-      Printf.sprintf "%s/%d" primdef.target_name arity
+      let targetdef = primdef.target in
+      let arity = List.length targetdef.parameters in
+      Printf.sprintf "%s/%d" targetdef.target_name arity
     )
   in
   let lines =
@@ -329,10 +382,11 @@ let write_primitive_module_to_file (dir_out : string) : unit =
       ];
       primdefs |> List.map (fun primdef ->
         let open Primitives in
+        let targetdef = primdef.target in
         Printf.sprintf "%s(%s) -> %s."
-          primdef.target_name
-          (String.concat ", " primdef.parameters)
-          primdef.code
+          targetdef.target_name
+          (String.concat ", " targetdef.parameters)
+          targetdef.code
       );
     ]
   in

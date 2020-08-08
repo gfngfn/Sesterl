@@ -267,15 +267,15 @@ let iapply (efun : ast) (eargs : ast list) : ast =
       ILetIn(lname, efun, IApply(OutputIdentifier.Local(lname), eargs))
 
 
-let ilambda names e0 =
-  ILambda(None, names, e0)
+let ilambda (ordnames : local_name list) (optnamemap : local_name LabelAssoc.t) (e0 : ast) : ast =
+  ILambda(None, ordnames, optnamemap, e0)
 
 
-let ithunk e =
-  ilambda [] e
+let ithunk (e : ast) : ast =
+  ilambda [] LabelAssoc.empty e
 
 
-let iforce e =
+let iforce (e : ast) : ast =
   iapply e []
 
 
@@ -285,8 +285,8 @@ let iletpatin (ipat : pattern) (e1 : ast) (e2 : ast) : ast =
 
 let iletrecin_single (_, _, name_outer, name_inner, e1) (e2 : ast) : ast =
   match e1 with
-  | ILambda(None, names, e0) ->
-      ILetIn(name_outer, ILambda(Some(name_inner), names, e0), e2)
+  | ILambda(None, ordnames, optnamemap, e0) ->
+      ILetIn(name_outer, ILambda(Some(name_inner), ordnames, optnamemap, e0), e2)
 
   | _ ->
       assert false
@@ -300,8 +300,8 @@ let iletrecin_multiple (binds : (identifier * poly_type * local_name * local_nam
   let tuple_entries =
     binds |> TupleList.map (fun (_, _, _name_outer, _name_inner, e1) ->
       match e1 with
-      | ILambda(None, names, e0) ->
-          ILambda(None, names,
+      | ILambda(None, ordnames, optnamemap, e0) ->
+          ILambda(None, ordnames, optnamemap,
             iletpatin ipat_inner_tuple (IApply(OutputIdentifier.Local(name_for_whole_rec), [])) e0)
 
       | _ ->
@@ -313,7 +313,7 @@ let iletrecin_multiple (binds : (identifier * poly_type * local_name * local_nam
   in
   iletpatin
     ipat_outer_tuple
-    (iapply (ILambda(Some(name_for_whole_rec), [], ITuple(tuple_entries))) [])
+    (iapply (ILambda(Some(name_for_whole_rec), [], LabelAssoc.empty, ITuple(tuple_entries))) [])
     e2
 
 
@@ -952,8 +952,8 @@ and add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typ
   (tyenv, tydoms, lnames)
 
 
-and add_optional_parameters_to_type_environment (pre : pre) (optbinders : (label ranged * binder) list) : Typeenv.t * mono_type LabelAssoc.t =
-  optbinders |> List.fold_left (fun (tyenv, labmap) (rlabel, binder) ->
+and add_optional_parameters_to_type_environment (pre : pre) (optbinders : (label ranged * binder) list) : Typeenv.t * mono_type LabelAssoc.t * local_name LabelAssoc.t =
+  optbinders |> List.fold_left (fun (tyenv, labmap, optnamemap) (rlabel, binder) ->
     let (rnglabel, label) = rlabel in
     if labmap |> LabelAssoc.mem label then
       raise_error (DuplicatedLabel(rnglabel, label))
@@ -962,8 +962,9 @@ and add_optional_parameters_to_type_environment (pre : pre) (optbinders : (label
       let labmap = labmap |> LabelAssoc.add label ty in
       let pty = lift (Primitives.option_type ty) in
       let tyenv = tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname)) in
-      (tyenv, labmap)
-  ) (pre.tyenv, LabelAssoc.empty)
+      let optnamemap = optnamemap |> LabelAssoc.add label lname in
+      (tyenv, labmap, optnamemap)
+  ) (pre.tyenv, LabelAssoc.empty, LabelAssoc.empty)
 
 
 and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
@@ -986,16 +987,16 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             (ty, IVar(name))
       end
 
-  | Lambda(binders, optbinders, utast0) ->
-      let (tyenv, tydoms, names) =
-        add_parameters_to_type_environment pre binders
+  | Lambda(ordbinders, optbinders, utast0) ->
+      let (tyenv, tydoms, ordnames) =
+        add_parameters_to_type_environment pre ordbinders
       in
-      let (tyenv, labmap) =
+      let (tyenv, labmap, optnamemap) =
         add_optional_parameters_to_type_environment { pre with tyenv } optbinders
       in
       let (tycod, e0) = typecheck { pre with tyenv } utast0 in
       let ty = (rng, FuncType(tydoms, FixedRow(labmap), tycod)) in
-      (ty, ilambda names e0)
+      (ty, ilambda ordnames optnamemap e0)
 
   | Apply(utastfun, utastargs) ->
       let (tyfun, efun) = typecheck pre utastfun in
@@ -1310,24 +1311,24 @@ fun namef pre letbind ->
   let optparams = letbind.vb_optionals in
   let utast0 = letbind.vb_body in
 
-  let (ty0, e0, tys, lnames, labmap) =
+  let (ty0, e0, tys, lnames, labmap, optnamemap) =
     let levS = pre.level + 1 in
     let assoc = make_type_parameter_assoc levS letbind.vb_forall in
     let localtyparams = pre.local_type_parameters |> add_local_type_parameter assoc in
     let pre = { pre with level = levS; local_type_parameters = localtyparams } in
         (* -- add local type parameters at level `levS` -- *)
     let (tyenv, tys, lnames) = add_parameters_to_type_environment pre ordparams in
-    let (tyenv, labmap) = add_optional_parameters_to_type_environment { pre with tyenv } optparams in
+    let (tyenv, labmap, optnamemap) = add_optional_parameters_to_type_environment { pre with tyenv } optparams in
     let (ty0, e0) = typecheck { pre with tyenv } utast0 in
 
     letbind.vb_return_type |> Option.map (fun mty0 ->
       let ty0_expected = decode_manual_type tyenv localtyparams mty0 in
       unify ty0 ty0_expected
     ) |> Option.value ~default:();
-    (ty0, e0, tys, lnames, labmap)
+    (ty0, e0, tys, lnames, labmap, optnamemap)
   in
   let ty1 = (rngv, FuncType(tys, FixedRow(labmap), ty0)) in
-  let e1 = ILambda(None, lnames, e0) in
+  let e1 = ILambda(None, lnames, optnamemap, e0) in
 
   let pty1 = generalize pre.level ty1 in
   let name = namef rngv x in
@@ -1363,29 +1364,30 @@ fun namesf proj pre letbinds ->
 
 and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : mono_type) : poly_type * ast =
   let (rngv, _) = letbind.vb_identifier in
-  let params = letbind.vb_parameters in
+  let ordparams = letbind.vb_parameters in
+  let optparams = letbind.vb_optionals in
   let utast0 = letbind.vb_body in
 
   let levS = pre.level + 1 in
-  let (ty0, e0, tys, names) =
+  let (ty0, e0, tys, lnames, labmap, optnamemap) =
     let assoc = make_type_parameter_assoc levS letbind.vb_forall in
     let localtyparams = pre.local_type_parameters |> add_local_type_parameter assoc in
     let pre = { pre with level = levS; local_type_parameters = localtyparams } in
-    let (tyenv, tys, names) =
-      add_parameters_to_type_environment pre params
+    let (tyenv, tys, lnames) =
+      add_parameters_to_type_environment pre ordparams
+    in
+    let (tyenv, labmap, optnamemap) =
+      add_optional_parameters_to_type_environment { pre with tyenv } optparams
     in
     let (ty0, e0) = typecheck { pre with tyenv } utast0 in
     letbind.vb_return_type |> Option.map (fun mty0 ->
       let ty0_expected = decode_manual_type tyenv localtyparams mty0 in
       unify ty0 ty0_expected;
     ) |> Option.value ~default:();
-    (ty0, e0, tys, names)
+    (ty0, e0, tys, lnames, labmap, optnamemap)
   in
-  let optrow =
-    failwith "TODO: typecheck_letrec_single, labeled optional parameters"
-  in
-  let ty1 = (rngv, FuncType(tys, optrow, ty0)) in
-  let e1 = ILambda(None, names, e0) in
+  let ty1 = (rngv, FuncType(tys, FixedRow(labmap), ty0)) in
+  let e1 = ILambda(None, lnames, optnamemap, e0) in
   unify ty1 tyf;
   let ptyf = generalize pre.level ty1 in
   (ptyf, e1)

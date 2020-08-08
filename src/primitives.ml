@@ -7,6 +7,10 @@ let primitive_module_name =
   "sesterl_internal_prim"
 
 
+let decode_option_function =
+  "decode_option"
+
+
 let fresh_bound () =
   let bid = BoundID.fresh () in
   (Range.dummy "primitives-bound", TypeVar(Bound(bid)))
@@ -48,50 +52,86 @@ let typrintdebug : poly_type =
   [typaram] @-> u
 
 
-type primitive_definition = {
+type source_definition = {
   identifier  : string;
   typ         : poly_type;
+}
+
+type target_definition = {
   target_name : string;
   parameters  : string list;
   code        : string;
 }
 
+type primitive_definition = {
+  source : source_definition option;
+  target : target_definition;
+}
+
 
 let primitive_definitions = [
   {
-    identifier  = "spawn";
-    typ         = tyspawn;
-    target_name = "thunk_spawn";
-    parameters  = ["X"];
-    code        = "fun() -> erlang:spawn(X) end";
+    source = Some{
+      identifier = "spawn";
+      typ        = tyspawn;
+    };
+    target = {
+      target_name = "thunk_spawn";
+      parameters  = ["X"];
+      code        = "fun() -> erlang:spawn(X) end";
+    };
   };
   {
-    identifier  = "send";
-    typ         = tysend;
-    target_name = "thunk_send";
-    parameters  = ["X"; "Y"];
-    code        = "fun() -> X ! Y, ok end";
+    source = Some{
+      identifier = "send";
+      typ        = tysend;
+    };
+    target = {
+      target_name = "thunk_send";
+      parameters  = ["X"; "Y"];
+      code        = "fun() -> X ! Y, ok end";
+    };
   };
   {
-    identifier  = "return";
-    typ         = tyreturn;
-    target_name = "thunk_return";
-    parameters  = ["X"];
-    code        = "fun() -> X end";
+    source = Some{
+      identifier = "return";
+      typ        = tyreturn;
+    };
+    target = {
+      target_name = "thunk_return";
+      parameters  = ["X"];
+      code        = "fun() -> X end";
+    }
   };
   {
-    identifier  = "self";
-    typ         = tyself;
-    target_name = "thunk_self";
-    parameters  = [];
-    code        = "erlang:self()";
+    source = Some{
+      identifier = "self";
+      typ        = tyself;
+    };
+    target = {
+      target_name = "thunk_self";
+      parameters  = [];
+      code        = "erlang:self()";
+    };
   };
   {
-    identifier  = "print_debug";
-    typ         = typrintdebug;
-    target_name = "print_debug";
-    parameters  = ["X"];
-    code        = "io:format(\"~p~n\", [X]), ok";
+    source = Some{
+      identifier = "print_debug";
+      typ        = typrintdebug;
+    };
+    target = {
+      target_name = "print_debug";
+      parameters  = ["X"];
+      code        = "io:format(\"~p~n\", [X]), ok";
+    };
+  };
+  {
+    source = None;
+    target = {
+      target_name = decode_option_function;
+      parameters  = ["Options"; "Key"];
+      code        = "case maps:find(Options, Key) of error -> none; {ok, Value} -> {some, Value} end";
+    };
   };
 ]
 
@@ -142,15 +182,21 @@ let initial_environment =
   in
   let add_primitives (prims : primitive_definition list) ((tyenv, gmap) : Typeenv.t * global_name_map) : Typeenv.t * global_name_map =
     prims |> List.fold_left (fun (tyenv, gmap) primdef ->
-      let gname =
-        let arity = List.length primdef.parameters in
-        match OutputIdentifier.generate_global primdef.target_name arity with
-        | None        -> assert false
-        | Some(gname) -> gname
-      in
-      let tyenv = tyenv |> Typeenv.add_val primdef.identifier primdef.typ (OutputIdentifier.Global(gname)) in
-      let gmap = gmap |> GlobalNameMap.add gname primitive_module_name in
-      (tyenv, gmap)
+      match primdef.source with
+      | None ->
+          (tyenv, gmap)
+
+      | Some(srcdef) ->
+          let targetdef = primdef.target in
+          let gname =
+            let arity = List.length targetdef.parameters in
+            match OutputIdentifier.generate_global targetdef.target_name arity with
+            | None        -> assert false
+            | Some(gname) -> gname
+          in
+          let tyenv = tyenv |> Typeenv.add_val srcdef.identifier srcdef.typ (OutputIdentifier.Global(gname)) in
+          let gmap = gmap |> GlobalNameMap.add gname primitive_module_name in
+          (tyenv, gmap)
     ) (tyenv, gmap)
   in
 

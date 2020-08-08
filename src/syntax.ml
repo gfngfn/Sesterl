@@ -773,7 +773,7 @@ and binding =
 and ast =
   | IBaseConst   of base_constant
   | IVar         of name
-  | ILambda      of local_name option * local_name list * ast
+  | ILambda      of local_name option * local_name list * local_name LabelAssoc.t * ast
   | IApply       of name * ast list
   | ILetIn       of local_name * ast * ast
   | ICase        of ast * branch list
@@ -830,15 +830,17 @@ and pp_ast ppf = function
   | IVar(name) ->
       OutputIdentifier.pp ppf name
 
-  | ILambda(None, lnameargs, e) ->
-      Format.fprintf ppf "\\(%a) ->@[<hov2>@ %a@]"
+  | ILambda(None, lnameargs, optnamemap, e) ->
+      Format.fprintf ppf "\\(%a, ?%a) ->@[<hov2>@ %a@]"
         (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameargs
+        (LabelAssoc.pp OutputIdentifier.pp_local) optnamemap
         pp_ast e
 
-  | ILambda(Some(lnamerec), lnameparams, e) ->
-      Format.fprintf ppf "\\%a(%a) ->@[<hov2>@ %a@]"
+  | ILambda(Some(lnamerec), lnameparams, optnamemap, e) ->
+      Format.fprintf ppf "\\%a(%a, ?%a) ->@[<hov2>@ %a@]"
         OutputIdentifier.pp_local lnamerec
         (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameparams
+        (LabelAssoc.pp OutputIdentifier.pp_local) optnamemap
         pp_ast e
 
   | IApply(name, eargs) ->
