@@ -727,12 +727,38 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
           end
 
     | (RowVar(UpdatableRow({contents = FreeRow(frid1)} as mtvu1)), RowVar(UpdatableRow{contents = FreeRow(frid2)})) ->
-        let () =
-          if FreeRowID.equal frid1 frid2 then () else
-            mtvu1 := FreeRow(frid2)
-              (* DOUBTFUL; maybe should be `LinkRow(FreeRow(frid2))` with the definition of `LinkRow` changed *)
-        in
-        Consistent
+        if FreeRowID.equal frid1 frid2 then
+          Consistent
+        else
+          let labmap1 = KindStore.get_free_row frid1 in
+          let labmap2 = KindStore.get_free_row frid2 in
+          let intersection =
+            LabelAssoc.merge (fun _ opt1 opt2 ->
+              match (opt1, opt2) with
+              | (Some(ty1), Some(ty2)) -> Some((ty1, ty2))
+              | _                      -> None
+            ) labmap1 labmap2
+          in
+          let res =
+            LabelAssoc.fold (fun label (ty1, ty2) res ->
+              match res with
+              | Consistent -> aux ty1 ty2
+              | _          -> res
+            ) intersection Consistent
+          in
+          begin
+            match res with
+            | Consistent ->
+                mtvu1 := FreeRow(frid2);
+                  (* DOUBTFUL; maybe should be `LinkRow(FreeRow(frid2))`
+                     with the definition of `LinkRow` changed. *)
+                let union = LabelAssoc.union (fun _ _ ty2 -> Some(ty2)) labmap1 labmap2 in
+                KindStore.register_free_row frid2 union;
+                Consistent
+
+            | _ ->
+                res
+          end
 
     | (FixedRow(labmap1), FixedRow(labmap2)) ->
         let merged =
