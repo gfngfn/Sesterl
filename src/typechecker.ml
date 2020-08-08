@@ -985,7 +985,8 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             let ty = (rngx, TypeVar(mtv)) in
             let name = generate_local_name rngx x in
             let labmap = labmap |> LabelAssoc.add label ty in
-            let tyenv = tyenv |> Typeenv.add_val x (lift ty) (OutputIdentifier.Local(name)) in
+            let pty = lift (Primitives.option_type ty) in
+            let tyenv = tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(name)) in
             (labmap, tyenv)
         ) (LabelAssoc.empty, tyenv)
       in

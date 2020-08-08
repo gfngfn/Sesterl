@@ -96,7 +96,41 @@ let primitive_definitions = [
 ]
 
 
+let make_constructor_id ctor =
+  match ConstructorID.make ctor with
+  | None         -> assert false
+  | Some(ctorid) -> ctorid
+
+
+let vid_option = TypeID.Variant.fresh "option"
+
+
+let option_type (ty : mono_type) : mono_type =
+  (dr, DataType(TypeID.Variant(vid_option), [ty]))
+
+
 let initial_environment =
+  let add_variant_types vntdefs (tyenv, gmap) =
+    let tyenv : Typeenv.t =
+      vntdefs |> List.fold_left (fun tyenv vntdef ->
+        let (tynm, vid, bids, ctordefs) = vntdef in
+        let tyenv = tyenv |> Typeenv.add_variant_type tynm vid (List.length bids) in
+        ctordefs |> List.fold_left (fun tyenv ctordef ->
+          let (ctor, paramtys) = ctordef in
+          let ctorentry =
+            {
+              belongs         = vid;
+              constructor_id  = make_constructor_id ctor;
+              type_variables  = bids;
+              parameter_types = paramtys;
+            }
+          in
+          tyenv |> Typeenv.add_constructor ctor ctorentry
+        ) tyenv
+      ) tyenv
+    in
+    (tyenv, gmap)
+  in
   let add_operators (ops : (string * poly_type * string) list) ((tyenv, gmap) : Typeenv.t * global_name_map) : Typeenv.t * global_name_map =
     let tyenv =
       ops |> List.fold_left (fun tyenv (x, pty, target) ->
@@ -121,6 +155,13 @@ let initial_environment =
   in
 
   (Typeenv.empty, GlobalNameMap.empty)
+    |> add_variant_types [
+      let bid = BoundID.fresh () in
+      ("option", vid_option, [bid], [
+        ("None", []);
+        ("Some", [(dr, TypeVar(Bound(bid)))])
+      ]);
+    ]
     |> add_operators [
       ("&&", tylogic, "and");
       ("||", tylogic, "or" );
