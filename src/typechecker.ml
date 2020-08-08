@@ -1586,7 +1586,31 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
     aux pty1 pty2
 
   and aux_option_row poptrow1 poptrow2 =
-    failwith "TODO: poly_type_equal, aux_option_row"
+    match (poptrow1, poptrow2) with
+    | (RowVar(MonoRow(_)), _)
+    | (_, RowVar(MonoRow(_))) ->
+        assert false
+
+    | (RowVar(BoundRow(brid1)), RowVar(BoundRow(brid2))) ->
+        BoundRowID.equal brid1 brid2
+
+    | (FixedRow(plabmap1), FixedRow(plabmap2)) ->
+        aux_label_assoc plabmap1 plabmap2
+
+    | _ ->
+        false
+
+  and aux_label_assoc plabmap1 plabmap2 =
+    let merged =
+      LabelAssoc.merge (fun _ ptyopt1 ptyopt2 ->
+        match (ptyopt1, ptyopt2) with
+        | (None, None)             -> None
+        | (None, Some(_))          -> Some(false)
+        | (Some(_), None)          -> Some(false)
+        | (Some(pty1), Some(pty2)) -> Some(aux pty1 pty2)
+      ) plabmap1 plabmap2
+    in
+    merged |> LabelAssoc.for_all (fun _ b -> b)
   in
   aux pty1 pty2
 
