@@ -276,6 +276,15 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
             Printf.sprintf "{%s, %s}" sctor (String.concat ", " ss)
       end
 
+  | IThunk(e0) ->
+      let s0 = iter e0 in
+      Printf.sprintf "fun() -> %s end" s0
+
+  | IForce(lname, e0) ->
+      let sname = OutputIdentifier.output_local lname in
+      let s0 = iter e0 in
+      Printf.sprintf "begin %s = %s, %s() end" sname s0 sname
+
 
 and stringify_branch (gmap : global_name_map) (br : branch) =
   match br with

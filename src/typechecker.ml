@@ -272,11 +272,12 @@ let ilambda (ordnames : local_name list) (optnamemap : local_name LabelAssoc.t) 
 
 
 let ithunk (e : ast) : ast =
-  ilambda [] LabelAssoc.empty e
+  IThunk(e)
 
 
 let iforce (e : ast) : ast =
-  iapply e [] LabelAssoc.empty
+  let lname = OutputIdentifier.fresh () in
+  IForce(lname, e)
 
 
 let iletpatin (ipat : pattern) (e1 : ast) (e2 : ast) : ast =
