@@ -227,6 +227,8 @@ and mono_row_var =
 
 and mono_type = (mono_type_var, mono_row_var) typ
 
+type mono_row = (mono_type_var, mono_row_var) row
+
 type poly_type_var =
   | Mono  of mono_type_var
   | Bound of BoundID.t
@@ -236,6 +238,8 @@ type poly_row_var =
   | BoundRow of BoundRowID.t
 
 and poly_type = (poly_type_var, poly_row_var) typ
+
+type poly_row = (poly_type_var, poly_row_var) row
 
 module FreeIDHashTable = Hashtbl.Make(FreeID)
 

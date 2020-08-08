@@ -636,8 +636,25 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
   and aux_pid_type (Pid(ty1)) (Pid(ty2)) =
     aux ty1 ty2
 
-  and aux_option_row optrow1 optrow2 =
-    failwith "TODO: unify, aux_option_row"
+  and aux_option_row (optrow1 : mono_row) (optrow2 : mono_row) =
+    match (optrow1, optrow2) with
+    | (RowVar(UpdatableRow{contents = LinkRow(labmap1)}), _) ->
+        aux_option_row (FixedRow(labmap1)) optrow2
+
+    | (_, RowVar(UpdatableRow{contents = LinkRow(labmap2)})) ->
+        aux_option_row optrow1 (FixedRow(labmap2))
+
+    | (RowVar(UpdatableRow{contents = FreeRow(frid1)}), FixedRow(labmap2)) ->
+        failwith "TODO: unify, aux_option_row, (RowVar, FixedRow)"
+
+    | (FixedRow(labmap1), RowVar(UpdatableRow{contents = FreeRow(frid2)})) ->
+        failwith "TODO: unify, aux_option_row, (FixedRow, RowVar)"
+
+    | (RowVar(UpdatableRow{contents = FreeRow(frid1)}), RowVar(UpdatableRow{contents = FreeRow(frid2)})) ->
+        failwith "TODO: unify, aux_option_row, (RowVar, RowVar)"
+
+    | (FixedRow(labmap1), FixedRow(labmap2)) ->
+        failwith "TODO: unify, aux_option_row, (FixedRow, FixedRow)"
   in
   let res = aux tyact tyexp in
   match res with
