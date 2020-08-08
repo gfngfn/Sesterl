@@ -2035,8 +2035,10 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
   and aux_effect = function
     | Effect(pty) -> Effect(aux pty)
 
-  and aux_option_row poptrow =
-    failwith "TODO: substitute_poly_type, aux_option_row"
+  and aux_option_row (poptrow : poly_row) =
+    match poptrow with
+    | RowVar(_)         -> poptrow
+    | FixedRow(plabmap) -> FixedRow(plabmap |> LabelAssoc.map aux)
   in
   aux pty
 
