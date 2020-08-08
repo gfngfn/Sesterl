@@ -577,10 +577,10 @@ fun substf sid tyargs ->
 
 
 let get_real_mono_type : TypeID.Synonym.t -> mono_type list -> mono_type =
-  get_real_type_scheme substitute_mono_type
+  get_real_type_scheme TypeConv.substitute_mono_type
 
 let get_real_poly_type : TypeID.Synonym.t -> poly_type list -> poly_type =
-  get_real_type_scheme substitute_poly_type
+  get_real_type_scheme TypeConv.substitute_poly_type
 
 
 let unify (tyact : mono_type) (tyexp : mono_type) : unit =
@@ -991,7 +991,7 @@ and add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typ
   let (tyenv, lnameacc, tydomacc) =
     List.fold_left (fun (tyenv, lnameacc, ptydomacc) binder ->
       let (x, tydom, lname) = decode_parameter pre binder in
-      let ptydom = lift tydom in
+      let ptydom = TypeConv.lift tydom in
       let tyenv = tyenv |> Typeenv.add_val x ptydom (OutputIdentifier.Local(lname)) in
       (tyenv, Alist.extend lnameacc lname, Alist.extend ptydomacc tydom)
     ) (pre.tyenv, Alist.empty, Alist.empty) binders
@@ -1009,7 +1009,7 @@ and add_optional_parameters_to_type_environment (pre : pre) (optbinders : (label
     else
       let (x, ty, lname) = decode_parameter pre binder in
       let labmap = labmap |> LabelAssoc.add label ty in
-      let pty = lift (Primitives.option_type ty) in
+      let pty = TypeConv.lift (Primitives.option_type ty) in
       let tyenv = tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname)) in
       let optnamemap = optnamemap |> LabelAssoc.add label lname in
       (tyenv, labmap, optnamemap)
@@ -1029,7 +1029,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             raise_error (UnboundVariable(rng, x))
 
         | Some((_, ptymain), name) ->
-            let ty = instantiate pre.level (rng, ptymain) in
+            let ty = TypeConv.instantiate pre.level (rng, ptymain) in
 (*
             Format.printf "INST %s : L%d %a\n" x pre.level pp_mono_type ty;  (* for debug *)
 *)
@@ -1122,7 +1122,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         | Some(((rngv, x), _) as binder) ->
             let tyx = decode_type_annotation_or_fresh pre binder in
             let lname = generate_local_name rngv x in
-            (tyx, pre.tyenv |> Typeenv.add_val x (lift tyx) (OutputIdentifier.Local(lname)), lname)
+            (tyx, pre.tyenv |> Typeenv.add_val x (TypeConv.lift tyx) (OutputIdentifier.Local(lname)), lname)
       in
       let tyrecv = fresh_type lev (Range.dummy "do-recv") in
       unify ty1 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tyx));
@@ -1183,7 +1183,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       unify ty1 typat;
       let tyenv =
         BindingMap.fold (fun x (ty, lname, _) tyenv ->
-          let pty = generalize pre.level ty in
+          let pty = TypeConv.generalize pre.level ty in
           tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname))
         ) bindmap pre.tyenv
       in
@@ -1251,7 +1251,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
                     raise_error (OpaqueIDExtrudesScopeViaValue(rng, pty2))
                   else
 *)
-                    let ty = instantiate pre.level pty2 in
+                    let ty = TypeConv.instantiate pre.level pty2 in
                     (ty, IVar(OutputIdentifier.Global(gname2)))
             end
       end
@@ -1265,7 +1265,7 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name
   | Some(tyid, ctorid, typarams, ptys) ->
       let lev = pre.level in
       let (tyargs, bfmap) = make_bound_to_free_map lev typarams in
-      let tys_expected = ptys |> List.map (instantiate_by_map bfmap) in
+      let tys_expected = ptys |> List.map (TypeConv.instantiate_by_map bfmap) in
       (tyid, ctorid, tyargs, tys_expected)
 
 
@@ -1285,7 +1285,7 @@ and typecheck_branch_scheme (unifyk : mono_type -> mono_type -> mono_type -> uni
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
   let tyenv =
     BindingMap.fold (fun x (ty, lname, _) tyenv ->
-      tyenv |> Typeenv.add_val x (lift ty) (OutputIdentifier.Local(lname))
+      tyenv |> Typeenv.add_val x (TypeConv.lift ty) (OutputIdentifier.Local(lname))
     ) bindmap pre.tyenv
   in
   let pre = { pre with tyenv } in
@@ -1394,7 +1394,7 @@ fun namef pre letbind ->
   let ty1 = (rngv, FuncType(tys, FixedRow(labmap), ty0)) in
   let e1 = ILambda(None, lnames, optnamemap, e0) in
 
-  let pty1 = generalize pre.level ty1 in
+  let pty1 = TypeConv.generalize pre.level ty1 in
   let name = namef rngv x in
   (pty1, name, e1)
 
@@ -1410,7 +1410,7 @@ fun namesf proj pre letbinds ->
       let (name_inner, name_outer) = namesf letbind in
       let levS = pre.level + 1 in
       let tyf = fresh_type ~name:x levS rngv in
-      let tyenv = tyenv |> Typeenv.add_val x (lift tyf) (proj name_inner) in
+      let tyenv = tyenv |> Typeenv.add_val x (TypeConv.lift tyf) (proj name_inner) in
       (Alist.extend tupleacc (letbind, name_inner, name_outer, tyf), tyenv)
     ) (Alist.empty, pre.tyenv)
   in
@@ -1453,7 +1453,7 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
   let ty1 = (rngv, FuncType(tys, FixedRow(labmap), ty0)) in
   let e1 = ILambda(None, lnames, optnamemap, e0) in
   unify ty1 tyf;
-  let ptyf = generalize pre.level ty1 in
+  let ptyf = TypeConv.generalize pre.level ty1 in
   (ptyf, e1)
 
 
@@ -1462,7 +1462,7 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
     match ctorbr with
     | ConstructorBranch((rng, ctornm), mtyargs) ->
         let tyargs = mtyargs |> List.map (decode_manual_type pre.tyenv pre.local_type_parameters) in
-        let ptyargs = tyargs |> List.map (generalize pre.level) in
+        let ptyargs = tyargs |> List.map (TypeConv.generalize pre.level) in
         let ctorid =
           match ConstructorID.make ctornm with
           | Some(ctorid) -> ctorid
@@ -2136,7 +2136,7 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       let typaramassoc = make_type_parameter_assoc 1 tyvaridents in
       let localtyparams = TypeParameterMap.empty |> add_local_type_parameter typaramassoc in
       let ty = decode_manual_type tyenv localtyparams mty in
-      let pty = generalize 0 ty in
+      let pty = TypeConv.generalize 0 ty in
       let gname = OutputIdentifier.fresh_global_dummy () in
       let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
       (OpaqueIDSet.empty, sigr)
@@ -2341,7 +2341,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                   let pty =
                     let localtyparams = TypeParameterMap.empty |> add_local_type_parameter typaramassoc in
                     let ty = decode_manual_type tyenv localtyparams mty in
-                    generalize 0 ty
+                    TypeConv.generalize 0 ty
                   in
                   let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
                   let arity_actual = List.length typarams in
@@ -2376,7 +2376,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       let pty =
         let localtyparams = TypeParameterMap.empty |> add_local_type_parameter typaramassoc in
         let ty = decode_manual_type tyenv localtyparams mty in
-        generalize 0 ty
+        TypeConv.generalize 0 ty
       in
       let gname = generate_global_name arity rngv x in
       let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
@@ -2468,7 +2468,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             { pre with local_type_parameters = localtyparams }
           in
           let (tyreal, dependencies) = decode_manual_type_and_get_dependency vertices pre mtyreal in
-          let ptyreal = generalize 0 tyreal in
+          let ptyreal = TypeConv.generalize 0 tyreal in
           let graph =
             graph |> SynonymIDSet.fold (fun siddep graph ->
               graph |> DependencyGraph.add_edge sid siddep
