@@ -652,9 +652,8 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
     | (TypeVar(Updatable({contents = Free(fid1)} as mtvu1)), TypeVar(Updatable{contents = Free(fid2)})) ->
         let () =
           if FreeID.equal fid1 fid2 then () else
-            begin
-              mtvu1 := Link(ty2);  (* -- not `Free(fid2)`! -- *)
-            end
+            mtvu1 := Link(ty2)
+              (* Not `mtvu1 := Free(fid2)`. But I don't really understand why... TODO: Understand this *)
         in
         Consistent
 
@@ -721,11 +720,25 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
           Consistent
         end
 
-    | (RowVar(UpdatableRow{contents = FreeRow(frid1)}), RowVar(UpdatableRow{contents = FreeRow(frid2)})) ->
-        failwith "TODO: unify, aux_option_row, (RowVar, RowVar)"
+    | (RowVar(UpdatableRow({contents = FreeRow(frid1)} as mtvu1)), RowVar(UpdatableRow{contents = FreeRow(frid2)})) ->
+        let () =
+          if FreeRowID.equal frid1 frid2 then () else
+            mtvu1 := FreeRow(frid2)
+              (* DOUBTFUL; maybe should be `LinkRow(FreeRow(frid2))` with the definition of `LinkRow` changed *)
+        in
+        Consistent
 
     | (FixedRow(labmap1), FixedRow(labmap2)) ->
-        failwith "TODO: unify, aux_option_row, (FixedRow, FixedRow)"
+        let merged =
+          LabelAssoc.merge (fun _ tyopt1 tyopt2 ->
+            match (tyopt1, tyopt2) with
+            | (None, None)           -> None
+            | (None, Some(_))        -> Some(Contradiction)
+            | (Some(_), None)        -> Some(Contradiction)
+            | (Some(ty1), Some(ty2)) -> Some(aux ty1 ty2)
+          ) labmap1 labmap2
+        in
+        LabelAssoc.fold (fun _ res resacc -> resacc &&& res) merged Consistent
   in
   let res = aux tyact tyexp in
   match res with
