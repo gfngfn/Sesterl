@@ -3,9 +3,6 @@ open MyUtil
 open Syntax
 
 
-let option_map_parameter = "Options"
-
-
 let fresh_local_symbol () =
   OutputIdentifier.output_local (OutputIdentifier.fresh ())
 
@@ -138,7 +135,7 @@ let stringify_single (gmap : global_name_map) = function
       Printf.sprintf "(fun(%s, %s) -> %s %s %s end)" s1 s2 s1 sop s2
 
 
-let stringify_option_decoding_operation (optnamemap : local_name LabelAssoc.t) : string =
+let stringify_option_decoding_operation (sname_map : string) (optnamemap : local_name LabelAssoc.t) : string =
   LabelAssoc.fold (fun label lname acc ->
     let sname = OutputIdentifier.output_local lname in
     let s =
@@ -146,7 +143,7 @@ let stringify_option_decoding_operation (optnamemap : local_name LabelAssoc.t) :
         sname
         Primitives.primitive_module_name
         Primitives.decode_option_function
-        option_map_parameter
+        sname_map
         label
     in
     Alist.extend acc s
@@ -165,7 +162,8 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
   | ILambda(recopt, lnames, optnamemap, ast0) ->
       let snames = lnames |> List.map OutputIdentifier.output_local in
       let sparamscatcomma = snames |> List.map (fun s -> s ^ ", ") |> String.concat "" in
-      let sgetopts = stringify_option_decoding_operation optnamemap in
+      let sname_map = fresh_local_symbol () in
+      let sgetopts = stringify_option_decoding_operation sname_map optnamemap in
       let s0 = iter ast0 in
       let srec =
         match recopt with
@@ -175,7 +173,7 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
       Printf.sprintf "fun%s(%s%s) -> %s%s end"
         srec
         sparamscatcomma
-        option_map_parameter
+        sname_map
         sgetopts
         s0
 
@@ -345,7 +343,8 @@ let stringify_val_binding_output : val_binding_output -> string list = function
       let sparams = lnames |> List.map OutputIdentifier.output_local in
       let sparamscat = String.concat ", " sparams in
       let sparamscatcomma = sparams |> List.map (fun s -> s ^ ", ") |> String.concat "" in
-      let sgetopts = stringify_option_decoding_operation optnamemap in
+      let sname_map = fresh_local_symbol () in
+      let sgetopts = stringify_option_decoding_operation sname_map optnamemap in
       let s0 = stringify_ast gmap ast0 in
       let s_without_option =
         Printf.sprintf "%s(%s) -> ?MODULE:%s(%s#{})."
@@ -358,7 +357,7 @@ let stringify_val_binding_output : val_binding_output -> string list = function
         Printf.sprintf "%s(%s%s) -> %s%s."
           r.function_name
           sparamscatcomma
-          option_map_parameter
+          sname_map
           sgetopts
           s0
       in
