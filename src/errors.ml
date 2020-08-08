@@ -47,3 +47,4 @@ type type_error =
   | RootModuleMustBeStructure           of Range.t
   | InvalidIdentifier                   of Range.t * string
   | ConflictInSignature                 of Range.t * string
+  | DuplicatedLabel                     of Range.t * label

@@ -250,6 +250,11 @@ let report_type_error (e : type_error) : unit =
         s
 
   | ConflictInSignature(rng, x) ->
-      Format.printf "! [Type error] %a: '%s' is already defined in the signature\n"
+      Format.printf "%a: '%s' is already defined in the signature\n"
         Range.pp rng
         x
+
+  | DuplicatedLabel(rng, label) ->
+      Format.printf "%a: label '%s' is used more than once in a binding\n"
+        Range.pp rng
+        label

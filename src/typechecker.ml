@@ -966,15 +966,31 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             (ty, IVar(name))
       end
 
-  | Lambda(binders, utast0) ->
+  | Lambda(binders, optbinders, utast0) ->
       let (tyenv, tydoms, names) =
         add_parameters_to_type_environment pre binders
       in
-      let (tycod, e0) = typecheck { pre with tyenv } utast0 in
-      let optrow =
-        failwith "TODO: typecheck, Lambda, labeled optional parameters"
+      let (labmap, tyenv) : mono_type LabelAssoc.t * Typeenv.t =
+        optbinders |> List.fold_left (fun ((labmap, tyenv) : mono_type LabelAssoc.t * Typeenv.t) ((rlabel, binder) : label ranged * binder) ->
+          let (rnglabel, label) = rlabel in
+          let ((rngx, x), mntyopt) = binder in
+          if labmap |> LabelAssoc.mem label then
+            raise_error (DuplicatedLabel(rnglabel, label))
+          else
+            let mtv =
+              let fid = FreeID.fresh pre.level in
+              let mtvu = ref (Free(fid)) in
+              Updatable(mtvu)
+            in
+            let ty = (rngx, TypeVar(mtv)) in
+            let name = generate_local_name rngx x in
+            let labmap = labmap |> LabelAssoc.add label ty in
+            let tyenv = tyenv |> Typeenv.add_val x (lift ty) (OutputIdentifier.Local(name)) in
+            (labmap, tyenv)
+        ) (LabelAssoc.empty, tyenv)
       in
-      let ty = (rng, FuncType(tydoms, optrow, tycod)) in
+      let (tycod, e0) = typecheck { pre with tyenv } utast0 in
+      let ty = (rng, FuncType(tydoms, FixedRow(labmap), tycod)) in
       (ty, ilambda names e0)
 
   | Apply(utastfun, utastargs) ->

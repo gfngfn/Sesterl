@@ -46,7 +46,7 @@
 
 %token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC VAL MODULE STRUCT SIGNATURE SIG EXTERNAL INCLUDE COERCE REQUIRE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
-%token<Range.t * string> IDENT DOTIDENT CTOR DOTCTOR TYPARAM BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
+%token<Range.t * string> IDENT DOTIDENT CTOR DOTCTOR TYPARAM OPTLABEL BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
 %token<Range.t * string> STRING STRING_BLOCK
@@ -56,7 +56,8 @@
 %type<Syntax.untyped_binding> bindtop
 %type<string list * Syntax.module_name Syntax.ranged * Syntax.untyped_module> main
 %type<Syntax.manual_type> ty
-%type<Syntax.binder list> params
+%type<Syntax.binder list * ((Range.t * Syntax.label) * Syntax.binder) list> params
+%type<((Range.t * Syntax.label) * Syntax.binder) list> optparams
 %type<Syntax.untyped_let_binding> bindvalsingle
 %type<Range.t * Syntax.internal_or_external> bindvaltop
 %type<Range.t * Syntax.rec_or_nonrec> bindvallocal
@@ -158,12 +159,14 @@ recbinds:
 ;
 bindvalsingle:
   | ident=IDENT; bids=typarams; LPAREN; params=params; RPAREN; tyannot=tyannot; DEFEQ; e0=exprlet {
+        let (ordparams, optparams) = params in
         {
-          vb_identifier = ident;
-          vb_forall     = bids;
-          vb_parameters = params;
+          vb_identifier  = ident;
+          vb_forall      = bids;
+          vb_parameters  = ordparams;
+          vb_optionals   = optparams;
           vb_return_type = tyannot;
-          vb_body       = e0;
+          vb_body        = e0;
         }
       }
 ;
@@ -176,9 +179,21 @@ ctorbranch:
       }
 ;
 params:
-  |                                                  { [] }
-  | ident=IDENT; tyannot=tyannot                     { (ident, tyannot) :: [] }
-  | ident=IDENT; tyannot=tyannot; COMMA; tail=params { (ident, tyannot) :: tail }
+  | optparams=optparams {
+      ([], optparams)
+    }
+  | ident=IDENT; tyannot=tyannot {
+        ([(ident, tyannot)], [])
+      }
+  | ident=IDENT; tyannot=tyannot; COMMA; tail=params {
+        let (ordparams, optparams) = tail in
+        ((ident, tyannot) :: ordparams, optparams)
+      }
+;
+optparams:
+  |                                                                      { [] }
+  | rlabel=OPTLABEL; ident=IDENT; tyannot=tyannot                        { [(rlabel, (ident, tyannot))] }
+  | rlabel=OPTLABEL; ident=IDENT; tyannot=tyannot; COMMA; tail=optparams { (rlabel, (ident, tyannot)) :: tail }
 ;
 tyannot:
   |               { None }
@@ -310,8 +325,9 @@ exprlet:
 ;
 exprfun:
   | tokL=LAMBDA; LPAREN; params=params; RPAREN; ARROW; e=exprlet {
+        let (ordparams, optparams) = params in
         let rng = make_range (Token(tokL)) (Ranged(e)) in
-        (rng, Lambda(params, e))
+        (rng, Lambda(ordparams, optparams, e))
       }
   | tokL=RECEIVE; branches=nonempty_list(branch); tokR=END {
         let rng = make_range (Token(tokL)) (Token(tokR)) in

@@ -24,6 +24,22 @@ type module_name = string
 type signature_name = string
 [@@deriving show { with_path = false; } ]
 
+type label = string
+[@@deriving show { with_path = false; } ]
+
+module LabelAssoc : (sig
+  include Map.S
+  val pp : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
+end with type key = string) = struct
+  module Impl = Map.Make(String)
+  include Impl
+
+  let pp ppsub ppf labmap =
+    labmap |> Impl.iter (fun label v ->
+      Format.fprintf ppf "%s ->@ %a;@ " label ppsub v
+    )
+end
+
 
 let pp_identifier ppf s =
   Format.fprintf ppf "\"%s\"" s
@@ -80,7 +96,7 @@ and untyped_ast =
 and untyped_ast_main =
   | BaseConst    of base_constant
   | Var          of identifier
-  | Lambda       of binder list * untyped_ast
+  | Lambda       of binder list * (label ranged * binder) list * untyped_ast
   | Apply        of untyped_ast * untyped_ast list
   | If           of untyped_ast * untyped_ast * untyped_ast
   | LetIn        of rec_or_nonrec * untyped_ast
@@ -112,11 +128,12 @@ and external_binding = {
 }
 
 and untyped_let_binding = {
-  vb_identifier : identifier ranged;
-  vb_forall     : (type_variable_name ranged) list;
-  vb_parameters : binder list;
+  vb_identifier  : identifier ranged;
+  vb_forall      : (type_variable_name ranged) list;
+  vb_parameters  : binder list;
+  vb_optionals   : (label ranged * binder) list;
   vb_return_type : manual_type option;
-  vb_body       : untyped_ast;
+  vb_body        : untyped_ast;
 }
 
 and untyped_branch =
@@ -180,8 +197,6 @@ and untyped_declaration_main =
   | DeclSig        of signature_name ranged * untyped_signature
   | DeclInclude    of untyped_signature
 [@@deriving show { with_path = false; } ]
-
-module LabelAssoc = Map.Make(String)
 
 module FreeRowID = FreeID  (* temporary *)
 
