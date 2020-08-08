@@ -83,6 +83,14 @@ let report_type_error (e : type_error) : unit =
         pp_mono_type ty2
         FreeID.pp fid
 
+  | InclusionRowError(frid, ty1, ty2) ->
+      let (rng1, _) = ty1 in
+      Format.printf "%a: this expression has type %a and type %a at the same time, but these types are inconsistent as to the occurrence of row variable %a\n"
+        Range.pp rng1
+        pp_mono_type ty1
+        pp_mono_type ty2
+        FreeRowID.pp frid
+
   | BoundMoreThanOnceInPattern(rng, x) ->
       Format.printf "%a: this pattern binds '%s' more than once.\n"
         Range.pp rng

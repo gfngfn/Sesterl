@@ -30,7 +30,8 @@ let binding_map_union rng =
 type unification_result =
   | Consistent
   | Contradiction
-  | Inclusion of FreeID.t
+  | Inclusion     of FreeID.t
+  | InclusionRow  of FreeRowID.t
 [@@deriving show { with_path = false; }]
 
 type pre = {
@@ -325,7 +326,7 @@ let iletrecin (binds : (identifier * poly_type * local_name * local_name * ast) 
 
 let occurs (fid : FreeID.t) (ty : mono_type) : bool =
   let lev = FreeID.get_level fid in
-  let rec aux (_, tymain) =
+  let rec aux ((_, tymain) : mono_type) : bool =
     match tymain with
     | BaseType(_) ->
         false
@@ -339,7 +340,6 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
 
     | ProductType(tys) ->
         tys |> TupleList.to_list |> aux_list
-          (* -- must not be short-circuit due to the level inference -- *)
 
     | ListType(ty) ->
         aux ty
@@ -395,10 +395,71 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
       b || bacc
     ) labmap false
 
-  and aux_list tys =
+  and aux_list (tys : mono_type list) : bool =
     tys |> List.map aux |> List.fold_left ( || ) false
+      (* -- must not be short-circuit due to the level inference -- *)
   in
   aux ty
+
+
+let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
+  let rec aux (_, tymain) =
+    match tymain with
+    | BaseType(_) ->
+        false
+
+    | FuncType(tydoms, optrow, tycod) ->
+        let b1 = aux_list tydoms in
+        let bopt = aux_option_row optrow in
+        let b2 = aux tycod in
+        b1 || bopt || b2
+          (* -- must not be short-circuit due to the level inference -- *)
+
+    | PidType(pidty) ->
+        aux_pid pidty
+
+    | EffType(effty, ty0) ->
+        let beff = aux_effect effty in
+        let b0 = aux ty0 in
+        beff || b0
+
+    | TypeVar(_) ->
+        false
+
+    | ProductType(tys) ->
+        tys |> TupleList.to_list |> aux_list
+
+    | ListType(ty) ->
+        aux ty
+
+    | DataType(_tyid, tyargs) ->
+        aux_list tyargs
+
+  and aux_pid (Pid(ty)) =
+    aux ty
+
+  and aux_effect (Effect(ty)) =
+    aux ty
+
+  and aux_option_row = function
+    | FixedRow(labmap)                                 -> aux_label_assoc labmap
+    | RowVar(UpdatableRow{contents = LinkRow(labmap)}) -> aux_label_assoc labmap
+    | RowVar(UpdatableRow{contents = FreeRow(fridx)})  -> FreeRowID.equal fridx frid
+
+  and aux_label_assoc labmap =
+    LabelAssoc.fold (fun _ ty bacc ->
+      let b = aux ty in
+      bacc || b
+    ) labmap false
+
+  and aux_list tys =
+    tys |> List.map aux |> List.fold_left ( || ) false
+      (* -- must not be short-circuit due to the level inference -- *)
+  in
+  LabelAssoc.fold (fun _ ty bacc ->
+    let b = aux ty in
+    bacc || b
+  ) labmap false
 
 
 let opaque_occurs_in_type_scheme : 'a 'b. (OpaqueIDSet.t -> TypeID.t -> bool) -> ('a -> bool) -> OpaqueIDSet.t -> ('a, 'b) typ -> bool =
@@ -644,11 +705,21 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
     | (_, RowVar(UpdatableRow{contents = LinkRow(labmap2)})) ->
         aux_option_row optrow1 (FixedRow(labmap2))
 
-    | (RowVar(UpdatableRow{contents = FreeRow(frid1)}), FixedRow(labmap2)) ->
-        failwith "TODO: unify, aux_option_row, (RowVar, FixedRow)"
+    | (RowVar(UpdatableRow({contents = FreeRow(frid1)} as mrvu1)), FixedRow(labmap2)) ->
+        if occurs_row frid1 labmap2 then
+          InclusionRow(frid1)
+        else begin
+          mrvu1 := LinkRow(labmap2);
+          Consistent
+        end
 
-    | (FixedRow(labmap1), RowVar(UpdatableRow{contents = FreeRow(frid2)})) ->
-        failwith "TODO: unify, aux_option_row, (FixedRow, RowVar)"
+    | (FixedRow(labmap1), RowVar(UpdatableRow({contents = FreeRow(frid2)} as mrvu2))) ->
+        if occurs_row frid2 labmap1 then
+          InclusionRow(frid2)
+        else begin
+          mrvu2 := LinkRow(labmap1);
+          Consistent
+        end
 
     | (RowVar(UpdatableRow{contents = FreeRow(frid1)}), RowVar(UpdatableRow{contents = FreeRow(frid2)})) ->
         failwith "TODO: unify, aux_option_row, (RowVar, RowVar)"
@@ -658,9 +729,10 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
   in
   let res = aux tyact tyexp in
   match res with
-  | Consistent     -> ()
-  | Contradiction  -> raise_error (ContradictionError(tyact, tyexp))
-  | Inclusion(fid) -> raise_error (InclusionError(fid, tyact, tyexp))
+  | Consistent         -> ()
+  | Contradiction      -> raise_error (ContradictionError(tyact, tyexp))
+  | Inclusion(fid)     -> raise_error (InclusionError(fid, tyact, tyexp))
+  | InclusionRow(frid) -> raise_error (InclusionRowError(frid, tyact, tyexp))
 
 
 let fresh_type ?name:_nameopt (lev : int) (rng : Range.t) : mono_type =
