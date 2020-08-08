@@ -952,6 +952,20 @@ and add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typ
   (tyenv, tydoms, lnames)
 
 
+and add_optional_parameters_to_type_environment (pre : pre) (optbinders : (label ranged * binder) list) : Typeenv.t * mono_type LabelAssoc.t =
+  optbinders |> List.fold_left (fun (tyenv, labmap) (rlabel, binder) ->
+    let (rnglabel, label) = rlabel in
+    if labmap |> LabelAssoc.mem label then
+      raise_error (DuplicatedLabel(rnglabel, label))
+    else
+      let (x, ty, lname) = decode_parameter pre binder in
+      let labmap = labmap |> LabelAssoc.add label ty in
+      let pty = lift (Primitives.option_type ty) in
+      let tyenv = tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname)) in
+      (tyenv, labmap)
+  ) (pre.tyenv, LabelAssoc.empty)
+
+
 and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   match utastmain with
   | BaseConst(bc) ->
@@ -976,18 +990,8 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let (tyenv, tydoms, names) =
         add_parameters_to_type_environment pre binders
       in
-      let (labmap, tyenv) : mono_type LabelAssoc.t * Typeenv.t =
-        optbinders |> List.fold_left (fun ((labmap, tyenv) : mono_type LabelAssoc.t * Typeenv.t) ((rlabel, binder) : label ranged * binder) ->
-          let (rnglabel, label) = rlabel in
-          if labmap |> LabelAssoc.mem label then
-            raise_error (DuplicatedLabel(rnglabel, label))
-          else
-            let (x, ty, lname) = decode_parameter pre binder in
-            let labmap = labmap |> LabelAssoc.add label ty in
-            let pty = lift (Primitives.option_type ty) in
-            let tyenv = tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname)) in
-            (labmap, tyenv)
-        ) (LabelAssoc.empty, tyenv)
+      let (tyenv, labmap) =
+        add_optional_parameters_to_type_environment { pre with tyenv } optbinders
       in
       let (tycod, e0) = typecheck { pre with tyenv } utast0 in
       let ty = (rng, FuncType(tydoms, FixedRow(labmap), tycod)) in
@@ -1302,28 +1306,27 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
 and typecheck_let : 'n. (Range.t -> identifier -> 'n) -> pre -> untyped_let_binding -> poly_type * 'n * ast =
 fun namef pre letbind ->
   let (rngv, x) = letbind.vb_identifier in
-  let params = letbind.vb_parameters in
+  let ordparams = letbind.vb_parameters in
+  let optparams = letbind.vb_optionals in
   let utast0 = letbind.vb_body in
 
-  let (ty0, e0, tys, lnames) =
+  let (ty0, e0, tys, lnames, labmap) =
     let levS = pre.level + 1 in
     let assoc = make_type_parameter_assoc levS letbind.vb_forall in
     let localtyparams = pre.local_type_parameters |> add_local_type_parameter assoc in
     let pre = { pre with level = levS; local_type_parameters = localtyparams } in
         (* -- add local type parameters at level `levS` -- *)
-    let (tyenv, tys, lnames) = add_parameters_to_type_environment pre params in
+    let (tyenv, tys, lnames) = add_parameters_to_type_environment pre ordparams in
+    let (tyenv, labmap) = add_optional_parameters_to_type_environment { pre with tyenv } optparams in
     let (ty0, e0) = typecheck { pre with tyenv } utast0 in
 
     letbind.vb_return_type |> Option.map (fun mty0 ->
       let ty0_expected = decode_manual_type tyenv localtyparams mty0 in
       unify ty0 ty0_expected
     ) |> Option.value ~default:();
-    (ty0, e0, tys, lnames)
+    (ty0, e0, tys, lnames, labmap)
   in
-  let optrow =
-    failwith "TODO: typecheck_let, labeled optional parameters"
-  in
-  let ty1 = (rngv, FuncType(tys, optrow, ty0)) in
+  let ty1 = (rngv, FuncType(tys, FixedRow(labmap), ty0)) in
   let e1 = ILambda(None, lnames, e0) in
 
   let pty1 = generalize pre.level ty1 in
