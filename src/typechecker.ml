@@ -707,18 +707,24 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
     | (RowVar(UpdatableRow({contents = FreeRow(frid1)} as mrvu1)), FixedRow(labmap2)) ->
         if occurs_row frid1 labmap2 then
           InclusionRow(frid1)
-        else begin
-          mrvu1 := LinkRow(labmap2);
-          Consistent
-        end
+        else
+          let labmap1 = KindStore.get_free_row frid1 in
+          begin
+            match aux_label_assoc ~specific:labmap2 ~general:labmap1 with
+            | Consistent -> mrvu1 := LinkRow(labmap2); Consistent
+            | res        -> res
+          end
 
     | (FixedRow(labmap1), RowVar(UpdatableRow({contents = FreeRow(frid2)} as mrvu2))) ->
         if occurs_row frid2 labmap1 then
           InclusionRow(frid2)
-        else begin
-          mrvu2 := LinkRow(labmap1);
-          Consistent
-        end
+        else
+          let labmap2 = KindStore.get_free_row frid2 in
+          begin
+            match aux_label_assoc ~specific:labmap1 ~general:labmap2 with
+            | Consistent -> mrvu2 := LinkRow(labmap1); Consistent
+            | res        -> res
+          end
 
     | (RowVar(UpdatableRow({contents = FreeRow(frid1)} as mtvu1)), RowVar(UpdatableRow{contents = FreeRow(frid2)})) ->
         let () =
@@ -739,6 +745,23 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
           ) labmap1 labmap2
         in
         LabelAssoc.fold (fun _ res resacc -> resacc &&& res) merged Consistent
+
+  and aux_label_assoc ~specific:labmap2 ~general:labmap1 =
+    (* Check that `labmap2` is more specific than `labmap1`,
+       i.e., the domain of `labmap1` is contained in that of `labmap2`.
+    *)
+    LabelAssoc.fold (fun label ty1 res ->
+      match res with
+      | Consistent ->
+          begin
+            match labmap2 |> LabelAssoc.find_opt label with
+            | None      -> Contradiction
+            | Some(ty2) -> aux ty1 ty2
+          end
+
+      | _ ->
+          res
+    ) labmap1 Consistent
   in
   let res = aux tyact tyexp in
   match res with
@@ -1018,8 +1041,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let tyret = fresh_type pre.level rng in
       let optrow =
         let frid = FreeRowID.fresh pre.level in
-        let () = failwith "TODO: typecheck, Apply, labeled optional parameters" in
-          (* Register kind `labmap` for `frid`. *)
+        KindStore.register_free_row frid labmap;
         let mrvu = ref (FreeRow(frid)) in
         RowVar(UpdatableRow(mrvu))
       in
