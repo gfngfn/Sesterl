@@ -97,7 +97,7 @@ and untyped_ast_main =
   | BaseConst    of base_constant
   | Var          of identifier
   | Lambda       of binder list * (label ranged * binder) list * untyped_ast
-  | Apply        of untyped_ast * untyped_ast list
+  | Apply        of untyped_ast * untyped_ast list * (label ranged * untyped_ast) list
   | If           of untyped_ast * untyped_ast * untyped_ast
   | LetIn        of rec_or_nonrec * untyped_ast
   | LetPatIn     of untyped_pattern * untyped_ast * untyped_ast
@@ -774,7 +774,7 @@ and ast =
   | IBaseConst   of base_constant
   | IVar         of name
   | ILambda      of local_name option * local_name list * local_name LabelAssoc.t * ast
-  | IApply       of name * ast list
+  | IApply       of name * ast list * ast LabelAssoc.t
   | ILetIn       of local_name * ast * ast
   | ICase        of ast * branch list
   | IReceive     of branch list
@@ -843,10 +843,11 @@ and pp_ast ppf = function
         (LabelAssoc.pp OutputIdentifier.pp_local) optnamemap
         pp_ast e
 
-  | IApply(name, eargs) ->
-      Format.fprintf ppf "%a@[<hov2>(%a)@]"
+  | IApply(name, eargs, optargmap) ->
+      Format.fprintf ppf "%a@[<hov2>(%a, ?%a)@]"
         OutputIdentifier.pp name
         (Format.pp_print_list ~pp_sep:pp_sep_comma pp_ast) eargs
+        (LabelAssoc.pp pp_ast) optargmap
 
   | ILetIn(lname, e1, e2) ->
       Format.fprintf ppf "(let %a =@[<hov2>@ %a@]@ in@ %a)"

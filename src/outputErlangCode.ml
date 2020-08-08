@@ -174,19 +174,39 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
         sgetopts
         s0
 
-  | IApply(name, astargs) ->
+  | IApply(name, astargs, optargmap) ->
       let sargs = astargs |> List.map iter in
+      let soptmap =
+        LabelAssoc.fold (fun label ast acc ->
+          let sarg = iter ast in
+          let s = Printf.sprintf "%s => %s" label sarg in
+          Alist.extend acc s
+        ) optargmap Alist.empty |> Alist.to_list |> String.concat ", "
+      in
       begin
         match (name, sargs) with
         | (OutputIdentifier.Local(lname), _) ->
-            let s = OutputIdentifier.output_local lname in
-            Printf.sprintf "%s(%s)" s (String.concat ", " sargs)
+            let sname = OutputIdentifier.output_local lname in
+            Printf.sprintf "%s(%s, #{%s})"
+              sname
+              (String.concat ", " sargs)
+              soptmap
 
         | (OutputIdentifier.Global(gname), _) ->
             let r = OutputIdentifier.output_global gname in
             let smod = get_module_string gmap gname in
             let sfun = r.function_name in
-            Printf.sprintf "%s:%s(%s)" smod sfun (String.concat ", " sargs)
+            let sopts =
+              if LabelAssoc.cardinal optargmap = 0 then
+                ""
+              else
+                Printf.sprintf ", #{%s}" soptmap
+            in
+            Printf.sprintf "%s:%s(%s%s)"
+              smod
+              sfun
+              (String.concat ", " sargs)
+              sopts
 
         | (OutputIdentifier.Operator(op), [sarg1; sarg2]) ->
             let sop = OutputIdentifier.output_operator op in

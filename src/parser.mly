@@ -20,7 +20,7 @@
   let binary e1 op e2 =
     let rng = make_range (Ranged(e1)) (Ranged(e2)) in
     let (rngop, vop) = op in
-    (rng, Apply((rngop, Var(vop)), [e1; e2]))
+    (rng, Apply((rngop, Var(vop)), [e1; e2], []))
 
 (*
   let syntax_sugar_module_application : Range.t -> untyped_module -> untyped_module -> untyped_module =
@@ -58,6 +58,8 @@
 %type<Syntax.manual_type> ty
 %type<Syntax.binder list * ((Range.t * Syntax.label) * Syntax.binder) list> params
 %type<((Range.t * Syntax.label) * Syntax.binder) list> optparams
+%type<Syntax.untyped_ast list * ((Range.t * Syntax.label) * Syntax.untyped_ast) list> args
+%type<((Range.t * Syntax.label) * Syntax.untyped_ast) list> optargs
 %type<Syntax.untyped_let_binding> bindvalsingle
 %type<Range.t * Syntax.internal_or_external> bindvaltop
 %type<Range.t * Syntax.rec_or_nonrec> bindvallocal
@@ -380,14 +382,17 @@ exprplus:
   | e=exprapp                               { e }
 ;
 exprapp:
-  | efun=exprapp; LPAREN; eargs=exprargs; tokR=RPAREN {
+  | efun=exprapp; LPAREN; args=args; tokR=RPAREN {
+        let (ordargs, optargs) = args in
         let rng = make_range (Ranged(efun)) (Token(tokR)) in
-        (rng, Apply(efun, eargs))
+        (rng, Apply(efun, ordargs, optargs))
       }
-  | ctor=CTOR; LPAREN; eargs=exprargs; tokR=RPAREN {
+  | ctor=CTOR; LPAREN; args=args; tokR=RPAREN {
+        let (ordargs, optargs) = args in
         let (tokL, ctornm) = ctor in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, Constructor(ctornm, eargs))
+        (rng, Constructor(ctornm, ordargs))
+          (* TODO: emit errors when `optargs` is not nil *)
       }
   | ctor=CTOR {
         let (rng, ctornm) = ctor in
@@ -399,10 +404,27 @@ exprapp:
       }
   | e=exprbot { e }
 ;
-exprargs:
-  |                                 { [] }
-  | e=exprlet;                      { e :: [] }
-  | e=exprlet; COMMA; tail=exprargs { e :: tail }
+args:
+  | optargs=optargs {
+        ([], optargs)
+      }
+  | e=exprlet {
+        ([e], [])
+      }
+  | e=exprlet; COMMA; tail=args {
+        let (ordargs, optargs) = tail in
+        (e :: ordargs, optargs)
+      }
+;
+optargs:
+  |                                                 { [] }
+  | rlabel=OPTLABEL; e=exprlet                      { [ (rlabel, e) ] }
+  | rlabel=OPTLABEL; e=exprlet; COMMA; tail=optargs { (rlabel, e) :: tail }
+;
+exprs:
+  |                              { [] }
+  | e=exprlet                    { [ e ] }
+  | e=exprlet; COMMA; tail=exprs { e :: tail }
 ;
 exprbot:
   | rng=TRUE                  { (rng, BaseConst(Bool(true))) }
@@ -415,7 +437,7 @@ exprbot:
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, Tuple(TupleList.make e1 e2 es))
       }
-  | tokL=LSQUARE; es=exprargs; tokR=RSQUARE {
+  | tokL=LSQUARE; es=exprs; tokR=RSQUARE {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         let dr = Range.dummy "list" in
         let (_, emain) =
