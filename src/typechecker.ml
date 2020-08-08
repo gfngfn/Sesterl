@@ -276,8 +276,7 @@ let ithunk (e : ast) : ast =
 
 
 let iforce (e : ast) : ast =
-  let lname = OutputIdentifier.fresh () in
-  IForce(lname, e)
+  IForce(e)
 
 
 let iletpatin (ipat : pattern) (e1 : ast) (e2 : ast) : ast =

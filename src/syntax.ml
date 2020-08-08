@@ -496,7 +496,7 @@ and ast =
   | IListCons    of ast * ast
   | IConstructor of ConstructorID.t * ast list
   | IThunk       of ast
-  | IForce       of local_name * ast
+  | IForce       of ast
 
 and branch =
   | IBranch of pattern * ast option * ast

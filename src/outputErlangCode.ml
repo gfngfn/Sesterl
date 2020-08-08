@@ -6,6 +6,10 @@ open Syntax
 let option_map_parameter = "Options"
 
 
+let fresh_local_symbol () =
+  OutputIdentifier.output_local (OutputIdentifier.fresh ())
+
+
 type val_binding_output =
   | OBindVal         of global_name * local_name list * local_name LabelAssoc.t * global_name_map * ast
   | OBindValExternal of global_name * string
@@ -280,8 +284,8 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
       let s0 = iter e0 in
       Printf.sprintf "fun() -> %s end" s0
 
-  | IForce(lname, e0) ->
-      let sname = OutputIdentifier.output_local lname in
+  | IForce(e0) ->
+      let sname = fresh_local_symbol () in
       let s0 = iter e0 in
       Printf.sprintf "begin %s = %s, %s() end" sname s0 sname
 
