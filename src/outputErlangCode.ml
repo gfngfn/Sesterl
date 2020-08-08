@@ -199,6 +199,12 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
             let sopts =
               if LabelAssoc.cardinal optargmap = 0 then
                 ""
+                  (* When no optional argument is given, we do not output the empty map for it.
+                     This is a workaround for functions via FFI.
+                     In response to this, functions that are not defined by FFI are compiled into two variants;
+                     one has its innate arity,
+                     and the other can receive a map for optional arguments via an additional argument.
+                  *)
               else
                 Printf.sprintf ", #{%s}" soptmap
             in
