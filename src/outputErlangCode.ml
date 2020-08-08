@@ -160,6 +160,7 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
 
   | ILambda(recopt, lnames, optnamemap, ast0) ->
       let snames = lnames |> List.map OutputIdentifier.output_local in
+      let sparamscatcomma = snames |> List.map (fun s -> s ^ ", ") |> String.concat "" in
       let sgetopts = stringify_option_decoding_operation optnamemap in
       let s0 = iter ast0 in
       let srec =
@@ -167,9 +168,9 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
         | None          -> ""
         | Some(namerec) -> " " ^ OutputIdentifier.output_local namerec
       in
-      Printf.sprintf "fun%s(%s, %s) -> %s%s end"
+      Printf.sprintf "fun%s(%s%s) -> %s%s end"
         srec
-        (String.concat ", " snames)
+        sparamscatcomma
         option_map_parameter
         sgetopts
         s0
@@ -187,10 +188,15 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
         match (name, sargs) with
         | (OutputIdentifier.Local(lname), _) ->
             let sname = OutputIdentifier.output_local lname in
-            Printf.sprintf "%s(%s, #{%s})"
-              sname
-              (String.concat ", " sargs)
-              soptmap
+            if List.length sargs = 0 then
+              Printf.sprintf "%s(#{%s})"
+                sname
+                soptmap
+            else
+              Printf.sprintf "%s(%s, #{%s})"
+                sname
+                (String.concat ", " sargs)
+                soptmap
 
         | (OutputIdentifier.Global(gname), _) ->
             let r = OutputIdentifier.output_global gname in
@@ -205,6 +211,8 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
                      one has its innate arity,
                      and the other can receive a map for optional arguments via an additional argument.
                   *)
+              else if List.length sargs = 0 then
+                Printf.sprintf "#{%s}" soptmap
               else
                 Printf.sprintf ", #{%s}" soptmap
             in
@@ -323,19 +331,20 @@ let stringify_val_binding_output : val_binding_output -> string list = function
       let r = OutputIdentifier.output_global gnamefun in
       let sparams = lnames |> List.map OutputIdentifier.output_local in
       let sparamscat = String.concat ", " sparams in
+      let sparamscatcomma = sparams |> List.map (fun s -> s ^ ", ") |> String.concat "" in
       let sgetopts = stringify_option_decoding_operation optnamemap in
       let s0 = stringify_ast gmap ast0 in
       let s_without_option =
-        Printf.sprintf "%s(%s) -> ?MODULE:%s(%s, #{})."
+        Printf.sprintf "%s(%s) -> ?MODULE:%s(%s#{})."
           r.function_name
           sparamscat
           r.function_name
-          sparamscat
+          sparamscatcomma
       in
       let s_with_option =
-        Printf.sprintf "%s(%s, %s) -> %s%s."
+        Printf.sprintf "%s(%s%s) -> %s%s."
           r.function_name
-          sparamscat
+          sparamscatcomma
           option_map_parameter
           sgetopts
           s0
