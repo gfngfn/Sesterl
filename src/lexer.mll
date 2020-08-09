@@ -61,6 +61,10 @@ rule token = parse
         let pos = Range.from_lexbuf lexbuf in
         TYPARAM(pos, s)
       }
+  | ("?$" (identifier as s)) {
+        let pos = Range.from_lexbuf lexbuf in
+        ROWPARAM(pos, s)
+      }
   | constructor {
         let s = Lexing.lexeme lexbuf in
         let pos = Range.from_lexbuf lexbuf in

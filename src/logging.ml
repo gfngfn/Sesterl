@@ -101,6 +101,11 @@ let report_type_error (e : type_error) : unit =
         Range.pp rng
         tyvar
 
+  | UnboundRowParameter(rng, rowvar) ->
+      Format.printf "%a: unbound row variable '?$%s'\n"
+        Range.pp rng
+        rowvar
+
   | UndefinedConstructor(rng, ctor) ->
       Format.printf "%a: undefined constructor '%s'\n"
         Range.pp rng
@@ -129,6 +134,11 @@ let report_type_error (e : type_error) : unit =
       Format.printf "%a: type variable '%s' is bound more than once\n"
         Range.pp rng
         tyvar
+
+  | RowParameterBoundMoreThanOnce(rng, rowvar) ->
+      Format.printf "%a: row variable '%s' is bound more than once\n"
+        Range.pp rng
+        rowvar
 
   | InvalidByte(rng) ->
       Format.printf "%a: invalid byte\n"

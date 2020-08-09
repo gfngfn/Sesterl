@@ -16,11 +16,13 @@ type type_error =
   | InclusionRowError                   of FreeRowID.t * mono_type * mono_type
   | BoundMoreThanOnceInPattern          of Range.t * identifier
   | UnboundTypeParameter                of Range.t * type_variable_name
+  | UnboundRowParameter                 of Range.t * row_variable_name
   | UndefinedConstructor                of Range.t * constructor_name
   | InvalidNumberOfConstructorArguments of Range.t * constructor_name * int * int
   | UndefinedTypeName                   of Range.t * type_name
   | InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
   | TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
+  | RowParameterBoundMoreThanOnce       of Range.t * row_variable_name
   | InvalidByte                         of Range.t
   | CyclicSynonymTypeDefinition         of (type_name ranged) list
   | UnboundModuleName                   of Range.t * module_name
