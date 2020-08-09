@@ -1614,7 +1614,19 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
     aux pty1 pty2
 
   and aux_option_row poptrow1 poptrow2 =
-    failwith "TODO: subtype_poly_type_scheme, aux_option_row"
+    match (poptrow1, poptrow2) with
+    | (FixedRow(plabmap1), FixedRow(plabmap2)) ->
+        LabelAssoc.fold (fun label pty1 b ->
+          if not b then
+            false
+          else
+            match plabmap2 |> LabelAssoc.find_opt label with
+            | None       -> false
+            | Some(pty2) -> aux pty1 pty2
+        ) plabmap1 true
+
+    | _ ->
+        failwith "TODO: subtype_poly_type_scheme, aux_option_row"
   in
   aux pty1 pty2
 
