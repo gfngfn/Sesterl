@@ -282,7 +282,7 @@ let rec show_label_assoc : 'a 'b. ('a -> string) -> ('b -> string) -> (('a, 'b) 
 fun showtv showrv labmap ->
   LabelAssoc.fold (fun label ty acc ->
     let sty = show_type showtv showrv ty in
-    Alist.extend acc ("?" ^ label ^ " : " ^ sty)
+    Alist.extend acc ("?" ^ label ^ " " ^ sty)
   ) labmap Alist.empty |> Alist.to_list |> String.concat ", "
 
 
