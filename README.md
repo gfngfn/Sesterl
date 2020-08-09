@@ -393,7 +393,8 @@ main() ->
   * [x] Pattern matching
   * [x] Type synonyms
   * [ ] Records
-  * [ ] Functions with labeled parameters
+  * [x] Functions with labeled optional parameters
+  * [ ] Functions with labeled mandatory parameters
   * [ ] GADTs (especially for typing synchronous messages)
 * [x] Mutual recursion by generalized `letrec`-expressions
 * [x] Pattern matching by generalized `let`-expressions
