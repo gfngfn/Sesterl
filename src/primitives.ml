@@ -130,7 +130,7 @@ let primitive_definitions = [
     target = {
       target_name = decode_option_function;
       parameters  = ["Options"; "Key"];
-      code        = "case maps:find(Options, Key) of error -> none; {ok, Value} -> {some, Value} end";
+      code        = "case maps:find(Key, Options) of error -> none; {ok, Value} -> {some, Value} end";
     };
   };
 ]
