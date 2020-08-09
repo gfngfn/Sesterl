@@ -294,13 +294,20 @@ fun showtv showrv ty ->
 
     | FuncType(tydoms, optrow, tycod) ->
         let sdoms = tydoms |> List.map aux in
-        let sopts =
+        let sdomscat = String.concat ", " sdoms in
+        let (sopts, is_opts_empty) =
           match optrow with
-          | FixedRow(labmap) -> labmap |> show_label_assoc showtv showrv
-          | RowVar(rv)       -> showrv rv
+          | FixedRow(labmap) -> (labmap |> show_label_assoc showtv showrv, LabelAssoc.cardinal labmap = 0)
+          | RowVar(rv)       -> ("?" ^ showrv rv, false)
+        in
+        let smid =
+          if List.length sdoms = 0 || is_opts_empty then
+            ""
+          else
+            ", "
         in
         let scod = aux tycod in
-        "fun(" ^ (String.concat ", " sdoms) ^ sopts ^ ") -> " ^ scod
+        "fun(" ^ sdomscat ^ smid ^ sopts ^ ") -> " ^ scod
 
     | EffType(eff, ty0) ->
         let seff = aux_effect eff in
