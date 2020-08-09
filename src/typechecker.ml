@@ -336,7 +336,7 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
         let bopt = aux_option_row optrow in
         let b2 = aux tycod in
         b1 || bopt || b2
-          (* -- must not be short-circuit due to the level inference -- *)
+          (* Must not be short-circuit due to the level inference. *)
 
     | ProductType(tys) ->
         tys |> TupleList.to_list |> aux_list
@@ -351,7 +351,7 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
         let beff = aux_effect eff in
         let b0 = aux ty0 in
         beff || b0
-          (* -- must not be short-circuit due to the level inference -- *)
+          (* Must not be short-circuit due to the level inference. *)
 
     | PidType(pidty) ->
         aux_pid_type pidty
@@ -397,7 +397,7 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
 
   and aux_list (tys : mono_type list) : bool =
     tys |> List.map aux |> List.fold_left ( || ) false
-      (* -- must not be short-circuit due to the level inference -- *)
+      (* Must not be short-circuit due to the level inference *)
   in
   aux ty
 
@@ -413,7 +413,7 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
         let bopt = aux_option_row optrow in
         let b2 = aux tycod in
         b1 || bopt || b2
-          (* -- must not be short-circuit due to the level inference -- *)
+          (* Must not be short-circuit due to the level inference. *)
 
     | PidType(pidty) ->
         aux_pid pidty
@@ -454,7 +454,7 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
 
   and aux_list tys =
     tys |> List.map aux |> List.fold_left ( || ) false
-      (* -- must not be short-circuit due to the level inference -- *)
+      (* Must not be short-circuit due to the level inference. *)
   in
   LabelAssoc.fold (fun _ ty bacc ->
     let b = aux ty in
@@ -963,7 +963,7 @@ and decode_manual_type (tyenv : Typeenv.t) : local_type_parameter_map -> manual_
 
 and decode_manual_type_and_get_dependency (vertices : SynonymIDSet.t) (pre : pre) (mty : manual_type) : mono_type * SynonymIDSet.t =
   let hashset = SynonymIDHashSet.create 32 in
-    (* -- a hash set is created on every (non-partial) call -- *)
+    (* A hash set is created on every (non-partial) call. *)
   let k tyid =
     match tyid with
     | TypeID.Synonym(sid) ->
@@ -1393,7 +1393,7 @@ fun namef pre letbind ->
     let assoc = make_type_parameter_assoc levS letbind.vb_forall in
     let localtyparams = pre.local_type_parameters |> add_local_type_parameter assoc in
     let pre = { pre with level = levS; local_type_parameters = localtyparams } in
-        (* -- add local type parameters at level `levS` -- *)
+      (* Add local type parameters at level `levS` *)
     let (tyenv, tys, lnames) = add_parameters_to_type_environment pre ordparams in
     let (tyenv, labmap, optnamemap) = add_optional_parameters_to_type_environment { pre with tyenv } optparams in
     let (ty0, e0) = typecheck { pre with tyenv } utast0 in
@@ -1415,8 +1415,8 @@ fun namef pre letbind ->
 and typecheck_letrec_mutual : 'n. (untyped_let_binding -> 'n * 'n) -> ('n -> name) -> pre -> untyped_let_binding list -> (identifier * poly_type * 'n * 'n * ast) list =
 fun namesf proj pre letbinds ->
 
-  (* -- register type variables and names for output corresponding to bound names
-        before traversing definitions -- *)
+  (* Register type variables and names for output corresponding to bound names
+     before traversing definitions *)
   let (tupleacc, tyenv) =
     letbinds |> List.fold_left (fun (tupleacc, tyenv) letbind ->
       let (rngv, x) = letbind.vb_identifier in
@@ -1485,6 +1485,14 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorMap.empty
 
 
+(* `subtype_poly_type_scheme wtmap internbid pty1 pty2` checks that
+   whether `pty1` is more general than (or equal to) `[wtmap]pty2`
+   where `wtmap` is a substitution for type definitions in `pty2`.
+   Note that being more general means being smaller as polymorphic types;
+   we have `pty1 <= pty2` in that if `x : pty1` holds and `pty1` is more general than `pty2`, then `x : pty2`.
+   The parameter `internbid` is used for `internbid bid pty`, which returns
+   whether the bound ID `bid` occurring in `pty1` is mapped to a type equivalent to `pty`.
+*)
 and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> poly_type -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
   let rec aux pty1 pty2 =
 (*
@@ -1496,7 +1504,7 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
     | (TypeVar(Mono(_)), _)
     | (_, TypeVar(Mono(_))) ->
         assert false
-          (* -- monomorphic type variables cannot occur at level 0 -- *)
+          (* Monomorphic type variables cannot occur at level 0, according to type generalization. *)
 
     | (DataType(TypeID.Synonym(sid1), ptyargs1), _) ->
         let pty1real = get_real_poly_type sid1 ptyargs1 in
@@ -1971,7 +1979,7 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
         }
       in
       ConcFunctor(sigftor)
-    (* -- Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. -- *)
+        (* Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. *)
 
   | ConcStructure(sigr) ->
       let sigr = sigr |> substitute_structure wtmap in
@@ -2085,7 +2093,7 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
 and substitute_abstract (wtmap : WitnessMap.t) (absmodsig : module_signature abstracted) : module_signature abstracted =
   let (oidset, modsig) = absmodsig in
   (oidset, substitute_concrete wtmap modsig)
-    (* -- Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. -- *)
+    (* Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. *)
 
 
 and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
@@ -2681,11 +2689,10 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
         match SigRecord.disjoint_union sigracc sigr with
         | Ok(sigr) -> sigr
         | Error(s) -> let (rng, _) = utbind in raise_error (ConflictInSignature(rng, s))
-          (* --
-             In the original paper "F-ing modules" [Rossberg, Russo & Dreyer 2014],
+          (* In the original paper "F-ing modules" [Rossberg, Russo & Dreyer 2014],
              this operation is not disjoint union, but union with right-hand side precedence.
              For the sake of clarity, however, we adopt disjoint union here, at least for now.
-             -- *)
+          *)
       in
       let ibindacc = Alist.append ibindacc ibinds in
       (tyenv, oidsetacc, sigracc, ibindacc)
