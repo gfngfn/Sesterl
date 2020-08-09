@@ -1519,7 +1519,7 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
 
     | (FuncType(ptydoms1, poptrow1, ptycod1), FuncType(ptydoms2, poptrow2, ptycod2)) ->
         let b1 = aux_list ptydoms1 ptydoms2 in
-        let bopt = aux_option_row poptrow1 poptrow2 in
+        let bopt = subtype_option_row wtmap internbid internbrid poptrow1 poptrow2 in
         let b2 = aux ptycod1 ptycod2 in
         b1 && bopt && b2
 
@@ -1612,8 +1612,12 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
 
   and aux_effect (Effect(pty1)) (Effect(pty2)) =
     aux pty1 pty2
+  in
+  aux pty1 pty2
 
-  and aux_option_row poptrow1 poptrow2 =
+
+and subtype_option_row (wtmap : WitnessMap.t) (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (poptrow1 : poly_row) (poptrow2 : poly_row) : bool =
+  let rec aux poptrow1 poptrow2 =
     match (poptrow1, poptrow2) with
     | (RowVar(MonoRow(_)), _)
     | (_, RowVar(MonoRow(_))) ->
@@ -1626,16 +1630,21 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
           else
             match plabmap2 |> LabelAssoc.find_opt label with
             | None       -> false
-            | Some(pty2) -> aux pty1 pty2
+            | Some(pty2) -> subtype_poly_type_scheme wtmap internbid internbrid pty1 pty2
         ) plabmap1 true
 
     | (FixedRow(_), RowVar(_)) ->
         false
 
-    | (RowVar(BoundRow(brid)), _) ->
-        internbrid brid poptrow2
+    | (RowVar(BoundRow(brid1)), _) ->
+        (* First check that the kind of `brid1` is more general than (or equal to) `prow2`. *)
+        let plabmap = KindStore.get_bound_row brid1 in
+        if aux (FixedRow(plabmap)) poptrow2 then
+          internbrid brid1 poptrow2
+        else
+          false
   in
-  aux pty1 pty2
+  aux poptrow1 poptrow2
 
 
 and subtype_poly_type (wtmap : WitnessMap.t) (pty1 : poly_type) (pty2 : poly_type) : bool =
@@ -1655,7 +1664,6 @@ and subtype_poly_type (wtmap : WitnessMap.t) (pty1 : poly_type) (pty2 : poly_typ
 *)
     match BoundRowIDHashTable.find_opt bridht brid1 with
     | None ->
-        (* TODO: should check that the kind of `brid1` is more general than `prow2`. *)
         BoundIDHashTable.add bridht brid1 prow2;
         true
 
