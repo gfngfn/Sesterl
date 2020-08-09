@@ -18,6 +18,9 @@ type constructor_name = string
 type type_variable_name = string
 [@@deriving show { with_path = false; } ]
 
+type row_variable_name = string
+[@@deriving show { with_path = false; } ]
+
 type module_name = string
 [@@deriving show { with_path = false; } ]
 
@@ -83,6 +86,7 @@ and manual_type_main =
 
 and manual_row =
   | MFixedRow of (label ranged * manual_type) list
+  | MRowVar   of Range.t * row_variable_name
 
 and binder = identifier ranged * manual_type option
 
@@ -244,7 +248,8 @@ and mono_row_var_updatable =
   | LinkRow of mono_type LabelAssoc.t
 
 and mono_row_var =
-  | UpdatableRow of mono_row_var_updatable ref
+  | UpdatableRow   of mono_row_var_updatable ref
+  | MustBeBoundRow of MustBeBoundRowID.t
 
 and mono_type = (mono_type_var, mono_row_var) typ
 
@@ -375,7 +380,8 @@ and show_mono_type_var_updatable (mtvu : mono_type_var_updatable) =
 
 and show_mono_row_var (mrv : mono_row_var) =
   match mrv with
-  | UpdatableRow(mrvu) -> show_mono_row_var_updatable !mrvu
+  | UpdatableRow(mrvu)     -> show_mono_row_var_updatable !mrvu
+  | MustBeBoundRow(mbbrid) -> Format.asprintf "%a" MustBeBoundRowID.pp mbbrid
 
 
 and show_mono_row_var_updatable (mrvu : mono_row_var_updatable) =

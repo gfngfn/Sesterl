@@ -101,6 +101,11 @@ let report_type_error (e : type_error) : unit =
         Range.pp rng
         tyvar
 
+  | UnboundRowParameter(rng, rowvar) ->
+      Format.printf "%a: unbound row variable '?$%s'\n"
+        Range.pp rng
+        rowvar
+
   | UndefinedConstructor(rng, ctor) ->
       Format.printf "%a: undefined constructor '%s'\n"
         Range.pp rng
