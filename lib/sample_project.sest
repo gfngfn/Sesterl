@@ -48,8 +48,13 @@ module SampleProject = struct
     let set_number<$a>(pid : proc, m : int) : [$a]unit =
       cast(pid, SetNumber(m))
 
-    let get_number<$a>(pid : proc) : [$a]int =
-      do res <- call(pid, GetNumber) in
+    let get_number<$a>(pid : proc, ?timeout t_opt) : [$a]int =
+      do res <-
+        case t_opt of
+        | None    -> call(pid, GetNumber)
+        | Some(t) -> call(pid, GetNumber, ?timeout t)
+        end
+      in
       case res of
       | Number(n) -> return(n)
       end
@@ -68,7 +73,7 @@ module SampleProject = struct
 
     let main() =
       do pid <- Server.start_link((57, "Sample Store")) in
-      do x <- Server.get_number(pid) in
+      do x <- Server.get_number(pid, ?timeout 1000) in
       let _ = print_debug(("first get", x)) in
       do Server.set_number(pid, 42) in
       loop(10, pid)

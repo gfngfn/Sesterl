@@ -64,9 +64,15 @@ module SesterlStdlib = struct
             {noreply, State1}.
       ```
 
-      let call<$a> : fun(proc, request) -> [$a]response = external 2 ```
+      let call<$a> : fun(proc, request, ?timeout int) -> [$a]response = external 2+ ```
         call(Pid, Msg) ->
             fun() -> gen_server:call(Pid, Msg) end.
+
+        call(Pid, Msg, Options) ->
+            case maps:find(timeout, Options) of
+                {ok, Timeout} -> fun() -> gen_server:call(Pid, Msg, Timeout) end;
+                error         -> fun() -> gen_server:call(Pid, Msg) end
+            end.
       ```
 
       let cast<$a> : fun(proc, cast_message) -> [$a]unit = external 2 ```
