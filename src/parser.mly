@@ -65,7 +65,6 @@
 %type<((Range.t * Syntax.label) * Syntax.manual_type) list> opttydomsfixed
 %type<(Range.t * Syntax.type_variable_name) list * ((Range.t * Syntax.row_variable_name) * ((Range.t * Syntax.label) * Syntax.manual_type) list) list> typarams
 %type<((Range.t * Syntax.row_variable_name) * ((Range.t * Syntax.label) * Syntax.manual_type) list) list> rowparams
-%type<((Range.t * Syntax.label) * Syntax.manual_type) list> rowkind
 %type<Syntax.untyped_let_binding> bindvalsingle
 %type<Range.t * Syntax.internal_or_external> bindvaltop
 %type<Range.t * Syntax.rec_or_nonrec> bindvallocal
@@ -145,12 +144,9 @@ typaramssub:
       }
 ;
 rowparams:
-  |                                                                          { [] }
-  | rowparam=ROWPARAM; CONS; LPAREN; rowkind=rowkind; RPAREN                 { [ (rowparam, rowkind) ] }
-  | rowparam=ROWPARAM; CONS; LPAREN; rowkind=rowkind; RPAREN; tail=rowparams { (rowparam, rowkind) :: tail }
-;
-rowkind:
-  | rowkind=opttydomsfixed { rowkind }
+  |                                                                                        { [] }
+  | rowparam=ROWPARAM; CONS; LPAREN; rowkind=opttydomsfixed; RPAREN                        { [ (rowparam, rowkind) ] }
+  | rowparam=ROWPARAM; CONS; LPAREN; rowkind=opttydomsfixed; RPAREN; COMMA; tail=rowparams { (rowparam, rowkind) :: tail }
 ;
 bindvallocal:
   | tok=LET; valbinding=bindvalsingle {
@@ -561,6 +557,7 @@ tydoms:
       }
 ;
 opttydoms:
+  | tok=ROWPARAM            { let (rng, rowparam) = tok in MRowVar(rng, rowparam) }
   | fixedrow=opttydomsfixed { MFixedRow(fixedrow) }
 ;
 opttydomsfixed:
