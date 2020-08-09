@@ -9,7 +9,7 @@ let fresh_local_symbol () =
 
 type val_binding_output =
   | OBindVal         of global_name * local_name list * local_name LabelAssoc.t * global_name_map * ast
-  | OBindValExternal of global_name * string
+  | OBindValExternal of global_name * bool * string
 
 type module_binding_output =
   | OBindModule of string * val_binding_output list
@@ -46,7 +46,7 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
             gmap |> GlobalNameMap.add gnamefun smod
           ) gmap
 
-      | IBindVal(IExternal(gnamefun, _)) ->
+      | IBindVal(IExternal(gnamefun, _, _)) ->
           gmap |> GlobalNameMap.add gnamefun smod
 
       | IBindModule(_) ->
@@ -76,10 +76,10 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
     let ovalbinds =
       ibinds |> List.map (fun ibind ->
         match ibind with
-        | IBindVal(INonRec(valbind)) -> [ traverse_val_single gmap valbind ]
-        | IBindVal(IRec(valbinds))   -> valbinds |> List.map (traverse_val_single gmap)
-        | IBindVal(IExternal(gname, code)) -> [ OBindValExternal(gname, code) ]
-        | IBindModule(_)             -> []
+        | IBindVal(INonRec(valbind))                   -> [ traverse_val_single gmap valbind ]
+        | IBindVal(IRec(valbinds))                     -> valbinds |> List.map (traverse_val_single gmap)
+        | IBindVal(IExternal(gname, has_option, code)) -> [ OBindValExternal(gname, has_option, code) ]
+        | IBindModule(_)                               -> []
       ) |> List.concat
     in
     match ovalbinds with
@@ -365,7 +365,7 @@ let stringify_val_binding_output : val_binding_output -> string list = function
       in
       [s_without_option; s_with_option]
 
-  | OBindValExternal(_, code) ->
+  | OBindValExternal(_, _, code) ->
       [code]
 
 
@@ -381,11 +381,17 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
               Printf.sprintf "%s/%d" r.function_name (r.arity + 1);
             ]
 
-        | OBindValExternal(gnamefun, _) ->
+        | OBindValExternal(gnamefun, has_option, _) ->
             let r = OutputIdentifier.output_global gnamefun in
-            [
-              Printf.sprintf "%s/%d" r.function_name r.arity;
-            ]
+            if has_option then
+              [
+                Printf.sprintf "%s/%d" r.function_name r.arity;
+                Printf.sprintf "%s/%d" r.function_name (r.arity + 1);
+              ]
+            else
+              [
+                Printf.sprintf "%s/%d" r.function_name r.arity;
+              ]
         ) |> List.concat
       in
       let ss = ovalbinds |> List.map stringify_val_binding_output |> List.concat in

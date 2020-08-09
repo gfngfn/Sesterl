@@ -127,6 +127,7 @@ and external_binding = {
   ext_type_params : type_variable_name ranged list;
   ext_type_annot  : manual_type;
   ext_arity       : int;
+  ext_has_option  : bool;
   ext_code        : string;
 }
 
@@ -487,7 +488,10 @@ type constructor_entry = {
 type val_binding =
   | INonRec   of (identifier * global_name * poly_type * ast)
   | IRec      of (identifier * global_name * poly_type * ast) list
-  | IExternal of global_name * string
+  | IExternal of global_name * bool * string
+      (* the second Boolean parameter stands for whether the external function has
+         a variant version that can receive a map for labeled optional arguments.
+      *)
 
 and binding =
   | IBindVal     of val_binding
@@ -532,9 +536,10 @@ and pp_val_binding ppf = function
       Format.fprintf ppf "val %a"
         (Format.pp_print_list ~pp_sep:pp_sep_comma pp_val_binding_sub) pairs
 
-  | IExternal(gname, code) ->
-      Format.fprintf ppf "val %a = external@ \"%s\"@,"
+  | IExternal(gname, has_option, code) ->
+      Format.fprintf ppf "val %a = external%s@ \"%s\"@,"
         OutputIdentifier.pp_global gname
+        (if has_option then "+" else "")
         code
 
 

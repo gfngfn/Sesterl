@@ -143,7 +143,7 @@ bindvaltop:
         let (rng, rec_or_nonrec) = local in
         (rng, Internal(rec_or_nonrec))
       }
-  | tokL=LET; ident=IDENT; bids=typarams; COLON; mty=ty; DEFEQ; EXTERNAL; inttok=INT; strblock=STRING_BLOCK {
+  | tokL=LET; ident=IDENT; bids=typarams; COLON; mty=ty; DEFEQ; EXTERNAL; inttok=INT; has_option=has_option; strblock=STRING_BLOCK {
         let (tokR, erlang_bind) = strblock in
         let (_, arity) = inttok in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
@@ -153,11 +153,16 @@ bindvaltop:
             ext_type_params = bids;
             ext_type_annot  = mty;
             ext_arity       = arity;
+            ext_has_option  = has_option;
             ext_code        = erlang_bind;
           }
         in
         (rng, External(extbind))
       }
+;
+has_option:
+  |            { false }
+  | BINOP_PLUS { true }  (* TODO: fix this ad-hoc implementation *)
 ;
 recbinds:
   | ANDREC; valbinding=bindvalsingle { valbinding }

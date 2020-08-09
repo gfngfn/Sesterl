@@ -2456,7 +2456,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       in
       let gname = generate_global_name arity rngv x in
       let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
-      ((OpaqueIDSet.empty, sigr), [IBindVal(IExternal(gname, extbind.ext_code))])
+      ((OpaqueIDSet.empty, sigr), [IBindVal(IExternal(gname, extbind.ext_has_option, extbind.ext_code))])
 
   | BindVal(Internal(rec_or_nonrec)) ->
       let pre =
