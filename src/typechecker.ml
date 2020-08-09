@@ -1493,7 +1493,7 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
    The parameter `internbid` is used for `internbid bid pty`, which returns
    whether the bound ID `bid` occurring in `pty1` is mapped to a type equivalent to `pty`.
 *)
-and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> poly_type -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
+and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
   let rec aux pty1 pty2 =
 (*
   Format.printf "subtype_poly_type_scheme > aux: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
@@ -1615,6 +1615,10 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
 
   and aux_option_row poptrow1 poptrow2 =
     match (poptrow1, poptrow2) with
+    | (RowVar(MonoRow(_)), _)
+    | (_, RowVar(MonoRow(_))) ->
+        assert false
+
     | (FixedRow(plabmap1), FixedRow(plabmap2)) ->
         LabelAssoc.fold (fun label pty1 b ->
           if not b then
@@ -1625,8 +1629,11 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
             | Some(pty2) -> aux pty1 pty2
         ) plabmap1 true
 
-    | _ ->
-        failwith "TODO: subtype_poly_type_scheme, aux_option_row"
+    | (FixedRow(_), RowVar(_)) ->
+        false
+
+    | (RowVar(BoundRow(brid)), _) ->
+        internbrid brid poptrow2
   in
   aux pty1 pty2
 
@@ -1635,13 +1642,45 @@ and subtype_poly_type (wtmap : WitnessMap.t) (pty1 : poly_type) (pty2 : poly_typ
 (*
   Format.printf "subtype_poly_type: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
 *)
-  let hashtable = BoundIDHashTable.create 32 in
+  let bidht = BoundIDHashTable.create 32 in
+  let bridht = BoundRowIDHashTable.create 32 in
   let internbid (bid1 : BoundID.t) (pty2 : poly_type) : bool =
-    match BoundIDHashTable.find_opt hashtable bid1 with
-    | None      -> BoundIDHashTable.add hashtable bid1 pty2; true
+    match BoundIDHashTable.find_opt bidht bid1 with
+    | None      -> BoundIDHashTable.add bidht bid1 pty2; true
     | Some(pty) -> poly_type_equal pty pty2
   in
-  subtype_poly_type_scheme wtmap internbid pty1 pty2
+  let internbrid (brid1 : BoundRowID.t) (prow2 : poly_row) : bool =
+    match BoundRowIDHashTable.find_opt bridht brid1 with
+    | None ->
+        (* TODO: should check that the kind of `brid1` is more general than `prow2`. *)
+        BoundIDHashTable.add bridht brid1 prow2;
+        true
+
+    | Some(prow) ->
+        poly_row_equal prow prow2
+  in
+  subtype_poly_type_scheme wtmap internbid internbrid pty1 pty2
+
+
+and poly_row_equal (prow1 : poly_row) (prow2 : poly_row) : bool =
+  match (prow1, prow2) with
+  | (RowVar(MonoRow(_)), _)
+  | (_, RowVar(MonoRow(_))) ->
+      assert false
+
+  | (RowVar(BoundRow(brid1)), RowVar(BoundRow(brid2))) ->
+      BoundRowID.equal brid1 brid2
+
+  | (FixedRow(plabmap1), FixedRow(plabmap2)) ->
+      LabelAssoc.merge (fun _ ptyopt1 ptyopt2 ->
+        match (ptyopt1, ptyopt2) with
+        | (None, None)             -> None
+        | (Some(pty1), Some(pty2)) -> Some(poly_type_equal pty1 pty2)
+        | _                        -> Some(false)
+      ) plabmap1 plabmap2 |> LabelAssoc.for_all (fun _ b -> b)
+
+  | _ ->
+      false
 
 
 and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
@@ -1761,7 +1800,11 @@ and subtype_type_abstraction (wtmap : WitnessMap.t) (ptyfun1 : BoundID.t list * 
         | _ ->
             false
       in
-      subtype_poly_type_scheme wtmap internbid pty1 pty2
+      let internbrid (brid1 : BoundRowID.t) (prow2 : poly_row) : bool =
+        (* TODO: implement this when type definitions become able to take row parameters *)
+        false
+      in
+      subtype_poly_type_scheme wtmap internbid internbrid pty1 pty2
 
 
 and lookup_type_opacity (tynm : type_name) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : WitnessMap.t option =
