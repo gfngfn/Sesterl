@@ -28,6 +28,7 @@ As mentioned in the section “Features” below, however, many features as a ty
   - [Concurrency](#concurrency)
   - [Module system](#module-system)
   - [FFI](#ffi)
+  - [Labeled optional parameters](#labeled-optional-parameters)
 - [Future work](#future-work)
   - [TODO list](#todo-list)
 - [References](#references)
