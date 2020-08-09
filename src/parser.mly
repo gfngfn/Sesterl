@@ -46,7 +46,7 @@
 
 %token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC VAL MODULE STRUCT SIGNATURE SIG EXTERNAL INCLUDE COERCE REQUIRE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
-%token<Range.t * string> IDENT DOTIDENT CTOR DOTCTOR TYPARAM OPTLABEL BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
+%token<Range.t * string> IDENT DOTIDENT CTOR DOTCTOR TYPARAM ROWPARAM OPTLABEL BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
 %token<Range.t * string> STRING STRING_BLOCK
@@ -63,6 +63,9 @@
 %type<Syntax.manual_type list * Syntax.manual_row> tydoms
 %type<Syntax.manual_row> opttydoms
 %type<((Range.t * Syntax.label) * Syntax.manual_type) list> opttydomsfixed
+%type<(Range.t * Syntax.type_variable_name) list * ((Range.t * Syntax.row_variable_name) * ((Range.t * Syntax.label) * Syntax.manual_type) list) list> typarams
+%type<((Range.t * Syntax.row_variable_name) * ((Range.t * Syntax.label) * Syntax.manual_type) list) list> rowparams
+%type<((Range.t * Syntax.label) * Syntax.manual_type) list> rowkind
 %type<Syntax.untyped_let_binding> bindvalsingle
 %type<Range.t * Syntax.internal_or_external> bindvaltop
 %type<Range.t * Syntax.rec_or_nonrec> bindvallocal
@@ -111,10 +114,14 @@ bindmod:
       }
 ;
 bindtypesingle:
-  | ident=IDENT; typarams=typarams; DEFEQ; ctorbrs=nonempty_list(ctorbranch) {
+  | ident=IDENT; tyrowparams=typarams; DEFEQ; ctorbrs=nonempty_list(ctorbranch) {
+        let (typarams, _) = tyrowparams in
+          (* TODO: restrict that the second entry is `[]` *)
         (ident, typarams, BindVariant(ctorbrs))
       }
-  | ident=IDENT; typarams=typarams; DEFEQ; mty=ty {
+  | ident=IDENT; tyrowparams=typarams; DEFEQ; mty=ty {
+        let (typarams, _) = tyrowparams in
+          (* TODO: restrict that the second entry is `[]` *)
         (ident, typarams, BindSynonym(mty))
       }
 ;
@@ -122,13 +129,28 @@ bindtypesub:
   | ANDREC; tybind=bindtypesingle { tybind }
 ;
 typarams:
-  |                                         { [] }
+  |                                         { ([], []) }
   | tylparen; typarams=typaramssub tyrparen { typarams }
 ;
 typaramssub:
-  |                                          { [] }
-  | typaram=TYPARAM                          { typaram :: [] }
-  | typaram=TYPARAM; COMMA; tail=typaramssub { typaram :: tail }
+  | rowparams=rowparams {
+        ([], rowparams)
+      }
+  | typaram=TYPARAM {
+        ([ typaram ], [])
+      }
+  | typaram=TYPARAM; COMMA; tail=typaramssub {
+        let (typarams, rowparams) = tail in
+        (typaram :: typarams, rowparams)
+      }
+;
+rowparams:
+  |                                                                          { [] }
+  | rowparam=ROWPARAM; CONS; LPAREN; rowkind=rowkind; RPAREN                 { [ (rowparam, rowkind) ] }
+  | rowparam=ROWPARAM; CONS; LPAREN; rowkind=rowkind; RPAREN; tail=rowparams { (rowparam, rowkind) :: tail }
+;
+rowkind:
+  | rowkind=opttydomsfixed { rowkind }
 ;
 bindvallocal:
   | tok=LET; valbinding=bindvalsingle {
@@ -143,14 +165,16 @@ bindvaltop:
         let (rng, rec_or_nonrec) = local in
         (rng, Internal(rec_or_nonrec))
       }
-  | tokL=LET; ident=IDENT; bids=typarams; COLON; mty=ty; DEFEQ; EXTERNAL; inttok=INT; has_option=has_option; strblock=STRING_BLOCK {
+  | tokL=LET; ident=IDENT; tyrowparams=typarams; COLON; mty=ty; DEFEQ; EXTERNAL; inttok=INT; has_option=has_option; strblock=STRING_BLOCK {
+        let (typarams, rowparams) = tyrowparams in
         let (tokR, erlang_bind) = strblock in
         let (_, arity) = inttok in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         let extbind =
           {
             ext_identifier  = ident;
-            ext_type_params = bids;
+            ext_type_params = typarams;
+            ext_row_params  = rowparams;
             ext_type_annot  = mty;
             ext_arity       = arity;
             ext_has_option  = has_option;
@@ -168,11 +192,13 @@ recbinds:
   | ANDREC; valbinding=bindvalsingle { valbinding }
 ;
 bindvalsingle:
-  | ident=IDENT; bids=typarams; LPAREN; params=params; RPAREN; tyannot=tyannot; DEFEQ; e0=exprlet {
+  | ident=IDENT; tyrowparams=typarams; LPAREN; params=params; RPAREN; tyannot=tyannot; DEFEQ; e0=exprlet {
+        let (typarams, rowparams) = tyrowparams in
         let (ordparams, optparams) = params in
         {
           vb_identifier  = ident;
-          vb_forall      = bids;
+          vb_forall      = typarams;
+          vb_forall_row  = rowparams;
           vb_parameters  = ordparams;
           vb_optionals   = optparams;
           vb_return_type = tyannot;
@@ -210,9 +236,10 @@ tyannot:
   | COLON; mty=ty { Some(mty) }
 ;
 decl:
-  | tokL=VAL; ident=IDENT; typarams=typarams; COLON; mty=ty {
+  | tokL=VAL; ident=IDENT; tyrowparams=typarams; COLON; mty=ty {
+        let (typarams, rowparams) = tyrowparams in
         let rng = make_range (Token(tokL)) (Ranged(mty)) in
-        (rng, DeclVal(ident, typarams, mty))
+        (rng, DeclVal(ident, typarams, rowparams, mty))
       }
   | tokL=TYPE; tyident=IDENT; CONS; inttok=INT {
         let (tokR, mkind) = inttok in

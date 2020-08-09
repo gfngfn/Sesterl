@@ -107,6 +107,15 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         else
           RowVar(MonoRow(mrv))
 
+    | RowVar(MustBeBoundRow(mbbrid)) ->
+        if levpred (MustBeBoundRowID.get_level mbbrid) then
+          let brid = MustBeBoundRowID.to_bound mbbrid in
+          RowVar(BoundRow(brid))
+            (* We do not need to register a kind to `KindStore`,
+               since it has been done when `mbbrid` was created. *)
+        else
+          RowVar(MonoRow(MustBeBoundRow(mbbrid)))
+
   in
   aux ty
 

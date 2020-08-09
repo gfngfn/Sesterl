@@ -22,6 +22,7 @@ type type_error =
   | UndefinedTypeName                   of Range.t * type_name
   | InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
   | TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
+  | RowParameterBoundMoreThanOnce       of Range.t * row_variable_name
   | InvalidByte                         of Range.t
   | CyclicSynonymTypeDefinition         of (type_name ranged) list
   | UnboundModuleName                   of Range.t * module_name

@@ -128,7 +128,8 @@ and rec_or_nonrec =
 
 and external_binding = {
   ext_identifier  : identifier ranged;
-  ext_type_params : type_variable_name ranged list;
+  ext_type_params : (type_variable_name ranged) list;
+  ext_row_params  : ((row_variable_name ranged) * (label ranged * manual_type) list) list;
   ext_type_annot  : manual_type;
   ext_arity       : int;
   ext_has_option  : bool;
@@ -138,6 +139,7 @@ and external_binding = {
 and untyped_let_binding = {
   vb_identifier  : identifier ranged;
   vb_forall      : (type_variable_name ranged) list;
+  vb_forall_row  : (row_variable_name ranged * (label ranged * manual_type) list) list;
   vb_parameters  : binder list;
   vb_optionals   : (label ranged * binder) list;
   vb_return_type : manual_type option;
@@ -198,7 +200,7 @@ and untyped_declaration =
   untyped_declaration_main ranged
 
 and untyped_declaration_main =
-  | DeclVal        of identifier ranged * (type_variable_name ranged) list * manual_type
+  | DeclVal        of identifier ranged * (type_variable_name ranged) list * (row_variable_name ranged * (label ranged * manual_type) list) list * manual_type
   | DeclTypeTrans  of type_name ranged * manual_type
   | DeclTypeOpaque of type_name ranged * manual_kind
   | DeclModule     of module_name ranged * untyped_signature
@@ -453,7 +455,7 @@ type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
 module RowParameterMap = Map.Make(String)
 
-type local_row_parameter_map = MustBeBoundRowID.t RowParameterMap.t
+type local_row_parameter_map = (MustBeBoundRowID.t * poly_type LabelAssoc.t) RowParameterMap.t
 
 module SynonymIDSet = Set.Make(TypeID.Synonym)
 

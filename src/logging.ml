@@ -135,6 +135,11 @@ let report_type_error (e : type_error) : unit =
         Range.pp rng
         tyvar
 
+  | RowParameterBoundMoreThanOnce(rng, rowvar) ->
+      Format.printf "%a: row variable '%s' is bound more than once\n"
+        Range.pp rng
+        rowvar
+
   | InvalidByte(rng) ->
       Format.printf "%a: invalid byte\n"
         Range.pp rng
