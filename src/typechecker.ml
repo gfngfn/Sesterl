@@ -1675,29 +1675,45 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
 
 
 and subtype_option_row (wtmap : WitnessMap.t) (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (poptrow1 : poly_row) (poptrow2 : poly_row) : bool =
-  let rec aux poptrow1 poptrow2 =
+(*
+  Format.printf "subtype_option_row: %a <?= %a\n" pp_poly_row poptrow1 pp_poly_row poptrow2;  (* for debug *)
+*)
+  let aux_label_assoc plabmap1 plabmap2 =
+    LabelAssoc.fold (fun label pty1 b ->
+      if not b then
+        false
+      else
+        match plabmap2 |> LabelAssoc.find_opt label with
+        | None       -> false
+        | Some(pty2) -> subtype_poly_type_scheme wtmap internbid internbrid pty1 pty2
+    ) plabmap1 true
+  in
+
+  let aux poptrow1 poptrow2 =
     match (poptrow1, poptrow2) with
     | (RowVar(MonoRow(_)), _)
     | (_, RowVar(MonoRow(_))) ->
         assert false
 
     | (FixedRow(plabmap1), FixedRow(plabmap2)) ->
-        LabelAssoc.fold (fun label pty1 b ->
-          if not b then
-            false
-          else
-            match plabmap2 |> LabelAssoc.find_opt label with
-            | None       -> false
-            | Some(pty2) -> subtype_poly_type_scheme wtmap internbid internbrid pty1 pty2
-        ) plabmap1 true
+        aux_label_assoc plabmap1 plabmap2
 
     | (FixedRow(_), RowVar(_)) ->
         false
 
-    | (RowVar(BoundRow(brid1)), _) ->
+    | (RowVar(BoundRow(brid1)), FixedRow(plabmap2)) ->
         (* First check that the kind of `brid1` is more general than (or equal to) `prow2`. *)
-        let plabmap = KindStore.get_bound_row brid1 in
-        if aux (FixedRow(plabmap)) poptrow2 then
+        let plabmap1 = KindStore.get_bound_row brid1 in
+        if aux_label_assoc plabmap1 plabmap2 then
+          internbrid brid1 poptrow2
+        else
+          false
+
+    | (RowVar(BoundRow(brid1)), RowVar(BoundRow(brid2))) ->
+        (* First check that the kind of `brid1` is more general than (or equal to) that of `brid2`. *)
+        let plabmap1 = KindStore.get_bound_row brid1 in
+        let plabmap2 = KindStore.get_bound_row brid2 in
+        if aux_label_assoc plabmap1 plabmap2 then
           internbrid brid1 poptrow2
         else
           false
