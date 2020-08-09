@@ -74,6 +74,10 @@ rule token = parse
         let pos = Range.from_lexbuf lexbuf in
         DOTIDENT(pos, s)
       }
+  | ("?" (identifier as s)) {
+        let pos = Range.from_lexbuf lexbuf in
+        OPTLABEL(pos, s)
+      }
   | ("0" | nzdigit (digit*) | ("0x" | "0X") hex+) {
         let s = Lexing.lexeme lexbuf in
         let rng = Range.from_lexbuf lexbuf in
