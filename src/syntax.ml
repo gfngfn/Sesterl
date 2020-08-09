@@ -296,10 +296,11 @@ fun showtv showrv ty ->
     | FuncType(tydoms, optrow, tycod) ->
         let sdoms = tydoms |> List.map aux in
         let sdomscat = String.concat ", " sdoms in
-        let (sopts, is_opts_empty) =
+        let sopts = show_row showtv showrv optrow in
+        let is_opts_empty =
           match optrow with
-          | FixedRow(labmap) -> (labmap |> show_label_assoc showtv showrv, LabelAssoc.cardinal labmap = 0)
-          | RowVar(rv)       -> ("?" ^ showrv rv, false)
+          | FixedRow(labmap) -> LabelAssoc.cardinal labmap = 0
+          | RowVar(rv)       -> false
         in
         let smid =
           if List.length sdoms = 0 || is_opts_empty then
@@ -351,6 +352,13 @@ fun showtv showrv ty ->
   aux ty
 
 
+and show_row : 'a 'b. ('a -> string) -> ('b -> string) -> ('a, 'b) row -> string =
+fun showtv showrv optrow ->
+  match optrow with
+  | FixedRow(labmap) -> labmap |> show_label_assoc showtv showrv
+  | RowVar(rv)       -> "?" ^ showrv rv
+
+
 and show_mono_type_var (mtv : mono_type_var) =
   match mtv with
   | MustBeBound(mbbid) -> Format.asprintf "%a" MustBeBoundID.pp mbbid
@@ -398,6 +406,15 @@ let show_poly_type : poly_type -> string =
 
 let pp_poly_type ppf pty =
   Format.fprintf ppf "%s" (show_poly_type pty)
+
+
+let show_poly_row : poly_row -> string =
+  show_row show_poly_type_var show_poly_row_var
+
+
+let pp_poly_row ppf prow =
+  Format.fprintf ppf "%s" (show_poly_row prow)
+
 
 type space_name = OutputIdentifier.space
 [@@deriving show { with_path = false; } ]

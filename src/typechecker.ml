@@ -1650,6 +1650,9 @@ and subtype_poly_type (wtmap : WitnessMap.t) (pty1 : poly_type) (pty2 : poly_typ
     | Some(pty) -> poly_type_equal pty pty2
   in
   let internbrid (brid1 : BoundRowID.t) (prow2 : poly_row) : bool =
+(*
+    Format.printf "internbrid: %a --> %a\n" BoundRowID.pp brid1 pp_poly_row prow2;  (* for debug *)
+*)
     match BoundRowIDHashTable.find_opt bridht brid1 with
     | None ->
         (* TODO: should check that the kind of `brid1` is more general than `prow2`. *)
