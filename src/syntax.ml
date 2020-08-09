@@ -206,6 +206,8 @@ module FreeRowID = FreeID  (* temporary *)
 
 module BoundRowID = BoundID  (* temporary *)
 
+module MustBeBoundRowID = MustBeBoundID  (* temporary *)
+
 type ('a, 'b) typ =
   (('a, 'b) typ_main) ranged
 
@@ -442,6 +444,10 @@ type type_parameter_assoc = MustBeBoundID.t TypeParameterAssoc.t
 module TypeParameterMap = Map.Make(String)
 
 type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
+
+module RowParameterMap = Map.Make(String)
+
+type local_row_parameter_map = MustBeBoundRowID.t RowParameterMap.t
 
 module SynonymIDSet = Set.Make(TypeID.Synonym)
 

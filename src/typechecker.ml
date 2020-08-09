@@ -38,6 +38,7 @@ type pre = {
   level : int;
   tyenv : Typeenv.t;
   local_type_parameters : local_type_parameter_map;
+  local_row_parameters  : local_row_parameter_map;
 }
 
 type opaque_entry =
@@ -2475,6 +2476,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           level                 = 0;
           tyenv                 = tyenv;
           local_type_parameters = TypeParameterMap.empty;
+          local_row_parameters  = RowParameterMap.empty;
         }
       in
       let (sigr, i_rec_or_nonrec) =
@@ -2542,6 +2544,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           level                 = 0;
           tyenv                 = tyenv;
           local_type_parameters = TypeParameterMap.empty;
+          local_row_parameters  = RowParameterMap.empty;
         }
       in
       let syns = synacc |> Alist.to_list in
