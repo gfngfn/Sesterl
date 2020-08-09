@@ -19,6 +19,7 @@ As mentioned in the section “Features” below, however, many features as a ty
 
 - [How to install](#how-to-install)
 - [How to build source files for development](#how-to-build-source-files-for-development)
+- [Example code](#example-code)
 - [Features](#features)
   - [Function definition](#function-definition)
   - [Polymorphism](#polymorphism)
@@ -53,6 +54,14 @@ Under the condition that Dune (≥ 2.5) and Make are installed, invoke:
 ```
 $ make
 ```
+
+
+## Example code
+
+Example usages can be seen in the following directories:
+
+* [`test/pass/`](https://github.com/gfngfn/Sesterl/tree/master/test/pass)
+* [`lib/`](https://github.com/gfngfn/Sesterl/tree/master/lib)
 
 
 ## Features
@@ -358,6 +367,39 @@ main() ->
     {1, <<"Asano">>},
     {5, <<"Kashiwa">>}]).
 ```
+
+
+### Labeled optional parameters
+
+Functions can have labeled optional parameters:
+
+```
+let succ(n, ?diff dopt) =
+  case dopt of
+  | None    -> n + 1
+  | Some(d) -> n + d
+  end
+
+let f(g) =
+  (g(36), g(36, ?diff 64))
+
+let main() =
+  (succ(42), succ(42, ?diff 15), f(succ))
+    /* This evaluates to {43, 57, {37, 100}} in Erlang. */
+```
+
+In this example, `?diff` is a label for an optional parameter. By not giving a `?diff`-labeled argument you can use `succ` as the standard successor function, while by giving one you can use `succ` as the integer addition function.
+
+The functions `succ` and `f` defined above are given types as follows:
+
+```
+val succ : fun(int, ?diff int) -> int
+val f<$a, ?$r :: (?diff int)> : fun(fun(int, ?$r) -> $a) -> ($a, $a)
+```
+
+Here, `?diff int` signifies that `succ` can take a `?diff`-labeled optional argument of type `int`, and the absense of other labels in the same domain means that `succ` cannot take optional arguments with labels other than `?diff`.
+
+`?$r :: (?diff int)` is a *row variable* with its kind; it tracks constraints about the minimum set of optional labels that must be able to be given. This is based on an original type system that resembles SML\#’s one for record polymorphism \[Ohori 1995\] (The type system is currently not documented anywhere).
 
 
 ## Future Work
