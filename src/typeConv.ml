@@ -184,7 +184,7 @@ let instantiate (lev : int) (pty : poly_type) : mono_type =
   let bridht = BoundRowIDHashTable.create 32 in
     (* -- hash tables are created at every (non-partial) call of `instantiate` -- *)
 
-  let intern (rng : Range.t) (ptv : poly_type_var) : mono_type =
+  let rec intern (rng : Range.t) (ptv : poly_type_var) : mono_type =
     match ptv with
     | Mono(mtv) ->
         (rng, TypeVar(mtv))
@@ -202,8 +202,8 @@ let instantiate (lev : int) (pty : poly_type) : mono_type =
               Updatable(mtvu)
         in
         (rng, TypeVar(mtv))
-  in
-  let intern_row (prv : poly_row_var) : mono_row_var =
+
+  and intern_row (prv : poly_row_var) : mono_row_var =
     match prv with
     | MonoRow(mrv) ->
         mrv
@@ -215,13 +215,18 @@ let instantiate (lev : int) (pty : poly_type) : mono_type =
               UpdatableRow(mrvu)
 
           | None ->
+              let plabmap = KindStore.get_bound_row brid in
+              let labmap = plabmap |> LabelAssoc.map aux in
               let frid = FreeRowID.fresh lev in
-              KindStore.register_free_row frid LabelAssoc.empty;
+              KindStore.register_free_row frid labmap;
               let mrvu = ref (FreeRow(frid)) in
               UpdatableRow(mrvu)
         end
+
+  and aux pty =
+    instantiate_scheme intern intern_row pty
   in
-  instantiate_scheme intern intern_row pty
+  aux pty
 
 
 let instantiate_by_map (bfmap : mono_type_var BoundIDMap.t) =
