@@ -1,0 +1,20 @@
+module OptionalParameter2 = struct
+
+  module Impl = struct
+    let f(g) =
+      (g(42), g(42, ?foo 57))
+  end
+
+  include Impl :> sig
+    val f<$a> : fun(fun(int, ?foo int, ?bar binary) -> $a) -> ($a, $a)
+  end
+
+  let main() =
+    f(fun(n, ?foo topt, ?bar dummy) ->
+      case topt of
+      | None    -> n * 2
+      | Some(t) -> n * t
+      end
+    )
+
+end

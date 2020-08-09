@@ -21,3 +21,7 @@ test-blackbox-negative:
 .PHONY: clean
 clean:
 	dune clean
+
+.PHONY: clean-test
+clean-test:
+	rm test/_generated/*

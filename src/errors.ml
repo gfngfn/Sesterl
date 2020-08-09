@@ -13,6 +13,7 @@ type type_error =
   | UnboundVariable                     of Range.t * identifier
   | ContradictionError                  of mono_type * mono_type
   | InclusionError                      of FreeID.t * mono_type * mono_type
+  | InclusionRowError                   of FreeRowID.t * mono_type * mono_type
   | BoundMoreThanOnceInPattern          of Range.t * identifier
   | UnboundTypeParameter                of Range.t * type_variable_name
   | UndefinedConstructor                of Range.t * constructor_name
@@ -46,3 +47,4 @@ type type_error =
   | RootModuleMustBeStructure           of Range.t
   | InvalidIdentifier                   of Range.t * string
   | ConflictInSignature                 of Range.t * string
+  | DuplicatedLabel                     of Range.t * label
