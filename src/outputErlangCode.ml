@@ -120,9 +120,11 @@ let stringify_single (gmap : global_name_map) = function
   | OutputIdentifier.Global(gname) ->
       let r = OutputIdentifier.output_global gname in
       let smod = get_module_string gmap gname in
-      Printf.sprintf "(fun %s:%s/%d)" smod r.function_name r.arity
+      Printf.sprintf "(fun %s:%s/%d)" smod r.function_name (r.arity + 1)
         (*  Use syntax `fun M:F/Arity` for global function names
-            in order to avoid being confused with atoms. *)
+            in order to avoid being confused with atoms.
+            Here, arities are incremented in order to conform to labeled optional parameters.
+        *)
 
   | OutputIdentifier.Operator(oname) ->
       let sop = OutputIdentifier.output_operator oname in
