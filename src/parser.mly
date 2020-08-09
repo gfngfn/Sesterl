@@ -60,6 +60,9 @@
 %type<((Range.t * Syntax.label) * Syntax.binder) list> optparams
 %type<Syntax.untyped_ast list * ((Range.t * Syntax.label) * Syntax.untyped_ast) list> args
 %type<((Range.t * Syntax.label) * Syntax.untyped_ast) list> optargs
+%type<Syntax.manual_type list * Syntax.manual_row> tydoms
+%type<Syntax.manual_row> opttydoms
+%type<((Range.t * Syntax.label) * Syntax.manual_type) list> opttydomsfixed
 %type<Syntax.untyped_let_binding> bindvalsingle
 %type<Range.t * Syntax.internal_or_external> bindvaltop
 %type<Range.t * Syntax.rec_or_nonrec> bindvallocal
@@ -513,6 +516,26 @@ tys:
   | mty=ty                  { mty :: [] }
   | mty=ty; COMMA; tail=tys { mty :: tail }
 ;
+tydoms:
+  | optmtydoms=opttydoms {
+        ([], optmtydoms)
+      }
+  | mty=ty {
+        ([mty], MFixedRow([]))
+      }
+  | mty=ty; COMMA; tail=tydoms {
+        let (ordmtydoms, optmtydoms) = tail in
+        (mty :: ordmtydoms, optmtydoms)
+      }
+;
+opttydoms:
+  | fixedrow=opttydomsfixed { MFixedRow(fixedrow) }
+;
+opttydomsfixed:
+  |                                                     { [] }
+  | rlabel=OPTLABEL; mty=ty                             { [ (rlabel, mty) ] }
+  | rlabel=OPTLABEL; mty=ty; COMMA; tail=opttydomsfixed { (rlabel, mty) :: tail }
+;
 ty:
   | utmod=modchain; tyident=DOTIDENT {
         let rng = make_range (Ranged(utmod)) (Ranged(tyident)) in
@@ -538,9 +561,10 @@ tybot:
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, MTypeName(tynm, mtyargs))
       }
-  | tokL=LAMBDA; LPAREN; mtydoms=tys; RPAREN; ARROW; mtycod=ty {
+  | tokL=LAMBDA; LPAREN; tydoms=tydoms; RPAREN; ARROW; mtycod=ty {
+        let (ordmtydoms, optmtydoms) = tydoms in
         let rng = make_range (Token(tokL)) (Ranged(mtycod)) in
-        (rng, MFuncType(mtydoms, mtycod))
+        (rng, MFuncType(ordmtydoms, optmtydoms, mtycod))
       }
   | tokL=LPAREN; mty1=ty; COMMA; mty2=ty; mtys=list(tytuplesub) tokR=RPAREN {
         let rng = make_range (Token(tokL)) (Token(tokR)) in

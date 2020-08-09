@@ -882,10 +882,8 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                   invalid rng tynm ~expect:len_expected ~actual:len_actual
           end
 
-      | MFuncType(mtydoms, mtycod) ->
-          let optrow =
-            failwith "TODO: decode_manual_type_scheme, labeled optional parameters"
-          in
+      | MFuncType(mtydoms, mrow, mtycod) ->
+          let optrow = aux_row mrow in
           FuncType(List.map aux mtydoms, optrow, aux mtycod)
 
       | MProductType(mtys) ->
@@ -940,6 +938,21 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
           end
     in
     (rng, tymain)
+
+  and aux_row (mrow : manual_row) : mono_row =
+    match mrow with
+    | MFixedRow(optmtys) ->
+        let labmap =
+          optmtys |> List.fold_left (fun labmap (rlabel, mty) ->
+            let (rnglabel, label) = rlabel in
+            if labmap |> LabelAssoc.mem label then
+              raise_error (DuplicatedLabel(rnglabel, label))
+            else
+              let ty = aux mty in
+              labmap |> LabelAssoc.add label ty
+          ) LabelAssoc.empty
+        in
+        FixedRow(labmap)
   in
   aux mty
 

@@ -75,11 +75,14 @@ type manual_type = manual_type_main ranged
 
 and manual_type_main =
   | MTypeName    of type_name * manual_type list
-  | MFuncType    of manual_type list * manual_type
+  | MFuncType    of manual_type list * manual_row * manual_type
   | MProductType of manual_type TupleList.t
   | MEffType     of manual_type * manual_type
   | MTypeVar     of type_variable_name
   | MModProjType of untyped_module * type_name ranged * manual_type list
+
+and manual_row =
+  | MFixedRow of (label ranged * manual_type) list
 
 and binder = identifier ranged * manual_type option
 
