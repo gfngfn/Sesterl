@@ -1,0 +1,12 @@
+module OptionalParameter = struct
+
+  let succ(n, ?diff dopt) =
+    case dopt of
+    | None    -> n + 1
+    | Some(d) -> n + d
+    end
+
+  let main() =
+    (succ(42), succ(42, ?diff 14))
+
+end
