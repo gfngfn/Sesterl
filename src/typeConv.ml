@@ -11,7 +11,7 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
   let fidht = FreeIDHashTable.create 32 in
   let fridht = FreeRowIDHashTable.create 32 in
 
-  let intern fid =
+  let rec intern fid =
     match FreeIDHashTable.find_opt fidht fid with
     | Some(bid) ->
         bid
@@ -20,20 +20,21 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let bid = BoundID.fresh () in
         FreeIDHashTable.add fidht fid bid;
         bid
-  in
 
-  let intern_row frid =
+  and intern_row frid =
     match FreeRowIDHashTable.find_opt fridht frid with
     | Some(brid) ->
         brid
 
     | None ->
+        let labmap = KindStore.get_free_row frid in
+        let plabmap = labmap |> LabelAssoc.map aux in
         let brid = BoundRowID.fresh () in
+        KindStore.register_bound_row brid plabmap;
         FreeRowIDHashTable.add fridht frid brid;
         brid
-  in
 
-  let rec aux (rng, tymain) =
+  and aux (rng, tymain) =
     match tymain with
     | BaseType(bty) ->
         (rngf rng, BaseType(bty))
