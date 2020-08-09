@@ -280,12 +280,12 @@ let show_base_type = function
 let rec show_label_assoc : 'a 'b. ('a -> string) -> ('b -> string) -> (('a, 'b) typ) LabelAssoc.t -> string =
 fun showtv showrv labmap ->
   LabelAssoc.fold (fun label ty acc ->
-    let sty = show_mono_type_scheme showtv showrv ty in
+    let sty = show_type showtv showrv ty in
     Alist.extend acc ("?" ^ label ^ " : " ^ sty)
   ) labmap Alist.empty |> Alist.to_list |> String.concat ", "
 
 
-and show_mono_type_scheme : 'a 'b. ('a -> string) -> ('b -> string) -> ('a, 'b) typ -> string =
+and show_type : 'a 'b. ('a -> string) -> ('b -> string) -> ('a, 'b) typ -> string =
 fun showtv showrv ty ->
   let rec aux (_, tymain) =
     match tymain with
@@ -351,7 +351,7 @@ and show_mono_type_var (mtv : mono_type_var) =
 
 and show_mono_type_var_updatable (mtvu : mono_type_var_updatable) =
   match mtvu with
-  | Link(ty)  -> show_mono_type_scheme show_mono_type_var show_mono_row_var ty
+  | Link(ty)  -> show_type show_mono_type_var show_mono_row_var ty
   | Free(fid) -> Format.asprintf "%a" FreeID.pp fid
 
 
@@ -367,7 +367,7 @@ and show_mono_row_var_updatable (mrvu : mono_row_var_updatable) =
 
 
 let show_mono_type : mono_type -> string =
-  show_mono_type_scheme show_mono_type_var show_mono_row_var
+  show_type show_mono_type_var show_mono_row_var
 
 
 let pp_mono_type ppf ty =
@@ -385,7 +385,7 @@ let rec show_poly_row_var = function
 
 
 let show_poly_type : poly_type -> string =
-  show_mono_type_scheme show_poly_type_var show_poly_row_var
+  show_type show_poly_type_var show_poly_row_var
 
 
 let pp_poly_type ppf pty =
