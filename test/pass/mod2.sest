@@ -8,7 +8,7 @@ module Mod2 = struct
       c + 1
   end
 
-  let main() =
+  let main(args) =
     let x = Counter.initial() in
     print_debug(Counter.increment(x) == 0)
 

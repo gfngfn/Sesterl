@@ -1,6 +1,6 @@
 module Mutrec = struct
 
-  let main() =
+  let main(args) =
     letrec odd(n) =
       let _ = print_debug(n) in
       even(n - 1)

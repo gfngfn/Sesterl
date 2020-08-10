@@ -30,7 +30,7 @@ module Functor = struct
   module B = Sub.Bool
   module M = G(B)
 
-  let main() =
+  let main(args) =
     print_debug(M.zeroes())
 
 end

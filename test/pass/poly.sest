@@ -10,7 +10,7 @@ module Poly = struct
   let sum(ns) =
     foldl(fun(m, n) -> m + n, 0, ns)
 
-  let main() =
+  let main(args) =
     let ans =
       sum(3 :: 1 :: 4 :: 1 :: 5 :: 9 :: 2 :: [])
     in

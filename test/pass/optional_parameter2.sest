@@ -12,7 +12,7 @@ module OptionalParameter2 = struct
     val f3<$a> : fun(fun(int, ?foo int, ?baz bool) -> $a) -> ($a, $a)
   end
 
-  let main() =
+  let main(args) =
     let ans =
       f2(fun(n, ?foo topt) ->
         case topt of
