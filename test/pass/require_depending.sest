@@ -3,6 +3,6 @@ require "require_depended.sest"
 module RequireDepending = struct
 
   let main() =
-    RequireDepended.hello()
+    print_debug(RequireDepended.hello())
 
 end

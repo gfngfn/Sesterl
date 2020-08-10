@@ -47,6 +47,6 @@ module Adt = struct
     in
     let size = tree_size(tr) in
     let t = OddCons(3, Nil()) in
-    (size, t)
+    print_debug((size, t))
 
 end

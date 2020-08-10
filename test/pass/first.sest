@@ -6,6 +6,7 @@ module First = struct
       foldn(f, i - 1, f(i, c))
 
   let main(args) =
-    foldn(fun(i, c) -> i + c, 10, 0)
+    let ans = foldn(fun(i, c) -> i + c, 10, 0) in
+    print_debug(ans)
 
 end

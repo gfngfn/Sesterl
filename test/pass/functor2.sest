@@ -18,6 +18,6 @@ module Functor2 = struct
   module M = F(Int)
 
   let main() =
-    M.zeroes()
+    print_debug(M.zeroes())
 
 end

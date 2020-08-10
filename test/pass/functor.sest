@@ -31,6 +31,6 @@ module Functor = struct
   module M = G(B)
 
   let main() =
-    M.zeroes()
+    print_debug(M.zeroes())
 
 end

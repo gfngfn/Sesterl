@@ -12,6 +12,7 @@ module OptionalParameter = struct
     (g(36), g(36, ?diff 64))
 
   let main() =
-    (succ(42), succ(42, ?diff 15), f(succ))
+    let ans = (succ(42), succ(42, ?diff 15), f(succ)) in
+    print_debug(ans)
 
 end

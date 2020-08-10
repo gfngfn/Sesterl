@@ -10,6 +10,6 @@ module Mod2 = struct
 
   let main() =
     let x = Counter.initial() in
-    Counter.increment(x) == 0
+    print_debug(Counter.increment(x) == 0)
 
 end

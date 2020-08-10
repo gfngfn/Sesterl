@@ -15,6 +15,6 @@ module Coercion = struct
   end
 
   let main(args) =
-    Sub.power(4, 3)
+    print_debug(Sub.power(4, 3))
 
 end

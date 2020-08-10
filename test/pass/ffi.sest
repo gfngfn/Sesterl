@@ -16,12 +16,14 @@ module Ffi = struct
   ```
 
   let main(args) =
-    assoc(1, [
-      (3, "Komaba"),
-      (1, "Hongo"),
-      (4, "Yayoi"),
-      (1, "Asano"),
-      (5, "Kashiwa")
-    ])
-
+    let ans =
+      assoc(1, [
+        (3, "Komaba"),
+        (1, "Hongo"),
+        (4, "Yayoi"),
+        (1, "Asano"),
+        (5, "Kashiwa")
+      ])
+    in
+    print_debug(ans)
 end
