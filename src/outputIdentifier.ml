@@ -30,6 +30,7 @@ type t =
 type global_answer = {
   function_name : string;
   arity         : int;
+  has_option    : bool;
 }
 
 
@@ -135,6 +136,7 @@ let output_global = function
       {
         function_name = r.function_name |> IdentifierScheme.to_snake_case;
         arity         = r.arity;
+        has_option    = r.has_option;
       }
   | ReprDummy(r) ->
 (*

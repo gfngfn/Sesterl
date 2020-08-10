@@ -16,6 +16,7 @@ type t =
 type global_answer = {
   function_name : string;
   arity         : int;
+  has_option    : bool;
 }
 
 val space : string -> space option

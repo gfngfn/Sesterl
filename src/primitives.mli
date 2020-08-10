@@ -2,6 +2,8 @@
 open Syntax
 open Env
 
+val thunk_argument : string
+
 val primitive_module_name : string
 
 val decode_option_function : string
@@ -14,6 +16,7 @@ type source_definition = {
 type target_definition = {
   target_name : string;
   parameters  : string list;
+  arity_zero  : bool;
   code        : string;
 }
 
