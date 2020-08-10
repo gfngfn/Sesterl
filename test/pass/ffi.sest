@@ -15,7 +15,7 @@ module Ffi = struct
         end.
   ```
 
-  let main() =
+  let main(args) =
     assoc(1, [
       (3, "Komaba"),
       (1, "Hongo"),

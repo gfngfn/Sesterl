@@ -23,6 +23,19 @@ for TARGET in "$TARGET_DIR"/*.erl; do
     STATUS=$?
     if [ $STATUS -ne 0 ]; then
         ERRORS+=("$TARGET")
+    else
+        NUM="$(grep -c "^main(" "$TARGET")"
+        if [ "$NUM" -eq 0 ]; then
+            echo "Skip execution due to the absence of main/1."
+        else
+            echo "Executing '$TARGET' by escript ..."
+            sed '1s|^|#!/usr/local/bin/escript\n|' -i "$TARGET"
+            escript "$TARGET"
+            STATUS=$?
+            if [ $STATUS -ne 0 ]; then
+                ERRORS+=("$TARGET")
+            fi
+        fi
     fi
 done
 

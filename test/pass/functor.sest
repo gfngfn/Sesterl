@@ -29,4 +29,8 @@ module Functor = struct
   module G = F(Int)
   module B = Sub.Bool
   module M = G(B)
+
+  let main() =
+    M.zeroes()
+
 end

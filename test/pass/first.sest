@@ -5,7 +5,7 @@ module First = struct
     if i <= 0 then c else
       foldn(f, i - 1, f(i, c))
 
-  let main() =
+  let main(args) =
     foldn(fun(i, c) -> i + c, 10, 0)
 
 end
