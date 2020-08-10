@@ -66,23 +66,26 @@ module SesterlStdlib = struct
 
       let call<$a> : fun(proc, request, ?timeout int) -> [$a]response = external 2+ ```
         call(Pid, Msg) ->
-            fun() -> gen_server:call(Pid, Msg) end.
+            fun(ok) -> gen_server:call(Pid, Msg) end.
+              % use `Primitives.thunk_argument`
 
         call(Pid, Msg, Options) ->
             case maps:find(timeout, Options) of
-                {ok, Timeout} -> fun() -> gen_server:call(Pid, Msg, Timeout) end;
-                error         -> fun() -> gen_server:call(Pid, Msg) end
+                {ok, Timeout} -> fun(ok) -> gen_server:call(Pid, Msg, Timeout) end;
+                error         -> fun(ok) -> gen_server:call(Pid, Msg) end
             end.
+              % use `Primitives.thunk_argument`
       ```
 
       let cast<$a> : fun(proc, cast_message) -> [$a]unit = external 2 ```
         cast(Pid, Msg) ->
-            fun() -> gen_server:cast(Pid, Msg) end.
+            fun(ok) -> gen_server:cast(Pid, Msg) end.
+              % use `Primitives.thunk_argument`
       ```
 
       let start_link<$a> : fun(Callback.init_arg) -> [$a]proc = external 1 ```
         start_link(Args) ->
-            fun() ->
+            fun(ok) -> % use `Primitives.thunk_argument`
                 case gen_server:start_link(?MODULE, Args, []) of
                     {ok, Pid} -> Pid;
                     Other     -> erlang:error({unsupported, Other})
