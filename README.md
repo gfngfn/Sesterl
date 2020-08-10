@@ -13,46 +13,6 @@ Contrary to its name, Sesterl has not supported session types yet; it only check
 * A module system equipped with functors based on *F-ing modules* \[Rossberg, Russo & Dreyer 2014\]
 
 
-### Major differences from similar projects
-
-There have been brilliant functional languages that compile to Erlang or BEAM (i.e. bytecode for Erlang VM). Some of them are the following:
-
-* [*Elixir*](https://elixir-lang.org/) \[Valim et. al. 2011–2020\]
-  - Definitely the most well-known AltErlang language, and well-used in productions.
-  - Compiles to BEAM directly.
-  - Untyped (i.e. dynamically typed).
-  - Has Ruby-like syntax.
-  - Supports Lisp-like meta-programming features by quoting/unquoting.
-* [*Alpaca*](https://github.com/alpaca-lang/alpaca) \[Pierre et. al. 2016–2019\]
-  - Statically typed.
-  - Has static guarantee about types of messages sent or received between processes.
-  - Has OCaml- or Elm-like syntax.
-  - Implemented in Erlang.
-* [*Gleam*](https://github.com/gleam-lang/gleam) \[Pilfold et. al. 2019–2020\]
-  - Statically typed.
-  - Compiles to sources in Erlang.
-  - Has Rust-like syntax.
-  - Implemented in Rust.
-
-Major differences between the features of Sesterl and those of the languages above are:
-
-* an ML-like module system that supports:
-  - abstraction by using signatures, and
-  - functors and their elimination at compilation time (called the *static interpretation* \[Elsman, Henriksen, Annenkov & Oancea 2018\]);
-* a kind of monadic types for distinguishing pure calculations from concurrent computations.
-
-On the other hand, the following are currently possible weak points:
-
-* No seamless connection with build systems such as [*rebar3*]((https://github.com/erlang/rebar3)).
-* Few support for the separation of name spaces between libraries.
-* Absence of records.
-
-Also, though not supporting them currently, we want to add features like the following (see “[Future work](#future-work)” for detail):
-
-* GADTs for typing synchronous message-passing operations more strictly.
-* Session types in a gradually-typed manner.
-
-
 ## Table of contents
 
 - [How to install](#how-to-install)
@@ -67,6 +27,7 @@ Also, though not supporting them currently, we want to add features like the fol
   - [Module system](#module-system)
   - [FFI](#ffi)
   - [Labeled optional parameters](#labeled-optional-parameters)
+- [Major differences from similar projects](#major-differences-from-similar-projects)
 - [Future work](#future-work)
   - [TODO list](#todo-list)
 - [References](#references)
@@ -439,6 +400,46 @@ val f<$a, ?$r :: (?diff int)> : fun(fun(int, ?$r) -> $a) -> ($a, $a)
 Here, `?diff int` signifies that `succ` can take a `?diff`-labeled optional argument of type `int`, and the absense of other labels in the same domain means that `succ` cannot take optional arguments with labels other than `?diff`.
 
 `?$r :: (?diff int)` is a *row variable* with its kind; it tracks constraints about the minimum set of optional labels that must be able to be given. This is based on an original type system that resembles SML\#’s one for record polymorphism \[Ohori 1995\] (The type system is currently not documented anywhere).
+
+
+## Major differences from similar projects
+
+There have been brilliant functional languages that compile to Erlang or BEAM (i.e. bytecode for Erlang VM). Some of them are the following:
+
+* [*Elixir*](https://elixir-lang.org/) \[Valim et. al. 2011–2020\]
+  - Definitely the most well-known AltErlang language, and well-used in productions.
+  - Compiles to BEAM directly.
+  - Untyped (i.e. dynamically typed).
+  - Has Ruby-like syntax.
+  - Supports Lisp-like meta-programming features by quoting/unquoting.
+* [*Alpaca*](https://github.com/alpaca-lang/alpaca) \[Pierre et. al. 2016–2019\]
+  - Statically typed.
+  - Has static guarantee about types of messages sent or received between processes.
+  - Has OCaml- or Elm-like syntax.
+  - Implemented in Erlang.
+* [*Gleam*](https://github.com/gleam-lang/gleam) \[Pilfold et. al. 2019–2020\]
+  - Statically typed.
+  - Compiles to sources in Erlang.
+  - Has Rust-like syntax.
+  - Implemented in Rust.
+
+Major differences between the features of Sesterl and those of the languages above are:
+
+* an ML-like module system that supports:
+  - abstraction by using signatures, and
+  - functors and their elimination at compilation time (called the *static interpretation* \[Elsman, Henriksen, Annenkov & Oancea 2018\]);
+* a kind of monadic types for distinguishing pure calculations from concurrent computations.
+
+On the other hand, the following are currently possible weak points:
+
+* No seamless connection with build systems such as [*rebar3*]((https://github.com/erlang/rebar3)).
+* Few support for the separation of name spaces between libraries.
+* Absence of records.
+
+Also, though not supporting them currently, we want to add features like the following (see “[Future work](#future-work)” for detail):
+
+* GADTs for typing synchronous message-passing operations more strictly.
+* Session types in a gradually-typed manner.
 
 
 ## Future Work
