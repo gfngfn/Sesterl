@@ -1,18 +1,56 @@
-# [WIP] Sesterl: A Session-Typed Erlang
+# Sesterl: A Session-Typed Erlang
 
 ## Summary
 
-*Sesterl* (pronounced as /səsˈtɚːl/) is a statically-typed functional language that is intended to compile to Erlang.
+*Sesterl* (pronounced as /səsˈtɚːl/) is an ML-like statically-typed functional language that is intended to compile to Erlang.
 
-Contrary to its name, Sesterl has not supported session types yet; it only checks the type of messages every process can receive.
-
-As mentioned in the section “Features” below, however, many features as a typed functional language have already been furnished. Among them are the following:
+Contrary to its name, Sesterl has not supported session types yet; it only checks the type of messages every process can receive. As mentioned in the section “[Features](#features)” below, however, many features as a typed functional language have already been furnished. Among them are the following:
 
 * First-class higher-order functions
 * ADTs and pattern matching
 * The standard *Damas–Milner polymorphism* (i.e. so-called the *let-polymorphism*) and *Hindley–Milner type inference* \[Hindley 1969\]\[Milner 1978\]
 * Type-level distinction between pure calculations and concurrent computations by a kind of monads \[Fowler 2019\]
 * A module system equipped with functors based on *F-ing modules* \[Rossberg, Russo & Dreyer 2014\]
+
+
+### Major differences from similar projects
+
+There have been brilliant functional languages that compile to Erlang or BEAM (i.e. bytecode for Erlang VM). Some of them are the following:
+
+* [*Elixir*](https://elixir-lang.org/) \[Valim et. al. 2011–2020\]
+  - Definitely the most well-known AltErlang language, and well-used in productions.
+  - Compiles to BEAM directly.
+  - Untyped (i.e. dynamically typed).
+  - Has Ruby-like syntax.
+  - Supports Lisp-like meta-programming features by quoting/unquoting.
+* [*Alpaca*](https://github.com/alpaca-lang/alpaca) \[Pierre et. al. 2016–2019\]
+  - Statically typed.
+  - Has static guarantee about types of messages sent or received between processes.
+  - Has OCaml- or Elm-like syntax.
+  - Implemented in Erlang.
+* [*Gleam*](https://github.com/gleam-lang/gleam) \[Pilfold et. al. 2019–2020\]
+  - Statically typed.
+  - Compiles to sources in Erlang.
+  - Has Rust-like syntax.
+  - Implemented in Rust.
+
+Major differences between the features of Sesterl and those of the languages above are:
+
+* an ML-like module system that supports:
+  - abstraction by using signatures, and
+  - functors and their elimination at compilation time (called the *static interpretation* \[Elsman, Henriksen, Annenkov & Oancea 2018\]);
+* a kind of monadic types for distinguishing pure calculations from concurrent computations.
+
+On the other hand, the following are currently possible weak points:
+
+* No seamless connection with build systems such as [*rebar3*]((https://github.com/erlang/rebar3)).
+* Few support for the separation of name spaces between libraries.
+* Absence of records.
+
+Also, though not supporting them currently, we want to add features like the following (see “[Future work](#future-work)” for detail):
+
+* GADTs for typing synchronous message-passing operations more strictly.
+* Session types in a gradually-typed manner.
 
 
 ## Table of contents
@@ -413,6 +451,8 @@ Here, `?diff int` signifies that `succ` can take a `?diff`-labeled optional argu
   - The formalization of such a type system and a type inference algorithm will probably be based on *choice types* \[Chen & Erwig 2016\].
 * Support (multiparty) session types.
   - Type checking based on session types may well be optional or something like gradual types. This is because message passing is quite frequent in typical uses of Erlang-style concurrency and thereby strict assertion for sessions may rather complicate in the short term how to program concurrent computations.
+* Connection with [rebar3](https://github.com/erlang/rebar3).
+
 
 
 ### TODO list
@@ -447,6 +487,7 @@ Here, `?diff int` signifies that `succ` can take a `?diff`-labeled optional argu
 * [ ] Configuration
   * [x] Loading external modules by `require`
   * [ ] Embedding external modules as submodules
+  * [ ] Connection with rebar3
 * [ ] (Multiparty) session types
 
 
