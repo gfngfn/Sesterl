@@ -32,7 +32,7 @@ module Adt = struct
     | Nil
     | EvenCons($b, oddlist<$b>)
 
-  let main() =
+  let main(args) =
     let tr =
       Node(3, [
         Node(1, [
@@ -46,9 +46,7 @@ module Adt = struct
       ])
     in
     let size = tree_size(tr) in
-    let _ = print_debug(size) in
     let t = OddCons(3, Nil()) in
-    let _ = print_debug(t) in
-    ()
+    print_debug((size, t))
 
 end

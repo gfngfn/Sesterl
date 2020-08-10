@@ -3,6 +3,10 @@ open Syntax
 open Env
 
 
+let thunk_argument =
+  "ok"
+
+
 let primitive_module_name =
   "sesterl_internal_prim"
 
@@ -60,6 +64,7 @@ type source_definition = {
 type target_definition = {
   target_name : string;
   parameters  : string list;
+  arity_zero  : bool;
   code        : string;
 }
 
@@ -78,7 +83,11 @@ let primitive_definitions = [
     target = {
       target_name = "thunk_spawn";
       parameters  = ["X"];
-      code        = "fun() -> erlang:spawn(X) end";
+      arity_zero  = false;
+      code =
+        Printf.sprintf "fun(%s) -> erlang:spawn(fun() -> X(%s) end) end"
+          thunk_argument
+          thunk_argument;
     };
   };
   {
@@ -89,7 +98,10 @@ let primitive_definitions = [
     target = {
       target_name = "thunk_send";
       parameters  = ["X"; "Y"];
-      code        = "fun() -> X ! Y, ok end";
+      arity_zero  = false;
+      code =
+        Printf.sprintf "fun(%s) -> X ! Y, ok end"
+          thunk_argument;
     };
   };
   {
@@ -100,7 +112,10 @@ let primitive_definitions = [
     target = {
       target_name = "thunk_return";
       parameters  = ["X"];
-      code        = "fun() -> X end";
+      arity_zero  = false;
+      code =
+        Printf.sprintf "fun(%s) -> X end"
+          thunk_argument;
     }
   };
   {
@@ -110,7 +125,8 @@ let primitive_definitions = [
     };
     target = {
       target_name = "thunk_self";
-      parameters  = [];
+      parameters  = [ thunk_argument ];
+      arity_zero  = true;
       code        = "erlang:self()";
     };
   };
@@ -122,6 +138,7 @@ let primitive_definitions = [
     target = {
       target_name = "print_debug";
       parameters  = ["X"];
+      arity_zero  = false;
       code        = "io:format(\"~p~n\", [X]), ok";
     };
   };
@@ -130,6 +147,7 @@ let primitive_definitions = [
     target = {
       target_name = decode_option_function;
       parameters  = ["Options"; "Key"];
+      arity_zero  = false;
       code        = "case maps:find(Key, Options) of error -> none; {ok, Value} -> {some, Value} end";
     };
   };
@@ -189,8 +207,14 @@ let initial_environment =
       | Some(srcdef) ->
           let targetdef = primdef.target in
           let gname =
-            let arity = List.length targetdef.parameters in
-            match OutputIdentifier.generate_global targetdef.target_name arity with
+            let has_option = targetdef.arity_zero in
+            let arity =
+              if has_option then
+                0
+              else
+                List.length targetdef.parameters
+            in
+            match OutputIdentifier.generate_global targetdef.target_name ~arity:arity ~has_option:has_option with
             | None        -> assert false
             | Some(gname) -> gname
           in

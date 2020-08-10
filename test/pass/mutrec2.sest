@@ -12,7 +12,7 @@ module Mutrec2 = struct
     else
       odd(n - 1)
 
-  let main() =
+  let main(args) =
     even(10)
 
 end

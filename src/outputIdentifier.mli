@@ -16,6 +16,7 @@ type t =
 type global_answer = {
   function_name : string;
   arity         : int;
+  has_option    : bool;
 }
 
 val space : string -> space option
@@ -26,7 +27,7 @@ val fresh_global_dummy : unit -> global
 
 val generate_local : string -> local option
 
-val generate_global : string -> int -> global option
+val generate_global : string -> arity:int -> has_option:bool -> global option
 
 val operator : string -> operator
 

@@ -34,7 +34,8 @@ module ModSeq = struct
 
   module ListSeq = Seq(ListD)
 
-  let main() =
-    ListSeq.to_reversed_list([3, 1, 4])
+  let main(args) =
+    let ans = ListSeq.to_reversed_list([3, 1, 4]) in
+    print_debug(ans)
 
 end

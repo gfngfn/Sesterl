@@ -26,6 +26,24 @@ for TARGET in "$TARGET_DIR"/*.erl; do
     fi
 done
 
+CURDIR=$(pwd)
+cd "$TARGET_DIR" || exit
+for TARGET in *.erl; do
+    NUM="$(grep -c "^main(" "$TARGET")"
+    if [ "$NUM" -eq 0 ]; then
+        echo "Skip '$TARGET' due to the absence of main/1."
+    else
+        echo "Executing '$TARGET' by escript ..."
+        sed '1s|^|#!/usr/local/bin/escript\n|' -i "$TARGET"
+        escript "$TARGET"
+        STATUS=$?
+        if [ $STATUS -ne 0 ]; then
+            ERRORS+=("$TARGET")
+        fi
+    fi
+done
+cd "$CURDIR" || exit
+
 RET=0
 for X in "${ERRORS[@]}"; do
     RET=1

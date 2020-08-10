@@ -17,4 +17,7 @@ module Functor2 = struct
 
   module M = F(Int)
 
+  let main(args) =
+    print_debug(M.zeroes())
+
 end

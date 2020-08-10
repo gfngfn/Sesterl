@@ -49,10 +49,16 @@ module Send = struct
       ) in
       spawn_all(pid :: acc, n - 1)
 
-  let main() =
+  let entrypoint() =
     let m = 10 in
     do pids <- spawn_all([], m) in
     let _ = print_debug(pids) in
     wait_all((), m)
+
+  let main<$a> : $a = external 1 ```
+main(_) ->
+    F = entrypoint(),
+    F(ok).  % uses `Primtives.thunk_argument` for forcing a thunk.
+  ```
 
 end

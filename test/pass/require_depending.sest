@@ -2,7 +2,7 @@ require "require_depended.sest"
 
 module RequireDepending = struct
 
-  let main() =
-    RequireDepended.hello()
+  let main(args) =
+    print_debug(RequireDepended.hello())
 
 end

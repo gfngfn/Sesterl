@@ -120,11 +120,31 @@ let stringify_single (gmap : global_name_map) = function
   | OutputIdentifier.Global(gname) ->
       let r = OutputIdentifier.output_global gname in
       let smod = get_module_string gmap gname in
-      Printf.sprintf "(fun %s:%s/%d)" smod r.function_name (r.arity + 1)
-        (*  Use syntax `fun M:F/Arity` for global function names
-            in order to avoid being confused with atoms.
-            Here, arities are incremented in order to conform to labeled optional parameters.
-        *)
+      if r.has_option then
+        Printf.sprintf "(fun %s:%s/%d)"
+          smod
+          r.function_name
+          (r.arity + 1)
+            (* Use syntax `fun M:F/Arity` for global function names
+               in order to avoid being confused with atoms.
+               Here, arities are incremented in order to conform to labeled optional parameters. *)
+      else
+        let sargscat = List.init r.arity (fun _ -> fresh_local_symbol ()) |> String.concat ", " in
+        let soptparam =
+          if r.arity = 0 then
+            "_"
+          else
+            ", _"
+        in
+        Printf.sprintf "(fun(%s%s) -> %s:%s(%s) end)"
+          sargscat
+          soptparam
+          smod
+          r.function_name
+          sargscat
+            (* Perform eta-expansion for global functions with no labeled optional parameters
+               in order for them to avoid being called with an additinal dummy map for optional values. *)
+
 
   | OutputIdentifier.Operator(oname) ->
       let sop = OutputIdentifier.output_operator oname in
@@ -192,7 +212,7 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
         match (name, sargs) with
         | (OutputIdentifier.Local(lname), _) ->
             let sname = OutputIdentifier.output_local lname in
-            if List.length sargs = 0 then
+            if List.length astargs = 0 then
               Printf.sprintf "%s(#{%s})"
                 sname
                 soptmap
@@ -210,12 +230,11 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
               if LabelAssoc.cardinal optargmap = 0 then
                 ""
                   (* When no optional argument is given, we do not output the empty map for it.
-                     This is a workaround for functions via FFI.
-                     In response to this, functions that are not defined by FFI are compiled into two variants;
-                     one has its innate arity,
+                     In response to this, functions defined with optional parameters are
+                     compiled into two variants; one has its innate arity,
                      and the other can receive a map for optional arguments via an additional argument.
                   *)
-              else if List.length sargs = 0 then
+              else if List.length astargs = 0 then
                 Printf.sprintf "#{%s}" soptmap
               else
                 Printf.sprintf ", #{%s}" soptmap
@@ -282,12 +301,12 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
 
   | IThunk(e0) ->
       let s0 = iter e0 in
-      Printf.sprintf "fun() -> %s end" s0
+      Printf.sprintf "fun(%s) -> %s end" Primitives.thunk_argument s0
 
   | IForce(e0) ->
       let sname = fresh_local_symbol () in
       let s0 = iter e0 in
-      Printf.sprintf "begin %s = %s, %s() end" sname s0 sname
+      Printf.sprintf "begin %s = %s, %s(%s) end" sname s0 sname Primitives.thunk_argument
 
 
 and stringify_branch (gmap : global_name_map) (br : branch) =
@@ -348,22 +367,31 @@ let stringify_val_binding_output : val_binding_output -> string list = function
       let sname_map = fresh_local_symbol () in
       let sgetopts = stringify_option_decoding_operation sname_map optnamemap in
       let s0 = stringify_ast gmap ast0 in
-      let s_without_option =
-        Printf.sprintf "%s(%s) -> ?MODULE:%s(%s#{})."
-          r.function_name
-          sparamscat
-          r.function_name
-          sparamscatcomma
-      in
-      let s_with_option =
-        Printf.sprintf "%s(%s%s) -> %s%s."
-          r.function_name
-          sparamscatcomma
-          sname_map
-          sgetopts
-          s0
-      in
-      [s_without_option; s_with_option]
+      if r.has_option then
+        let s_without_option =
+          Printf.sprintf "%s(%s) -> ?MODULE:%s(%s#{})."
+            r.function_name
+            sparamscat
+            r.function_name
+            sparamscatcomma
+        in
+        let s_with_option =
+          Printf.sprintf "%s(%s%s) -> %s%s."
+            r.function_name
+            sparamscatcomma
+            sname_map
+            sgetopts
+            s0
+        in
+        [ s_without_option; s_with_option ]
+      else
+        let s =
+          Printf.sprintf "%s(%s) -> %s."
+            r.function_name
+            sparamscat
+            s0
+        in
+        [ s ]
 
   | OBindValExternal(_, _, code) ->
       [code]
@@ -374,16 +402,10 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
   | OBindModule(smod, ovalbinds) ->
       let exports =
         ovalbinds |> List.map (function
-        | OBindVal(gnamefun, _, _, _, _) ->
+        | OBindVal(gnamefun, _, _, _, _)
+        | OBindValExternal(gnamefun, _, _) ->
             let r = OutputIdentifier.output_global gnamefun in
-            [
-              Printf.sprintf "%s/%d" r.function_name r.arity;
-              Printf.sprintf "%s/%d" r.function_name (r.arity + 1);
-            ]
-
-        | OBindValExternal(gnamefun, has_option, _) ->
-            let r = OutputIdentifier.output_global gnamefun in
-            if has_option then
+            if r.has_option then
               [
                 Printf.sprintf "%s/%d" r.function_name r.arity;
                 Printf.sprintf "%s/%d" r.function_name (r.arity + 1);
