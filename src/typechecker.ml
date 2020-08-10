@@ -842,8 +842,8 @@ let generate_local_name (rng : Range.t) (x : identifier) : local_name =
   | Some(lname) -> lname
 
 
-let generate_global_name (arity : int) (rng : Range.t) (x : identifier) : global_name =
-  match OutputIdentifier.generate_global x arity with
+let generate_global_name ~arity:(arity : int) ~has_option:(has_option : bool) (rng : Range.t) (x : identifier) : global_name =
+  match OutputIdentifier.generate_global x ~arity:arity ~has_option:has_option with
   | None        -> raise_error (InvalidIdentifier(rng, x))
   | Some(gname) -> gname
 
@@ -2541,9 +2541,10 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         let ty = decode_manual_type tyenv localtyparams localrowparams mty in
         TypeConv.generalize 0 ty
       in
-      let gname = generate_global_name arity rngv x in
+      let has_option = extbind.ext_has_option in
+      let gname = generate_global_name ~arity:arity ~has_option:has_option rngv x in
       let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
-      ((OpaqueIDSet.empty, sigr), [IBindVal(IExternal(gname, extbind.ext_has_option, extbind.ext_code))])
+      ((OpaqueIDSet.empty, sigr), [IBindVal(IExternal(gname, has_option, extbind.ext_code))])
 
   | BindVal(Internal(rec_or_nonrec)) ->
       let pre =
@@ -2563,8 +2564,9 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             let namesf valbind =
               let params = valbind.vb_parameters in
               let arity = List.length params in
+              let has_option = (List.length valbind.vb_optionals > 0) in
               let (rngv, x) = valbind.vb_identifier in
-              let gname = generate_global_name arity rngv x in
+              let gname = generate_global_name ~arity:arity ~has_option:has_option rngv x in
               (gname, gname)
             in
             let proj gname = OutputIdentifier.Global(gname) in
@@ -2582,8 +2584,9 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             let (pty, gname, e) =
               let params = valbind.vb_parameters in
               let arity = List.length params in
-              let gname = generate_global_name arity in
-              typecheck_let gname pre valbind
+              let has_option = (List.length valbind.vb_optionals > 0) in
+              let gnamef = generate_global_name ~arity:arity ~has_option:has_option in
+              typecheck_let gnamef pre valbind
             in
             let (_, x) = valbind.vb_identifier in
             let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in

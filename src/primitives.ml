@@ -190,7 +190,7 @@ let initial_environment =
           let targetdef = primdef.target in
           let gname =
             let arity = List.length targetdef.parameters in
-            match OutputIdentifier.generate_global targetdef.target_name arity with
+            match OutputIdentifier.generate_global targetdef.target_name ~arity:arity ~has_option:false with
             | None        -> assert false
             | Some(gname) -> gname
           in

@@ -13,6 +13,7 @@ type global =
       number        : int;
       function_name : IdentifierScheme.t;
       arity         : int;
+      has_option    : bool;
     }
   | ReprDummy of {
       number : int;
@@ -62,13 +63,14 @@ let generate_local (s : string) : local option =
   )
 
 
-let generate_global (s : string) (arity : int) : global option =
+let generate_global (s : string) ~arity:(arity : int) ~has_option:(has_option : bool) : global option =
   IdentifierScheme.from_snake_case s |> Option.map (fun ident ->
     let n = fresh_number () in
     ReprGlobal{
       number        = n;
       function_name = ident;
       arity         = arity;
+      has_option    = has_option;
     }
   )
 
