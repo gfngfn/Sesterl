@@ -58,7 +58,7 @@ module Send = struct
   let main<$a> : $a = external 1 ```
 main(_) ->
     F = entrypoint(),
-    F(ok).  % uses `Primtives.thunk_argument` for forcing a thunk.
+    F(). % forcing a thunk
   ```
 
 end

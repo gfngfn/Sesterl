@@ -258,14 +258,14 @@ let (&&&) res1 res2 =
   | _               -> res1
 
 
-let iapply (efun : ast) (eargs : ast list) (optargmap : ast LabelAssoc.t) : ast =
+let iapply (efun : ast) (mrow : mono_row) (eargs : ast list) (optargmap : ast LabelAssoc.t) : ast =
   match efun with
   | IVar(name) ->
-      IApply(name, eargs, optargmap)
+      IApply(name, mrow, eargs, optargmap)
 
   | _ ->
       let lname = OutputIdentifier.fresh () in
-      ILetIn(lname, efun, IApply(OutputIdentifier.Local(lname), eargs, optargmap))
+      ILetIn(lname, efun, IApply(OutputIdentifier.Local(lname), mrow, eargs, optargmap))
 
 
 let ilambda (ordnames : local_name list) (optnamemap : local_name LabelAssoc.t) (e0 : ast) : ast =
@@ -304,7 +304,8 @@ let iletrecin_multiple (binds : (identifier * poly_type * local_name * local_nam
       | ILambda(None, ordnames, optnamemap, e0) ->
           ILambda(None, ordnames, optnamemap,
             iletpatin ipat_inner_tuple
-              (IApply(OutputIdentifier.Local(name_for_whole_rec), [], LabelAssoc.empty)) e0)
+              (IApply(OutputIdentifier.Local(name_for_whole_rec),
+                FixedRow(LabelAssoc.empty), [], LabelAssoc.empty)) e0)
 
       | _ ->
           assert false
@@ -314,7 +315,8 @@ let iletrecin_multiple (binds : (identifier * poly_type * local_name * local_nam
     IPTuple(binds |> TupleList.map (fun (_, _, name_outer, _, _) -> IPVar(name_outer)))
   in
   iletpatin ipat_outer_tuple
-    (iapply (ILambda(Some(name_for_whole_rec), [], LabelAssoc.empty, ITuple(tuple_entries))) [] LabelAssoc.empty)
+    (iapply (ILambda(Some(name_for_whole_rec), [], LabelAssoc.empty, ITuple(tuple_entries)))
+      (FixedRow(LabelAssoc.empty)) [] LabelAssoc.empty)
     e2
 
 
@@ -1132,7 +1134,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         RowVar(UpdatableRow(mrvu))
       in
       unify tyfun (Range.dummy "Apply", FuncType(tyargs, optrow, tyret));
-      (tyret, iapply efun eargs optargmap)
+      (tyret, iapply efun optrow eargs optargmap)
 
   | If(utast0, utast1, utast2) ->
       let (ty0, e0) = typecheck pre utast0 in

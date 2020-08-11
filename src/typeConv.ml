@@ -297,3 +297,19 @@ let substitute_poly_type (substmap : poly_type BoundIDMap.t) : poly_type -> poly
 
 let overwrite_range_of_type (rng : Range.t) (_, tymain) =
   (rng, tymain)
+
+
+let can_row_take_optional : mono_row -> bool = function
+  | FixedRow(labmap) ->
+      LabelAssoc.cardinal labmap > 0
+
+  | RowVar(UpdatableRow{contents = FreeRow(frid)}) ->
+      let labmap = KindStore.get_free_row frid in
+      LabelAssoc.cardinal labmap > 0
+
+  | RowVar(UpdatableRow{contents = LinkRow(labmap)}) ->
+      LabelAssoc.cardinal labmap > 0
+
+  | RowVar(MustBeBoundRow(mbbrid)) ->
+      let labmap = KindStore.get_bound_row (MustBeBoundID.to_bound mbbrid) in
+      LabelAssoc.cardinal labmap > 0

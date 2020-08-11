@@ -120,40 +120,19 @@ let stringify_single (gmap : global_name_map) = function
   | OutputIdentifier.Global(gname) ->
       let r = OutputIdentifier.output_global gname in
       let smod = get_module_string gmap gname in
-      if r.has_option then
-        Printf.sprintf "(fun %s:%s/%d)"
-          smod
-          r.function_name
-          (r.arity + 1)
-            (* Use syntax `fun M:F/Arity` for global function names
-               in order to avoid being confused with atoms.
-               Here, arities are incremented in order to conform to labeled optional parameters. *)
-      else
-        let sargscat = List.init r.arity (fun _ -> fresh_local_symbol ()) |> String.concat ", " in
-        let soptparam =
-          if r.arity = 0 then
-            "_"
-          else
-            ", _"
-        in
-        Printf.sprintf "(fun(%s%s) -> %s:%s(%s) end)"
-          sargscat
-          soptparam
-          smod
-          r.function_name
-          sargscat
-            (* Perform eta-expansion for global functions with no labeled optional parameters
-               in order for them to avoid being called with an additinal dummy map for optional values. *)
-
+      let arity = if r.has_option then r.arity + 1 else r.arity in
+      Printf.sprintf "(fun %s:%s/%d)"
+        smod
+        r.function_name
+        arity
+          (* Use syntax `fun M:F/Arity` for global function names
+             in order to avoid being confused with atoms.
+             Here, arities are incremented in order to conform to labeled optional parameters. *)
 
   | OutputIdentifier.Operator(oname) ->
       let sop = OutputIdentifier.output_operator oname in
-      let gensym () =
-        let lname = OutputIdentifier.fresh () in
-        OutputIdentifier.output_local lname
-      in
-      let s1 = gensym () in
-      let s2 = gensym () in
+      let s1 = fresh_local_symbol () in
+      let s2 = fresh_local_symbol () in
       Printf.sprintf "(fun(%s, %s) -> %s %s %s end)" s1 s2 s1 sop s2
 
 
@@ -183,23 +162,30 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
 
   | ILambda(recopt, lnames, optnamemap, ast0) ->
       let snames = lnames |> List.map OutputIdentifier.output_local in
-      let sparamscatcomma = snames |> List.map (fun s -> s ^ ", ") |> String.concat "" in
-      let sname_map = fresh_local_symbol () in
-      let sgetopts = stringify_option_decoding_operation sname_map optnamemap in
       let s0 = iter ast0 in
       let srec =
         match recopt with
         | None          -> ""
         | Some(namerec) -> " " ^ OutputIdentifier.output_local namerec
       in
-      Printf.sprintf "fun%s(%s%s) -> %s%s end"
-        srec
-        sparamscatcomma
-        sname_map
-        sgetopts
-        s0
+      if LabelAssoc.cardinal optnamemap = 0 then
+        let sparamscat = snames |> String.concat ", " in
+        Printf.sprintf "fun%s(%s) -> %s end"
+          srec
+          sparamscat
+          s0
+      else
+        let sparamscatcomma = snames |> List.map (fun s -> s ^ ", ") |> String.concat "" in
+        let sname_map = fresh_local_symbol () in
+        let sgetopts = stringify_option_decoding_operation sname_map optnamemap in
+        Printf.sprintf "fun%s(%s%s) -> %s%s end"
+          srec
+          sparamscatcomma
+          sname_map
+          sgetopts
+          s0
 
-  | IApply(name, astargs, optargmap) ->
+  | IApply(name, mrow, astargs, optargmap) ->
       let sargs = astargs |> List.map iter in
       let soptmap =
         LabelAssoc.fold (fun label ast acc ->
@@ -208,19 +194,26 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
           Alist.extend acc s
         ) optargmap Alist.empty |> Alist.to_list |> String.concat ", "
       in
+      let can_take_optional = TypeConv.can_row_take_optional mrow in
       begin
         match (name, sargs) with
         | (OutputIdentifier.Local(lname), _) ->
             let sname = OutputIdentifier.output_local lname in
-            if List.length astargs = 0 then
-              Printf.sprintf "%s(#{%s})"
-                sname
-                soptmap
+            let sargscat = String.concat ", " sargs in
+            if can_take_optional then
+              if List.length astargs = 0 then
+                Printf.sprintf "%s(#{%s})"
+                  sname
+                  soptmap
+              else
+                Printf.sprintf "%s(%s, #{%s})"
+                  sname
+                  sargscat
+                  soptmap
             else
-              Printf.sprintf "%s(%s, #{%s})"
+              Printf.sprintf "%s(%s)"
                 sname
-                (String.concat ", " sargs)
-                soptmap
+                sargscat
 
         | (OutputIdentifier.Global(gname), _) ->
             let r = OutputIdentifier.output_global gname in
@@ -301,12 +294,12 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
 
   | IThunk(e0) ->
       let s0 = iter e0 in
-      Printf.sprintf "fun(%s) -> %s end" Primitives.thunk_argument s0
+      Printf.sprintf "fun() -> %s end" s0
 
   | IForce(e0) ->
       let sname = fresh_local_symbol () in
       let s0 = iter e0 in
-      Printf.sprintf "begin %s = %s, %s(%s) end" sname s0 sname Primitives.thunk_argument
+      Printf.sprintf "begin %s = %s, %s() end" sname s0 sname
 
 
 and stringify_branch (gmap : global_name_map) (br : branch) =
