@@ -128,34 +128,11 @@ let stringify_single (gmap : global_name_map) = function
           (* Use syntax `fun M:F/Arity` for global function names
              in order to avoid being confused with atoms.
              Here, arities are incremented in order to conform to labeled optional parameters. *)
-(*
-      else
-        let sargscat = List.init r.arity (fun _ -> fresh_local_symbol ()) |> String.concat ", " in
-        let soptparam =
-          if r.arity = 0 then
-            "_"
-          else
-            ", _"
-        in
-        Printf.sprintf "(fun(%s%s) -> %s:%s(%s) end)"
-          sargscat
-          soptparam
-          smod
-          r.function_name
-          sargscat
-            (* Perform eta-expansion for global functions with no labeled optional parameters
-               in order for them to avoid being called with an additinal dummy map for optional values. *)
-*)
-
 
   | OutputIdentifier.Operator(oname) ->
       let sop = OutputIdentifier.output_operator oname in
-      let gensym () =
-        let lname = OutputIdentifier.fresh () in
-        OutputIdentifier.output_local lname
-      in
-      let s1 = gensym () in
-      let s2 = gensym () in
+      let s1 = fresh_local_symbol () in
+      let s2 = fresh_local_symbol () in
       Printf.sprintf "(fun(%s, %s) -> %s %s %s end)" s1 s2 s1 sop s2
 
 
