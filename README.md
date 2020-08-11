@@ -463,14 +463,21 @@ Also, though not supporting them currently, we want to add features like the fol
   * [x] `receive`-expressions
   * [x] `send`
   * [x] `self`
-  * [ ] `monitor`/`demonitor`
-  * [ ] `link`/`unlink`
+  * [ ] `monitor<$a, $b> : fun(pid<$b>) -> [$a]mref<$b>`
+  * [ ] `demonitor<$a, $b> : fun(mref<$b>) -> [$a]unit`
+  * [ ] Special message form `down(pid<$a>, mref<$a>, down_info)` representing `{'DOWN', process, Pid, Mref, Info}`
+  * [ ] `link<$a, $b> : fun(pid<$b>) -> [$a]unit`
+  * [ ] `unlink<$a, $b> : fun(pid<$b>) -> [$a]unit`
 * [x] Principal type inference
 * [x] Type annotation
 * [x] Output Erlang code
 * [x] FFI
 * [ ] Data types
-  * [x] Strings/Binaries
+  * [ ] Strings (as lists of code points)
+  * [x] Binaries
+  * [ ] Durations (e.g. `5000ms`)
+  * [ ] Monitoring references `mref<$a>`
+  * [ ] Unique references
   * [x] Product types
   * [x] Lists
   * [x] User-defined ADTs
@@ -481,10 +488,14 @@ Also, though not supporting them currently, we want to add features like the fol
   * [ ] Functions with labeled mandatory parameters
   * [ ] GADTs (especially for typing synchronous messages)
 * [x] Mutual recursion by generalized `letrec`-expressions
-* [x] Pattern matching by generalized `let`-expressions
-* [x] Module system
+* [ ] Pattern matching
+  * [x] `case`-expressions
+  * [x] Generalized `let`-expressions
+  * [ ] Exhaustiveness check
+* [ ] Module system
   * [x] Support for F-ing modules
   * [x] Compilation using the static interpretation
+  * [ ] First-class modules
 * [ ] Configuration
   * [x] Loading external modules by `require`
   * [ ] Embedding external modules as submodules
