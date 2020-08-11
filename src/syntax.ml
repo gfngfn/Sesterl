@@ -532,7 +532,7 @@ and ast =
   | IBaseConst   of base_constant
   | IVar         of name
   | ILambda      of local_name option * local_name list * local_name LabelAssoc.t * ast
-  | IApply       of name * ast list * ast LabelAssoc.t
+  | IApply       of name * mono_row * ast list * ast LabelAssoc.t
   | ILetIn       of local_name * ast * ast
   | ICase        of ast * branch list
   | IReceive     of branch list
@@ -608,7 +608,7 @@ and pp_ast ppf = function
         (LabelAssoc.pp OutputIdentifier.pp_local) optnamemap
         pp_ast e
 
-  | IApply(name, eargs, optargmap) ->
+  | IApply(name, _, eargs, optargmap) ->
       let midcomma = if List.length eargs = 0 || LabelAssoc.cardinal optargmap = 0 then "" else ", " in
       Format.fprintf ppf "%a@[<hov2>(%a%s?%a)@]"
         OutputIdentifier.pp name
