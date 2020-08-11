@@ -591,23 +591,29 @@ and pp_ast ppf = function
   | IVar(name) ->
       OutputIdentifier.pp ppf name
 
-  | ILambda(None, lnameargs, optnamemap, e) ->
-      Format.fprintf ppf "\\(%a, ?%a) ->@[<hov2>@ %a@]"
-        (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameargs
+  | ILambda(None, lnameparams, optnamemap, e) ->
+      let midcomma = if List.length lnameparams = 0 || LabelAssoc.cardinal optnamemap = 0 then "" else ", " in
+      Format.fprintf ppf "\\(%a%s?%a) ->@[<hov2>@ %a@]"
+        (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameparams
+        midcomma
         (LabelAssoc.pp OutputIdentifier.pp_local) optnamemap
         pp_ast e
 
   | ILambda(Some(lnamerec), lnameparams, optnamemap, e) ->
-      Format.fprintf ppf "\\%a(%a, ?%a) ->@[<hov2>@ %a@]"
+      let midcomma = if List.length lnameparams = 0 || LabelAssoc.cardinal optnamemap = 0 then "" else ", " in
+      Format.fprintf ppf "\\%a(%a%s?%a) ->@[<hov2>@ %a@]"
         OutputIdentifier.pp_local lnamerec
         (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameparams
+        midcomma
         (LabelAssoc.pp OutputIdentifier.pp_local) optnamemap
         pp_ast e
 
   | IApply(name, eargs, optargmap) ->
-      Format.fprintf ppf "%a@[<hov2>(%a, ?%a)@]"
+      let midcomma = if List.length eargs = 0 || LabelAssoc.cardinal optargmap = 0 then "" else ", " in
+      Format.fprintf ppf "%a@[<hov2>(%a%s?%a)@]"
         OutputIdentifier.pp name
         (Format.pp_print_list ~pp_sep:pp_sep_comma pp_ast) eargs
+        midcomma
         (LabelAssoc.pp pp_ast) optargmap
 
   | ILetIn(lname, e1, e2) ->
