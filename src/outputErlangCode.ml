@@ -9,7 +9,7 @@ let fresh_local_symbol () =
 
 type val_binding_output =
   | OBindVal         of global_name * local_name list * local_name LabelAssoc.t * global_name_map * ast
-  | OBindValExternal of global_name * bool * string
+  | OBindValExternal of global_name * string
 
 type module_binding_output =
   | OBindModule of string * val_binding_output list
@@ -46,7 +46,7 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
             gmap |> GlobalNameMap.add gnamefun smod
           ) gmap
 
-      | IBindVal(IExternal(gnamefun, _, _)) ->
+      | IBindVal(IExternal(gnamefun, _)) ->
           gmap |> GlobalNameMap.add gnamefun smod
 
       | IBindModule(_) ->
@@ -76,10 +76,10 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
     let ovalbinds =
       ibinds |> List.map (fun ibind ->
         match ibind with
-        | IBindVal(INonRec(valbind))                   -> [ traverse_val_single gmap valbind ]
-        | IBindVal(IRec(valbinds))                     -> valbinds |> List.map (traverse_val_single gmap)
-        | IBindVal(IExternal(gname, has_option, code)) -> [ OBindValExternal(gname, has_option, code) ]
-        | IBindModule(_)                               -> []
+        | IBindVal(INonRec(valbind))       -> [ traverse_val_single gmap valbind ]
+        | IBindVal(IRec(valbinds))         -> valbinds |> List.map (traverse_val_single gmap)
+        | IBindVal(IExternal(gname, code)) -> [ OBindValExternal(gname, code) ]
+        | IBindModule(_)                   -> []
       ) |> List.concat
     in
     match ovalbinds with
@@ -386,7 +386,7 @@ let stringify_val_binding_output : val_binding_output -> string list = function
         in
         [ s ]
 
-  | OBindValExternal(_, _, code) ->
+  | OBindValExternal(_, code) ->
       [code]
 
 
@@ -396,7 +396,7 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
       let exports =
         ovalbinds |> List.map (function
         | OBindVal(gnamefun, _, _, _, _)
-        | OBindValExternal(gnamefun, _, _) ->
+        | OBindValExternal(gnamefun, _) ->
             let r = OutputIdentifier.output_global gnamefun in
             if r.has_option then
               [
