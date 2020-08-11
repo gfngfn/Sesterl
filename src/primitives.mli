@@ -14,7 +14,6 @@ type source_definition = {
 type target_definition = {
   target_name : string;
   parameters  : string list;
-  arity_zero  : bool;
   code        : string;
 }
 

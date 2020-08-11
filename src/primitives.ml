@@ -60,7 +60,6 @@ type source_definition = {
 type target_definition = {
   target_name : string;
   parameters  : string list;
-  arity_zero  : bool;
   code        : string;
 }
 
@@ -79,7 +78,6 @@ let primitive_definitions = [
     target = {
       target_name = "thunk_spawn";
       parameters  = ["F"];
-      arity_zero  = false;
       code        = "fun() -> erlang:spawn(F) end";
     };
   };
@@ -91,7 +89,6 @@ let primitive_definitions = [
     target = {
       target_name = "thunk_send";
       parameters  = ["X"; "Y"];
-      arity_zero  = false;
       code        = "fun() -> X ! Y, ok end";
     };
   };
@@ -103,7 +100,6 @@ let primitive_definitions = [
     target = {
       target_name = "thunk_return";
       parameters  = ["X"];
-      arity_zero  = false;
       code        = "fun() -> X end";
     }
   };
@@ -115,7 +111,6 @@ let primitive_definitions = [
     target = {
       target_name = "thunk_self";
       parameters  = [];
-      arity_zero  = true;
       code        = "erlang:self()";
     };
   };
@@ -127,7 +122,6 @@ let primitive_definitions = [
     target = {
       target_name = "print_debug";
       parameters  = ["X"];
-      arity_zero  = false;
       code        = "io:format(\"~p~n\", [X]), ok";
     };
   };
@@ -136,7 +130,6 @@ let primitive_definitions = [
     target = {
       target_name = decode_option_function;
       parameters  = ["Options"; "Key"];
-      arity_zero  = false;
       code        = "case maps:find(Key, Options) of error -> none; {ok, Value} -> {some, Value} end";
     };
   };
