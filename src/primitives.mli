@@ -2,8 +2,6 @@
 open Syntax
 open Env
 
-val thunk_argument : string
-
 val primitive_module_name : string
 
 val decode_option_function : string

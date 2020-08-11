@@ -3,10 +3,6 @@ open Syntax
 open Env
 
 
-let thunk_argument =
-  "ok"
-
-
 let primitive_module_name =
   "sesterl_internal_prim"
 
@@ -82,12 +78,9 @@ let primitive_definitions = [
     };
     target = {
       target_name = "thunk_spawn";
-      parameters  = ["X"];
+      parameters  = ["F"];
       arity_zero  = false;
-      code =
-        Printf.sprintf "fun(%s) -> erlang:spawn(fun() -> X(%s) end) end"
-          thunk_argument
-          thunk_argument;
+      code        = "fun() -> erlang:spawn(F) end";
     };
   };
   {
@@ -99,9 +92,7 @@ let primitive_definitions = [
       target_name = "thunk_send";
       parameters  = ["X"; "Y"];
       arity_zero  = false;
-      code =
-        Printf.sprintf "fun(%s) -> X ! Y, ok end"
-          thunk_argument;
+      code        = "fun() -> X ! Y, ok end";
     };
   };
   {
@@ -113,9 +104,7 @@ let primitive_definitions = [
       target_name = "thunk_return";
       parameters  = ["X"];
       arity_zero  = false;
-      code =
-        Printf.sprintf "fun(%s) -> X end"
-          thunk_argument;
+      code        = "fun() -> X end";
     }
   };
   {
@@ -125,7 +114,7 @@ let primitive_definitions = [
     };
     target = {
       target_name = "thunk_self";
-      parameters  = [ thunk_argument ];
+      parameters  = [];
       arity_zero  = true;
       code        = "erlang:self()";
     };
@@ -207,14 +196,8 @@ let initial_environment =
       | Some(srcdef) ->
           let targetdef = primdef.target in
           let gname =
-            let has_option = targetdef.arity_zero in
-            let arity =
-              if has_option then
-                0
-              else
-                List.length targetdef.parameters
-            in
-            match OutputIdentifier.generate_global targetdef.target_name ~arity:arity ~has_option:has_option with
+            let arity = List.length targetdef.parameters in
+            match OutputIdentifier.generate_global targetdef.target_name ~arity:arity ~has_option:false with
             | None        -> assert false
             | Some(gname) -> gname
           in

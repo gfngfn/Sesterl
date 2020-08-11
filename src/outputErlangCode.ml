@@ -294,12 +294,12 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
 
   | IThunk(e0) ->
       let s0 = iter e0 in
-      Printf.sprintf "fun(%s) -> %s end" Primitives.thunk_argument s0
+      Printf.sprintf "fun() -> %s end" s0
 
   | IForce(e0) ->
       let sname = fresh_local_symbol () in
       let s0 = iter e0 in
-      Printf.sprintf "begin %s = %s, %s(%s) end" sname s0 sname Primitives.thunk_argument
+      Printf.sprintf "begin %s = %s, %s() end" sname s0 sname
 
 
 and stringify_branch (gmap : global_name_map) (br : branch) =
