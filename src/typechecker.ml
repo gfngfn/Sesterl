@@ -852,11 +852,12 @@ let generate_global_name ~arity:(arity : int) ~has_option:(has_option : bool) (r
 
 let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   match bc with
-  | Unit    -> ((rng, BaseType(UnitType)))
+  | Unit    -> (rng, BaseType(UnitType))
   | Int(_)  -> (rng, BaseType(IntType))
   | Bool(_) -> (rng, BaseType(BoolType))
   | BinaryByString(_)
   | BinaryByInts(_)   -> (rng, BaseType(BinaryType))
+  | MilliSeconds(_)   -> (rng, BaseType(DurationType))
 
 
 let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (rowparams : local_row_parameter_map) (mty : manual_type) : mono_type =

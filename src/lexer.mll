@@ -22,6 +22,7 @@ let latin = (small | capital)
 let identifier = (small (digit | latin | "_")*)
 let constructor = (capital (digit | latin | "_")*)
 let nssymbol = ['&' '|' '=' '/' '+' '-']
+let integer = ("0" | nzdigit (digit*) | ("0x" | "0X") hex+)
 
 rule token = parse
   | space { token lexbuf }
@@ -82,10 +83,14 @@ rule token = parse
         let pos = Range.from_lexbuf lexbuf in
         OPTLABEL(pos, s)
       }
-  | ("0" | nzdigit (digit*) | ("0x" | "0X") hex+) {
+  | integer {
         let s = Lexing.lexeme lexbuf in
         let rng = Range.from_lexbuf lexbuf in
-          INT(rng, int_of_string s)
+        INT(rng, int_of_string s)
+      }
+  | ((integer as s) "ms") {
+        let rng = Range.from_lexbuf lexbuf in
+        MILLISECONDS(rng, int_of_string s)
       }
   | "_"  { UNDERSCORE(Range.from_lexbuf lexbuf) }
   | ","  { COMMA(Range.from_lexbuf lexbuf) }

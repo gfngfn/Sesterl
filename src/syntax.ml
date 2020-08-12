@@ -57,6 +57,7 @@ type base_type =
   | BoolType
   | UnitType
   | BinaryType
+  | DurationType
 [@@deriving show { with_path = false; } ]
 
 type base_constant =
@@ -65,6 +66,7 @@ type base_constant =
   | Int            of int
   | BinaryByString of string
   | BinaryByInts   of int list
+  | MilliSeconds   of int
 [@@deriving show { with_path = false; } ]
 
 type manual_kind = int
@@ -285,6 +287,7 @@ let show_base_type = function
   | BoolType   -> "bool"
   | IntType    -> "int"
   | BinaryType -> "binary"
+  | DurationType -> "duration"
 
 
 let rec show_label_assoc : 'a 'b. ('a -> string) -> ('b -> string) -> (('a, 'b) typ) LabelAssoc.t -> string =
