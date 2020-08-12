@@ -20,7 +20,7 @@ let dr = Range.dummy "primitives"
 let u = (dr, BaseType(UnitType))
 let b = (dr, BaseType(BoolType))
 let i = (dr, BaseType(IntType))
-let ( @-> ) tydoms tycod = (dr, FuncType(tydoms, FixedRow(LabelAssoc.empty), tycod))
+let ( @-> ) tydoms tycod = (dr, FuncType(tydoms, LabelAssoc.empty, FixedRow(LabelAssoc.empty), tycod))
 let eff tyrcv ty0 = (dr, EffType(Effect(tyrcv), ty0))
 let pid tyrcv = (dr, PidType(Pid(tyrcv)))
 

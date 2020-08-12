@@ -219,7 +219,7 @@ type ('a, 'b) typ =
 
 and ('a, 'b) typ_main =
   | BaseType    of base_type
-  | FuncType    of (('a, 'b) typ) list * ('a, 'b) row * ('a, 'b) typ
+  | FuncType    of (('a, 'b) typ) list * (('a, 'b) typ) LabelAssoc.t * ('a, 'b) row * ('a, 'b) typ
   | PidType     of ('a, 'b) pid_type
   | EffType     of ('a, 'b) effect * ('a, 'b) typ
   | TypeVar     of 'a
@@ -302,23 +302,33 @@ fun showtv showrv ty ->
     | BaseType(bty) ->
         show_base_type bty
 
-    | FuncType(tydoms, optrow, tycod) ->
+    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
         let sdoms = tydoms |> List.map aux in
         let sdomscat = String.concat ", " sdoms in
+        let smnds = show_label_assoc showtv showrv mndlabmap in
         let sopts = show_row showtv showrv optrow in
+        let is_ord_empty = (List.length sdoms = 0) in
+        let is_mnds_empty = (LabelAssoc.cardinal mndlabmap = 0) in
         let is_opts_empty =
           match optrow with
           | FixedRow(labmap) -> LabelAssoc.cardinal labmap = 0
           | RowVar(rv)       -> false
         in
-        let smid =
-          if List.length sdoms = 0 || is_opts_empty then
+        let smid1 =
+          if is_ord_empty then
             ""
           else
-            ", "
+            if is_mnds_empty && is_opts_empty then "" else ", "
+        in
+        let smid2 =
+          if is_mnds_empty || is_opts_empty then
+            ""
+          else
+            if is_ord_empty then "" else ", "
         in
         let scod = aux tycod in
-        "fun(" ^ sdomscat ^ smid ^ sopts ^ ") -> " ^ scod
+        Printf.sprintf "fun(%s%s%s%s%s) -> %s"
+          sdomscat smid1 smnds smid2 sopts scod
 
     | EffType(eff, ty0) ->
         let seff = aux_effect eff in
