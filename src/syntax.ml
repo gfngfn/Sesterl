@@ -78,7 +78,7 @@ type manual_type = manual_type_main ranged
 
 and manual_type_main =
   | MTypeName    of type_name * manual_type list
-  | MFuncType    of manual_type list * manual_row * manual_type
+  | MFuncType    of manual_type list * labeled_manual_type list * manual_row * manual_type
   | MProductType of manual_type TupleList.t
   | MEffType     of manual_type * manual_type
   | MTypeVar     of type_variable_name

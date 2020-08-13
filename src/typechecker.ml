@@ -913,8 +913,8 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                   invalid rng tynm ~expect:len_expected ~actual:len_actual
           end
 
-      | MFuncType(mtydoms, mrow, mtycod) ->
-          let mndlabmap = failwith "TODO: decode_manual_type, labeled mandatory parameters" in
+      | MFuncType(mtydoms, mndlabmtys, mrow, mtycod) ->
+          let mndlabmap = aux_labeled_list mndlabmtys in
           let optrow = aux_row mrow in
           FuncType(List.map aux mtydoms, mndlabmap, optrow, aux mtycod)
 
@@ -973,18 +973,8 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
 
   and aux_row (mrow : manual_row) : mono_row =
     match mrow with
-    | MFixedRow(optmtys) ->
-        let labmap =
-          optmtys |> List.fold_left (fun labmap (rlabel, mty) ->
-            let (rnglabel, label) = rlabel in
-            if labmap |> LabelAssoc.mem label then
-              raise_error (DuplicatedLabel(rnglabel, label))
-            else
-              let ty = aux mty in
-              labmap |> LabelAssoc.add label ty
-          ) LabelAssoc.empty
-        in
-        FixedRow(labmap)
+    | MFixedRow(optlabmtys) ->
+        FixedRow(aux_labeled_list optlabmtys)
 
     | MRowVar(rng, rowparam) ->
         begin
@@ -995,6 +985,16 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
           | Some((mbbrid, _)) ->
               RowVar(MustBeBoundRow(mbbrid))
         end
+
+  and aux_labeled_list (labmtys : labeled_manual_type list) : mono_type LabelAssoc.t =
+    labmtys |> List.fold_left (fun labmap (rlabel, mty) ->
+      let (rnglabel, label) = rlabel in
+      if labmap |> LabelAssoc.mem label then
+        raise_error (DuplicatedLabel(rnglabel, label))
+      else
+        let ty = aux mty in
+        labmap |> LabelAssoc.add label ty
+    ) LabelAssoc.empty
   in
   aux mty
 

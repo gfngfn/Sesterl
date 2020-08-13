@@ -62,7 +62,8 @@
 %type<Syntax.untyped_ast list * (Syntax.labeled_untyped_ast list * Syntax.labeled_untyped_ast list)> args
 %type<Syntax.labeled_untyped_ast list * Syntax.labeled_untyped_ast list> labargs
 %type<Syntax.labeled_untyped_ast list> optargs
-%type<Syntax.manual_type list * Syntax.manual_row> tydoms
+%type<Syntax.manual_type list * (Syntax.labeled_manual_type list * Syntax.manual_row)> tydoms
+%type<Syntax.labeled_manual_type list * Syntax.manual_row> labtydoms
 %type<Syntax.manual_row> opttydoms
 %type<Syntax.labeled_manual_type list> opttydomsfixed
 %type<(Range.t * Syntax.type_variable_name) list * ((Range.t * Syntax.row_variable_name) * Syntax.labeled_manual_type list) list> typarams
@@ -572,15 +573,27 @@ tys:
   | mty=ty; COMMA; tail=tys { mty :: tail }
 ;
 tydoms:
+  | labmtydoms=labtydoms {
+        ([], labmtydoms)
+      }
+  | mty=ty {
+        ([ mty ], ([], MFixedRow([])))
+      }
+  | mty=ty; COMMA; tail=tydoms {
+        let (ordmtydoms, labmtydoms) = tail in
+        (mty :: ordmtydoms, labmtydoms)
+      }
+;
+labtydoms:
   | optmtydoms=opttydoms {
         ([], optmtydoms)
       }
-  | mty=ty {
-        ([mty], MFixedRow([]))
+  | rlabel=MNDLABEL; mty=ty {
+        ([ (rlabel, mty) ], MFixedRow([]))
       }
-  | mty=ty; COMMA; tail=tydoms {
-        let (ordmtydoms, optmtydoms) = tail in
-        (mty :: ordmtydoms, optmtydoms)
+  | rlabel=MNDLABEL; mty=ty; COMMA; tail=labtydoms {
+        let (mndmtydoms, optmtydoms) = tail in
+        ((rlabel, mty) :: mndmtydoms, optmtydoms)
       }
 ;
 opttydoms:
@@ -618,9 +631,9 @@ tybot:
         (rng, MTypeName(tynm, mtyargs))
       }
   | tokL=LAMBDA; LPAREN; tydoms=tydoms; RPAREN; ARROW; mtycod=ty {
-        let (ordmtydoms, optmtydoms) = tydoms in
+        let (ordmtydoms, (mndmtydoms, optmtydoms)) = tydoms in
         let rng = make_range (Token(tokL)) (Ranged(mtycod)) in
-        (rng, MFuncType(ordmtydoms, optmtydoms, mtycod))
+        (rng, MFuncType(ordmtydoms, mndmtydoms, optmtydoms, mtycod))
       }
   | tokL=LPAREN; mty1=ty; COMMA; mty2=ty; mtys=list(tytuplesub) tokR=RPAREN {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
