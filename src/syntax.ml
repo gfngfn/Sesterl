@@ -103,8 +103,8 @@ and untyped_ast =
 and untyped_ast_main =
   | BaseConst    of base_constant
   | Var          of identifier
-  | Lambda       of binder list * (label ranged * binder) list * (label ranged * binder) list * untyped_ast
-  | Apply        of untyped_ast * untyped_ast list * (label ranged * untyped_ast) list
+  | Lambda       of binder list * labeled_binder list * labeled_binder list * untyped_ast
+  | Apply        of untyped_ast * untyped_ast list * labeled_untyped_ast list * labeled_untyped_ast list
   | If           of untyped_ast * untyped_ast * untyped_ast
   | LetIn        of rec_or_nonrec * untyped_ast
   | LetPatIn     of untyped_pattern * untyped_ast * untyped_ast
@@ -129,7 +129,7 @@ and rec_or_nonrec =
 and external_binding = {
   ext_identifier  : identifier ranged;
   ext_type_params : (type_variable_name ranged) list;
-  ext_row_params  : ((row_variable_name ranged) * (label ranged * manual_type) list) list;
+  ext_row_params  : ((row_variable_name ranged) * labeled_manual_type list) list;
   ext_type_annot  : manual_type;
   ext_arity       : int;
   ext_has_option  : bool;
@@ -139,10 +139,10 @@ and external_binding = {
 and untyped_let_binding = {
   vb_identifier  : identifier ranged;
   vb_forall      : (type_variable_name ranged) list;
-  vb_forall_row  : (row_variable_name ranged * (label ranged * manual_type) list) list;
+  vb_forall_row  : (row_variable_name ranged * labeled_manual_type list) list;
   vb_parameters  : binder list;
-  vb_mandatories : (label ranged * binder) list;
-  vb_optionals   : (label ranged * binder) list;
+  vb_mandatories : labeled_binder list;
+  vb_optionals   : labeled_binder list;
   vb_return_type : manual_type option;
   vb_body        : untyped_ast;
 }
@@ -207,13 +207,16 @@ and untyped_declaration_main =
   | DeclModule     of module_name ranged * untyped_signature
   | DeclSig        of signature_name ranged * untyped_signature
   | DeclInclude    of untyped_signature
+
+and labeled_binder =
+  label ranged * binder
+
+and labeled_untyped_ast =
+  label ranged * untyped_ast
+
+and labeled_manual_type =
+  label ranged * manual_type
 [@@deriving show { with_path = false; } ]
-
-type labeled_binder = label ranged * binder
-
-type labeled_untyped_ast = label ranged * untyped_ast
-
-type labeled_manual_type = label ranged * manual_type
 
 module FreeRowID = FreeID  (* temporary *)
 
@@ -546,7 +549,7 @@ and ast =
   | IBaseConst   of base_constant
   | IVar         of name
   | ILambda      of local_name option * local_name list * local_name LabelAssoc.t * local_name LabelAssoc.t * ast
-  | IApply       of name * mono_row * ast list * ast LabelAssoc.t
+  | IApply       of name * mono_row * ast list * ast LabelAssoc.t * ast LabelAssoc.t
   | ILetIn       of local_name * ast * ast
   | ICase        of ast * branch list
   | IReceive     of branch list
@@ -617,12 +620,11 @@ and pp_ast ppf = function
         (LabelAssoc.pp OutputIdentifier.pp_local) optnamemap
         pp_ast e
 
-  | IApply(name, _, eargs, optargmap) ->
-      let midcomma = if List.length eargs = 0 || LabelAssoc.cardinal optargmap = 0 then "" else ", " in
-      Format.fprintf ppf "%a@[<hov2>(%a%s?%a)@]"
+  | IApply(name, _, eargs, mndargmap, optargmap) ->
+      Format.fprintf ppf "%a@[<hov2>(%a -{%a} ?{%a})@]"
         OutputIdentifier.pp name
         (Format.pp_print_list ~pp_sep:pp_sep_comma pp_ast) eargs
-        midcomma
+        (LabelAssoc.pp pp_ast) mndargmap
         (LabelAssoc.pp pp_ast) optargmap
 
   | ILetIn(lname, e1, e2) ->

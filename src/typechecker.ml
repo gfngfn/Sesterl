@@ -258,14 +258,14 @@ let (&&&) res1 res2 =
   | _               -> res1
 
 
-let iapply (efun : ast) (mrow : mono_row) (eargs : ast list) (optargmap : ast LabelAssoc.t) : ast =
+let iapply (efun : ast) (mrow : mono_row) (eargs : ast list) (mndargmap : ast LabelAssoc.t) (optargmap : ast LabelAssoc.t) : ast =
   match efun with
   | IVar(name) ->
-      IApply(name, mrow, eargs, optargmap)
+      IApply(name, mrow, eargs, mndargmap, optargmap)
 
   | _ ->
       let lname = OutputIdentifier.fresh () in
-      ILetIn(lname, efun, IApply(OutputIdentifier.Local(lname), mrow, eargs, optargmap))
+      ILetIn(lname, efun, IApply(OutputIdentifier.Local(lname), mrow, eargs, mndargmap, optargmap))
 
 
 let ilambda (ordnames : local_name list) (mndnamemap : local_name LabelAssoc.t) (optnamemap : local_name LabelAssoc.t) (e0 : ast) : ast =
@@ -305,7 +305,7 @@ let iletrecin_multiple (binds : (identifier * poly_type * local_name * local_nam
           ILambda(None, ordnames, mndnamemap, optnamemap,
             iletpatin ipat_inner_tuple
               (IApply(OutputIdentifier.Local(name_for_whole_rec),
-                FixedRow(LabelAssoc.empty), [], LabelAssoc.empty)) e0)
+                FixedRow(LabelAssoc.empty), [], LabelAssoc.empty, LabelAssoc.empty)) e0)
 
       | _ ->
           assert false
@@ -316,7 +316,7 @@ let iletrecin_multiple (binds : (identifier * poly_type * local_name * local_nam
   in
   iletpatin ipat_outer_tuple
     (iapply (ILambda(Some(name_for_whole_rec), [], LabelAssoc.empty, LabelAssoc.empty, ITuple(tuple_entries)))
-      (FixedRow(LabelAssoc.empty)) [] LabelAssoc.empty)
+      (FixedRow(LabelAssoc.empty)) [] LabelAssoc.empty LabelAssoc.empty)
     e2
 
 
@@ -1134,21 +1134,33 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let ty = (rng, FuncType(tydoms, mndlabmap, FixedRow(optlabmap), tycod)) in
       (ty, ilambda ordnames mndnamemap optnamemap e0)
 
-  | Apply(utastfun, utastargs, optutastargs) ->
+  | Apply(utastfun, utastargs, mndutastargs, optutastargs) ->
       let (tyfun, efun) = typecheck pre utastfun in
       let tyeargs = List.map (typecheck pre) utastargs in
       let tyargs = List.map fst tyeargs in
       let eargs = List.map snd tyeargs in
-      let (labmap, optargmap) =
-        optutastargs |> List.fold_left (fun (labmap, optargmap) (rlabel, utast) ->
+      let (mndlabmap, mndargmap) =
+        mndutastargs |> List.fold_left (fun (mndlabmap, mndargmap) (rlabel, utast) ->
           let (rnglabel, label) = rlabel in
-          if labmap |> LabelAssoc.mem label then
+          if mndlabmap |> LabelAssoc.mem label then
             raise_error (DuplicatedLabel(rnglabel, label))
           else
             let (ty, e) = typecheck pre utast in
-            let labmap = labmap |> LabelAssoc.add label ty in
+            let mndlabmap = mndlabmap |> LabelAssoc.add label ty in
+            let mndargmap = mndargmap |> LabelAssoc.add label e in
+            (mndlabmap, mndargmap)
+        ) (LabelAssoc.empty, LabelAssoc.empty)
+      in
+      let (labmap, optargmap) =
+        optutastargs |> List.fold_left (fun (optlabmap, optargmap) (rlabel, utast) ->
+          let (rnglabel, label) = rlabel in
+          if optlabmap |> LabelAssoc.mem label then
+            raise_error (DuplicatedLabel(rnglabel, label))
+          else
+            let (ty, e) = typecheck pre utast in
+            let optlabmap = optlabmap |> LabelAssoc.add label ty in
             let optargmap = optargmap |> LabelAssoc.add label e in
-            (labmap, optargmap)
+            (optlabmap, optargmap)
         ) (LabelAssoc.empty, LabelAssoc.empty)
       in
       let tyret = fresh_type pre.level rng in
@@ -1158,9 +1170,8 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         let mrvu = ref (FreeRow(frid)) in
         RowVar(UpdatableRow(mrvu))
       in
-      let mndlabmap = failwith "TODO: typecheck, Apply, mndlabmap" in
       unify tyfun (Range.dummy "Apply", FuncType(tyargs, mndlabmap, optrow, tyret));
-      (tyret, iapply efun optrow eargs optargmap)
+      (tyret, iapply efun optrow eargs mndargmap optargmap)
 
   | If(utast0, utast1, utast2) ->
       let (ty0, e0) = typecheck pre utast0 in

@@ -196,7 +196,14 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
           sgetopts
           s0
 
-  | IApply(name, mrow, astargs, optargmap) ->
+  | IApply(name, mrow, ordastargs, mndargmap, optargmap) ->
+      let astargs =
+        let mndastargs =
+          mndargmap |> LabelAssoc.bindings |> List.map (fun (_, ast) -> ast)
+            (* Labeled mandatory arguments are placed in alphabetical order. *)
+        in
+        List.append ordastargs mndastargs
+      in
       let sargs = astargs |> List.map iter in
       let soptmap =
         LabelAssoc.fold (fun label ast acc ->

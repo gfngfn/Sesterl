@@ -20,7 +20,7 @@
   let binary e1 op e2 =
     let rng = make_range (Ranged(e1)) (Ranged(e2)) in
     let (rngop, vop) = op in
-    (rng, Apply((rngop, Var(vop)), [e1; e2], []))
+    (rng, Apply((rngop, Var(vop)), [e1; e2], [], []))
 
 (*
   let syntax_sugar_module_application : Range.t -> untyped_module -> untyped_module -> untyped_module =
@@ -59,8 +59,9 @@
 %type<Syntax.binder list * (Syntax.labeled_binder list * Syntax.labeled_binder list)> params
 %type<Syntax.labeled_binder list * Syntax.labeled_binder list> labparams
 %type<Syntax.labeled_binder list> optparams
-%type<Syntax.untyped_ast list * Syntax.labeled_untyped_ast list> args
-%type<((Range.t * Syntax.label) * Syntax.untyped_ast) list> optargs
+%type<Syntax.untyped_ast list * (Syntax.labeled_untyped_ast list * Syntax.labeled_untyped_ast list)> args
+%type<Syntax.labeled_untyped_ast list * Syntax.labeled_untyped_ast list> labargs
+%type<Syntax.labeled_untyped_ast list> optargs
 %type<Syntax.manual_type list * Syntax.manual_row> tydoms
 %type<Syntax.manual_row> opttydoms
 %type<Syntax.labeled_manual_type list> opttydomsfixed
@@ -428,9 +429,9 @@ exprplus:
 ;
 exprapp:
   | efun=exprapp; LPAREN; args=args; tokR=RPAREN {
-        let (ordargs, optargs) = args in
+        let (ordargs, (mndargs, optargs)) = args in
         let rng = make_range (Ranged(efun)) (Token(tokR)) in
-        (rng, Apply(efun, ordargs, optargs))
+        (rng, Apply(efun, ordargs, mndargs, optargs))
       }
   | ctor=CTOR; LPAREN; args=args; tokR=RPAREN {
         let (ordargs, optargs) = args in
@@ -450,15 +451,27 @@ exprapp:
   | e=exprbot { e }
 ;
 args:
+  | labargs=labargs {
+        ([], labargs)
+      }
+  | e=exprlet {
+        ([e], ([], []))
+      }
+  | e=exprlet; COMMA; tail=args {
+        let (ordargs, labargs) = tail in
+        (e :: ordargs, labargs)
+      }
+;
+labargs:
   | optargs=optargs {
         ([], optargs)
       }
-  | e=exprlet {
-        ([e], [])
+  | rlabel=MNDLABEL; e=exprlet {
+        ([ (rlabel, e) ], [])
       }
-  | e=exprlet; COMMA; tail=args {
-        let (ordargs, optargs) = tail in
-        (e :: ordargs, optargs)
+  | rlabel=MNDLABEL; e=exprlet; COMMA; tail=labargs {
+        let (mndargs, optargs) = tail in
+        ((rlabel, e) :: mndargs, optargs)
       }
 ;
 optargs:
