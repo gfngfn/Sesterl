@@ -1,19 +1,29 @@
 
 module MandatoryParameter = struct
 
-  letrec foldl(-f f, -init init, -list xs) =
-    case xs of
-    | []      -> init
-    | y :: ys -> foldl(-init f(init, y), -list ys, -f f)
-    end
+  module Impl = struct
+    letrec foldl(-f f, -init init, -list xs) =
+      case xs of
+      | []      -> init
+      | y :: ys -> foldl(-init f(init, y), -list ys, -f f)
+      end
+  end
+
+  include Impl :> sig
+    val foldl<$a, $b> :
+      fun(
+        -f    fun($a, $b) -> $a,
+        -init $a,
+        -list list<$b>,
+      ) -> $a
+  end
 
   let main(args) =
     let res =
       foldl(
         -f    fun(x, y) -> x + y,
         -init 0,
-        -list [3, 1, 4, 1, 5, 9, 2],
-      )
+        -list [3, 1, 4, 1, 5, 9, 2])
     in
     print_debug(res)
 
