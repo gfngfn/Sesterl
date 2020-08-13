@@ -2621,8 +2621,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
 
         | Rec(valbinds) ->
             let namesf valbind =
-              let params = valbind.vb_parameters in
-              let arity = List.length params in
+              let arity = List.length valbind.vb_parameters + List.length valbind.vb_mandatories in
               let has_option = (List.length valbind.vb_optionals > 0) in
               let (rngv, x) = valbind.vb_identifier in
               let gname = generate_global_name ~arity:arity ~has_option:has_option rngv x in
@@ -2641,8 +2640,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
 
         | NonRec(valbind) ->
             let (pty, gname, e) =
-              let params = valbind.vb_parameters in
-              let arity = List.length params in
+              let arity = List.length valbind.vb_parameters + List.length valbind.vb_mandatories in
               let has_option = (List.length valbind.vb_optionals > 0) in
               let gnamef = generate_global_name ~arity:arity ~has_option:has_option in
               typecheck_let gnamef pre valbind
