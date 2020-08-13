@@ -27,6 +27,7 @@ Contrary to its name, Sesterl has not supported session types yet; it only check
   - [Module system](#module-system)
   - [FFI](#ffi)
   - [Labeled optional parameters](#labeled-optional-parameters)
+  - [Labeled mandatory parameters](#labeled-mandatory-parameters)
 - [Major differences from similar projects](#major-differences-from-similar-projects)
 - [Future work](#future-work)
   - [TODO list](#todo-list)
@@ -374,7 +375,7 @@ main() ->
 Functions can have labeled optional parameters:
 
 ```
-let succ(n, ?diff dopt) =
+let succ(n : int, ?diff dopt : option<int>) =
   case dopt of
   | None    -> n + 1
   | Some(d) -> n + d
@@ -400,6 +401,44 @@ val f<$a, ?$r :: (?diff int)> : fun(fun(int, ?$r) -> $a) -> ($a, $a)
 Here, `?diff int` signifies that `succ` can take a `?diff`-labeled optional argument of type `int`, and the absense of other labels in the same domain means that `succ` cannot take optional arguments with labels other than `?diff`.
 
 `?$r :: (?diff int)` is a *row variable* with its kind; it tracks constraints about the minimum set of optional labels that must be able to be given. This is based on an original type system that resembles SML\#’s one for record polymorphism \[Ohori 1995\] (The type system is currently not documented anywhere).
+
+
+### Labeled mandatory parameters
+
+You can also use labeled mandatory parameters/arguments:
+
+```
+letrec foldl(-f f, -init init, -list xs) =
+  case xs of
+  | []      -> init
+  | y :: ys -> foldl(-init f(init, y), -list ys, -f f)
+  end
+```
+
+Here, `-f`, `-init`, and `-list` are labels for mandatory parameters. Note the order in which labeled arguments are applied is not necessarily the same as that in which labeled parameters are defined. The function `foldl` defined above is typed as follows:
+
+```
+val fold<$a, $b> :
+  fun(
+    -f    fun($a, $b) -> $a,
+    -init $a,
+    -list list<$b>,
+  ) -> $a
+```
+
+You can use non-labeled parameters (resp. arguments) and labeled ones for the same function. At least currently, however, their order must be:
+
+1. (possibly empty) non-labeled parameters (resp. arguments),
+2. (possibly empty) labeled mandatory ones, and
+3. (possibly empty) labeled optional ones.
+
+In other words, abstractions (resp. applications) must be of the following form:
+
+```
+fun(param_1, …, param_L, -mlabel_1 mparam_1, … -mlabel_M mparam_M, ?olabel_1 oparam_1, … ?olabel_N oparam_N) -> …
+
+f(arg_1, …, arg_L, -mlabel_1 marg_1, … -mlabel_M marg_M, ?olabel_1 oarg_1, … ?olabel_N oarg_N)
+```
 
 
 ## Major differences from similar projects
@@ -485,7 +524,7 @@ Also, though not supporting them currently, we want to add features like the fol
   * [x] Type synonyms
   * [ ] Records
   * [x] Functions with labeled optional parameters
-  * [ ] Functions with labeled mandatory parameters
+  * [x] Functions with labeled mandatory parameters
   * [ ] GADTs (especially for typing synchronous messages)
 * [x] Mutual recursion by generalized `letrec`-expressions
 * [ ] Pattern matching

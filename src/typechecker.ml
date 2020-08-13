@@ -258,18 +258,18 @@ let (&&&) res1 res2 =
   | _               -> res1
 
 
-let iapply (efun : ast) (mrow : mono_row) (eargs : ast list) (optargmap : ast LabelAssoc.t) : ast =
+let iapply (efun : ast) (mrow : mono_row) (eargs : ast list) (mndargmap : ast LabelAssoc.t) (optargmap : ast LabelAssoc.t) : ast =
   match efun with
   | IVar(name) ->
-      IApply(name, mrow, eargs, optargmap)
+      IApply(name, mrow, eargs, mndargmap, optargmap)
 
   | _ ->
       let lname = OutputIdentifier.fresh () in
-      ILetIn(lname, efun, IApply(OutputIdentifier.Local(lname), mrow, eargs, optargmap))
+      ILetIn(lname, efun, IApply(OutputIdentifier.Local(lname), mrow, eargs, mndargmap, optargmap))
 
 
-let ilambda (ordnames : local_name list) (optnamemap : local_name LabelAssoc.t) (e0 : ast) : ast =
-  ILambda(None, ordnames, optnamemap, e0)
+let ilambda (ordnames : local_name list) (mndnamemap : local_name LabelAssoc.t) (optnamemap : local_name LabelAssoc.t) (e0 : ast) : ast =
+  ILambda(None, ordnames, mndnamemap, optnamemap, e0)
 
 
 let ithunk (e : ast) : ast =
@@ -286,8 +286,8 @@ let iletpatin (ipat : pattern) (e1 : ast) (e2 : ast) : ast =
 
 let iletrecin_single (_, _, name_outer, name_inner, e1) (e2 : ast) : ast =
   match e1 with
-  | ILambda(None, ordnames, optnamemap, e0) ->
-      ILetIn(name_outer, ILambda(Some(name_inner), ordnames, optnamemap, e0), e2)
+  | ILambda(None, ordnames, mndnamemap, optnamemap, e0) ->
+      ILetIn(name_outer, ILambda(Some(name_inner), ordnames, mndnamemap, optnamemap, e0), e2)
 
   | _ ->
       assert false
@@ -301,11 +301,11 @@ let iletrecin_multiple (binds : (identifier * poly_type * local_name * local_nam
   let tuple_entries =
     binds |> TupleList.map (fun (_, _, _name_outer, _name_inner, e1) ->
       match e1 with
-      | ILambda(None, ordnames, optnamemap, e0) ->
-          ILambda(None, ordnames, optnamemap,
+      | ILambda(None, ordnames, mndnamemap, optnamemap, e0) ->
+          ILambda(None, ordnames, mndnamemap, optnamemap,
             iletpatin ipat_inner_tuple
               (IApply(OutputIdentifier.Local(name_for_whole_rec),
-                FixedRow(LabelAssoc.empty), [], LabelAssoc.empty)) e0)
+                FixedRow(LabelAssoc.empty), [], LabelAssoc.empty, LabelAssoc.empty)) e0)
 
       | _ ->
           assert false
@@ -315,8 +315,8 @@ let iletrecin_multiple (binds : (identifier * poly_type * local_name * local_nam
     IPTuple(binds |> TupleList.map (fun (_, _, name_outer, _, _) -> IPVar(name_outer)))
   in
   iletpatin ipat_outer_tuple
-    (iapply (ILambda(Some(name_for_whole_rec), [], LabelAssoc.empty, ITuple(tuple_entries)))
-      (FixedRow(LabelAssoc.empty)) [] LabelAssoc.empty)
+    (iapply (ILambda(Some(name_for_whole_rec), [], LabelAssoc.empty, LabelAssoc.empty, ITuple(tuple_entries)))
+      (FixedRow(LabelAssoc.empty)) [] LabelAssoc.empty LabelAssoc.empty)
     e2
 
 
@@ -334,11 +334,12 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     | BaseType(_) ->
         false
 
-    | FuncType(tydoms, optrow, tycod) ->
+    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
         let b1 = aux_list tydoms in
+        let bmnd = aux_label_assoc mndlabmap in
         let bopt = aux_option_row optrow in
         let b2 = aux tycod in
-        b1 || bopt || b2
+        b1 || bmnd || bopt || b2
           (* Must not be short-circuit due to the level inference. *)
 
     | ProductType(tys) ->
@@ -414,11 +415,12 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
     | BaseType(_) ->
         false
 
-    | FuncType(tydoms, optrow, tycod) ->
+    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
         let b1 = aux_list tydoms in
+        let bmnd = aux_label_assoc mndlabmap in
         let bopt = aux_option_row optrow in
         let b2 = aux tycod in
-        b1 || bopt || b2
+        b1 || bmnd || bopt || b2
           (* Must not be short-circuit due to the level inference. *)
 
     | PidType(pidty) ->
@@ -479,8 +481,8 @@ fun tyidp tvp oidset ->
     | ListType(tysub)         -> aux tysub
     | ProductType(tys)        -> tys |> TupleList.to_list |> List.exists aux
 
-    | FuncType(tydoms, optrow, tycod) ->
-        List.exists aux tydoms || aux_option_row optrow || aux tycod
+    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
+        List.exists aux tydoms || aux_label_assoc mndlabmap || aux_option_row optrow || aux tycod
 
     | DataType(tyid, tyargs) ->
         tyidp oidset tyid || List.exists aux tyargs
@@ -495,14 +497,14 @@ fun tyidp tvp oidset ->
     | Effect(ty) -> aux ty
 
   and aux_option_row = function
-    | RowVar(_) ->
-        false
+    | RowVar(_)        -> false
+    | FixedRow(labmap) -> aux_label_assoc labmap
 
-    | FixedRow(labmap) ->
-        LabelAssoc.fold (fun _ ty bacc ->
-          let b = aux ty in
-          b || bacc
-        ) labmap false
+  and aux_label_assoc labmap =
+    LabelAssoc.fold (fun _ ty bacc ->
+      let b = aux ty in
+      b || bacc
+    ) labmap false
   in
   aux
 
@@ -630,11 +632,12 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
     | (BaseType(bt1), BaseType(bt2)) ->
         if bt1 = bt2 then Consistent else Contradiction
 
-    | (FuncType(ty1doms, optrow1, ty1cod), FuncType(ty2doms, optrow2, ty2cod)) ->
+    | (FuncType(ty1doms, mndlabmap1, optrow1, ty1cod), FuncType(ty2doms, mndlabmap2, optrow2, ty2cod)) ->
         let res1 = aux_list ty1doms ty2doms in
+        let resmnd = aux_label_assoc_exact mndlabmap1 mndlabmap2 in
         let resopt = aux_option_row optrow1 optrow2 in
         let res2 = aux ty1cod ty2cod in
-        res1 &&& resopt &&& res2
+        res1 &&& resmnd &&& resopt &&& res2
 
     | (EffType(eff1, tysub1), EffType(eff2, tysub2)) ->
         let reseff = aux_effect eff1 eff2 in
@@ -727,7 +730,7 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
         else
           let labmap1 = KindStore.get_free_row frid1 in
           begin
-            match aux_label_assoc ~specific:labmap2 ~general:labmap1 with
+            match aux_label_assoc_subtype ~specific:labmap2 ~general:labmap1 with
             | Consistent -> mrvu1 := LinkRow(labmap2); Consistent
             | res        -> res
           end
@@ -738,7 +741,7 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
         else
           let labmap2 = KindStore.get_free_row frid2 in
           begin
-            match aux_label_assoc ~specific:labmap1 ~general:labmap2 with
+            match aux_label_assoc_subtype ~specific:labmap1 ~general:labmap2 with
             | Consistent -> mrvu2 := LinkRow(labmap1); Consistent
             | res        -> res
           end
@@ -789,7 +792,7 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
         in
         LabelAssoc.fold (fun _ res resacc -> resacc &&& res) merged Consistent
 
-  and aux_label_assoc ~specific:labmap2 ~general:labmap1 =
+  and aux_label_assoc_subtype ~specific:labmap2 ~general:labmap1 =
     (* Check that `labmap2` is more specific than `labmap1`,
        i.e., the domain of `labmap1` is contained in that of `labmap2`.
     *)
@@ -805,6 +808,17 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
       | _ ->
           res
     ) labmap1 Consistent
+
+  and aux_label_assoc_exact labmap1 labmap2 =
+    let merged =
+      LabelAssoc.merge (fun _ tyopt1 tyopt2 ->
+        match (tyopt1, tyopt2) with
+        | (None, None)           -> None
+        | (Some(ty1), Some(ty2)) -> Some(aux ty1 ty2)
+        | _                      -> Some(Contradiction)
+      ) labmap1 labmap2
+    in
+    LabelAssoc.fold (fun _ res resacc -> resacc &&& res) merged Consistent
   in
   let res = aux tyact tyexp in
   match res with
@@ -899,9 +913,10 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                   invalid rng tynm ~expect:len_expected ~actual:len_actual
           end
 
-      | MFuncType(mtydoms, mrow, mtycod) ->
+      | MFuncType(mtydoms, mndlabmtys, mrow, mtycod) ->
+          let mndlabmap = aux_labeled_list mndlabmtys in
           let optrow = aux_row mrow in
-          FuncType(List.map aux mtydoms, optrow, aux mtycod)
+          FuncType(List.map aux mtydoms, mndlabmap, optrow, aux mtycod)
 
       | MProductType(mtys) ->
           ProductType(TupleList.map aux mtys)
@@ -958,18 +973,8 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
 
   and aux_row (mrow : manual_row) : mono_row =
     match mrow with
-    | MFixedRow(optmtys) ->
-        let labmap =
-          optmtys |> List.fold_left (fun labmap (rlabel, mty) ->
-            let (rnglabel, label) = rlabel in
-            if labmap |> LabelAssoc.mem label then
-              raise_error (DuplicatedLabel(rnglabel, label))
-            else
-              let ty = aux mty in
-              labmap |> LabelAssoc.add label ty
-          ) LabelAssoc.empty
-        in
-        FixedRow(labmap)
+    | MFixedRow(optlabmtys) ->
+        FixedRow(aux_labeled_list optlabmtys)
 
     | MRowVar(rng, rowparam) ->
         begin
@@ -980,6 +985,16 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
           | Some((mbbrid, _)) ->
               RowVar(MustBeBoundRow(mbbrid))
         end
+
+  and aux_labeled_list (labmtys : labeled_manual_type list) : mono_type LabelAssoc.t =
+    labmtys |> List.fold_left (fun labmap (rlabel, mty) ->
+      let (rnglabel, label) = rlabel in
+      if labmap |> LabelAssoc.mem label then
+        raise_error (DuplicatedLabel(rnglabel, label))
+      else
+        let ty = aux mty in
+        labmap |> LabelAssoc.add label ty
+    ) LabelAssoc.empty
   in
   aux mty
 
@@ -1063,16 +1078,25 @@ and add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typ
   (tyenv, tydoms, lnames)
 
 
-and add_optional_parameters_to_type_environment (pre : pre) (optbinders : (label ranged * binder) list) : Typeenv.t * mono_type LabelAssoc.t * local_name LabelAssoc.t =
+and add_labeled_parameters_to_type_environment ~optional:(optional : bool) (pre : pre) (optbinders : (label ranged * binder) list) : Typeenv.t * mono_type LabelAssoc.t * local_name LabelAssoc.t =
   optbinders |> List.fold_left (fun (tyenv, labmap, optnamemap) (rlabel, binder) ->
     let (rnglabel, label) = rlabel in
     if labmap |> LabelAssoc.mem label then
       raise_error (DuplicatedLabel(rnglabel, label))
     else
-      let (x, ty, lname) = decode_parameter pre binder in
-      let labmap = labmap |> LabelAssoc.add label ty in
-      let pty = TypeConv.lift (Primitives.option_type ty) in
-      let tyenv = tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname)) in
+      let (x, ty_inner, lname) = decode_parameter pre binder in
+      let ty_outer =
+        if optional then
+          let fid = FreeID.fresh pre.level in
+          let mtvu = ref (Free(fid)) in
+          let ty_outer = (Range.dummy "optional", TypeVar(Updatable(mtvu))) in
+          unify ty_inner (Primitives.option_type ty_outer);
+          ty_outer
+        else
+          ty_inner
+      in
+      let labmap = labmap |> LabelAssoc.add label ty_outer in
+      let tyenv = tyenv |> Typeenv.add_val x (TypeConv.lift ty_inner) (OutputIdentifier.Local(lname)) in
       let optnamemap = optnamemap |> LabelAssoc.add label lname in
       (tyenv, labmap, optnamemap)
   ) (pre.tyenv, LabelAssoc.empty, LabelAssoc.empty)
@@ -1098,32 +1122,47 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             (ty, IVar(name))
       end
 
-  | Lambda(ordbinders, optbinders, utast0) ->
+  | Lambda(ordbinders, mndbinders, optbinders, utast0) ->
       let (tyenv, tydoms, ordnames) =
         add_parameters_to_type_environment pre ordbinders
       in
-      let (tyenv, labmap, optnamemap) =
-        add_optional_parameters_to_type_environment { pre with tyenv } optbinders
+      let (tyenv, mndlabmap, mndnamemap) =
+        add_labeled_parameters_to_type_environment ~optional:false { pre with tyenv } mndbinders
+      in
+      let (tyenv, optlabmap, optnamemap) =
+        add_labeled_parameters_to_type_environment ~optional:true { pre with tyenv } optbinders
       in
       let (tycod, e0) = typecheck { pre with tyenv } utast0 in
-      let ty = (rng, FuncType(tydoms, FixedRow(labmap), tycod)) in
-      (ty, ilambda ordnames optnamemap e0)
+      let ty = (rng, FuncType(tydoms, mndlabmap, FixedRow(optlabmap), tycod)) in
+      (ty, ilambda ordnames mndnamemap optnamemap e0)
 
-  | Apply(utastfun, utastargs, optutastargs) ->
+  | Apply(utastfun, utastargs, mndutastargs, optutastargs) ->
       let (tyfun, efun) = typecheck pre utastfun in
       let tyeargs = List.map (typecheck pre) utastargs in
       let tyargs = List.map fst tyeargs in
       let eargs = List.map snd tyeargs in
-      let (labmap, optargmap) =
-        optutastargs |> List.fold_left (fun (labmap, optargmap) (rlabel, utast) ->
+      let (mndlabmap, mndargmap) =
+        mndutastargs |> List.fold_left (fun (mndlabmap, mndargmap) (rlabel, utast) ->
           let (rnglabel, label) = rlabel in
-          if labmap |> LabelAssoc.mem label then
+          if mndlabmap |> LabelAssoc.mem label then
             raise_error (DuplicatedLabel(rnglabel, label))
           else
             let (ty, e) = typecheck pre utast in
-            let labmap = labmap |> LabelAssoc.add label ty in
+            let mndlabmap = mndlabmap |> LabelAssoc.add label ty in
+            let mndargmap = mndargmap |> LabelAssoc.add label e in
+            (mndlabmap, mndargmap)
+        ) (LabelAssoc.empty, LabelAssoc.empty)
+      in
+      let (labmap, optargmap) =
+        optutastargs |> List.fold_left (fun (optlabmap, optargmap) (rlabel, utast) ->
+          let (rnglabel, label) = rlabel in
+          if optlabmap |> LabelAssoc.mem label then
+            raise_error (DuplicatedLabel(rnglabel, label))
+          else
+            let (ty, e) = typecheck pre utast in
+            let optlabmap = optlabmap |> LabelAssoc.add label ty in
             let optargmap = optargmap |> LabelAssoc.add label e in
-            (labmap, optargmap)
+            (optlabmap, optargmap)
         ) (LabelAssoc.empty, LabelAssoc.empty)
       in
       let tyret = fresh_type pre.level rng in
@@ -1133,8 +1172,8 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         let mrvu = ref (FreeRow(frid)) in
         RowVar(UpdatableRow(mrvu))
       in
-      unify tyfun (Range.dummy "Apply", FuncType(tyargs, optrow, tyret));
-      (tyret, iapply efun optrow eargs optargmap)
+      unify tyfun (Range.dummy "Apply", FuncType(tyargs, mndlabmap, optrow, tyret));
+      (tyret, iapply efun optrow eargs mndargmap optargmap)
 
   | If(utast0, utast1, utast2) ->
       let (ty0, e0) = typecheck pre utast0 in
@@ -1434,10 +1473,11 @@ and typecheck_let : 'n. (Range.t -> identifier -> 'n) -> pre -> untyped_let_bind
 fun namef pre letbind ->
   let (rngv, x) = letbind.vb_identifier in
   let ordparams = letbind.vb_parameters in
+  let mndparams = letbind.vb_mandatories in
   let optparams = letbind.vb_optionals in
   let utast0 = letbind.vb_body in
 
-  let (ty0, e0, tys, lnames, labmap, optnamemap) =
+  let (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap) =
     let levS = pre.level + 1 in
     let assoc = make_type_parameter_assoc levS letbind.vb_forall in
     let localtyparams = pre.local_type_parameters |> add_local_type_parameter assoc in
@@ -1448,17 +1488,22 @@ fun namef pre letbind ->
     let pre = { pre with level = levS; local_type_parameters = localtyparams } in
       (* Add local type parameters at level `levS` *)
     let (tyenv, tys, lnames) = add_parameters_to_type_environment pre ordparams in
-    let (tyenv, labmap, optnamemap) = add_optional_parameters_to_type_environment { pre with tyenv } optparams in
+    let (tyenv, mndlabmap, mndnamemap) =
+      add_labeled_parameters_to_type_environment ~optional:false { pre with tyenv } mndparams
+    in
+    let (tyenv, optlabmap, optnamemap) =
+      add_labeled_parameters_to_type_environment ~optional:true { pre with tyenv } optparams
+    in
     let (ty0, e0) = typecheck { pre with tyenv } utast0 in
 
     letbind.vb_return_type |> Option.map (fun mty0 ->
       let ty0_expected = decode_manual_type tyenv localtyparams localrowparams mty0 in
       unify ty0 ty0_expected
     ) |> Option.value ~default:();
-    (ty0, e0, tys, lnames, labmap, optnamemap)
+    (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)
   in
-  let ty1 = (rngv, FuncType(tys, FixedRow(labmap), ty0)) in
-  let e1 = ILambda(None, lnames, optnamemap, e0) in
+  let ty1 = (rngv, FuncType(tys, mndlabmap, FixedRow(optlabmap), ty0)) in
+  let e1 = ILambda(None, lnames, mndnamemap, optnamemap, e0) in
 
   let pty1 = TypeConv.generalize pre.level ty1 in
   let name = namef rngv x in
@@ -1495,11 +1540,12 @@ fun namesf proj pre letbinds ->
 and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : mono_type) : poly_type * ast =
   let (rngv, _) = letbind.vb_identifier in
   let ordparams = letbind.vb_parameters in
+  let mndparams = letbind.vb_mandatories in
   let optparams = letbind.vb_optionals in
   let utast0 = letbind.vb_body in
 
   let levS = pre.level + 1 in
-  let (ty0, e0, tys, lnames, labmap, optnamemap) =
+  let (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap) =
     let assoc = make_type_parameter_assoc levS letbind.vb_forall in
     let localtyparams = pre.local_type_parameters |> add_local_type_parameter assoc in
     let localrowparams =
@@ -1510,18 +1556,21 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
     let (tyenv, tys, lnames) =
       add_parameters_to_type_environment pre ordparams
     in
-    let (tyenv, labmap, optnamemap) =
-      add_optional_parameters_to_type_environment { pre with tyenv } optparams
+    let (tyenv, mndlabmap, mndnamemap) =
+      add_labeled_parameters_to_type_environment ~optional:false { pre with tyenv } mndparams
+    in
+    let (tyenv, optlabmap, optnamemap) =
+      add_labeled_parameters_to_type_environment ~optional:true { pre with tyenv } optparams
     in
     let (ty0, e0) = typecheck { pre with tyenv } utast0 in
     letbind.vb_return_type |> Option.map (fun mty0 ->
       let ty0_expected = decode_manual_type tyenv localtyparams localrowparams mty0 in
       unify ty0 ty0_expected;
     ) |> Option.value ~default:();
-    (ty0, e0, tys, lnames, labmap, optnamemap)
+    (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)
   in
-  let ty1 = (rngv, FuncType(tys, FixedRow(labmap), ty0)) in
-  let e1 = ILambda(None, lnames, optnamemap, e0) in
+  let ty1 = (rngv, FuncType(tys, mndlabmap, FixedRow(optlabmap), ty0)) in
+  let e1 = ILambda(None, lnames, mndnamemap, optnamemap, e0) in
   unify ty1 tyf;
   let ptyf = TypeConv.generalize pre.level ty1 in
   (ptyf, e1)
@@ -1577,11 +1626,19 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
     | (BaseType(bt1), BaseType(bt2)) ->
         bt1 = bt2
 
-    | (FuncType(ptydoms1, poptrow1, ptycod1), FuncType(ptydoms2, poptrow2, ptycod2)) ->
+    | (FuncType(ptydoms1, mndlabmap1, poptrow1, ptycod1), FuncType(ptydoms2, mndlabmap2, poptrow2, ptycod2)) ->
         let b1 = aux_list ptydoms1 ptydoms2 in
+        let bmnd =
+          LabelAssoc.merge (fun _ ptyopt1 ptyopt2 ->
+            match (ptyopt1, ptyopt2) with
+            | (None, None)             -> None
+            | (Some(pty1), Some(pty2)) -> Some(aux pty1 pty2)
+            | _                        -> Some(false)
+          ) mndlabmap1 mndlabmap2 |> LabelAssoc.for_all (fun _ b -> b)
+        in
         let bopt = subtype_option_row wtmap internbid internbrid poptrow1 poptrow2 in
         let b2 = aux ptycod1 ptycod2 in
-        b1 && bopt && b2
+        b1 && bmnd && bopt && b2
 
     | (PidType(pidty1), PidType(pidty2)) ->
         aux_pid pidty1 pidty2
@@ -1789,8 +1846,8 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
     | (BaseType(bty1), BaseType(bty2)) ->
         bty1 = bty2
 
-    | (FuncType(pty1doms, poptrow1, pty1cod), FuncType(pty2doms, poptrow2, pty2cod)) ->
-        aux_list pty1doms pty2doms && aux_option_row poptrow1 poptrow2 && aux pty1cod pty2cod
+    | (FuncType(pty1doms, pmndlabmap1, poptrow1, pty1cod), FuncType(pty2doms, pmndlabmap2, poptrow2, pty2cod)) ->
+        aux_list pty1doms pty2doms && aux_label_assoc pmndlabmap1 pmndlabmap2 && aux_option_row poptrow1 poptrow2 && aux pty1cod pty2cod
 
     | (EffType(peff1, ptysub1), EffType(peff2, ptysub2)) ->
         aux_effect peff1 peff2 && aux ptysub1 ptysub2
@@ -2249,8 +2306,8 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
       | ProductType(ptys)         -> ProductType(ptys |> TupleList.map aux)
       | ListType(ptysub)          -> ListType(aux ptysub)
 
-      | FuncType(ptydoms, poptrow, ptycod) ->
-          FuncType(ptydoms |> List.map aux, aux_option_row poptrow, aux ptycod)
+      | FuncType(ptydoms, pmndlabmap, poptrow, ptycod) ->
+          FuncType(ptydoms |> List.map aux, pmndlabmap |> LabelAssoc.map aux, aux_option_row poptrow, aux ptycod)
 
       | DataType(TypeID.Opaque(oid_from), ptyargs) ->
           begin
@@ -2564,8 +2621,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
 
         | Rec(valbinds) ->
             let namesf valbind =
-              let params = valbind.vb_parameters in
-              let arity = List.length params in
+              let arity = List.length valbind.vb_parameters + List.length valbind.vb_mandatories in
               let has_option = (List.length valbind.vb_optionals > 0) in
               let (rngv, x) = valbind.vb_identifier in
               let gname = generate_global_name ~arity:arity ~has_option:has_option rngv x in
@@ -2584,8 +2640,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
 
         | NonRec(valbind) ->
             let (pty, gname, e) =
-              let params = valbind.vb_parameters in
-              let arity = List.length params in
+              let arity = List.length valbind.vb_parameters + List.length valbind.vb_mandatories in
               let has_option = (List.length valbind.vb_optionals > 0) in
               let gnamef = generate_global_name ~arity:arity ~has_option:has_option in
               typecheck_let gnamef pre valbind

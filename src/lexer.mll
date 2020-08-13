@@ -78,6 +78,10 @@ rule token = parse
         let pos = Range.from_lexbuf lexbuf in
         DOTIDENT(pos, s)
       }
+  | ("-" (identifier as s)) {
+        let pos = Range.from_lexbuf lexbuf in
+        MNDLABEL(pos, s)
+      }
   | ("?" (identifier as s)) {
         let pos = Range.from_lexbuf lexbuf in
         OPTLABEL(pos, s)

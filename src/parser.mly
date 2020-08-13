@@ -20,7 +20,7 @@
   let binary e1 op e2 =
     let rng = make_range (Ranged(e1)) (Ranged(e2)) in
     let (rngop, vop) = op in
-    (rng, Apply((rngop, Var(vop)), [e1; e2], []))
+    (rng, Apply((rngop, Var(vop)), [e1; e2], [], []))
 
 (*
   let syntax_sugar_module_application : Range.t -> untyped_module -> untyped_module -> untyped_module =
@@ -46,7 +46,7 @@
 
 %token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC VAL MODULE STRUCT SIGNATURE SIG EXTERNAL INCLUDE COERCE REQUIRE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
-%token<Range.t * string> IDENT DOTIDENT CTOR DOTCTOR TYPARAM ROWPARAM OPTLABEL BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
+%token<Range.t * string> IDENT DOTIDENT CTOR DOTCTOR TYPARAM ROWPARAM MNDLABEL OPTLABEL BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
 %token<Range.t * string> STRING STRING_BLOCK
@@ -56,15 +56,18 @@
 %type<Syntax.untyped_binding> bindtop
 %type<string list * Syntax.module_name Syntax.ranged * Syntax.untyped_module> main
 %type<Syntax.manual_type> ty
-%type<Syntax.binder list * ((Range.t * Syntax.label) * Syntax.binder) list> params
-%type<((Range.t * Syntax.label) * Syntax.binder) list> optparams
-%type<Syntax.untyped_ast list * ((Range.t * Syntax.label) * Syntax.untyped_ast) list> args
-%type<((Range.t * Syntax.label) * Syntax.untyped_ast) list> optargs
-%type<Syntax.manual_type list * Syntax.manual_row> tydoms
+%type<Syntax.binder list * (Syntax.labeled_binder list * Syntax.labeled_binder list)> params
+%type<Syntax.labeled_binder list * Syntax.labeled_binder list> labparams
+%type<Syntax.labeled_binder list> optparams
+%type<Syntax.untyped_ast list * (Syntax.labeled_untyped_ast list * Syntax.labeled_untyped_ast list)> args
+%type<Syntax.labeled_untyped_ast list * Syntax.labeled_untyped_ast list> labargs
+%type<Syntax.labeled_untyped_ast list> optargs
+%type<Syntax.manual_type list * (Syntax.labeled_manual_type list * Syntax.manual_row)> tydoms
+%type<Syntax.labeled_manual_type list * Syntax.manual_row> labtydoms
 %type<Syntax.manual_row> opttydoms
-%type<((Range.t * Syntax.label) * Syntax.manual_type) list> opttydomsfixed
-%type<(Range.t * Syntax.type_variable_name) list * ((Range.t * Syntax.row_variable_name) * ((Range.t * Syntax.label) * Syntax.manual_type) list) list> typarams
-%type<((Range.t * Syntax.row_variable_name) * ((Range.t * Syntax.label) * Syntax.manual_type) list) list> rowparams
+%type<Syntax.labeled_manual_type list> opttydomsfixed
+%type<(Range.t * Syntax.type_variable_name) list * ((Range.t * Syntax.row_variable_name) * Syntax.labeled_manual_type list) list> typarams
+%type<((Range.t * Syntax.row_variable_name) * Syntax.labeled_manual_type list) list> rowparams
 %type<Syntax.untyped_let_binding> bindvalsingle
 %type<Range.t * Syntax.internal_or_external> bindvaltop
 %type<Range.t * Syntax.rec_or_nonrec> bindvallocal
@@ -190,12 +193,13 @@ recbinds:
 bindvalsingle:
   | ident=IDENT; tyrowparams=typarams; LPAREN; params=params; RPAREN; tyannot=tyannot; DEFEQ; e0=exprlet {
         let (typarams, rowparams) = tyrowparams in
-        let (ordparams, optparams) = params in
+        let (ordparams, (mndparams, optparams)) = params in
         {
           vb_identifier  = ident;
           vb_forall      = typarams;
           vb_forall_row  = rowparams;
           vb_parameters  = ordparams;
+          vb_mandatories = mndparams;
           vb_optionals   = optparams;
           vb_return_type = tyannot;
           vb_body        = e0;
@@ -211,20 +215,32 @@ ctorbranch:
       }
 ;
 params:
-  | optparams=optparams {
-      ([], optparams)
+  | labparams=labparams {
+      ([], labparams)
     }
   | ident=IDENT; tyannot=tyannot {
-        ([(ident, tyannot)], [])
+        ([ (ident, tyannot) ], ([], []))
       }
   | ident=IDENT; tyannot=tyannot; COMMA; tail=params {
-        let (ordparams, optparams) = tail in
-        ((ident, tyannot) :: ordparams, optparams)
+        let (ordparams, labparams) = tail in
+        ((ident, tyannot) :: ordparams, labparams)
+      }
+;
+labparams:
+  | optparams=optparams {
+        ([], optparams)
+      }
+  | rlabel=MNDLABEL; ident=IDENT; tyannot=tyannot {
+        ([ (rlabel, (ident, tyannot)) ], [])
+      }
+  | rlabel=MNDLABEL; ident=IDENT; tyannot=tyannot; COMMA; tail=labparams {
+        let (mndparams, optparams) = tail in
+        ((rlabel, (ident, tyannot)) :: mndparams, optparams)
       }
 ;
 optparams:
   |                                                                      { [] }
-  | rlabel=OPTLABEL; ident=IDENT; tyannot=tyannot                        { [(rlabel, (ident, tyannot))] }
+  | rlabel=OPTLABEL; ident=IDENT; tyannot=tyannot                        { [ (rlabel, (ident, tyannot)) ] }
   | rlabel=OPTLABEL; ident=IDENT; tyannot=tyannot; COMMA; tail=optparams { (rlabel, (ident, tyannot)) :: tail }
 ;
 tyannot:
@@ -358,9 +374,9 @@ exprlet:
 ;
 exprfun:
   | tokL=LAMBDA; LPAREN; params=params; RPAREN; ARROW; e=exprlet {
-        let (ordparams, optparams) = params in
+        let (ordparams, (mndparams, optparams)) = params in
         let rng = make_range (Token(tokL)) (Ranged(e)) in
-        (rng, Lambda(ordparams, optparams, e))
+        (rng, Lambda(ordparams, mndparams, optparams, e))
       }
   | tokL=RECEIVE; branches=nonempty_list(branch); tokR=END {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
@@ -414,9 +430,9 @@ exprplus:
 ;
 exprapp:
   | efun=exprapp; LPAREN; args=args; tokR=RPAREN {
-        let (ordargs, optargs) = args in
+        let (ordargs, (mndargs, optargs)) = args in
         let rng = make_range (Ranged(efun)) (Token(tokR)) in
-        (rng, Apply(efun, ordargs, optargs))
+        (rng, Apply(efun, ordargs, mndargs, optargs))
       }
   | ctor=CTOR; LPAREN; args=args; tokR=RPAREN {
         let (ordargs, optargs) = args in
@@ -436,15 +452,27 @@ exprapp:
   | e=exprbot { e }
 ;
 args:
+  | labargs=labargs {
+        ([], labargs)
+      }
+  | e=exprlet {
+        ([e], ([], []))
+      }
+  | e=exprlet; COMMA; tail=args {
+        let (ordargs, labargs) = tail in
+        (e :: ordargs, labargs)
+      }
+;
+labargs:
   | optargs=optargs {
         ([], optargs)
       }
-  | e=exprlet {
-        ([e], [])
+  | rlabel=MNDLABEL; e=exprlet {
+        ([ (rlabel, e) ], [])
       }
-  | e=exprlet; COMMA; tail=args {
-        let (ordargs, optargs) = tail in
-        (e :: ordargs, optargs)
+  | rlabel=MNDLABEL; e=exprlet; COMMA; tail=labargs {
+        let (mndargs, optargs) = tail in
+        ((rlabel, e) :: mndargs, optargs)
       }
 ;
 optargs:
@@ -545,15 +573,27 @@ tys:
   | mty=ty; COMMA; tail=tys { mty :: tail }
 ;
 tydoms:
+  | labmtydoms=labtydoms {
+        ([], labmtydoms)
+      }
+  | mty=ty {
+        ([ mty ], ([], MFixedRow([])))
+      }
+  | mty=ty; COMMA; tail=tydoms {
+        let (ordmtydoms, labmtydoms) = tail in
+        (mty :: ordmtydoms, labmtydoms)
+      }
+;
+labtydoms:
   | optmtydoms=opttydoms {
         ([], optmtydoms)
       }
-  | mty=ty {
-        ([mty], MFixedRow([]))
+  | rlabel=MNDLABEL; mty=ty {
+        ([ (rlabel, mty) ], MFixedRow([]))
       }
-  | mty=ty; COMMA; tail=tydoms {
-        let (ordmtydoms, optmtydoms) = tail in
-        (mty :: ordmtydoms, optmtydoms)
+  | rlabel=MNDLABEL; mty=ty; COMMA; tail=labtydoms {
+        let (mndmtydoms, optmtydoms) = tail in
+        ((rlabel, mty) :: mndmtydoms, optmtydoms)
       }
 ;
 opttydoms:
@@ -591,9 +631,9 @@ tybot:
         (rng, MTypeName(tynm, mtyargs))
       }
   | tokL=LAMBDA; LPAREN; tydoms=tydoms; RPAREN; ARROW; mtycod=ty {
-        let (ordmtydoms, optmtydoms) = tydoms in
+        let (ordmtydoms, (mndmtydoms, optmtydoms)) = tydoms in
         let rng = make_range (Token(tokL)) (Ranged(mtycod)) in
-        (rng, MFuncType(ordmtydoms, optmtydoms, mtycod))
+        (rng, MFuncType(ordmtydoms, mndmtydoms, optmtydoms, mtycod))
       }
   | tokL=LPAREN; mty1=ty; COMMA; mty2=ty; mtys=list(tytuplesub) tokR=RPAREN {
         let rng = make_range (Token(tokL)) (Token(tokR)) in

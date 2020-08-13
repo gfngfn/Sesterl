@@ -62,10 +62,12 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         in
         (rngf rng, TypeVar(ptv))
 
-    | FuncType(tydoms, optrow, tycod) ->
+    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
         let ptydoms = tydoms |> List.map aux in
+        let pmndlabmap = mndlabmap |> LabelAssoc.map aux in
+        let poptrow = aux_option_row optrow in
         let ptycod = aux tycod in
-        (rngf rng, FuncType(ptydoms, aux_option_row optrow, ptycod))
+        (rngf rng, FuncType(ptydoms, pmndlabmap, poptrow, ptycod))
 
     | EffType(eff, ty0) ->
         (rngf rng, EffType(aux_effect eff, aux ty0))
@@ -144,8 +146,9 @@ fun intern intern_row pty ->
     | TypeVar(ptv) ->
         intern rng ptv
 
-    | FuncType(ptydoms, optrow, ptycod) ->
+    | FuncType(ptydoms, mndlabmap, optrow, ptycod) ->
         let tydoms = ptydoms |> List.map aux in
+        let pmndlabmap = mndlabmap |> LabelAssoc.map aux in
         let poptrow =
           match optrow with
           | FixedRow(labmap) ->
@@ -156,7 +159,7 @@ fun intern intern_row pty ->
               RowVar(intern_row prv)
         in
         let tycod = aux ptycod in
-        (rng, FuncType(tydoms, poptrow, tycod))
+        (rng, FuncType(tydoms, pmndlabmap, poptrow, tycod))
 
     | EffType(peff, pty0) ->
         let eff = aux_effect peff in

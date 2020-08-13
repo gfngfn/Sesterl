@@ -78,7 +78,7 @@ type manual_type = manual_type_main ranged
 
 and manual_type_main =
   | MTypeName    of type_name * manual_type list
-  | MFuncType    of manual_type list * manual_row * manual_type
+  | MFuncType    of manual_type list * labeled_manual_type list * manual_row * manual_type
   | MProductType of manual_type TupleList.t
   | MEffType     of manual_type * manual_type
   | MTypeVar     of type_variable_name
@@ -103,8 +103,8 @@ and untyped_ast =
 and untyped_ast_main =
   | BaseConst    of base_constant
   | Var          of identifier
-  | Lambda       of binder list * (label ranged * binder) list * untyped_ast
-  | Apply        of untyped_ast * untyped_ast list * (label ranged * untyped_ast) list
+  | Lambda       of binder list * labeled_binder list * labeled_binder list * untyped_ast
+  | Apply        of untyped_ast * untyped_ast list * labeled_untyped_ast list * labeled_untyped_ast list
   | If           of untyped_ast * untyped_ast * untyped_ast
   | LetIn        of rec_or_nonrec * untyped_ast
   | LetPatIn     of untyped_pattern * untyped_ast * untyped_ast
@@ -129,7 +129,7 @@ and rec_or_nonrec =
 and external_binding = {
   ext_identifier  : identifier ranged;
   ext_type_params : (type_variable_name ranged) list;
-  ext_row_params  : ((row_variable_name ranged) * (label ranged * manual_type) list) list;
+  ext_row_params  : ((row_variable_name ranged) * labeled_manual_type list) list;
   ext_type_annot  : manual_type;
   ext_arity       : int;
   ext_has_option  : bool;
@@ -139,9 +139,10 @@ and external_binding = {
 and untyped_let_binding = {
   vb_identifier  : identifier ranged;
   vb_forall      : (type_variable_name ranged) list;
-  vb_forall_row  : (row_variable_name ranged * (label ranged * manual_type) list) list;
+  vb_forall_row  : (row_variable_name ranged * labeled_manual_type list) list;
   vb_parameters  : binder list;
-  vb_optionals   : (label ranged * binder) list;
+  vb_mandatories : labeled_binder list;
+  vb_optionals   : labeled_binder list;
   vb_return_type : manual_type option;
   vb_body        : untyped_ast;
 }
@@ -206,6 +207,15 @@ and untyped_declaration_main =
   | DeclModule     of module_name ranged * untyped_signature
   | DeclSig        of signature_name ranged * untyped_signature
   | DeclInclude    of untyped_signature
+
+and labeled_binder =
+  label ranged * binder
+
+and labeled_untyped_ast =
+  label ranged * untyped_ast
+
+and labeled_manual_type =
+  label ranged * manual_type
 [@@deriving show { with_path = false; } ]
 
 module FreeRowID = FreeID  (* temporary *)
@@ -219,7 +229,7 @@ type ('a, 'b) typ =
 
 and ('a, 'b) typ_main =
   | BaseType    of base_type
-  | FuncType    of (('a, 'b) typ) list * ('a, 'b) row * ('a, 'b) typ
+  | FuncType    of (('a, 'b) typ) list * (('a, 'b) typ) LabelAssoc.t * ('a, 'b) row * ('a, 'b) typ
   | PidType     of ('a, 'b) pid_type
   | EffType     of ('a, 'b) effect * ('a, 'b) typ
   | TypeVar     of 'a
@@ -287,11 +297,11 @@ let show_base_type = function
   | BinaryType -> "binary"
 
 
-let rec show_label_assoc : 'a 'b. ('a -> string) -> ('b -> string) -> (('a, 'b) typ) LabelAssoc.t -> string =
-fun showtv showrv labmap ->
+let rec show_label_assoc : 'a 'b. string -> ('a -> string) -> ('b -> string) -> (('a, 'b) typ) LabelAssoc.t -> string =
+fun prefix showtv showrv labmap ->
   LabelAssoc.fold (fun label ty acc ->
     let sty = show_type showtv showrv ty in
-    Alist.extend acc ("?" ^ label ^ " " ^ sty)
+    Alist.extend acc (prefix ^ label ^ " " ^ sty)
   ) labmap Alist.empty |> Alist.to_list |> String.concat ", "
 
 
@@ -302,23 +312,33 @@ fun showtv showrv ty ->
     | BaseType(bty) ->
         show_base_type bty
 
-    | FuncType(tydoms, optrow, tycod) ->
+    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
         let sdoms = tydoms |> List.map aux in
         let sdomscat = String.concat ", " sdoms in
+        let smnds = show_label_assoc "-" showtv showrv mndlabmap in
         let sopts = show_row showtv showrv optrow in
+        let is_ord_empty = (List.length sdoms = 0) in
+        let is_mnds_empty = (LabelAssoc.cardinal mndlabmap = 0) in
         let is_opts_empty =
           match optrow with
           | FixedRow(labmap) -> LabelAssoc.cardinal labmap = 0
           | RowVar(rv)       -> false
         in
-        let smid =
-          if List.length sdoms = 0 || is_opts_empty then
+        let smid1 =
+          if is_ord_empty then
             ""
           else
-            ", "
+            if is_mnds_empty && is_opts_empty then "" else ", "
+        in
+        let smid2 =
+          if is_mnds_empty || is_opts_empty then
+            ""
+          else
+            if is_ord_empty then "" else ", "
         in
         let scod = aux tycod in
-        "fun(" ^ sdomscat ^ smid ^ sopts ^ ") -> " ^ scod
+        Printf.sprintf "fun(%s%s%s%s%s) -> %s"
+          sdomscat smid1 smnds smid2 sopts scod
 
     | EffType(eff, ty0) ->
         let seff = aux_effect eff in
@@ -364,7 +384,7 @@ fun showtv showrv ty ->
 and show_row : 'a 'b. ('a -> string) -> ('b -> string) -> ('a, 'b) row -> string =
 fun showtv showrv optrow ->
   match optrow with
-  | FixedRow(labmap) -> labmap |> show_label_assoc showtv showrv
+  | FixedRow(labmap) -> labmap |> show_label_assoc "?" showtv showrv
   | RowVar(rv)       -> "?" ^ showrv rv
 
 
@@ -388,7 +408,7 @@ and show_mono_row_var (mrv : mono_row_var) =
 
 and show_mono_row_var_updatable (mrvu : mono_row_var_updatable) =
   match mrvu with
-  | LinkRow(labmap) -> show_label_assoc show_mono_type_var show_mono_row_var labmap
+  | LinkRow(labmap) -> show_label_assoc "?" show_mono_type_var show_mono_row_var labmap
   | FreeRow(frid)   -> Format.asprintf "%a" FreeRowID.pp frid
 
 
@@ -528,8 +548,8 @@ and binding =
 and ast =
   | IBaseConst   of base_constant
   | IVar         of name
-  | ILambda      of local_name option * local_name list * local_name LabelAssoc.t * ast
-  | IApply       of name * mono_row * ast list * ast LabelAssoc.t
+  | ILambda      of local_name option * local_name list * local_name LabelAssoc.t * local_name LabelAssoc.t * ast
+  | IApply       of name * mono_row * ast list * ast LabelAssoc.t * ast LabelAssoc.t
   | ILetIn       of local_name * ast * ast
   | ICase        of ast * branch list
   | IReceive     of branch list
@@ -587,29 +607,24 @@ and pp_ast ppf = function
   | IVar(name) ->
       OutputIdentifier.pp ppf name
 
-  | ILambda(None, lnameparams, optnamemap, e) ->
-      let midcomma = if List.length lnameparams = 0 || LabelAssoc.cardinal optnamemap = 0 then "" else ", " in
-      Format.fprintf ppf "\\(%a%s?%a) ->@[<hov2>@ %a@]"
+  | ILambda(lnamerecopt, lnameparams, mndnamemap, optnamemap, e) ->
+      let snamerec =
+        match lnamerecopt with
+        | Some(lnamerec) -> Format.asprintf "%a" OutputIdentifier.pp_local lnamerec
+        | None           -> ""
+      in
+      Format.fprintf ppf "\\%s(%a -{%a} ?{%a}) ->@[<hov2>@ %a@]"
+        snamerec
         (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameparams
-        midcomma
+        (LabelAssoc.pp OutputIdentifier.pp_local) mndnamemap
         (LabelAssoc.pp OutputIdentifier.pp_local) optnamemap
         pp_ast e
 
-  | ILambda(Some(lnamerec), lnameparams, optnamemap, e) ->
-      let midcomma = if List.length lnameparams = 0 || LabelAssoc.cardinal optnamemap = 0 then "" else ", " in
-      Format.fprintf ppf "\\%a(%a%s?%a) ->@[<hov2>@ %a@]"
-        OutputIdentifier.pp_local lnamerec
-        (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameparams
-        midcomma
-        (LabelAssoc.pp OutputIdentifier.pp_local) optnamemap
-        pp_ast e
-
-  | IApply(name, _, eargs, optargmap) ->
-      let midcomma = if List.length eargs = 0 || LabelAssoc.cardinal optargmap = 0 then "" else ", " in
-      Format.fprintf ppf "%a@[<hov2>(%a%s?%a)@]"
+  | IApply(name, _, eargs, mndargmap, optargmap) ->
+      Format.fprintf ppf "%a@[<hov2>(%a -{%a} ?{%a})@]"
         OutputIdentifier.pp name
         (Format.pp_print_list ~pp_sep:pp_sep_comma pp_ast) eargs
-        midcomma
+        (LabelAssoc.pp pp_ast) mndargmap
         (LabelAssoc.pp pp_ast) optargmap
 
   | ILetIn(lname, e1, e2) ->
