@@ -1,5 +1,7 @@
 #!/bin/bash
 
+GNU_SED=gsed
+
 BIN="./sesterl"
 SOURCE_DIR="test/pass"
 TARGET_DIR="test/_generated"
@@ -34,7 +36,7 @@ for TARGET in *.erl; do
         echo "Skip '$TARGET' due to the absence of main/1."
     else
         echo "Executing '$TARGET' by escript ..."
-        sed '1s|^|#!/usr/local/bin/escript\n|' -i "$TARGET"
+        $GNU_SED '1s|^|#!/usr/local/bin/escript\n|' -i "$TARGET"
         escript "$TARGET"
         STATUS=$?
         if [ $STATUS -ne 0 ]; then
