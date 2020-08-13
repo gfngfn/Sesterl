@@ -8,7 +8,7 @@ let fresh_local_symbol () =
 
 
 type val_binding_output =
-  | OBindVal         of global_name * local_name list * local_name LabelAssoc.t * global_name_map * ast
+  | OBindVal         of global_name * local_name list * local_name LabelAssoc.t * local_name LabelAssoc.t * global_name_map * ast
   | OBindValExternal of global_name * string
 
 type module_binding_output =
@@ -17,8 +17,8 @@ type module_binding_output =
 
 let traverse_val_single (gmap : global_name_map) (_, gnamefun, _, ast) : val_binding_output =
   match ast with
-  | ILambda(None, lnames, optnamemap, ast0) ->
-      OBindVal(gnamefun, lnames, optnamemap, gmap, ast0)
+  | ILambda(None, lnames, mndnamemap, optnamemap, ast0) ->
+      OBindVal(gnamefun, lnames, mndnamemap, optnamemap, gmap, ast0)
 
   | _ ->
       assert false
@@ -151,6 +151,14 @@ let stringify_option_decoding_operation (sname_map : string) (optnamemap : local
   ) optnamemap Alist.empty |> Alist.to_list |> String.concat ""
 
 
+let make_mandatory_parameters (ordlnames : local_name list) (mndnamemap : local_name LabelAssoc.t) : local_name list =
+  let mndlnames =
+    mndnamemap |> LabelAssoc.bindings |> List.map (fun (_, lname) -> lname)
+          (* Labeled mandatory parameters are placed in alphabetical order. *)
+  in
+  List.append ordlnames mndlnames
+
+
 let rec stringify_ast (gmap : global_name_map) (ast : ast) =
   let iter = stringify_ast gmap in
   match ast with
@@ -160,8 +168,11 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
   | IBaseConst(bc) ->
       stringify_base_constant bc
 
-  | ILambda(recopt, lnames, optnamemap, ast0) ->
-      let snames = lnames |> List.map OutputIdentifier.output_local in
+  | ILambda(recopt, ordlnames, mndnamemap, optnamemap, ast0) ->
+      let snames =
+        let lnames = make_mandatory_parameters ordlnames mndnamemap in
+        lnames |> List.map OutputIdentifier.output_local
+      in
       let s0 = iter ast0 in
       let srec =
         match recopt with
@@ -352,9 +363,12 @@ and stringify_pattern (ipat : pattern) =
 
 
 let stringify_val_binding_output : val_binding_output -> string list = function
-  | OBindVal(gnamefun, lnames, optnamemap, gmap, ast0) ->
+  | OBindVal(gnamefun, ordlnames, mndnamemap, optnamemap, gmap, ast0) ->
       let r = OutputIdentifier.output_global gnamefun in
-      let sparams = lnames |> List.map OutputIdentifier.output_local in
+      let sparams =
+        let lnames = make_mandatory_parameters ordlnames mndnamemap in
+        lnames |> List.map OutputIdentifier.output_local
+      in
       let sparamscat = String.concat ", " sparams in
       let sparamscatcomma = sparams |> List.map (fun s -> s ^ ", ") |> String.concat "" in
       let sname_map = fresh_local_symbol () in
@@ -395,7 +409,7 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
   | OBindModule(smod, ovalbinds) ->
       let exports =
         ovalbinds |> List.map (function
-        | OBindVal(gnamefun, _, _, _, _)
+        | OBindVal(gnamefun, _, _, _, _, _)
         | OBindValExternal(gnamefun, _) ->
             let r = OutputIdentifier.output_global gnamefun in
             if r.has_option then

@@ -103,7 +103,7 @@ and untyped_ast =
 and untyped_ast_main =
   | BaseConst    of base_constant
   | Var          of identifier
-  | Lambda       of binder list * (label ranged * binder) list * untyped_ast
+  | Lambda       of binder list * (label ranged * binder) list * (label ranged * binder) list * untyped_ast
   | Apply        of untyped_ast * untyped_ast list * (label ranged * untyped_ast) list
   | If           of untyped_ast * untyped_ast * untyped_ast
   | LetIn        of rec_or_nonrec * untyped_ast
@@ -141,6 +141,7 @@ and untyped_let_binding = {
   vb_forall      : (type_variable_name ranged) list;
   vb_forall_row  : (row_variable_name ranged * (label ranged * manual_type) list) list;
   vb_parameters  : binder list;
+  vb_mandatories : (label ranged * binder) list;
   vb_optionals   : (label ranged * binder) list;
   vb_return_type : manual_type option;
   vb_body        : untyped_ast;
@@ -207,6 +208,12 @@ and untyped_declaration_main =
   | DeclSig        of signature_name ranged * untyped_signature
   | DeclInclude    of untyped_signature
 [@@deriving show { with_path = false; } ]
+
+type labeled_binder = label ranged * binder
+
+type labeled_untyped_ast = label ranged * untyped_ast
+
+type labeled_manual_type = label ranged * manual_type
 
 module FreeRowID = FreeID  (* temporary *)
 
@@ -538,7 +545,7 @@ and binding =
 and ast =
   | IBaseConst   of base_constant
   | IVar         of name
-  | ILambda      of local_name option * local_name list * local_name LabelAssoc.t * ast
+  | ILambda      of local_name option * local_name list * local_name LabelAssoc.t * local_name LabelAssoc.t * ast
   | IApply       of name * mono_row * ast list * ast LabelAssoc.t
   | ILetIn       of local_name * ast * ast
   | ICase        of ast * branch list
@@ -597,20 +604,16 @@ and pp_ast ppf = function
   | IVar(name) ->
       OutputIdentifier.pp ppf name
 
-  | ILambda(None, lnameparams, optnamemap, e) ->
-      let midcomma = if List.length lnameparams = 0 || LabelAssoc.cardinal optnamemap = 0 then "" else ", " in
-      Format.fprintf ppf "\\(%a%s?%a) ->@[<hov2>@ %a@]"
+  | ILambda(lnamerecopt, lnameparams, mndnamemap, optnamemap, e) ->
+      let snamerec =
+        match lnamerecopt with
+        | Some(lnamerec) -> Format.asprintf "%a" OutputIdentifier.pp_local lnamerec
+        | None           -> ""
+      in
+      Format.fprintf ppf "\\%s(%a -{%a} ?{%a}) ->@[<hov2>@ %a@]"
+        snamerec
         (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameparams
-        midcomma
-        (LabelAssoc.pp OutputIdentifier.pp_local) optnamemap
-        pp_ast e
-
-  | ILambda(Some(lnamerec), lnameparams, optnamemap, e) ->
-      let midcomma = if List.length lnameparams = 0 || LabelAssoc.cardinal optnamemap = 0 then "" else ", " in
-      Format.fprintf ppf "\\%a(%a%s?%a) ->@[<hov2>@ %a@]"
-        OutputIdentifier.pp_local lnamerec
-        (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameparams
-        midcomma
+        (LabelAssoc.pp OutputIdentifier.pp_local) mndnamemap
         (LabelAssoc.pp OutputIdentifier.pp_local) optnamemap
         pp_ast e
 
