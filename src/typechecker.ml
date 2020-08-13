@@ -1084,17 +1084,19 @@ and add_labeled_parameters_to_type_environment ~optional:(optional : bool) (pre 
     if labmap |> LabelAssoc.mem label then
       raise_error (DuplicatedLabel(rnglabel, label))
     else
-      let (x, ty, lname) = decode_parameter pre binder in
-      let labmap = labmap |> LabelAssoc.add label ty in
-      let () =
+      let (x, ty_inner, lname) = decode_parameter pre binder in
+      let ty_outer =
         if optional then
           let fid = FreeID.fresh pre.level in
           let mtvu = ref (Free(fid)) in
-          unify ty (Primitives.option_type (Range.dummy "optional", TypeVar(Updatable(mtvu))))
+          let ty_outer = (Range.dummy "optional", TypeVar(Updatable(mtvu))) in
+          unify ty_inner (Primitives.option_type ty_outer);
+          ty_outer
         else
-          ()
+          ty_inner
       in
-      let tyenv = tyenv |> Typeenv.add_val x (TypeConv.lift ty) (OutputIdentifier.Local(lname)) in
+      let labmap = labmap |> LabelAssoc.add label ty_outer in
+      let tyenv = tyenv |> Typeenv.add_val x (TypeConv.lift ty_inner) (OutputIdentifier.Local(lname)) in
       let optnamemap = optnamemap |> LabelAssoc.add label lname in
       (tyenv, labmap, optnamemap)
   ) (pre.tyenv, LabelAssoc.empty, LabelAssoc.empty)
