@@ -2,7 +2,7 @@ module OptionalParameter = struct
 
   let pure_succ(n) = n + 1
 
-  let succ(n : int, ?diff dopt) =
+  let succ(n : int, ?diff dopt : option<int>) =
     case dopt of
     | None    -> pure_succ(n)
     | Some(d) -> n + d
