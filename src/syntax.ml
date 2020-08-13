@@ -297,11 +297,11 @@ let show_base_type = function
   | BinaryType -> "binary"
 
 
-let rec show_label_assoc : 'a 'b. ('a -> string) -> ('b -> string) -> (('a, 'b) typ) LabelAssoc.t -> string =
-fun showtv showrv labmap ->
+let rec show_label_assoc : 'a 'b. string -> ('a -> string) -> ('b -> string) -> (('a, 'b) typ) LabelAssoc.t -> string =
+fun prefix showtv showrv labmap ->
   LabelAssoc.fold (fun label ty acc ->
     let sty = show_type showtv showrv ty in
-    Alist.extend acc ("?" ^ label ^ " " ^ sty)
+    Alist.extend acc (prefix ^ label ^ " " ^ sty)
   ) labmap Alist.empty |> Alist.to_list |> String.concat ", "
 
 
@@ -315,7 +315,7 @@ fun showtv showrv ty ->
     | FuncType(tydoms, mndlabmap, optrow, tycod) ->
         let sdoms = tydoms |> List.map aux in
         let sdomscat = String.concat ", " sdoms in
-        let smnds = show_label_assoc showtv showrv mndlabmap in
+        let smnds = show_label_assoc "-" showtv showrv mndlabmap in
         let sopts = show_row showtv showrv optrow in
         let is_ord_empty = (List.length sdoms = 0) in
         let is_mnds_empty = (LabelAssoc.cardinal mndlabmap = 0) in
@@ -384,7 +384,7 @@ fun showtv showrv ty ->
 and show_row : 'a 'b. ('a -> string) -> ('b -> string) -> ('a, 'b) row -> string =
 fun showtv showrv optrow ->
   match optrow with
-  | FixedRow(labmap) -> labmap |> show_label_assoc showtv showrv
+  | FixedRow(labmap) -> labmap |> show_label_assoc "?" showtv showrv
   | RowVar(rv)       -> "?" ^ showrv rv
 
 
@@ -408,7 +408,7 @@ and show_mono_row_var (mrv : mono_row_var) =
 
 and show_mono_row_var_updatable (mrvu : mono_row_var_updatable) =
   match mrvu with
-  | LinkRow(labmap) -> show_label_assoc show_mono_type_var show_mono_row_var labmap
+  | LinkRow(labmap) -> show_label_assoc "?" show_mono_type_var show_mono_row_var labmap
   | FreeRow(frid)   -> Format.asprintf "%a" FreeRowID.pp frid
 
 
