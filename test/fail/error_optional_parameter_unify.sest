@@ -1,0 +1,20 @@
+
+module ErrorOptionalParameterUnify = struct
+
+  let f1(g) = g(?foo 42)
+
+  let f2(g) = g(?foo 42, ?bar true)
+
+  let f(flag, g) = if flag then f1(g) else f2(g)
+
+  let main(args) =
+    let h(?foo nopt) =
+      case nopt of
+      | None    -> 0
+      | Some(n) -> n
+      end
+    in
+    let res = f(true, h) in
+    print_debug(res)
+
+end
