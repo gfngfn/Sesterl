@@ -16,7 +16,10 @@ let make_absolute_path (dir : absolute_dir) (fpath : string) : absolute_path =
 let read_source (fpath_in : absolute_path) : absolute_path list * (module_name ranged * untyped_module) =
   let inc = open_in fpath_in in
   let lexbuf = Lexing.from_channel inc in
-  let (deps_raw, modident, utmod) = ParserInterface.process lexbuf in
+  let (deps_raw, modident, utmod) =
+    let fname = Filename.basename fpath_in in
+    ParserInterface.process fname lexbuf
+  in
   let deps =
     let dir = Filename.dirname fpath_in in
     deps_raw |> List.map (make_absolute_path dir)
