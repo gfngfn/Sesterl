@@ -1,6 +1,18 @@
 #!/bin/bash
 
-GNU_SED=gsed
+command -v gsed
+STATUS=$?
+if [ $STATUS -eq 0 ]; then
+    GNU_SED="gsed"
+else
+    command -v sed
+    STATUS=$?
+    if [ $STATUS -eq 0 ]; then
+        GNU_SED="sed"
+    else
+        echo "GNU sed is not installed. Stop."
+    fi
+fi
 
 BIN="./sesterl"
 SOURCE_DIR="test/pass"
