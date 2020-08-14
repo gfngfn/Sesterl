@@ -297,15 +297,21 @@ let show_base_type = function
   | BinaryType -> "binary"
 
 
-let rec show_label_assoc : 'a 'b. string -> ('a -> string) -> ('b -> string) -> (('a, 'b) typ) LabelAssoc.t -> string =
+let rec show_label_assoc : 'a 'b. string -> ('a -> string) -> ('b -> string option) -> (('a, 'b) typ) LabelAssoc.t -> string option =
 fun prefix showtv showrv labmap ->
-  LabelAssoc.fold (fun label ty acc ->
-    let sty = show_type showtv showrv ty in
-    Alist.extend acc (prefix ^ label ^ " " ^ sty)
-  ) labmap Alist.empty |> Alist.to_list |> String.concat ", "
+  if LabelAssoc.cardinal labmap = 0 then
+    None
+  else
+    let s =
+      LabelAssoc.fold (fun label ty acc ->
+        let sty = show_type showtv showrv ty in
+        Alist.extend acc (prefix ^ label ^ " " ^ sty)
+      ) labmap Alist.empty |> Alist.to_list |> String.concat ", "
+    in
+    Some(s)
 
 
-and show_type : 'a 'b. ('a -> string) -> ('b -> string) -> ('a, 'b) typ -> string =
+and show_type : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) typ -> string =
 fun showtv showrv ty ->
   let rec aux (_, tymain) =
     match tymain with
@@ -315,14 +321,16 @@ fun showtv showrv ty ->
     | FuncType(tydoms, mndlabmap, optrow, tycod) ->
         let sdoms = tydoms |> List.map aux in
         let sdomscat = String.concat ", " sdoms in
-        let smnds = show_label_assoc "-" showtv showrv mndlabmap in
-        let sopts = show_row showtv showrv optrow in
         let is_ord_empty = (List.length sdoms = 0) in
-        let is_mnds_empty = (LabelAssoc.cardinal mndlabmap = 0) in
-        let is_opts_empty =
-          match optrow with
-          | FixedRow(labmap) -> LabelAssoc.cardinal labmap = 0
-          | RowVar(rv)       -> false
+        let (is_mnds_empty, smnds) =
+          match show_label_assoc "-" showtv showrv mndlabmap with
+          | None    -> (true, "")
+          | Some(s) -> (false, s)
+        in
+        let (is_opts_empty, sopts) =
+          match show_row showtv showrv optrow with
+          | None    -> (true, "")
+          | Some(s) -> (false, s)
         in
         let smid1 =
           if is_ord_empty then
@@ -381,35 +389,35 @@ fun showtv showrv ty ->
   aux ty
 
 
-and show_row : 'a 'b. ('a -> string) -> ('b -> string) -> ('a, 'b) row -> string =
+and show_row : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) row -> string option =
 fun showtv showrv optrow ->
   match optrow with
   | FixedRow(labmap) -> labmap |> show_label_assoc "?" showtv showrv
-  | RowVar(rv)       -> "?" ^ showrv rv
+  | RowVar(rv)       -> showrv rv |> Option.map (fun s -> "?" ^ s)
 
 
-and show_mono_type_var (mtv : mono_type_var) =
+and show_mono_type_var (mtv : mono_type_var) : string =
   match mtv with
   | MustBeBound(mbbid) -> Format.asprintf "%a" MustBeBoundID.pp mbbid
   | Updatable(mtvu)    -> show_mono_type_var_updatable !mtvu
 
 
-and show_mono_type_var_updatable (mtvu : mono_type_var_updatable) =
+and show_mono_type_var_updatable (mtvu : mono_type_var_updatable) : string =
   match mtvu with
   | Link(ty)  -> show_type show_mono_type_var show_mono_row_var ty
   | Free(fid) -> Format.asprintf "%a" FreeID.pp fid
 
 
-and show_mono_row_var (mrv : mono_row_var) =
+and show_mono_row_var (mrv : mono_row_var) : string option =
   match mrv with
   | UpdatableRow(mrvu)     -> show_mono_row_var_updatable !mrvu
-  | MustBeBoundRow(mbbrid) -> Format.asprintf "%a" MustBeBoundRowID.pp mbbrid
+  | MustBeBoundRow(mbbrid) -> Some(Format.asprintf "%a" MustBeBoundRowID.pp mbbrid)
 
 
-and show_mono_row_var_updatable (mrvu : mono_row_var_updatable) =
+and show_mono_row_var_updatable (mrvu : mono_row_var_updatable) : string option =
   match mrvu with
   | LinkRow(labmap) -> show_label_assoc "?" show_mono_type_var show_mono_row_var labmap
-  | FreeRow(frid)   -> Format.asprintf "%a" FreeRowID.pp frid
+  | FreeRow(frid)   -> Some(Format.asprintf "%a" FreeRowID.pp frid)
 
 
 let show_mono_type : mono_type -> string =
@@ -426,7 +434,7 @@ let show_poly_type_var = function
 
 
 let rec show_poly_row_var = function
-  | BoundRow(brid) -> Format.asprintf "%a" BoundRowID.pp brid
+  | BoundRow(brid) -> Some(Format.asprintf "%a" BoundRowID.pp brid)
   | MonoRow(mrv)   -> show_mono_row_var mrv
 
 
@@ -438,12 +446,14 @@ let pp_poly_type ppf pty =
   Format.fprintf ppf "%s" (show_poly_type pty)
 
 
-let show_poly_row : poly_row -> string =
+let show_poly_row : poly_row -> string option =
   show_row show_poly_type_var show_poly_row_var
 
 
-let pp_poly_row ppf prow =
-  Format.fprintf ppf "%s" (show_poly_row prow)
+let pp_poly_row (ppf : Format.formatter) (prow : poly_row) : unit =
+  match show_poly_row prow with
+  | None    -> ()
+  | Some(s) -> Format.fprintf ppf "%s" s
 
 
 type space_name = OutputIdentifier.space
