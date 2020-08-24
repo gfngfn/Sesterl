@@ -262,6 +262,10 @@ decl:
         let rng = make_range (Token(tokL)) (Ranged(utsig)) in
         (rng, DeclModule(modident, utsig))
       }
+  | tokL=SIGNATURE; sigident=CTOR; DEFEQ; utsig=sigexpr {
+        let rng = make_range (Token(tokL)) (Ranged(utsig)) in
+        (rng, DeclSig(sigident, utsig))
+      }
 ;
 modexpr:
   | tokL=LAMBDA; LPAREN; modident=CTOR; COLON; utsig=sigexpr; RPAREN; ARROW; utmod=modexpr {
