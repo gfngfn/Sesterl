@@ -49,6 +49,7 @@
 %token<Range.t * string> IDENT DOTIDENT CTOR DOTCTOR TYPARAM ROWPARAM MNDLABEL OPTLABEL BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
+%token<Range.t * float> FLOAT
 %token<Range.t * string> STRING STRING_BLOCK
 %token EOI
 

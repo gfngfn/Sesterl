@@ -88,8 +88,13 @@ rule token = parse
       }
   | ("0" | nzdigit (digit*) | ("0x" | "0X") hex+) {
         let s = Lexing.lexeme lexbuf in
-        let rng = Range.from_lexbuf lexbuf in
-          INT(rng, int_of_string s)
+        let pos = Range.from_lexbuf lexbuf in
+        INT(pos, int_of_string s)
+      }
+  | (("0" | nzdigit (digit*)) "." (digit*)) {
+        let s = Lexing.lexeme lexbuf in
+        let pos = Range.from_lexbuf lexbuf in
+        FLOAT(pos, float_of_string s)
       }
   | "_"  { UNDERSCORE(Range.from_lexbuf lexbuf) }
   | ","  { COMMA(Range.from_lexbuf lexbuf) }
