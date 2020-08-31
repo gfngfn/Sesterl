@@ -1,0 +1,21 @@
+module Recursive = struct
+
+  signature E = sig end
+
+  signature X = sig
+    signature A = sig end
+    signature F =
+      fun(Dummy : sig
+        signature A = A
+        signature F = fun(Dummy : A) -> E
+      end) -> E
+  end
+
+  signature Y = sig
+    signature A = X
+    signature F = fun(Dummy : A) -> E
+  end
+
+  module ForceSubtyping = fun(V : Y) -> V :> X
+
+end
