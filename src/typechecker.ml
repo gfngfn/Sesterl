@@ -866,9 +866,10 @@ let generate_global_name ~arity:(arity : int) ~has_option:(has_option : bool) (r
 
 let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   match bc with
-  | Unit    -> ((rng, BaseType(UnitType)))
-  | Int(_)  -> (rng, BaseType(IntType))
-  | Bool(_) -> (rng, BaseType(BoolType))
+  | Unit     -> (rng, BaseType(UnitType))
+  | Bool(_)  -> (rng, BaseType(BoolType))
+  | Int(_)   -> (rng, BaseType(IntType))
+  | Float(_) -> (rng, BaseType(FloatType))
   | BinaryByString(_)
   | BinaryByInts(_)   -> (rng, BaseType(BinaryType))
 
