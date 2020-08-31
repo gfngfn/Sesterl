@@ -4,6 +4,12 @@ module Recursive = struct
 
   signature X = sig
     signature A = sig end
+      /* In OCaml one can declare “abstract” signatures
+         by declarations of the form like `signature A`,
+         and it causes the possibility of the non-termination
+         during type checking.
+         F-ing modules does not allow such declarations. */
+
     signature F =
       fun(Dummy : sig
         signature A = A
