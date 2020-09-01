@@ -54,6 +54,7 @@ type module_name_chain =
 
 type base_type =
   | IntType
+  | FloatType
   | BoolType
   | UnitType
   | BinaryType
@@ -63,6 +64,7 @@ type base_constant =
   | Unit
   | Bool           of bool
   | Int            of int
+  | Float          of float
   | BinaryByString of string
   | BinaryByInts   of int list
 [@@deriving show { with_path = false; } ]
@@ -294,6 +296,7 @@ let show_base_type = function
   | UnitType   -> "unit"
   | BoolType   -> "bool"
   | IntType    -> "int"
+  | FloatType  -> "float"
   | BinaryType -> "binary"
 
 

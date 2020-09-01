@@ -49,6 +49,7 @@
 %token<Range.t * string> IDENT DOTIDENT CTOR DOTCTOR TYPARAM ROWPARAM MNDLABEL OPTLABEL BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
 %token<Range.t * int> INT
+%token<Range.t * float> FLOAT
 %token<Range.t * string> STRING STRING_BLOCK
 %token EOI
 
@@ -494,6 +495,7 @@ exprbot:
   | rng=FALSE                 { (rng, BaseConst(Bool(false))) }
   | tokL=LPAREN; tokR=RPAREN  { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, BaseConst(Unit)) }
   | c=INT                     { let (rng, n) = c in (rng, BaseConst(Int(n))) }
+  | c=FLOAT                   { let (rng, r) = c in (rng, BaseConst(Float(r))) }
   | ident=ident               { let (rng, x) = ident in (rng, Var(x)) }
   | LPAREN; e=exprlet; RPAREN { e }
   | tokL=LPAREN; e1=exprlet; COMMA; e2=exprlet; es=list(tuplesub); tokR=RPAREN {
