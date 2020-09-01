@@ -495,6 +495,7 @@ exprbot:
   | rng=FALSE                 { (rng, BaseConst(Bool(false))) }
   | tokL=LPAREN; tokR=RPAREN  { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, BaseConst(Unit)) }
   | c=INT                     { let (rng, n) = c in (rng, BaseConst(Int(n))) }
+  | c=FLOAT                   { let (rng, r) = c in (rng, BaseConst(Float(r))) }
   | ident=ident               { let (rng, x) = ident in (rng, Var(x)) }
   | LPAREN; e=exprlet; RPAREN { e }
   | tokL=LPAREN; e1=exprlet; COMMA; e2=exprlet; es=list(tuplesub); tokR=RPAREN {

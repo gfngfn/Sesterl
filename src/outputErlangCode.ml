@@ -99,13 +99,18 @@ let unit_atom = "ok"
 
 let stringify_base_constant (bc : base_constant) =
   match bc with
-  | Unit              -> unit_atom
-  | Bool(true)        -> "true"
-  | Bool(false)       -> "false"
-  | Int(n)            -> string_of_int n
-  | Float(r)          -> string_of_float r
-      (* DOUBTFUL; are all of the string representations returned by `string_of_float`
-         valid as constants in Erlang source? *)
+  | Unit        -> unit_atom
+  | Bool(true)  -> "true"
+  | Bool(false) -> "false"
+  | Int(n)      -> string_of_int n
+
+  | Float(r) ->
+      if Float.is_finite r then
+        string_of_float r ^ "0"
+          (* DOUBTFUL; are all of the string representations made in this way
+             valid as constants in Erlang source? *)
+      else
+        assert false
   | BinaryByString(s) -> Printf.sprintf "<<\"%s\">>" (String.escaped s)
   | BinaryByInts(ns)  -> Printf.sprintf "<<%s>>" (ns |> List.map string_of_int |> String.concat ", ")
 

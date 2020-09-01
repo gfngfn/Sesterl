@@ -20,6 +20,7 @@ let dr = Range.dummy "primitives"
 let u = (dr, BaseType(UnitType))
 let b = (dr, BaseType(BoolType))
 let i = (dr, BaseType(IntType))
+let f = (dr, BaseType(FloatType))
 let ( @-> ) tydoms tycod = (dr, FuncType(tydoms, LabelAssoc.empty, FixedRow(LabelAssoc.empty), tycod))
 let eff tyrcv ty0 = (dr, EffType(Effect(tyrcv), ty0))
 let pid tyrcv = (dr, PidType(Pid(tyrcv)))
@@ -27,6 +28,7 @@ let pid tyrcv = (dr, PidType(Pid(tyrcv)))
 let tylogic : poly_type = [b; b] @-> b
 let tycomp  : poly_type = [i; i] @-> b
 let tyarith : poly_type = [i; i] @-> i
+let tyarith_float : poly_type = [f; f] @-> f
 
 let tyspawn : poly_type =
   let tyrecv = fresh_bound () in
@@ -126,6 +128,39 @@ let primitive_definitions = [
     };
   };
   {
+    source = Some{
+      identifier = "float";
+      typ        = [i] @-> f;
+    };
+    target = {
+      target_name = "float";
+      parameters  = ["N"];
+      code        = "N";
+    };
+  };
+  {
+    source = Some{
+      identifier = "round";
+      typ        = [f] @-> i;
+    };
+    target = {
+      target_name = "round";
+      parameters  = ["X"];
+      code        = "erlang:round(X)";
+    };
+  };
+  {
+    source = Some{
+      identifier = "truncate";
+      typ        = [f] @-> i;
+    };
+    target = {
+      target_name = "truncate";
+      parameters  = ["X"];
+      code        = "erlang:trunc(X)";
+    };
+  };
+  {
     source = None;
     target = {
       target_name = decode_option_function;
@@ -220,5 +255,9 @@ let initial_environment =
       ("/" , tyarith, "div");
       ("+" , tyarith, "+"  );
       ("-" , tyarith, "-"  );
+      ("+.", tyarith_float, "+");
+      ("-.", tyarith_float, "-");
+      ("*.", tyarith_float, "*");
+      ("/.", tyarith_float, "/");
     ]
     |> add_primitives primitive_definitions

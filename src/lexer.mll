@@ -21,7 +21,7 @@ let small = ['a'-'z']
 let latin = (small | capital)
 let identifier = (small (digit | latin | "_")*)
 let constructor = (capital (digit | latin | "_")*)
-let nssymbol = ['&' '|' '=' '/' '+' '-']
+let nssymbol = ['&' '|' '=' '/' '+' '-' '.']
 
 rule token = parse
   | space { token lexbuf }
