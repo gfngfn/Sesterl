@@ -220,7 +220,7 @@ let make_bound_to_free_map (lev : int) (typarams : BoundID.t list) : mono_type l
     typarams |> List.fold_left (fun (tyargacc, bfmap) bid ->
       let fid = FreeID.fresh lev in
       let bkd = UniversalKind in
-      TypeDefinitionStore.add_free_id fid bkd;
+      KindStore.register_free_id fid bkd;
       let mtvu = ref (Free(fid)) in
       let mtv = Updatable(mtvu) in
       let ty = (Range.dummy "constructor-arg", TypeVar(mtv)) in
@@ -843,7 +843,7 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
 
 let fresh_type_variable ?name:_nameopt (lev : int) (kd : mono_base_kind) (rng : Range.t) : mono_type =
   let fid = FreeID.fresh lev in
-  TypeDefinitionStore.add_free_id fid kd;
+  KindStore.register_free_id fid kd;
   let mtvu = ref (Free(fid)) in
   let ty = (rng, TypeVar(Updatable(mtvu))) in
 (*
