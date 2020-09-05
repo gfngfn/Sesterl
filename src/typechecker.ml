@@ -603,6 +603,10 @@ let get_real_poly_type : TypeID.Synonym.t -> poly_type list -> poly_type =
   get_real_type_scheme TypeConv.substitute_poly_type
 
 
+let label_assoc_union =
+  LabelAssoc.union (fun _ _ ty2 -> Some(ty2))
+
+
 let unify (tyact : mono_type) (tyexp : mono_type) : unit =
 (*
   Format.printf "UNIFY %a =?= %a\n" pp_mono_type tyact pp_mono_type tyexp; (* for debug *)
@@ -650,9 +654,6 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
         let res2 = aux ty1cod ty2cod in
         res1 &&& resmnd &&& resopt &&& res2
 
-    | (RecordType(labmap1), RecordType(labmap2)) ->
-        aux_label_assoc_exact labmap1 labmap2
-
     | (EffType(eff1, tysub1), EffType(eff2, tysub2)) ->
         let reseff = aux_effect eff1 eff2 in
         let ressub = aux tysub1 tysub2 in
@@ -673,36 +674,75 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
         else
           Contradiction
 
+    | (RecordType(labmap1), RecordType(labmap2)) ->
+        aux_label_assoc_exact labmap1 labmap2
+
     | (TypeVar(Updatable({contents = Free(fid1)} as mtvu1)), TypeVar(Updatable{contents = Free(fid2)})) ->
-        let () =
-          if FreeID.equal fid1 fid2 then () else
-            mtvu1 := Link(ty2)
-              (* Not `mtvu1 := Free(fid2)`. But I don't really understand why... TODO: Understand this *)
-        in
-        Consistent
+        if FreeID.equal fid1 fid2 then
+          Consistent
+        else begin
+          let res =
+            let bkd1 = KindStore.get_free_id fid1 in
+            let bkd2 = KindStore.get_free_id fid2 in
+            match (bkd1, bkd2) with
+            | (UniversalKind, UniversalKind) ->
+                Consistent
+
+            | (UniversalKind, RecordKind(_)) ->
+                KindStore.register_free_id fid1 bkd2;
+                Consistent
+
+            | (RecordKind(_), UniversalKind) ->
+                KindStore.register_free_id fid2 bkd1;
+                Consistent
+
+            | (RecordKind(labmap1), RecordKind(labmap2)) ->
+                let res = aux_label_assoc_intersection labmap1 labmap2 in
+                let union = label_assoc_union labmap1 labmap2 in
+                KindStore.register_free_id fid1 (RecordKind(union));
+                KindStore.register_free_id fid2 (RecordKind(union));
+                res
+          in
+          mtvu1 := Link(ty2);
+            (* Not `mtvu1 := Free(fid2)`. But I don't really understand why... TODO: Understand this *)
+          res
+        end
 
     | (TypeVar(Updatable({contents = Free(fid1)} as mtvu1)), _) ->
+        aux_free_id_and_record fid1 mtvu1 ty2
+
+    | (_, TypeVar(Updatable({contents = Free(fid2)} as mtvu2))) ->
+        aux_free_id_and_record fid2 mtvu2 ty1
+
+    | _ ->
+        Contradiction
+
+  and aux_free_id_and_record (fid1 : FreeID.t) (mtvu1 : mono_type_var_updatable ref) (ty2 : mono_type) =
         let b = occurs fid1 ty2 in
         if b then
           Inclusion(fid1)
         else
-          begin
-            mtvu1 := Link(ty2);
-            Consistent
-          end
+          let res =
+            match ty2 with
+            | (_, RecordType(labmap2)) ->
+                let bkd1 = KindStore.get_free_id fid1 in
+                begin
+                  match bkd1 with
+                  | UniversalKind ->
+                      Consistent
 
-    | (_, TypeVar(Updatable({contents = Free(fid2)} as mtvu2))) ->
-        let b = occurs fid2 ty1 in
-        if b then
-          Inclusion(fid2)
-        else
-          begin
-            mtvu2 := Link(ty1);
-            Consistent
-          end
+                  | RecordKind(labmap1) ->
+                      aux_label_assoc_subtype ~specific:labmap2 ~general:labmap1
+                end
 
-    | _ ->
-        Contradiction
+            | _ ->
+                Consistent
+          in
+          begin
+            match res with
+            | Consistent -> mtvu1 := Link(ty2); res
+            | _          -> res
+          end
 
   and aux_list tys1 tys2 =
     try
@@ -766,27 +806,14 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
         else
           let labmap1 = KindStore.get_free_row frid1 in
           let labmap2 = KindStore.get_free_row frid2 in
-          let intersection =
-            LabelAssoc.merge (fun _ opt1 opt2 ->
-              match (opt1, opt2) with
-              | (Some(ty1), Some(ty2)) -> Some((ty1, ty2))
-              | _                      -> None
-            ) labmap1 labmap2
-          in
-          let res =
-            LabelAssoc.fold (fun label (ty1, ty2) res ->
-              match res with
-              | Consistent -> aux ty1 ty2
-              | _          -> res
-            ) intersection Consistent
-          in
+          let res = aux_label_assoc_intersection labmap1 labmap2 in
           begin
             match res with
             | Consistent ->
                 mtvu1 := FreeRow(frid2);
                   (* DOUBTFUL; maybe should be `LinkRow(FreeRow(frid2))`
                      with the definition of `LinkRow` changed. *)
-                let union = LabelAssoc.union (fun _ _ ty2 -> Some(ty2)) labmap1 labmap2 in
+                let union = label_assoc_union labmap1 labmap2 in
                 KindStore.register_free_row frid2 union;
                 Consistent
 
@@ -832,6 +859,20 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
       ) labmap1 labmap2
     in
     LabelAssoc.fold (fun _ res resacc -> resacc &&& res) merged Consistent
+
+  and aux_label_assoc_intersection labmap1 labmap2 =
+    let intersection =
+      LabelAssoc.merge (fun _ opt1 opt2 ->
+        match (opt1, opt2) with
+        | (Some(ty1), Some(ty2)) -> Some((ty1, ty2))
+        | _                      -> None
+      ) labmap1 labmap2
+    in
+    LabelAssoc.fold (fun label (ty1, ty2) res ->
+      match res with
+      | Consistent -> aux ty1 ty2
+      | _          -> res
+    ) intersection Consistent
   in
   let res = aux tyact tyexp in
   match res with
