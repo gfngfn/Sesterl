@@ -327,13 +327,9 @@ let can_row_take_optional : mono_row -> bool = function
 
 
 let rec kind_of_arity n =
-  if n <= 0 then
-    UniversalKind
-  else
-    ArrowKind(kind_of_arity (n - 1))
+  let bkddoms = List.init n (fun _ -> UniversalKind) in
+  Kind(bkddoms, UniversalKind)
 
 
 let rec arity_of_kind = function
-  | UniversalKind -> 0
-  | RecordKind(_) -> 0
-  | ArrowKind(kd) -> 1 + arity_of_kind kd
+  Kind(bkddoms, _) -> List.length bkddoms

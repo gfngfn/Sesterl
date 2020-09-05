@@ -249,10 +249,12 @@ and ('a, 'b) row =
   | FixedRow of (('a, 'b) typ) LabelAssoc.t
   | RowVar   of 'b
 
-and ('a, 'b) kind =
+and ('a, 'b) base_kind =
   | UniversalKind
   | RecordKind    of (('a, 'b) typ) LabelAssoc.t
-  | ArrowKind     of ('a, 'b) kind
+
+type ('a, 'b) kind =
+  | Kind of (('a, 'b) base_kind) list * ('a, 'b) base_kind
       (* Handles order-0 or order-1 kind only, *)
 
 type mono_type_var_updatable =
@@ -418,7 +420,19 @@ fun showtv showrv optrow ->
 
 and show_kind : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) kind -> string =
 fun showtv showrv kd ->
+  let showbkd = show_base_kind showtv showrv in
   match kd with
+  | Kind([], bkd) ->
+      showbkd bkd
+
+  | Kind((_ :: _) as bkds, bkd) ->
+      let sdom = bkds |> List.map showbkd |> String.concat ", " in
+      let scod = showbkd bkd in
+      Printf.sprintf "(%s) -> %s" sdom scod
+
+and show_base_kind : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) base_kind -> string =
+fun showtv showrv ->
+  function
   | UniversalKind ->
       "o"
 
@@ -427,10 +441,6 @@ fun showtv showrv kd ->
         labmap |> show_label_assoc ~prefix:"" ~suffix:" :" showtv showrv |> Option.value ~default:""
       in
       Printf.sprintf "{%s}" s
-
-  | ArrowKind(kd) ->
-      let s = show_kind showtv showrv kd in
-      Printf.sprintf "* -> %s" s
 
 
 and show_mono_type_var (mtv : mono_type_var) : string =
