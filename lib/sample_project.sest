@@ -17,28 +17,26 @@ module SampleProject = struct
 
     module Callback = struct
 
-      type init_arg = (int, binary)
       type request = request_impl
       type response = response_impl
       type cast_message = cast_message_impl
-      type state = (int, binary)
+      type state = { number : int,  name : binary }
+      type init_arg = state
 
       let init(state) =
         let _ = print_debug(("init", state)) in
         state
 
       let handle_call(req, pid, state) =
-        let (n, s) = state in
         case req of
-        | GetNumber -> (Number(n), state)
-        | GetName   -> (Name(s), state)
+        | GetNumber -> (Number(state.number), state)
+        | GetName   -> (Name(state.name), state)
         end
 
      let handle_cast(msg, state) =
        let _ = print_debug(("handle_cast", msg)) in
-       let (_, s) = state in
        case msg of
-       | SetNumber(m) -> (m, s)
+       | SetNumber(m) -> { number = m, name = state.name }
        end
 
     end
@@ -72,7 +70,7 @@ module SampleProject = struct
         loop(t - 1, pid)
 
     let main() =
-      do pid <- Server.start_link((57, "Sample Store")) in
+      do pid <- Server.start_link({ number = 57, name = "Sample Store"}) in
       do x <- Server.get_number(pid, ?timeout 1000) in
       let _ = print_debug(("first get", x)) in
       do Server.set_number(pid, 42) in
