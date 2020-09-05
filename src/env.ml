@@ -72,12 +72,14 @@ and record_signature =
 
 and record_signature_entry =
   | SRVal      of identifier * (poly_type * global_name)
+      [@printer (fun ppf _ -> Format.fprintf ppf "<SRVal>")]
   | SRRecTypes of (type_name * type_opacity) list
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRRecTypes>")]
   | SRModule   of module_name * (module_signature * space_name)
   | SRSig      of signature_name * module_signature abstracted
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRSig>")]
   | SRCtor     of constructor_name * constructor_entry
+      [@printer (fun ppf _ -> Format.fprintf ppf "<SRCtor>")]
 [@@deriving show { with_path = false }]
 
 
@@ -433,6 +435,18 @@ let pp_type_parameters ppf typarams =
   | _ :: _ -> Format.fprintf ppf "<%a>" (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
 
 
+let display_poly_type pty =
+  let (sbids, sbrids, sty) = TypeConv.show_poly_type pty in
+  let ssub =
+    let ss = List.append sbids sbrids in
+    if List.length ss = 0 then
+      ""
+    else
+      "<" ^ (String.concat ", " ss) ^ ">"
+  in
+  (ssub, sty)
+
+
 let rec display_signature (depth : int) (modsig : module_signature) : unit =
   let indent = String.make (depth * 2) ' ' in
   match modsig with
@@ -456,7 +470,8 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
   let indent = String.make (depth * 2) ' ' in
   sigr |> SigRecord.fold
       ~v:(fun x (pty, _) () ->
-        Format.printf "%sval %s : %a\n" indent x pp_poly_type pty
+        let (ssub, sty) = display_poly_type pty in
+        Format.printf "%sval %s%s : %s\n" indent x ssub sty
       )
       ~t:(fun tydefs () ->
         tydefs |> List.iter (fun (tynm, tyopac) ->
@@ -464,11 +479,12 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
           match tyid with
           | TypeID.Synonym(sid) ->
               let (typarams, ptyreal) = TypeDefinitionStore.find_synonym_type sid in
-              Format.printf "%stype %a%a = %a\n"
+              let (_, sty) = display_poly_type ptyreal in
+              Format.printf "%stype %a%a = %s\n"
                 indent
                 TypeID.Synonym.pp sid
                 pp_type_parameters typarams
-                pp_poly_type ptyreal
+                sty
 
           | TypeID.Variant(vid) ->
               let (typarams, _ctorbrs) = TypeDefinitionStore.find_variant_type vid in
@@ -478,10 +494,10 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
                 pp_type_parameters typarams
 
           | TypeID.Opaque(oid) ->
-              Format.printf "%stype %a :: %a\n"
+              Format.printf "%stype %a :: %d\n"
                 indent
                 TypeID.Opaque.pp oid
-                pp_poly_kind pkd
+                (TypeConv.arity_of_kind pkd)
         )
       )
       ~m:(fun modnm (modsig, _) () ->
