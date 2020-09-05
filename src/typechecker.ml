@@ -805,9 +805,8 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
         LabelAssoc.fold (fun _ res resacc -> resacc &&& res) merged Consistent
 
   and aux_label_assoc_subtype ~specific:labmap2 ~general:labmap1 =
-    (* Check that `labmap2` is more specific than `labmap1`,
-       i.e., the domain of `labmap1` is contained in that of `labmap2`.
-    *)
+    (* Check that `labmap2` is more specific than or equal to `labmap1`,
+       i.e., the domain of `labmap1` is contained in that of `labmap2`. *)
     LabelAssoc.fold (fun label ty1 res ->
       match res with
       | Consistent ->
