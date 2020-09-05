@@ -441,6 +441,54 @@ f(arg_1, …, arg_L, -mlabel_1 marg_1, … -mlabel_M marg_M, ?olabel_1 oarg_1, �
 ```
 
 
+## Records
+
+A *record* is a labeled tuple that has the following syntax:
+
+```
+{foo = 42, bar = true}
+```
+
+Labels should be distinct from each other in one record values. The expression above has the following type:
+
+```
+{foo : int, bar : bool}
+```
+
+You can also extract values from records as follows:
+
+```
+let r = {foo = 42, bar = true} in
+r.foo  /* => 42 */
+```
+
+In Sesterl, operations for records are made polymorphic by using the same type system as *SML\#* \[Ohori 1995\]. For example, consider the function definition below:
+
+```
+let get_foo(x) = x.foo
+```
+
+The function `get_foo` is typed like the following:
+
+```
+val get_foo<$a, $b :: {foo : $a}> : fun($b) -> $a
+```
+
+Here, `{foo : $a}` is a *kind* (i.e. “type of types”) for record types that contain at least `foo : int`. Thanks to the constraint expressed by the kind, `$b` can be instantiated by `{foo : int, bar : bool}`, `{foo : int, baz : binary}`, and so on, but not by `{bar : bool}` etc.  Then, for instance, the following program is well-typed:
+
+```
+let main() =
+  get_foo({foo = 42, bar = true})
+```
+
+and the following is ill-typed on the other hand:
+
+```
+let main() =
+  get_foo({bar = true})
+```
+
+
 ## Major differences from similar projects
 
 There have been brilliant functional languages that compile to Erlang or BEAM (i.e. bytecode for Erlang VM). Some of them are the following:
@@ -473,7 +521,6 @@ On the other hand, the following are currently possible weak points:
 
 * No seamless connection with build systems such as [*rebar3*]((https://github.com/erlang/rebar3)).
 * Few support for the separation of name spaces between libraries.
-* Absence of records.
 
 Also, though not supporting them currently, we want to add features like the following (see “[Future work](#future-work)” for detail):
 
@@ -483,9 +530,6 @@ Also, though not supporting them currently, we want to add features like the fol
 
 ## Future Work
 
-* Support record expressions.
-  - Here, records will probably be made polymorphic based on the same type system as SML\# has \[Ohori 1995\].
-  - Records in Sesterl does NOT need to compile to Erlang’s record. If needed, you can write FFI that associates records in Sesterl and ones in Erlang.
 * Support GADTs.
   - This is mainly for typing `gen_server` callbacks as to synchronous messages.
   - The formalization of such a type system and a type inference algorithm will probably be based on *choice types* \[Chen & Erwig 2016\].
@@ -522,7 +566,7 @@ Also, though not supporting them currently, we want to add features like the fol
   * [x] User-defined ADTs
   * [x] Pattern matching
   * [x] Type synonyms
-  * [ ] Records
+  * [x] Records
   * [x] Functions with labeled optional parameters
   * [x] Functions with labeled mandatory parameters
   * [ ] GADTs (especially for typing synchronous messages)
