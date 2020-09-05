@@ -227,7 +227,7 @@ let instantiate (lev : int) (pty : poly_type) : mono_type =
               Updatable(mtvu)
 
           | None ->
-              let fid = FreeID.fresh lev in
+              let fid = FreeID.fresh ~message:"instantiate, intern" lev in
               let pbkd = KindStore.get_bound_id bid in
               let mbkd = aux_base_kind pbkd in
               KindStore.register_free_id fid mbkd;
@@ -251,7 +251,7 @@ let instantiate (lev : int) (pty : poly_type) : mono_type =
           | None ->
               let plabmap = KindStore.get_bound_row brid in
               let labmap = plabmap |> LabelAssoc.map aux in
-              let frid = FreeRowID.fresh lev in
+              let frid = FreeRowID.fresh ~message:"instantiate, intern_row" lev in
               KindStore.register_free_row frid labmap;
               let mrvu = ref (FreeRow(frid)) in
               UpdatableRow(mrvu)

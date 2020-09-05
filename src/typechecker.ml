@@ -218,7 +218,7 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
 let make_bound_to_free_map (lev : int) (typarams : BoundID.t list) : mono_type list * mono_type_var BoundIDMap.t =
   let (tyargacc, bfmap) =
     typarams |> List.fold_left (fun (tyargacc, bfmap) bid ->
-      let fid = FreeID.fresh lev in
+      let fid = FreeID.fresh ~message:"make_bound_to_free_map" lev in
       let mbkd = UniversalKind in  (* TODO: generalize this *)
       KindStore.register_free_id fid mbkd;
       let mtvu = ref (Free(fid)) in
@@ -885,7 +885,7 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
 
 
 let fresh_type_variable ?name:nameopt (lev : int) (mbkd : mono_base_kind) (rng : Range.t) : mono_type =
-  let fid = FreeID.fresh lev in
+  let fid = FreeID.fresh ~message:"fresh_type_variable" lev in
   KindStore.register_free_id fid mbkd;
   let mtvu = ref (Free(fid)) in
   let ty = (rng, TypeVar(Updatable(mtvu))) in
@@ -1225,7 +1225,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       in
       let tyret = fresh_type_variable ~name:"(Apply)" pre.level UniversalKind rng in
       let optrow =
-        let frid = FreeRowID.fresh pre.level in
+        let frid = FreeRowID.fresh ~message:"Apply, row" pre.level in
         KindStore.register_free_row frid optlabmap;
         let mrvu = ref (FreeRow(frid)) in
         RowVar(UpdatableRow(mrvu))
