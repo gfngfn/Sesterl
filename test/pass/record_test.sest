@@ -1,0 +1,11 @@
+module RecordTest = struct
+
+  let get_foo(x) = x.foo
+
+  let record() = { foo = 42, bar = true }
+
+  let main(args) =
+    let r = record() in
+    print_debug((r, get_foo(r)))
+
+end
