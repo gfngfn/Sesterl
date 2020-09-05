@@ -1101,9 +1101,7 @@ and add_labeled_parameters_to_type_environment ~optional:(optional : bool) (pre 
       let (x, ty_inner, lname) = decode_parameter pre binder in
       let ty_outer =
         if optional then
-          let fid = FreeID.fresh pre.level in
-          let mtvu = ref (Free(fid)) in
-          let ty_outer = (Range.dummy "optional", TypeVar(Updatable(mtvu))) in
+          let ty_outer = fresh_type pre.level (Range.dummy "optional") in
           unify ty_inner (Primitives.option_type ty_outer);
           ty_outer
         else
