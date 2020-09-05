@@ -102,6 +102,8 @@ rule token = parse
   | ")"  { RPAREN(Range.from_lexbuf lexbuf) }
   | "["  { LSQUARE(Range.from_lexbuf lexbuf) }
   | "]"  { RSQUARE(Range.from_lexbuf lexbuf) }
+  | "{"  { LBRACE(Range.from_lexbuf lexbuf) }
+  | "}"  { RBRACE(Range.from_lexbuf lexbuf) }
 
   | "::" { CONS(Range.from_lexbuf lexbuf) }
   | ":"  { COLON(Range.from_lexbuf lexbuf) }
