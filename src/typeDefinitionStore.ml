@@ -28,3 +28,17 @@ let find_variant_type (vid : TypeID.Variant.t) : BoundID.t list * constructor_br
   match VariantIDHashTable.find_opt variant_table vid with
   | None    -> assert false
   | Some(v) -> v
+
+
+let free_id_table : mono_base_kind FreeIDHashTable.t =
+  FreeIDHashTable.create 1024
+
+
+let add_free_id (fid : FreeID.t) (bkd : mono_base_kind) : unit =
+  FreeIDHashTable.add free_id_table fid bkd
+
+
+let find_free_id (fid : FreeID.t) : mono_base_kind =
+  match FreeIDHashTable.find_opt free_id_table fid with
+  | None      -> assert false
+  | Some(bkd) -> bkd
