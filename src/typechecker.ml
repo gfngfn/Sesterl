@@ -982,6 +982,10 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
       | MProductType(mtys) ->
           ProductType(TupleList.map aux mtys)
 
+      | MRecordType(labmtys) ->
+          let labmap = aux_labeled_list labmtys in
+          RecordType(labmap)
+
       | MEffType(mty1, mty2) ->
           EffType(Effect(aux mty1), aux mty2)
 
