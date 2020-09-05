@@ -15,7 +15,8 @@ let equal fid1 fid2 =
   fid1.id = fid2.id
 
 
-let hash = Hashtbl.hash
+let hash fid =
+  fid.id
 
 
 let current_max = ref 0
