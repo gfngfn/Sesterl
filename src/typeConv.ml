@@ -324,3 +324,16 @@ let can_row_take_optional : mono_row -> bool = function
   | RowVar(MustBeBoundRow(mbbrid)) ->
       let labmap = KindStore.get_bound_row (MustBeBoundID.to_bound mbbrid) in
       LabelAssoc.cardinal labmap > 0
+
+
+let rec kind_of_arity n =
+  if n <= 0 then
+    UniversalKind
+  else
+    ArrowKind(kind_of_arity (n - 1))
+
+
+let rec arity_of_kind = function
+  | UniversalKind -> 0
+  | RecordKind(_) -> 0
+  | ArrowKind(kd) -> 1 + arity_of_kind kd

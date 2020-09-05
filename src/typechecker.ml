@@ -915,7 +915,8 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                   | _               -> raise_error (UndefinedTypeName(rng, tynm))
                 end
 
-            | Some(tyid, len_expected) ->
+            | Some(tyid, pkd) ->
+                let len_expected = TypeConv.arity_of_kind pkd in
                 if len_actual = len_expected then
                   begin
                     k tyid;
@@ -964,7 +965,8 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
 
                   | Some(tyopac2) ->
                       let tyargs = mtyargs |> List.map aux in
-                      let (tyid2, arity_expected) = tyopac2 in
+                      let (tyid2, pkd2) = tyopac2 in
+                      let arity_expected = TypeConv.arity_of_kind pkd2 in
                       let arity_actual = List.length tyargs in
                       if arity_actual = arity_expected then
                         if opaque_occurs_in_type_id oidset1 tyid2 then
@@ -1350,6 +1352,10 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         ) (LabelAssoc.empty, LabelAssoc.empty)
       in
       ((rng, RecordType(labmap)), IRecord(emap))
+
+  | RecordAccess(utast1, rlabel) ->
+      let (_ty1, _e1) = typecheck pre utast1 in
+      failwith "typecheck, RecordAccess"
 
   | ModProjVal(modident1, (rng2, x2)) ->
       let (modsig1, _) = find_module pre.tyenv modident1 in
@@ -2398,9 +2404,9 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
 
   | DeclTypeOpaque(tyident, mkd) ->
       let (_, tynm) = tyident in
-      let kd = mkd in
+      let pkd = TypeConv.kind_of_arity mkd in
       let oid = TypeID.Opaque.fresh tynm in
-      let sigr = SigRecord.empty |> SigRecord.add_opaque_type tynm oid kd in
+      let sigr = SigRecord.empty |> SigRecord.add_opaque_type tynm oid pkd in
       (OpaqueIDSet.singleton oid, sigr)
 
   | DeclModule(modident, utsig) ->
@@ -2586,7 +2592,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
               | None ->
                   raise_error (UndefinedTypeName(rng1, tynm1))
 
-              | Some(TypeID.Opaque(oid), kd) ->
+              | Some(TypeID.Opaque(oid), pkd) ->
                   assert (oidset0 |> OpaqueIDSet.mem oid);
                   let typaramassoc = make_type_parameter_assoc 1 tyvaridents in
                   let pty =
@@ -2596,8 +2602,9 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                     TypeConv.generalize 0 ty
                   in
                   let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
+                  let arity_expected = TypeConv.arity_of_kind pkd in
                   let arity_actual = List.length typarams in
-                  if arity_actual = kd then
+                  if arity_actual = arity_expected then
                     let modsigret =
                       let sid = TypeID.Synonym.fresh tynm1 in
                       TypeDefinitionStore.add_synonym_type sid typarams pty;
@@ -2608,7 +2615,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                     in
                     (oidset0 |> OpaqueIDSet.remove oid, modsigret)
                   else
-                    raise_error (InvalidNumberOfTypeArguments(rng1, tynm1, kd, arity_actual))
+                    raise_error (InvalidNumberOfTypeArguments(rng1, tynm1, arity_expected, arity_actual))
 
               | Some(tyopac) ->
                   raise_error (CannotRestrictTransparentType(rng1, tyopac))
@@ -2689,17 +2696,18 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         tybinds |> List.fold_left (fun (synacc, vntacc, vertices, graph, tyenv) (tyident, typarams, syn_or_vnt) ->
           let (_, tynm) = tyident in
           let arity = List.length typarams in
+          let pkd = TypeConv.kind_of_arity arity in
           match syn_or_vnt with
           | BindSynonym(synbind) ->
               let sid = TypeID.Synonym.fresh tynm in
               let graph = graph |> DependencyGraph.add_vertex sid tyident in
-              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Synonym(sid)) arity in
+              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Synonym(sid)) pkd in
               let synacc = Alist.extend synacc (tyident, typarams, synbind, sid) in
               (synacc, vntacc, vertices |> SynonymIDSet.add sid, graph, tyenv)
 
           | BindVariant(vntbind) ->
               let vid = TypeID.Variant.fresh tynm in
-              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Variant(vid)) arity in
+              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Variant(vid)) pkd in
               let vntacc = Alist.extend vntacc (tyident, typarams, vntbind, vid) in
               (synacc, vntacc, vertices, graph, tyenv)
         ) (Alist.empty, Alist.empty, SynonymIDSet.empty, DependencyGraph.empty, tyenv)
@@ -2730,7 +2738,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             ) dependencies
           in
           TypeDefinitionStore.add_synonym_type sid typarams ptyreal;
-          let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Synonym(sid), List.length typarams)) in
+          let pkd = TypeConv.kind_of_arity (List.length typarams) in
+          let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Synonym(sid), pkd)) in
 (*
           Format.printf "SYN %s %a <%d> = %a\n" tynm TypeID.Synonym.pp sid (List.length typarams) pp_poly_type ptyreal;  (* for debug *)
 *)
@@ -2750,7 +2759,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             make_constructor_branch_map { pre with tyenv } ctorbrs
           in
           TypeDefinitionStore.add_variant_type vid typarams ctorbrmap;
-          let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Variant(vid), List.length typarams)) in
+          let pkd = TypeConv.kind_of_arity (List.length typarams) in
+          let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Variant(vid), pkd)) in
           let ctordefacc = Alist.extend ctordefacc (vid, typarams, ctorbrmap) in
           (tydefacc, ctordefacc)
         ) (tydefacc, Alist.empty)

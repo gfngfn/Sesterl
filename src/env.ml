@@ -20,7 +20,7 @@ type variant_entry = {
 }
 
 type opaque_entry = {
-  o_kind : kind;
+  o_kind : poly_kind;
 }
 
 type module_signature =
@@ -52,7 +52,7 @@ and signature_entry = {
 and environment = {
   vals         : val_entry ValNameMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<vals>")]
-  type_names   : (type_entry * int) TypeNameMap.t;
+  type_names   : (type_entry * poly_kind) TypeNameMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<type_names>")]
   opaques      : opaque_entry OpaqueIDMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<opaques>")]
@@ -145,9 +145,9 @@ module Typeenv = struct
     ValNameMap.fold (fun x entry acc -> f x entry.typ acc) tyenv.vals acc
 
 
-  let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (arity : int) (tyenv : t) : t =
+  let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (pkd : poly_kind) (tyenv : t) : t =
     { tyenv with
-      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedVariant(vid), arity);
+      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedVariant(vid), pkd);
     }
 
 
@@ -157,27 +157,27 @@ module Typeenv = struct
     }
 
 
-  let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (arity : int) (tyenv : t) : t =
+  let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (pkd : poly_kind) (tyenv : t) : t =
     { tyenv with
-      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedSynonym(sid), arity);
+      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedSynonym(sid), pkd);
     }
 
 
-  let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (kind : kind) (tyenv : t) : t =
+  let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (pkd : poly_kind) (tyenv : t) : t =
     let oentry =
       {
-        o_kind = kind;
+        o_kind = pkd;
       }
     in
     { tyenv with
-      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedOpaque(oid), kind);
+      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedOpaque(oid), pkd);
       opaques    = tyenv.opaques |> OpaqueIDMap.add oid oentry;
     }
 
 
-  let add_type_for_recursion (tynm : type_name) (tyid : TypeID.t) (arity : int) (tyenv : t) : t =
+  let add_type_for_recursion (tynm : type_name) (tyid : TypeID.t) (pkd : poly_kind) (tyenv : t) : t =
     { tyenv with
-      type_names = tyenv.type_names |> TypeNameMap.add tynm (Defining(tyid), arity);
+      type_names = tyenv.type_names |> TypeNameMap.add tynm (Defining(tyid), pkd);
     }
 
 
@@ -187,7 +187,7 @@ module Typeenv = struct
     )
 
 
-  let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * int) option =
+  let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * poly_kind) option =
     tyenv.type_names |> TypeNameMap.find_opt tynm |> Option.map (fun (tyentry, arity) ->
       match tyentry with
       | Defining(tyid)      -> (tyid, arity)
@@ -290,8 +290,8 @@ module SigRecord = struct
     )
 
 
-  let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (kd : kind) (sigr : t) : t =
-    Alist.extend sigr (SRRecTypes[ (tynm, (TypeID.Opaque(oid), kd)) ])
+  let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (pkd : poly_kind) (sigr : t) : t =
+    Alist.extend sigr (SRRecTypes[ (tynm, (TypeID.Opaque(oid), pkd)) ])
 
 
   let add_module (modnm : module_name) (modsig : module_signature) (sname : space_name) (sigr : t) : t =
@@ -460,7 +460,7 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
       )
       ~t:(fun tydefs () ->
         tydefs |> List.iter (fun (tynm, tyopac) ->
-          let (tyid, arity) = tyopac in
+          let (tyid, pkd) = tyopac in
           match tyid with
           | TypeID.Synonym(sid) ->
               let (typarams, ptyreal) = TypeDefinitionStore.find_synonym_type sid in
@@ -478,10 +478,10 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
                 pp_type_parameters typarams
 
           | TypeID.Opaque(oid) ->
-              Format.printf "%stype %a :: %d\n"
+              Format.printf "%stype %a :: %a\n"
                 indent
                 TypeID.Opaque.pp oid
-                arity
+                pp_poly_kind pkd
         )
       )
       ~m:(fun modnm (modsig, _) () ->

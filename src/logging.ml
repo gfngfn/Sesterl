@@ -200,11 +200,11 @@ let report_type_error (e : type_error) : unit =
         x
         pp_poly_type pty
 
-  | MissingRequiredTypeName(rng, tynm, (_, arity)) ->
-      Format.printf "%a: missing required type name '%s' of arity %d\n"
+  | MissingRequiredTypeName(rng, tynm, (_, pkd)) ->
+      Format.printf "%a: missing required type name '%s' of kind %a\n"
         Range.pp rng
         tynm
-        arity
+        pp_poly_kind pkd
 
   | MissingRequiredModuleName(rng, modnm, _modsign) ->
       Format.printf "%a: missing required module name '%s'\n"

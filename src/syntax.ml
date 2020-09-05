@@ -73,9 +73,6 @@ type manual_kind = int
   (* -- order-0 or order-1 kind only; just tracks arity -- *)
 [@@deriving show { with_path = false; } ]
 
-type kind = int
-  (* -- as `manual_kind`, this type handles order-0 or order-1 kind only -- *)
-
 type manual_type = manual_type_main ranged
 
 and manual_type_main =
@@ -119,6 +116,7 @@ and untyped_ast_main =
   | Constructor  of constructor_name * untyped_ast list
   | BinaryByList of (int ranged) list
   | Record       of labeled_untyped_ast list
+  | RecordAccess of untyped_ast * label ranged
   | ModProjVal   of module_name ranged * identifier ranged
 
 and internal_or_external =
@@ -251,6 +249,12 @@ and ('a, 'b) row =
   | FixedRow of (('a, 'b) typ) LabelAssoc.t
   | RowVar   of 'b
 
+and ('a, 'b) kind =
+  | UniversalKind
+  | RecordKind    of (('a, 'b) typ) LabelAssoc.t
+  | ArrowKind     of ('a, 'b) kind
+      (* Handles order-0 or order-1 kind only, *)
+
 type mono_type_var_updatable =
   | Free of FreeID.t
   | Link of mono_type
@@ -271,6 +275,8 @@ and mono_type = (mono_type_var, mono_row_var) typ
 
 type mono_row = (mono_type_var, mono_row_var) row
 
+type mono_kind = (mono_type_var, mono_row_var) kind
+
 type poly_type_var =
   | Mono  of mono_type_var
   | Bound of BoundID.t
@@ -282,6 +288,8 @@ type poly_row_var =
 and poly_type = (poly_type_var, poly_row_var) typ
 
 type poly_row = (poly_type_var, poly_row_var) row
+
+type poly_kind = (poly_type_var, poly_row_var) kind
 
 module FreeIDHashTable = Hashtbl.Make(FreeID)
 
@@ -408,6 +416,23 @@ fun showtv showrv optrow ->
   | RowVar(rv)       -> showrv rv |> Option.map (fun s -> "?" ^ s)
 
 
+and show_kind : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) kind -> string =
+fun showtv showrv kd ->
+  match kd with
+  | UniversalKind ->
+      "o"
+
+  | RecordKind(labmap) ->
+      let s =
+        labmap |> show_label_assoc ~prefix:"" ~suffix:" :" showtv showrv |> Option.value ~default:""
+      in
+      Printf.sprintf "{%s}" s
+
+  | ArrowKind(kd) ->
+      let s = show_kind showtv showrv kd in
+      Printf.sprintf "* -> %s" s
+
+
 and show_mono_type_var (mtv : mono_type_var) : string =
   match mtv with
   | MustBeBound(mbbid) -> Format.asprintf "%a" MustBeBoundID.pp mbbid
@@ -466,6 +491,14 @@ let pp_poly_row (ppf : Format.formatter) (prow : poly_row) : unit =
   match show_poly_row prow with
   | None    -> ()
   | Some(s) -> Format.fprintf ppf "%s" s
+
+
+let show_poly_kind : poly_kind -> string =
+  show_kind show_poly_type_var show_poly_row_var
+
+
+let pp_poly_kind (ppf : Format.formatter) (pkd : poly_kind) =
+  Format.fprintf ppf "%s" (show_poly_kind pkd)
 
 
 type space_name = OutputIdentifier.space
@@ -546,7 +579,7 @@ type pattern =
   | IPConstructor of ConstructorID.t * pattern list
 [@@deriving show { with_path = false; } ]
 
-type type_opacity = TypeID.t * int
+type type_opacity = TypeID.t * poly_kind
 
 type 'a abstracted = OpaqueIDSet.t * 'a
 
