@@ -952,6 +952,8 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
                   | ("bool", _)     -> invalid rng "bool" ~expect:0 ~actual:len_actual
                   | ("int", [])     -> BaseType(IntType)
                   | ("int", _)      -> invalid rng "int" ~expect:0 ~actual:len_actual
+                  | ("float", [])   -> BaseType(FloatType)
+                  | ("float", _)    -> invalid rng "float" ~expect:0 ~actual:len_actual
                   | ("binary", [])  -> BaseType(BinaryType)
                   | ("binary", _)   -> invalid rng "binary" ~expect:0 ~actual:len_actual
                   | ("list", [ty])  -> ListType(ty)
