@@ -19,6 +19,10 @@ let free_id_table : mono_base_kind FreeIDHashTable.t =
   FreeIDHashTable.create 1024
 
 
+let bound_id_table : poly_base_kind BoundIDHashTable.t =
+  BoundIDHashTable.create 1024
+
+
 let register_free_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) : unit =
   FreeRowHashTable.add free_row_hash_table frid labmap
 
@@ -39,11 +43,21 @@ let get_bound_row (brid : BoundRowID.t) : poly_type LabelAssoc.t =
   | Some(plabmap) -> plabmap
 
 
-let register_free_id (fid : FreeID.t) (bkd : mono_base_kind) : unit =
-  FreeIDHashTable.add free_id_table fid bkd
+let register_free_id (fid : FreeID.t) (mbkd : mono_base_kind) : unit =
+  FreeIDHashTable.add free_id_table fid mbkd
 
 
 let get_free_id (fid : FreeID.t) : mono_base_kind =
   match FreeIDHashTable.find_opt free_id_table fid with
-  | None      -> assert false
-  | Some(bkd) -> bkd
+  | None       -> assert false
+  | Some(mbkd) -> mbkd
+
+
+let register_bound_id (bid : BoundID.t) (pbkd : poly_base_kind) : unit =
+  BoundIDHashTable.add bound_id_table bid pbkd
+
+
+let get_bound_id (bid : BoundID.t) : poly_base_kind =
+  match BoundIDHashTable.find_opt bound_id_table bid with
+  | None       -> assert false
+  | Some(pbkd) -> pbkd

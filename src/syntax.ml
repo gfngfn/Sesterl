@@ -295,6 +295,8 @@ type poly_row = (poly_type_var, poly_row_var) row
 
 type poly_kind = (poly_type_var, poly_row_var) kind
 
+type poly_base_kind = (poly_type_var, poly_row_var) base_kind
+
 module FreeIDHashTable = Hashtbl.Make(FreeID)
 
 module FreeRowIDHashTable = Hashtbl.Make(FreeRowID)

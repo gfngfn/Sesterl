@@ -17,7 +17,10 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         bid
 
     | None ->
+        let mbkd = KindStore.get_free_id fid in
         let bid = BoundID.fresh () in
+        let pbkd = aux_base_kind mbkd in
+        KindStore.register_bound_id bid pbkd;
         FreeIDHashTable.add fidht fid bid;
         bid
 
@@ -33,6 +36,14 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         KindStore.register_bound_row brid plabmap;
         FreeRowIDHashTable.add fridht frid brid;
         brid
+
+  and aux_base_kind (mbkd : mono_base_kind) : poly_base_kind =
+    match mbkd with
+    | UniversalKind ->
+        UniversalKind
+
+    | RecordKind(labmap) ->
+        RecordKind(labmap |> LabelAssoc.map aux)
 
   and aux (rng, tymain) =
     match tymain with
@@ -217,6 +228,9 @@ let instantiate (lev : int) (pty : poly_type) : mono_type =
 
           | None ->
               let fid = FreeID.fresh lev in
+              let pbkd = KindStore.get_bound_id bid in
+              let mbkd = aux_base_kind pbkd in
+              KindStore.register_free_id fid mbkd;
               let mtvu = ref (Free(fid)) in
               BoundIDHashTable.add bidht bid mtvu;
               Updatable(mtvu)
@@ -242,6 +256,14 @@ let instantiate (lev : int) (pty : poly_type) : mono_type =
               let mrvu = ref (FreeRow(frid)) in
               UpdatableRow(mrvu)
         end
+
+  and aux_base_kind (pbkd : poly_base_kind) : mono_base_kind =
+    match pbkd with
+    | UniversalKind ->
+        UniversalKind
+
+    | RecordKind(plabmap) ->
+        RecordKind(plabmap |> LabelAssoc.map aux)
 
   and aux pty =
     instantiate_scheme intern intern_row pty

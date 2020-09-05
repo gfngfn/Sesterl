@@ -219,8 +219,8 @@ let make_bound_to_free_map (lev : int) (typarams : BoundID.t list) : mono_type l
   let (tyargacc, bfmap) =
     typarams |> List.fold_left (fun (tyargacc, bfmap) bid ->
       let fid = FreeID.fresh lev in
-      let bkd = UniversalKind in
-      KindStore.register_free_id fid bkd;
+      let mbkd = UniversalKind in  (* TODO: generalize this *)
+      KindStore.register_free_id fid mbkd;
       let mtvu = ref (Free(fid)) in
       let mtv = Updatable(mtvu) in
       let ty = (Range.dummy "constructor-arg", TypeVar(mtv)) in
@@ -242,6 +242,8 @@ let add_local_type_parameter (typaramassoc : type_parameter_assoc) (localtyparam
 let make_type_parameter_assoc (lev : int) (tyvarnms : (type_variable_name ranged) list) : type_parameter_assoc =
   tyvarnms |> List.fold_left (fun assoc (rng, tyvarnm) ->
     let mbbid = MustBeBoundID.fresh lev in
+    let pbkd = UniversalKind in  (* TODO: generalize this *)
+    KindStore.register_bound_id (MustBeBoundID.to_bound mbbid) pbkd;
 (*
     Format.printf "MUST-BE-BOUND %s : L%d %a\n" tyvarnm lev MustBeBoundID.pp mbbid;  (* for debug *)
 *)
@@ -882,9 +884,9 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
   | InclusionRow(frid) -> raise_error (InclusionRowError(frid, tyact, tyexp))
 
 
-let fresh_type_variable ?name:_nameopt (lev : int) (kd : mono_base_kind) (rng : Range.t) : mono_type =
+let fresh_type_variable ?name:_nameopt (lev : int) (mbkd : mono_base_kind) (rng : Range.t) : mono_type =
   let fid = FreeID.fresh lev in
-  KindStore.register_free_id fid kd;
+  KindStore.register_free_id fid mbkd;
   let mtvu = ref (Free(fid)) in
   let ty = (rng, TypeVar(Updatable(mtvu))) in
 (*
