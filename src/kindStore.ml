@@ -44,13 +44,22 @@ let get_bound_row (brid : BoundRowID.t) : poly_type LabelAssoc.t =
 
 
 let register_free_id (fid : FreeID.t) (mbkd : mono_base_kind) : unit =
+  print_endline (Format.asprintf "register: %a :: %a" FreeID.pp fid pp_mono_base_kind mbkd);
   FreeIDHashTable.add free_id_table fid mbkd
 
 
 let get_free_id (fid : FreeID.t) : mono_base_kind =
   match FreeIDHashTable.find_opt free_id_table fid with
-  | None       -> failwith (Format.asprintf "not found: %a" FreeID.pp fid)
-  | Some(mbkd) -> mbkd
+  | None ->
+      let s =
+        FreeIDHashTable.fold (fun fid mbkd acc ->
+          (Format.asprintf "%a :: %a" FreeID.pp fid pp_mono_base_kind mbkd) :: acc
+        ) free_id_table [] |> String.concat "\n"
+      in
+      failwith (Format.asprintf "not found %a in\n%s" FreeID.pp fid s)
+
+  | Some(mbkd) ->
+      mbkd
 
 
 let register_bound_id (bid : BoundID.t) (pbkd : poly_base_kind) : unit =
