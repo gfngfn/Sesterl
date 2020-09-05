@@ -488,9 +488,9 @@ optargs:
   | rlabel=OPTLABEL; e=exprlet; COMMA; tail=optargs { (rlabel, e) :: tail }
 ;
 record:
-  |                                             { [] }
-  | rlabel=IDENT; e=exprlet                     { [ (rlabel, e) ] }
-  | rlabel=IDENT; e=exprlet; COMMA; tail=record { (rlabel, e) :: tail }
+  |                                                    { [] }
+  | rlabel=IDENT; DEFEQ; e=exprlet                     { [ (rlabel, e) ] }
+  | rlabel=IDENT; DEFEQ; e=exprlet; COMMA; tail=record { (rlabel, e) :: tail }
 ;
 exprs:
   |                              { [] }
@@ -529,6 +529,10 @@ exprbot:
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, Record(les))
       }
+  | e=exprbot; rlabel=DOTIDENT {
+        let rng = make_range (Ranged(e)) (Ranged(rlabel)) in
+        (rng, RecordAccess(e, rlabel))
+    }
 ;
 bytes:
   |                            { [] }

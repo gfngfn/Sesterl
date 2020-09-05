@@ -267,7 +267,8 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
       end
 
   | IRecord(emap) ->
-      mapify_label_assoc gmap emap
+      let s = mapify_label_assoc gmap emap in
+      Printf.sprintf "#{%s}" s
 
   | IRecordAccess(ast1, label) ->
       let s1 = iter ast1 in
