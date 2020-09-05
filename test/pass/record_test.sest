@@ -2,10 +2,16 @@ module RecordTest = struct
 
   let get_foo(x) = x.foo
 
+  let add_foo_and_bar(x) =
+    x.foo + (if x.bar then 1 else 0)
+
   let record() = { foo = 42, bar = true }
+
+  let default(b, x) =
+    if b then record() else x
 
   let main(args) =
     let r = record() in
-    print_debug((r, get_foo(r)))
+    print_debug((r, get_foo(r), add_foo_and_bar(r)))
 
 end
