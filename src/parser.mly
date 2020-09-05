@@ -664,6 +664,15 @@ tybot:
         let rng = make_range (Token(tokL)) (Ranged(mty2)) in
         (rng, MEffType(mty1, mty2))
       }
+  | tokL=LBRACE; tyrecord=tyrecord; tokR=RBRACE {
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, MRecordType(tyrecord))
+      }
+;
+tyrecord:
+  |                                                   { [] }
+  | rlabel=IDENT; COLON; mty=ty                       { [ (rlabel, mty) ] }
+  | rlabel=IDENT; COLON; mty=ty; COMMA; tail=tyrecord { (rlabel, mty) :: tail }
 ;
 tytuplesub:
   | COMMA; mty=ty; { mty }

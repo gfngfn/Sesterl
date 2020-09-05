@@ -1,0 +1,14 @@
+
+module RecordTest2 = struct
+
+  module Impl = struct
+    let record() = { foo = 42, bar = true }
+    let get_foo(x) = x.foo
+  end
+
+  module Api = Impl :> sig
+    val record : fun() -> { foo : int, bar : bool }
+    val get_foo : fun({ foo : binary, bar : float }) -> binary
+  end
+
+end

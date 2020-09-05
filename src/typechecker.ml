@@ -982,6 +982,10 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
       | MProductType(mtys) ->
           ProductType(TupleList.map aux mtys)
 
+      | MRecordType(labmtys) ->
+          let labmap = aux_labeled_list labmtys in
+          RecordType(labmap)
+
       | MEffType(mty1, mty2) ->
           EffType(Effect(aux mty1), aux mty2)
 
@@ -1690,7 +1694,7 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
 and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
   let rec aux pty1 pty2 =
 (*
-  Format.printf "subtype_poly_type_scheme > aux: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
+  Format.printf "subtype_poly_type_scheme > aux: %a <?= %a\n" TypeConv.pp_poly_type pty1 TypeConv.pp_poly_type pty2;  (* for debug *)
 *)
     let (_, ptymain1) = pty1 in
     let (_, ptymain2) = pty2 in
@@ -1713,14 +1717,7 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
 
     | (FuncType(ptydoms1, mndlabmap1, poptrow1, ptycod1), FuncType(ptydoms2, mndlabmap2, poptrow2, ptycod2)) ->
         let b1 = aux_list ptydoms1 ptydoms2 in
-        let bmnd =
-          LabelAssoc.merge (fun _ ptyopt1 ptyopt2 ->
-            match (ptyopt1, ptyopt2) with
-            | (None, None)             -> None
-            | (Some(pty1), Some(pty2)) -> Some(aux pty1 pty2)
-            | _                        -> Some(false)
-          ) mndlabmap1 mndlabmap2 |> LabelAssoc.for_all (fun _ b -> b)
-        in
+        let bmnd = aux_label_assoc mndlabmap1 mndlabmap2 in
         let bopt = subtype_option_row wtmap internbid internbrid poptrow1 poptrow2 in
         let b2 = aux ptycod1 ptycod2 in
         b1 && bmnd && bopt && b2
@@ -1739,8 +1736,26 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
     | (ListType(ptysub1), ListType(ptysub2)) ->
         aux ptysub1 ptysub2
 
+    | (RecordType(plabmap1), RecordType(plabmap2)) ->
+        aux_label_assoc plabmap1 plabmap2
+
     | (TypeVar(Bound(bid1)), _) ->
-        internbid bid1 pty2
+        let b =
+          match ptymain2 with
+          | TypeVar(Bound(bid2)) ->
+              let pbkd1 = KindStore.get_bound_id bid1 in
+              let pbkd2 = KindStore.get_bound_id bid2 in
+              aux_base_kind pbkd1 pbkd2
+
+          | RecordType(plabmap2) ->
+              let pbkd1 = KindStore.get_bound_id bid1 in
+              aux_base_kind pbkd1 (RecordKind(plabmap2))
+
+          | _ ->
+              true
+
+        in
+        if b then internbid bid1 pty2 else false
 
     | (DataType(TypeID.Variant(vid1), ptyargs1), DataType(TypeID.Variant(vid2), ptyargs2)) ->
         begin
@@ -1809,6 +1824,25 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
           bacc && b
         ) true
 
+  and aux_base_kind pbkd1 pbkd2 =
+    match (pbkd1, pbkd2) with
+    | (UniversalKind, _) ->
+        true
+
+    | (RecordKind(_), UniversalKind) ->
+        false
+
+    | (RecordKind(plabmap1), RecordKind(plabmap2)) ->
+        subtype_label_assoc wtmap internbid internbrid plabmap1 plabmap2
+
+  and aux_label_assoc plabmap1 plabmap2 =
+    LabelAssoc.merge (fun _ ptyopt1 ptyopt2 ->
+      match (ptyopt1, ptyopt2) with
+      | (None, None)             -> None
+      | (Some(pty1), Some(pty2)) -> Some(aux pty1 pty2)
+      | _                        -> Some(false)
+    ) plabmap1 plabmap2 |> LabelAssoc.for_all (fun _ b -> b)
+
   and aux_pid (Pid(pty1)) (Pid(pty2)) =
     aux pty1 pty2
 
@@ -1818,19 +1852,24 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
   aux pty1 pty2
 
 
+and subtype_label_assoc (wtmap : WitnessMap.t) (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (plabmap1 : poly_type LabelAssoc.t) (plabmap2 : poly_type LabelAssoc.t) =
+  LabelAssoc.fold (fun label pty1 b ->
+    if not b then
+      false
+    else
+      match plabmap2 |> LabelAssoc.find_opt label with
+      | None       -> false
+      | Some(pty2) -> subtype_poly_type_scheme wtmap internbid internbrid pty1 pty2
+  ) plabmap1 true
+
+
 and subtype_option_row (wtmap : WitnessMap.t) (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (poptrow1 : poly_row) (poptrow2 : poly_row) : bool =
 (*
   Format.printf "subtype_option_row: %a <?= %a\n" pp_poly_row poptrow1 pp_poly_row poptrow2;  (* for debug *)
 *)
-  let aux_label_assoc plabmap1 plabmap2 =
-    LabelAssoc.fold (fun label pty1 b ->
-      if not b then
-        false
-      else
-        match plabmap2 |> LabelAssoc.find_opt label with
-        | None       -> false
-        | Some(pty2) -> subtype_poly_type_scheme wtmap internbid internbrid pty1 pty2
-    ) plabmap1 true
+
+  let aux_label_assoc =
+    subtype_label_assoc wtmap internbid internbrid
   in
 
   let aux poptrow1 poptrow2 =
@@ -1867,14 +1906,18 @@ and subtype_option_row (wtmap : WitnessMap.t) (internbid : BoundID.t -> poly_typ
 
 and subtype_poly_type (wtmap : WitnessMap.t) (pty1 : poly_type) (pty2 : poly_type) : bool =
 (*
-  Format.printf "subtype_poly_type: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
+  Format.printf "subtype_poly_type: %a <?= %a\n" TypeConv.pp_poly_type pty1 TypeConv.pp_poly_type pty2;  (* for debug *)
 *)
   let bidht = BoundIDHashTable.create 32 in
   let bridht = BoundRowIDHashTable.create 32 in
   let internbid (bid1 : BoundID.t) (pty2 : poly_type) : bool =
     match BoundIDHashTable.find_opt bidht bid1 with
-    | None      -> BoundIDHashTable.add bidht bid1 pty2; true
-    | Some(pty) -> poly_type_equal pty pty2
+    | None ->
+        BoundIDHashTable.add bidht bid1 pty2;
+        true
+
+    | Some(pty) ->
+        poly_type_equal pty pty2
   in
   let internbrid (brid1 : BoundRowID.t) (prow2 : poly_row) : bool =
 (*
@@ -1942,6 +1985,9 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
 
     | (ProductType(ptys1), ProductType(ptys2)) ->
         aux_list (ptys1 |> TupleList.to_list) (ptys2 |> TupleList.to_list)
+
+    | (RecordType(plabmap1), RecordType(plabmap2)) ->
+        aux_label_assoc plabmap1 plabmap2
 
     | (ListType(pty1), ListType(pty2)) ->
         aux pty1 pty2
