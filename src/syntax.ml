@@ -279,6 +279,8 @@ type mono_row = (mono_type_var, mono_row_var) row
 
 type mono_kind = (mono_type_var, mono_row_var) kind
 
+type mono_base_kind = (mono_type_var, mono_row_var) base_kind
+
 type poly_type_var =
   | Mono  of mono_type_var
   | Bound of BoundID.t
@@ -623,6 +625,7 @@ and ast =
   | IListCons    of ast * ast
   | IConstructor of ConstructorID.t * ast list
   | IRecord      of ast LabelAssoc.t
+  | IRecordAccess of ast * label
   | IThunk       of ast
   | IForce       of ast
 

@@ -839,7 +839,7 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
   | InclusionRow(frid) -> raise_error (InclusionRowError(frid, tyact, tyexp))
 
 
-let fresh_type ?name:_nameopt (lev : int) (rng : Range.t) : mono_type =
+let fresh_type ?name:_nameopt (lev : int) (kd : mono_base_kind) (rng : Range.t) : mono_type =
   let fid = FreeID.fresh lev in
   let mtvu = ref (Free(fid)) in
   let ty = (rng, TypeVar(Updatable(mtvu))) in
@@ -1065,7 +1065,7 @@ and add_local_row_parameter (lev : int) (tyenv : Typeenv.t) (typarams : local_ty
 and decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) : mono_type =
   match tyannot with
   | None ->
-      fresh_type ~name:x pre.level rng
+      fresh_type ~name:x pre.level UniversalKind rng
 
   | Some(mty) ->
       decode_manual_type pre.tyenv pre.local_type_parameters pre.local_row_parameters mty
@@ -1101,7 +1101,7 @@ and add_labeled_parameters_to_type_environment ~optional:(optional : bool) (pre 
       let (x, ty_inner, lname) = decode_parameter pre binder in
       let ty_outer =
         if optional then
-          let ty_outer = fresh_type pre.level (Range.dummy "optional") in
+          let ty_outer = fresh_type pre.level UniversalKind (Range.dummy "optional") in
           unify ty_inner (Primitives.option_type ty_outer);
           ty_outer
         else
@@ -1177,7 +1177,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             (optlabmap, optargmap)
         ) (LabelAssoc.empty, LabelAssoc.empty)
       in
-      let tyret = fresh_type pre.level rng in
+      let tyret = fresh_type pre.level UniversalKind rng in
       let optrow =
         let frid = FreeRowID.fresh pre.level in
         KindStore.register_free_row frid optlabmap;
@@ -1237,10 +1237,10 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             let lname = generate_local_name rngv x in
             (tyx, pre.tyenv |> Typeenv.add_val x (TypeConv.lift tyx) (OutputIdentifier.Local(lname)), lname)
       in
-      let tyrecv = fresh_type lev (Range.dummy "do-recv") in
+      let tyrecv = fresh_type lev UniversalKind (Range.dummy "do-recv") in
       unify ty1 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tyx));
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
-      let tysome = fresh_type lev (Range.dummy "do-some") in
+      let tysome = fresh_type lev UniversalKind (Range.dummy "do-some") in
       unify ty2 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tysome));
       let e2 =
         ithunk (ILetIn(lname, iforce e1, iforce e2))
@@ -1249,8 +1249,8 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
   | Receive(branches) ->
       let lev = pre.level in
-      let tyrecv = fresh_type lev (Range.dummy "receive-recv") in
-      let tyret = fresh_type lev (Range.dummy "receive-ret") in
+      let tyrecv = fresh_type lev UniversalKind (Range.dummy "receive-recv") in
+      let tyret = fresh_type lev UniversalKind (Range.dummy "receive-ret") in
       let ibracc =
         branches |> List.fold_left (fun ibracc branch ->
           let ibranch = typecheck_receive_branch pre tyrecv tyret branch in
@@ -1268,7 +1268,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       (ty, ITuple(es))
 
   | ListNil ->
-      let tysub = fresh_type pre.level (Range.dummy "list-nil") in
+      let tysub = fresh_type pre.level UniversalKind (Range.dummy "list-nil") in
       let ty = (rng, ListType(tysub)) in
       (ty, IListNil)
 
@@ -1281,7 +1281,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   | Case(utast0, branches) ->
       let (ty0, e0) = typecheck pre utast0 in
       let lev = pre.level in
-      let tyret = fresh_type lev (Range.dummy "case-ret") in
+      let tyret = fresh_type lev UniversalKind (Range.dummy "case-ret") in
       let ibracc =
         branches |> List.fold_left (fun ibracc branch ->
           let ibranch = typecheck_case_branch pre ty0 tyret branch in
@@ -1351,9 +1351,15 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       in
       ((rng, RecordType(labmap)), IRecord(emap))
 
-  | RecordAccess(utast1, rlabel) ->
-      let (_ty1, _e1) = typecheck pre utast1 in
-      failwith "typecheck, RecordAccess"
+  | RecordAccess(utast1, (_, label)) ->
+      let (ty1, e1) = typecheck pre utast1 in
+      let tyret = fresh_type pre.level UniversalKind rng in
+      let tyF =
+        let labmap = LabelAssoc.singleton label tyret in
+        fresh_type pre.level (RecordKind(labmap)) (Range.dummy "RecordAccess")
+      in
+      unify ty1 tyF;
+      (tyret, IRecordAccess(e1, label))
 
   | ModProjVal(modident1, (rng2, x2)) ->
       let (modsig1, _) = find_module pre.tyenv modident1 in
@@ -1445,17 +1451,17 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
   | PInt(n)  -> immediate (BaseType(IntType)) (IPInt(n))
 
   | PVar(x) ->
-      let ty = fresh_type ~name:x pre.level rng in
+      let ty = fresh_type ~name:x pre.level UniversalKind rng in
       let lname = generate_local_name rng x in
       (ty, IPVar(lname), BindingMap.singleton x (ty, lname, rng))
 
   | PWildCard ->
-      let ty = fresh_type ~name:"_" pre.level rng in
+      let ty = fresh_type ~name:"_" pre.level UniversalKind rng in
       (ty, IPWildCard, BindingMap.empty)
 
   | PListNil ->
       let ty =
-        let tysub = fresh_type pre.level rng in
+        let tysub = fresh_type pre.level UniversalKind rng in
         (rng, ListType(tysub))
       in
       (ty, IPListNil, BindingMap.empty)
@@ -1551,7 +1557,7 @@ fun namesf proj pre letbinds ->
       let (rngv, x) = letbind.vb_identifier in
       let (name_inner, name_outer) = namesf letbind in
       let levS = pre.level + 1 in
-      let tyf = fresh_type ~name:x levS rngv in
+      let tyf = fresh_type ~name:x levS UniversalKind rngv in
       let tyenv = tyenv |> Typeenv.add_val x (TypeConv.lift tyf) (proj name_inner) in
       (Alist.extend tupleacc (letbind, name_inner, name_outer, tyf), tyenv)
     ) (Alist.empty, pre.tyenv)
