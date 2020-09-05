@@ -118,6 +118,7 @@ and untyped_ast_main =
   | Case         of untyped_ast * untyped_branch list
   | Constructor  of constructor_name * untyped_ast list
   | BinaryByList of (int ranged) list
+  | Record       of labeled_untyped_ast list
   | ModProjVal   of module_name ranged * identifier ranged
 
 and internal_or_external =
@@ -238,6 +239,7 @@ and ('a, 'b) typ_main =
   | ProductType of (('a, 'b) typ) TupleList.t
   | ListType    of ('a, 'b) typ
   | DataType    of TypeID.t * (('a, 'b) typ) list
+  | RecordType  of (('a, 'b) typ) LabelAssoc.t
 
 and ('a, 'b) effect =
   | Effect of ('a, 'b) typ
@@ -300,15 +302,15 @@ let show_base_type = function
   | BinaryType -> "binary"
 
 
-let rec show_label_assoc : 'a 'b. string -> ('a -> string) -> ('b -> string option) -> (('a, 'b) typ) LabelAssoc.t -> string option =
-fun prefix showtv showrv labmap ->
+let rec show_label_assoc : 'a 'b. prefix:string -> suffix:string -> ('a -> string) -> ('b -> string option) -> (('a, 'b) typ) LabelAssoc.t -> string option =
+fun ~prefix:prefix ~suffix:suffix showtv showrv labmap ->
   if LabelAssoc.cardinal labmap = 0 then
     None
   else
     let s =
       LabelAssoc.fold (fun label ty acc ->
         let sty = show_type showtv showrv ty in
-        Alist.extend acc (prefix ^ label ^ " " ^ sty)
+        Alist.extend acc (prefix ^ label ^ suffix ^ " " ^ sty)
       ) labmap Alist.empty |> Alist.to_list |> String.concat ", "
     in
     Some(s)
@@ -326,7 +328,7 @@ fun showtv showrv ty ->
         let sdomscat = String.concat ", " sdoms in
         let is_ord_empty = (List.length sdoms = 0) in
         let (is_mnds_empty, smnds) =
-          match show_label_assoc "-" showtv showrv mndlabmap with
+          match show_label_assoc ~prefix:"-" ~suffix:"" showtv showrv mndlabmap with
           | None    -> (true, "")
           | Some(s) -> (false, s)
         in
@@ -371,6 +373,13 @@ fun showtv showrv ty ->
         let s0 = aux ty0 in
         Printf.sprintf "list<%s>" s0
 
+    | RecordType(labmap) ->
+        begin
+          match show_label_assoc ~prefix:"" ~suffix:" :" showtv showrv labmap with
+          | None    -> "{}"
+          | Some(s) -> Printf.sprintf "{%s}" s
+        end
+
     | DataType(tyid, tyargs) ->
         begin
           match tyargs with
@@ -395,7 +404,7 @@ fun showtv showrv ty ->
 and show_row : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) row -> string option =
 fun showtv showrv optrow ->
   match optrow with
-  | FixedRow(labmap) -> labmap |> show_label_assoc "?" showtv showrv
+  | FixedRow(labmap) -> labmap |> show_label_assoc ~prefix:"?" ~suffix:"" showtv showrv
   | RowVar(rv)       -> showrv rv |> Option.map (fun s -> "?" ^ s)
 
 
@@ -419,7 +428,7 @@ and show_mono_row_var (mrv : mono_row_var) : string option =
 
 and show_mono_row_var_updatable (mrvu : mono_row_var_updatable) : string option =
   match mrvu with
-  | LinkRow(labmap) -> show_label_assoc "?" show_mono_type_var show_mono_row_var labmap
+  | LinkRow(labmap) -> show_label_assoc ~prefix:"?" ~suffix:"" show_mono_type_var show_mono_row_var labmap
   | FreeRow(frid)   -> Some(Format.asprintf "%a" FreeRowID.pp frid)
 
 
@@ -570,6 +579,7 @@ and ast =
   | IListNil
   | IListCons    of ast * ast
   | IConstructor of ConstructorID.t * ast list
+  | IRecord      of ast LabelAssoc.t
   | IThunk       of ast
   | IForce       of ast
 

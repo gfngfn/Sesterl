@@ -348,6 +348,9 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     | ListType(ty) ->
         aux ty
 
+    | RecordType(labmap) ->
+        aux_label_assoc labmap
+
     | DataType(_tyid, tyargs) ->
         aux_list tyargs
 
@@ -440,6 +443,9 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
     | ListType(ty) ->
         aux ty
 
+    | RecordType(labmap) ->
+        aux_label_assoc labmap
+
     | DataType(_tyid, tyargs) ->
         aux_list tyargs
 
@@ -486,6 +492,9 @@ fun tyidp tvp oidset ->
 
     | DataType(tyid, tyargs) ->
         tyidp oidset tyid || List.exists aux tyargs
+
+    | RecordType(labmap) ->
+        aux_label_assoc labmap
 
     | TypeVar(tv) ->
         tvp tv
@@ -638,6 +647,9 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
         let resopt = aux_option_row optrow1 optrow2 in
         let res2 = aux ty1cod ty2cod in
         res1 &&& resmnd &&& resopt &&& res2
+
+    | (RecordType(labmap1), RecordType(labmap2)) ->
+        aux_label_assoc_exact labmap1 labmap2
 
     | (EffType(eff1, tysub1), EffType(eff2, tysub2)) ->
         let reseff = aux_effect eff1 eff2 in
@@ -1154,7 +1166,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             (mndlabmap, mndargmap)
         ) (LabelAssoc.empty, LabelAssoc.empty)
       in
-      let (labmap, optargmap) =
+      let (optlabmap, optargmap) =
         optutastargs |> List.fold_left (fun (optlabmap, optargmap) (rlabel, utast) ->
           let (rnglabel, label) = rlabel in
           if optlabmap |> LabelAssoc.mem label then
@@ -1169,7 +1181,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let tyret = fresh_type pre.level rng in
       let optrow =
         let frid = FreeRowID.fresh pre.level in
-        KindStore.register_free_row frid labmap;
+        KindStore.register_free_row frid optlabmap;
         let mrvu = ref (FreeRow(frid)) in
         RowVar(UpdatableRow(mrvu))
       in
@@ -1324,6 +1336,21 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         )
       in
       ((rng, BaseType(BinaryType)), IBaseConst(BinaryByInts(ns)))
+
+  | Record(labasts) ->
+      let (emap, labmap) =
+        labasts |> List.fold_left (fun (emap, labmap) (rlabel, utast) ->
+          let (rnglabel, label) = rlabel in
+          if labmap |> LabelAssoc.mem label then
+            raise_error (DuplicatedLabel(rnglabel, label))
+          else
+            let (ty, e) = typecheck pre utast in
+            let labmap = labmap |> LabelAssoc.add label ty in
+            let emap = emap |> LabelAssoc.add label e in
+            (emap, labmap)
+        ) (LabelAssoc.empty, LabelAssoc.empty)
+      in
+      ((rng, RecordType(labmap)), IRecord(emap))
 
   | ModProjVal(modident1, (rng2, x2)) ->
       let (modsig1, _) = find_module pre.tyenv modident1 in
@@ -2309,6 +2336,9 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
 
       | FuncType(ptydoms, pmndlabmap, poptrow, ptycod) ->
           FuncType(ptydoms |> List.map aux, pmndlabmap |> LabelAssoc.map aux, aux_option_row poptrow, aux ptycod)
+
+      | RecordType(labmap) ->
+          RecordType(labmap |> LabelAssoc.map aux)
 
       | DataType(TypeID.Opaque(oid_from), ptyargs) ->
           begin

@@ -82,6 +82,10 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
     | ListType(ty0) ->
         (rngf rng, ListType(aux ty0))
 
+    | RecordType(labmap) ->
+        let plabmap = labmap |> LabelAssoc.map aux in
+        (rngf rng, RecordType(plabmap))
+
     | DataType(tyid, tyargs) ->
         (rngf rng, DataType(tyid, tyargs |> List.map aux))
 
@@ -176,6 +180,10 @@ fun intern intern_row pty ->
 
     | ListType(pty0) ->
         (rng, ListType(aux pty0))
+
+    | RecordType(plabmap) ->
+        let labmap = plabmap |> LabelAssoc.map aux in
+        (rng, RecordType(labmap))
 
     | DataType(tyid, ptyargs) ->
         (rng, DataType(tyid, ptyargs |> List.map aux))
