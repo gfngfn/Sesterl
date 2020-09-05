@@ -49,7 +49,7 @@ let register_free_id (fid : FreeID.t) (mbkd : mono_base_kind) : unit =
 
 let get_free_id (fid : FreeID.t) : mono_base_kind =
   match FreeIDHashTable.find_opt free_id_table fid with
-  | None       -> assert false
+  | None       -> failwith (Format.asprintf "not found: %a" FreeID.pp fid)
   | Some(mbkd) -> mbkd
 
 

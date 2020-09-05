@@ -884,15 +884,15 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
   | InclusionRow(frid) -> raise_error (InclusionRowError(frid, tyact, tyexp))
 
 
-let fresh_type_variable ?name:_nameopt (lev : int) (mbkd : mono_base_kind) (rng : Range.t) : mono_type =
+let fresh_type_variable ?name:nameopt (lev : int) (mbkd : mono_base_kind) (rng : Range.t) : mono_type =
   let fid = FreeID.fresh lev in
   KindStore.register_free_id fid mbkd;
   let mtvu = ref (Free(fid)) in
   let ty = (rng, TypeVar(Updatable(mtvu))) in
-(*
+
   let name = nameopt |> Option.map (fun x -> x ^ " : ") |> Option.value ~default:"" in
-  Format.printf "GEN %sL%d %a\n" name lev pp_mono_type ty;  (* for debug *)
-*)
+  Format.printf "GEN %sL%d %a :: %a\n" name lev pp_mono_type ty pp_mono_base_kind mbkd;  (* for debug *)
+
   ty
 
 
@@ -1223,7 +1223,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             (optlabmap, optargmap)
         ) (LabelAssoc.empty, LabelAssoc.empty)
       in
-      let tyret = fresh_type_variable pre.level UniversalKind rng in
+      let tyret = fresh_type_variable ~name:"(Apply)" pre.level UniversalKind rng in
       let optrow =
         let frid = FreeRowID.fresh pre.level in
         KindStore.register_free_row frid optlabmap;

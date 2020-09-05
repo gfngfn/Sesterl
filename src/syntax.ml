@@ -479,6 +479,14 @@ let pp_mono_type ppf ty =
   Format.fprintf ppf "%s" (show_mono_type ty)
 
 
+let show_mono_base_kind : mono_base_kind -> string =
+  show_base_kind show_mono_type_var show_mono_row_var
+
+
+let pp_mono_base_kind ppf mbkd =
+  Format.fprintf ppf "%s" (show_mono_base_kind mbkd)
+
+
 let show_poly_type_var = function
   | Bound(bid) -> Format.asprintf "%a" BoundID.pp bid
   | Mono(mtv)  -> show_mono_type_var mtv
