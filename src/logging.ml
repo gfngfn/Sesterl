@@ -72,23 +72,23 @@ let report_type_error (e : type_error) : unit =
       let (rng1, _) = ty1 in
       Format.printf "%a: this expression has type %a but is expected of type %a\n"
         Range.pp rng1
-        pp_mono_type ty1
-        pp_mono_type ty2
+        TypeConv.pp_mono_type ty1
+        TypeConv.pp_mono_type ty2
 
   | InclusionError(fid, ty1, ty2) ->
       let (rng1, _) = ty1 in
       Format.printf "%a: this expression has type %a and type %a at the same time, but these types are inconsistent as to the occurrence of type variable %a\n"
         Range.pp rng1
-        pp_mono_type ty1
-        pp_mono_type ty2
+        TypeConv.pp_mono_type ty1
+        TypeConv.pp_mono_type ty2
         FreeID.pp fid
 
   | InclusionRowError(frid, ty1, ty2) ->
       let (rng1, _) = ty1 in
       Format.printf "%a: this expression has type %a and type %a at the same time, but these types are inconsistent as to the occurrence of row variable %a\n"
         Range.pp rng1
-        pp_mono_type ty1
-        pp_mono_type ty2
+        TypeConv.pp_mono_type ty1
+        TypeConv.pp_mono_type ty2
         FreeRowID.pp frid
 
   | BoundMoreThanOnceInPattern(rng, x) ->
@@ -184,27 +184,27 @@ let report_type_error (e : type_error) : unit =
       Format.printf "%a: not a subtype; as to value '%s', type %a cannot be encapsulated by type %a\n"
         Range.pp rng
         x
-        pp_poly_type pty1
-        pp_poly_type pty2
+        TypeConv.pp_poly_type pty1
+        TypeConv.pp_poly_type pty2
 
   | PolymorphicInclusion(rng, fid, pty1, pty2) ->
       Format.printf "%a: type %a is inconsistent with type %a as to type variable %a\n"
         Range.pp rng
-        pp_poly_type pty1
-        pp_poly_type pty2
+        TypeConv.pp_poly_type pty1
+        TypeConv.pp_poly_type pty2
         FreeID.pp fid
 
   | MissingRequiredValName(rng, x, pty) ->
       Format.printf "%a: missing required value '%s' of type %a\n"
         Range.pp rng
         x
-        pp_poly_type pty
+        TypeConv.pp_poly_type pty
 
-  | MissingRequiredTypeName(rng, tynm, (_, arity)) ->
+  | MissingRequiredTypeName(rng, tynm, (_, pkd)) ->
       Format.printf "%a: missing required type name '%s' of arity %d\n"
         Range.pp rng
         tynm
-        arity
+        (TypeConv.arity_of_kind pkd)
 
   | MissingRequiredModuleName(rng, modnm, _modsign) ->
       Format.printf "%a: missing required module name '%s'\n"

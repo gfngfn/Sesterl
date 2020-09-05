@@ -20,7 +20,7 @@ type variant_entry = {
 }
 
 type opaque_entry = {
-  o_kind : kind;
+  o_kind : poly_kind;
 }
 
 type module_signature =
@@ -52,7 +52,7 @@ and signature_entry = {
 and environment = {
   vals         : val_entry ValNameMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<vals>")]
-  type_names   : (type_entry * int) TypeNameMap.t;
+  type_names   : (type_entry * poly_kind) TypeNameMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<type_names>")]
   opaques      : opaque_entry OpaqueIDMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<opaques>")]
@@ -72,12 +72,14 @@ and record_signature =
 
 and record_signature_entry =
   | SRVal      of identifier * (poly_type * global_name)
+      [@printer (fun ppf _ -> Format.fprintf ppf "<SRVal>")]
   | SRRecTypes of (type_name * type_opacity) list
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRRecTypes>")]
   | SRModule   of module_name * (module_signature * space_name)
   | SRSig      of signature_name * module_signature abstracted
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRSig>")]
   | SRCtor     of constructor_name * constructor_entry
+      [@printer (fun ppf _ -> Format.fprintf ppf "<SRCtor>")]
 [@@deriving show { with_path = false }]
 
 
@@ -145,9 +147,9 @@ module Typeenv = struct
     ValNameMap.fold (fun x entry acc -> f x entry.typ acc) tyenv.vals acc
 
 
-  let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (arity : int) (tyenv : t) : t =
+  let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (pkd : poly_kind) (tyenv : t) : t =
     { tyenv with
-      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedVariant(vid), arity);
+      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedVariant(vid), pkd);
     }
 
 
@@ -157,27 +159,27 @@ module Typeenv = struct
     }
 
 
-  let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (arity : int) (tyenv : t) : t =
+  let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (pkd : poly_kind) (tyenv : t) : t =
     { tyenv with
-      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedSynonym(sid), arity);
+      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedSynonym(sid), pkd);
     }
 
 
-  let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (kind : kind) (tyenv : t) : t =
+  let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (pkd : poly_kind) (tyenv : t) : t =
     let oentry =
       {
-        o_kind = kind;
+        o_kind = pkd;
       }
     in
     { tyenv with
-      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedOpaque(oid), kind);
+      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedOpaque(oid), pkd);
       opaques    = tyenv.opaques |> OpaqueIDMap.add oid oentry;
     }
 
 
-  let add_type_for_recursion (tynm : type_name) (tyid : TypeID.t) (arity : int) (tyenv : t) : t =
+  let add_type_for_recursion (tynm : type_name) (tyid : TypeID.t) (pkd : poly_kind) (tyenv : t) : t =
     { tyenv with
-      type_names = tyenv.type_names |> TypeNameMap.add tynm (Defining(tyid), arity);
+      type_names = tyenv.type_names |> TypeNameMap.add tynm (Defining(tyid), pkd);
     }
 
 
@@ -187,7 +189,7 @@ module Typeenv = struct
     )
 
 
-  let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * int) option =
+  let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * poly_kind) option =
     tyenv.type_names |> TypeNameMap.find_opt tynm |> Option.map (fun (tyentry, arity) ->
       match tyentry with
       | Defining(tyid)      -> (tyid, arity)
@@ -290,8 +292,8 @@ module SigRecord = struct
     )
 
 
-  let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (kd : kind) (sigr : t) : t =
-    Alist.extend sigr (SRRecTypes[ (tynm, (TypeID.Opaque(oid), kd)) ])
+  let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (pkd : poly_kind) (sigr : t) : t =
+    Alist.extend sigr (SRRecTypes[ (tynm, (TypeID.Opaque(oid), pkd)) ])
 
 
   let add_module (modnm : module_name) (modsig : module_signature) (sname : space_name) (sigr : t) : t =
@@ -433,6 +435,18 @@ let pp_type_parameters ppf typarams =
   | _ :: _ -> Format.fprintf ppf "<%a>" (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
 
 
+let display_poly_type pty =
+  let (sbids, sbrids, sty) = TypeConv.show_poly_type pty in
+  let ssub =
+    let ss = List.append sbids sbrids in
+    if List.length ss = 0 then
+      ""
+    else
+      "<" ^ (String.concat ", " ss) ^ ">"
+  in
+  (ssub, sty)
+
+
 let rec display_signature (depth : int) (modsig : module_signature) : unit =
   let indent = String.make (depth * 2) ' ' in
   match modsig with
@@ -456,19 +470,21 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
   let indent = String.make (depth * 2) ' ' in
   sigr |> SigRecord.fold
       ~v:(fun x (pty, _) () ->
-        Format.printf "%sval %s : %a\n" indent x pp_poly_type pty
+        let (ssub, sty) = display_poly_type pty in
+        Format.printf "%sval %s%s : %s\n" indent x ssub sty
       )
       ~t:(fun tydefs () ->
         tydefs |> List.iter (fun (tynm, tyopac) ->
-          let (tyid, arity) = tyopac in
+          let (tyid, pkd) = tyopac in
           match tyid with
           | TypeID.Synonym(sid) ->
               let (typarams, ptyreal) = TypeDefinitionStore.find_synonym_type sid in
-              Format.printf "%stype %a%a = %a\n"
+              let (_, sty) = display_poly_type ptyreal in
+              Format.printf "%stype %a%a = %s\n"
                 indent
                 TypeID.Synonym.pp sid
                 pp_type_parameters typarams
-                pp_poly_type ptyreal
+                sty
 
           | TypeID.Variant(vid) ->
               let (typarams, _ctorbrs) = TypeDefinitionStore.find_variant_type vid in
@@ -481,7 +497,7 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
               Format.printf "%stype %a :: %d\n"
                 indent
                 TypeID.Opaque.pp oid
-                arity
+                (TypeConv.arity_of_kind pkd)
         )
       )
       ~m:(fun modnm (modsig, _) () ->

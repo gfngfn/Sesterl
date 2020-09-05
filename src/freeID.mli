@@ -9,7 +9,7 @@ val hash : t -> int
 
 val initialize : unit -> unit
 
-val fresh : level -> t
+val fresh : message:string -> level -> t
 
 val get_level : t -> level
 

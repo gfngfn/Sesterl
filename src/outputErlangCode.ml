@@ -213,13 +213,7 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
         List.append ordastargs mndastargs
       in
       let sargs = astargs |> List.map iter in
-      let soptmap =
-        LabelAssoc.fold (fun label ast acc ->
-          let sarg = iter ast in
-          let s = Printf.sprintf "%s => %s" label sarg in
-          Alist.extend acc s
-        ) optargmap Alist.empty |> Alist.to_list |> String.concat ", "
-      in
+      let soptmap = mapify_label_assoc gmap optargmap in
       let can_take_optional = TypeConv.can_row_take_optional mrow in
       begin
         match (name, sargs) with
@@ -271,6 +265,14 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
         | _ ->
             assert false
       end
+
+  | IRecord(emap) ->
+      let s = mapify_label_assoc gmap emap in
+      Printf.sprintf "#{%s}" s
+
+  | IRecordAccess(ast1, label) ->
+      let s1 = iter ast1 in
+      Printf.sprintf "maps:get(%s, %s)" label s1
 
   | ILetIn(lname, ast1, ast2) ->
       let s0 = OutputIdentifier.output_local lname in
@@ -326,6 +328,14 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
       let sname = fresh_local_symbol () in
       let s0 = iter e0 in
       Printf.sprintf "begin %s = %s, %s() end" sname s0 sname
+
+
+and mapify_label_assoc (gmap : global_name_map) (emap : ast LabelAssoc.t) =
+  LabelAssoc.fold (fun label ast acc ->
+    let sarg = stringify_ast gmap ast in
+    let s = Printf.sprintf "%s => %s" label sarg in
+    Alist.extend acc s
+  ) emap Alist.empty |> Alist.to_list |> String.concat ", "
 
 
 and stringify_branch (gmap : global_name_map) (br : branch) =

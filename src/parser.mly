@@ -44,10 +44,12 @@
 *)
 %}
 
-%token<Range.t> LET LETREC DEFEQ IN LAMBDA ARROW IF THEN ELSE LPAREN RPAREN LSQUARE RSQUARE TRUE FALSE COMMA DO REVARROW RECEIVE BAR WHEN END UNDERSCORE CONS CASE OF TYPE COLON ANDREC VAL MODULE STRUCT SIGNATURE SIG EXTERNAL INCLUDE COERCE REQUIRE
+%token<Range.t> LET LETREC ANDREC IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE WHEN END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG EXTERNAL INCLUDE REQUIRE
+%token<Range.t> LPAREN RPAREN LSQUARE RSQUARE LBRACE RBRACE
+%token<Range.t> DEFEQ COMMA ARROW REVARROW BAR UNDERSCORE CONS COLON COERCE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
-%token<Range.t * string> IDENT DOTIDENT CTOR DOTCTOR TYPARAM ROWPARAM MNDLABEL OPTLABEL BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
-%token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS
+%token<Range.t * string> IDENT DOTIDENT CTOR DOTCTOR TYPARAM ROWPARAM MNDLABEL OPTLABEL
+%token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * int> INT
 %token<Range.t * float> FLOAT
 %token<Range.t * string> STRING STRING_BLOCK
@@ -485,6 +487,11 @@ optargs:
   | rlabel=OPTLABEL; e=exprlet                      { [ (rlabel, e) ] }
   | rlabel=OPTLABEL; e=exprlet; COMMA; tail=optargs { (rlabel, e) :: tail }
 ;
+record:
+  |                                                    { [] }
+  | rlabel=IDENT; DEFEQ; e=exprlet                     { [ (rlabel, e) ] }
+  | rlabel=IDENT; DEFEQ; e=exprlet; COMMA; tail=record { (rlabel, e) :: tail }
+;
 exprs:
   |                              { [] }
   | e=exprlet                    { [ e ] }
@@ -518,6 +525,14 @@ exprbot:
         let (rng, s) = strlit in
         (rng, BaseConst(BinaryByString(s)))
       }
+  | tokL=LBRACE; les=record; tokR=RBRACE {
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, Record(les))
+      }
+  | e=exprbot; rlabel=DOTIDENT {
+        let rng = make_range (Ranged(e)) (Ranged(rlabel)) in
+        (rng, RecordAccess(e, rlabel))
+    }
 ;
 bytes:
   |                            { [] }

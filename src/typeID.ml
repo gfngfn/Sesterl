@@ -35,8 +35,8 @@ module Internal(A : sig val suffix : string end) = struct
       }
     )
 
-  let hash =
-    Hashtbl.hash
+  let hash tyid =
+    tyid.number
 
   let compare tyid1 tyid2 =
     tyid2.number - tyid1.number

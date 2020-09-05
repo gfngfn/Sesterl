@@ -13,6 +13,7 @@ let decode_option_function =
 
 let fresh_bound () =
   let bid = BoundID.fresh () in
+  KindStore.register_bound_id bid UniversalKind;
   (Range.dummy "primitives-bound", TypeVar(Bound(bid)))
 
 
@@ -189,7 +190,8 @@ let initial_environment =
     let tyenv : Typeenv.t =
       vntdefs |> List.fold_left (fun tyenv vntdef ->
         let (tynm, vid, bids, ctordefs) = vntdef in
-        let tyenv = tyenv |> Typeenv.add_variant_type tynm vid (List.length bids) in
+        let pkd = TypeConv.kind_of_arity (List.length bids) in
+        let tyenv = tyenv |> Typeenv.add_variant_type tynm vid pkd in
         ctordefs |> List.fold_left (fun tyenv ctordef ->
           let (ctor, paramtys) = ctordef in
           let ctorentry =
@@ -238,6 +240,7 @@ let initial_environment =
   (Typeenv.empty, GlobalNameMap.empty)
     |> add_variant_types [
       let bid = BoundID.fresh () in
+      KindStore.register_bound_id bid UniversalKind;
       ("option", vid_option, [bid], [
         ("None", []);
         ("Some", [(dr, TypeVar(Bound(bid)))])

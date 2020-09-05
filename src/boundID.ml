@@ -8,7 +8,8 @@ let equal bid1 bid2 =
   bid1.id = bid2.id
 
 
-let hash = Hashtbl.hash
+let hash bid =
+  bid.id
 
 
 let compare bid1 bid2 =

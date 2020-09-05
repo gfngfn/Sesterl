@@ -73,9 +73,6 @@ type manual_kind = int
   (* -- order-0 or order-1 kind only; just tracks arity -- *)
 [@@deriving show { with_path = false; } ]
 
-type kind = int
-  (* -- as `manual_kind`, this type handles order-0 or order-1 kind only -- *)
-
 type manual_type = manual_type_main ranged
 
 and manual_type_main =
@@ -118,6 +115,8 @@ and untyped_ast_main =
   | Case         of untyped_ast * untyped_branch list
   | Constructor  of constructor_name * untyped_ast list
   | BinaryByList of (int ranged) list
+  | Record       of labeled_untyped_ast list
+  | RecordAccess of untyped_ast * label ranged
   | ModProjVal   of module_name ranged * identifier ranged
 
 and internal_or_external =
@@ -238,6 +237,7 @@ and ('a, 'b) typ_main =
   | ProductType of (('a, 'b) typ) TupleList.t
   | ListType    of ('a, 'b) typ
   | DataType    of TypeID.t * (('a, 'b) typ) list
+  | RecordType  of (('a, 'b) typ) LabelAssoc.t
 
 and ('a, 'b) effect =
   | Effect of ('a, 'b) typ
@@ -248,6 +248,14 @@ and ('a, 'b) pid_type =
 and ('a, 'b) row =
   | FixedRow of (('a, 'b) typ) LabelAssoc.t
   | RowVar   of 'b
+
+and ('a, 'b) base_kind =
+  | UniversalKind
+  | RecordKind    of (('a, 'b) typ) LabelAssoc.t
+
+type ('a, 'b) kind =
+  | Kind of (('a, 'b) base_kind) list * ('a, 'b) base_kind
+      (* Handles order-0 or order-1 kind only, *)
 
 type mono_type_var_updatable =
   | Free of FreeID.t
@@ -269,6 +277,10 @@ and mono_type = (mono_type_var, mono_row_var) typ
 
 type mono_row = (mono_type_var, mono_row_var) row
 
+type mono_kind = (mono_type_var, mono_row_var) kind
+
+type mono_base_kind = (mono_type_var, mono_row_var) base_kind
+
 type poly_type_var =
   | Mono  of mono_type_var
   | Bound of BoundID.t
@@ -281,6 +293,10 @@ and poly_type = (poly_type_var, poly_row_var) typ
 
 type poly_row = (poly_type_var, poly_row_var) row
 
+type poly_kind = (poly_type_var, poly_row_var) kind
+
+type poly_base_kind = (poly_type_var, poly_row_var) base_kind
+
 module FreeIDHashTable = Hashtbl.Make(FreeID)
 
 module FreeRowIDHashTable = Hashtbl.Make(FreeRowID)
@@ -290,174 +306,6 @@ module BoundIDHashTable = Hashtbl.Make(BoundID)
 module BoundRowIDHashTable = Hashtbl.Make(BoundRowID)
 
 module BoundIDMap = Map.Make(BoundID)
-
-
-let show_base_type = function
-  | UnitType   -> "unit"
-  | BoolType   -> "bool"
-  | IntType    -> "int"
-  | FloatType  -> "float"
-  | BinaryType -> "binary"
-
-
-let rec show_label_assoc : 'a 'b. string -> ('a -> string) -> ('b -> string option) -> (('a, 'b) typ) LabelAssoc.t -> string option =
-fun prefix showtv showrv labmap ->
-  if LabelAssoc.cardinal labmap = 0 then
-    None
-  else
-    let s =
-      LabelAssoc.fold (fun label ty acc ->
-        let sty = show_type showtv showrv ty in
-        Alist.extend acc (prefix ^ label ^ " " ^ sty)
-      ) labmap Alist.empty |> Alist.to_list |> String.concat ", "
-    in
-    Some(s)
-
-
-and show_type : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) typ -> string =
-fun showtv showrv ty ->
-  let rec aux (_, tymain) =
-    match tymain with
-    | BaseType(bty) ->
-        show_base_type bty
-
-    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
-        let sdoms = tydoms |> List.map aux in
-        let sdomscat = String.concat ", " sdoms in
-        let is_ord_empty = (List.length sdoms = 0) in
-        let (is_mnds_empty, smnds) =
-          match show_label_assoc "-" showtv showrv mndlabmap with
-          | None    -> (true, "")
-          | Some(s) -> (false, s)
-        in
-        let (is_opts_empty, sopts) =
-          match show_row showtv showrv optrow with
-          | None    -> (true, "")
-          | Some(s) -> (false, s)
-        in
-        let smid1 =
-          if is_ord_empty then
-            ""
-          else
-            if is_mnds_empty && is_opts_empty then "" else ", "
-        in
-        let smid2 =
-          if is_mnds_empty || is_opts_empty then
-            ""
-          else
-            if is_ord_empty then "" else ", "
-        in
-        let scod = aux tycod in
-        Printf.sprintf "fun(%s%s%s%s%s) -> %s"
-          sdomscat smid1 smnds smid2 sopts scod
-
-    | EffType(eff, ty0) ->
-        let seff = aux_effect eff in
-        let s0 = aux ty0 in
-        seff ^ s0
-
-    | PidType(pidty) ->
-        let spid = aux_pid_type pidty in
-        "pid<" ^ spid ^ ">"
-
-    | TypeVar(tv) ->
-        showtv tv
-
-    | ProductType(tys) ->
-        let ss = tys |> TupleList.to_list |> List.map aux in
-        Printf.sprintf "(%s)" (String.concat ", " ss)
-
-    | ListType(ty0) ->
-        let s0 = aux ty0 in
-        Printf.sprintf "list<%s>" s0
-
-    | DataType(tyid, tyargs) ->
-        begin
-          match tyargs with
-          | [] ->
-              Format.asprintf "%a" TypeID.pp tyid
-
-          | _ :: _ ->
-              let ss = tyargs |> List.map aux in
-              Format.asprintf "%a<%s>" TypeID.pp tyid (String.concat ", " ss)
-        end
-
-  and aux_effect (Effect(ty)) =
-    let s = aux ty in
-    "[" ^ s ^ "]"
-
-  and aux_pid_type (Pid(ty)) =
-    aux ty
-  in
-  aux ty
-
-
-and show_row : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) row -> string option =
-fun showtv showrv optrow ->
-  match optrow with
-  | FixedRow(labmap) -> labmap |> show_label_assoc "?" showtv showrv
-  | RowVar(rv)       -> showrv rv |> Option.map (fun s -> "?" ^ s)
-
-
-and show_mono_type_var (mtv : mono_type_var) : string =
-  match mtv with
-  | MustBeBound(mbbid) -> Format.asprintf "%a" MustBeBoundID.pp mbbid
-  | Updatable(mtvu)    -> show_mono_type_var_updatable !mtvu
-
-
-and show_mono_type_var_updatable (mtvu : mono_type_var_updatable) : string =
-  match mtvu with
-  | Link(ty)  -> show_type show_mono_type_var show_mono_row_var ty
-  | Free(fid) -> Format.asprintf "%a" FreeID.pp fid
-
-
-and show_mono_row_var (mrv : mono_row_var) : string option =
-  match mrv with
-  | UpdatableRow(mrvu)     -> show_mono_row_var_updatable !mrvu
-  | MustBeBoundRow(mbbrid) -> Some(Format.asprintf "%a" MustBeBoundRowID.pp mbbrid)
-
-
-and show_mono_row_var_updatable (mrvu : mono_row_var_updatable) : string option =
-  match mrvu with
-  | LinkRow(labmap) -> show_label_assoc "?" show_mono_type_var show_mono_row_var labmap
-  | FreeRow(frid)   -> Some(Format.asprintf "%a" FreeRowID.pp frid)
-
-
-let show_mono_type : mono_type -> string =
-  show_type show_mono_type_var show_mono_row_var
-
-
-let pp_mono_type ppf ty =
-  Format.fprintf ppf "%s" (show_mono_type ty)
-
-
-let show_poly_type_var = function
-  | Bound(bid) -> Format.asprintf "%a" BoundID.pp bid
-  | Mono(mtv)  -> show_mono_type_var mtv
-
-
-let rec show_poly_row_var = function
-  | BoundRow(brid) -> Some(Format.asprintf "%a" BoundRowID.pp brid)
-  | MonoRow(mrv)   -> show_mono_row_var mrv
-
-
-let show_poly_type : poly_type -> string =
-  show_type show_poly_type_var show_poly_row_var
-
-
-let pp_poly_type ppf pty =
-  Format.fprintf ppf "%s" (show_poly_type pty)
-
-
-let show_poly_row : poly_row -> string option =
-  show_row show_poly_type_var show_poly_row_var
-
-
-let pp_poly_row (ppf : Format.formatter) (prow : poly_row) : unit =
-  match show_poly_row prow with
-  | None    -> ()
-  | Some(s) -> Format.fprintf ppf "%s" s
-
 
 type space_name = OutputIdentifier.space
 [@@deriving show { with_path = false; } ]
@@ -537,7 +385,7 @@ type pattern =
   | IPConstructor of ConstructorID.t * pattern list
 [@@deriving show { with_path = false; } ]
 
-type type_opacity = TypeID.t * int
+type type_opacity = TypeID.t * poly_kind
 
 type 'a abstracted = OpaqueIDSet.t * 'a
 
@@ -547,7 +395,6 @@ type constructor_entry = {
   type_variables  : BoundID.t list;
   parameter_types : poly_type list;
 }
-[@@deriving show { with_path = false; } ]
 
 type val_binding =
   | INonRec   of (identifier * global_name * poly_type * ast)
@@ -570,6 +417,8 @@ and ast =
   | IListNil
   | IListCons    of ast * ast
   | IConstructor of ConstructorID.t * ast list
+  | IRecord      of ast LabelAssoc.t
+  | IRecordAccess of ast * label
   | IThunk       of ast
   | IForce       of ast
 

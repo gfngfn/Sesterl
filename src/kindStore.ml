@@ -15,6 +15,14 @@ let bound_row_hash_table =
   BoundRowHashTable.create 1024
 
 
+let free_id_table : mono_base_kind FreeIDHashTable.t =
+  FreeIDHashTable.create 1024
+
+
+let bound_id_table : poly_base_kind BoundIDHashTable.t =
+  BoundIDHashTable.create 1024
+
+
 let register_free_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) : unit =
   FreeRowHashTable.add free_row_hash_table frid labmap
 
@@ -33,3 +41,38 @@ let get_bound_row (brid : BoundRowID.t) : poly_type LabelAssoc.t =
   match BoundRowHashTable.find_opt bound_row_hash_table brid with
   | None          -> assert false
   | Some(plabmap) -> plabmap
+
+
+let register_free_id (fid : FreeID.t) (mbkd : mono_base_kind) : unit =
+(*
+  print_endline (Format.asprintf "register: %a :: %a" FreeID.pp fid pp_mono_base_kind mbkd);  (* for debug *)
+*)
+  FreeIDHashTable.add free_id_table fid mbkd
+
+
+let get_free_id (fid : FreeID.t) : mono_base_kind =
+  match FreeIDHashTable.find_opt free_id_table fid with
+  | None ->
+      assert false
+(*
+      let s =
+        FreeIDHashTable.fold (fun fidx mbkd acc ->
+          let s = if FreeID.equal fidx fid then "yes" else "no" in
+          (Format.asprintf "%a :: %a (%s)" FreeID.pp fidx pp_mono_base_kind mbkd s) :: acc
+        ) free_id_table [] |> String.concat "\n"
+      in
+      failwith (Format.asprintf "not found %a in\n%s" FreeID.pp fid s)  (* for debug *)
+*)
+
+  | Some(mbkd) ->
+      mbkd
+
+
+let register_bound_id (bid : BoundID.t) (pbkd : poly_base_kind) : unit =
+  BoundIDHashTable.add bound_id_table bid pbkd
+
+
+let get_bound_id (bid : BoundID.t) : poly_base_kind =
+  match BoundIDHashTable.find_opt bound_id_table bid with
+  | None       -> assert false
+  | Some(pbkd) -> pbkd

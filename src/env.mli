@@ -40,19 +40,19 @@ module Typeenv : sig
 
   val fold_val : (identifier -> poly_type -> 'a -> 'a) -> t -> 'a -> 'a
 
-  val add_variant_type : type_name -> TypeID.Variant.t -> int -> t -> t
+  val add_variant_type : type_name -> TypeID.Variant.t -> poly_kind -> t -> t
 
   val add_constructor : constructor_name -> constructor_entry -> t -> t
 
-  val add_synonym_type : type_name -> TypeID.Synonym.t -> int -> t -> t
+  val add_synonym_type : type_name -> TypeID.Synonym.t -> poly_kind -> t -> t
 
-  val add_opaque_type : type_name -> TypeID.Opaque.t -> kind -> t -> t
+  val add_opaque_type : type_name -> TypeID.Opaque.t -> poly_kind -> t -> t
 
-  val add_type_for_recursion : type_name -> TypeID.t -> int -> t -> t
+  val add_type_for_recursion : type_name -> TypeID.t -> poly_kind -> t -> t
 
   val find_constructor : constructor_name -> t -> (TypeID.Variant.t * ConstructorID.t * BoundID.t list * poly_type list) option
 
-  val find_type : type_name -> t -> (TypeID.t * int) option
+  val find_type : type_name -> t -> (TypeID.t * poly_kind) option
 
   val add_module : module_name -> module_signature -> space_name -> t -> t
 
@@ -82,7 +82,7 @@ module SigRecord : sig
 
   val find_type : type_name -> t -> type_opacity option
 
-  val add_opaque_type : type_name -> TypeID.Opaque.t -> kind -> t -> t
+  val add_opaque_type : type_name -> TypeID.Opaque.t -> poly_kind -> t -> t
 
   val add_module : module_name -> module_signature -> space_name -> t -> t
 
