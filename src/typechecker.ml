@@ -889,10 +889,10 @@ let fresh_type_variable ?name:nameopt (lev : int) (mbkd : mono_base_kind) (rng :
   KindStore.register_free_id fid mbkd;
   let mtvu = ref (Free(fid)) in
   let ty = (rng, TypeVar(Updatable(mtvu))) in
-
+(*
   let name = nameopt |> Option.map (fun x -> x ^ " : ") |> Option.value ~default:"" in
   Format.printf "GEN %sL%d %a :: %a\n" name lev pp_mono_type ty pp_mono_base_kind mbkd;  (* for debug *)
-
+*)
   ty
 
 

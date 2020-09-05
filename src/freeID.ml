@@ -26,10 +26,12 @@ let initialize () =
   current_max := 0
 
 
-let fresh ~message:msg lev =
+let fresh ~message:_msg lev =
   incr current_max;
   let ret = { id = !current_max; level = lev; } in
-  print_endline (Format.asprintf "generate %a (%s)" pp ret msg);
+(*
+  print_endline (Format.asprintf "generate %a (%s)" pp ret msg);  (* for debug *)
+*)
   ret
 
 

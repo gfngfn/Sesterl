@@ -44,20 +44,25 @@ let get_bound_row (brid : BoundRowID.t) : poly_type LabelAssoc.t =
 
 
 let register_free_id (fid : FreeID.t) (mbkd : mono_base_kind) : unit =
-  print_endline (Format.asprintf "register: %a :: %a" FreeID.pp fid pp_mono_base_kind mbkd);
+(*
+  print_endline (Format.asprintf "register: %a :: %a" FreeID.pp fid pp_mono_base_kind mbkd);  (* for debug *)
+*)
   FreeIDHashTable.add free_id_table fid mbkd
 
 
 let get_free_id (fid : FreeID.t) : mono_base_kind =
   match FreeIDHashTable.find_opt free_id_table fid with
   | None ->
+      assert false
+(*
       let s =
         FreeIDHashTable.fold (fun fidx mbkd acc ->
           let s = if FreeID.equal fidx fid then "yes" else "no" in
           (Format.asprintf "%a :: %a (%s)" FreeID.pp fidx pp_mono_base_kind mbkd s) :: acc
         ) free_id_table [] |> String.concat "\n"
       in
-      failwith (Format.asprintf "not found %a in\n%s" FreeID.pp fid s)
+      failwith (Format.asprintf "not found %a in\n%s" FreeID.pp fid s)  (* for debug *)
+*)
 
   | Some(mbkd) ->
       mbkd
