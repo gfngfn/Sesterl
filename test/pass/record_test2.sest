@@ -4,11 +4,13 @@ module RecordTest2 = struct
   module Impl = struct
     let record() = { foo = 42, bar = true }
     let get_foo(x) = x.foo
+    let get_foo2(x) = get_foo(x)
   end
 
   module Api = Impl :> sig
     val record : fun() -> { foo : int, bar : bool }
-    val get_foo : fun({ foo : binary, bar : float }) -> binary
+    val get_foo<$a, $b :: {foo : $a}> : fun($b) -> $a
+    val get_foo2 : fun({ foo : binary, bar : float }) -> binary
   end
 
 end
