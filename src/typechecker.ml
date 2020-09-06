@@ -917,14 +917,14 @@ let make_bound_to_free_map (pre : pre) (typarams : (BoundID.t * mono_base_kind) 
 
 
 let rec make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder list) : type_parameter_assoc =
-  tyvarnms |> List.fold_left (fun assoc ((rng, tyvarnm), mnbkdopt) ->
+  tyvarnms |> List.fold_left (fun assoc ((rng, tyvarnm), kdannot) ->
     let mbbid = MustBeBoundID.fresh pre.level in
     let mbkd =
-      match mnbkdopt with
+      match kdannot with
       | None        -> UniversalKind
       | Some(mnbkd) -> decode_manual_base_kind pre mnbkd
     in
-    let pbkd = TypeConv.generalize_kind mbkd in
+    let pbkd = TypeConv.generalize_base_kind pre.level mbkd in
     KindStore.register_bound_id (MustBeBoundID.to_bound mbbid) pbkd;
 (*
     Format.printf "MUST-BE-BOUND %s : L%d %a\n" tyvarnm lev MustBeBoundID.pp mbbid;  (* for debug *)

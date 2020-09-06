@@ -354,8 +354,13 @@ let rec kind_of_arity n =
   Kind(bkddoms, UniversalKind)
 
 
-let generalize_kind (mbkd : mono_base_kind) : poly_base_kind =
-  failwith "generalize_kind"
+let generalize_base_kind (lev : int) (mbkd : mono_base_kind) : poly_base_kind =
+  match mbkd with
+  | UniversalKind ->
+      UniversalKind
+
+  | RecordKind(labmap) ->
+      RecordKind(labmap |> LabelAssoc.map (generalize lev))
 
 
 let rec arity_of_kind = function
