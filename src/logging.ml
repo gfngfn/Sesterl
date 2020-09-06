@@ -123,6 +123,11 @@ let report_type_error (e : type_error) : unit =
         Range.pp rng
         tynm
 
+  | UndefinedKindName(rng, kdnm) ->
+      Format.printf "%a: undefined kind '%s'\n"
+        Range.pp rng
+        kdnm
+
   | InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual) ->
       Format.printf "%a: type constructor '%s' expects %d argument(s), but is here applied to %d argument(s)\n"
         Range.pp rng
