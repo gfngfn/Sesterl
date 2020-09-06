@@ -144,9 +144,16 @@ typaramssub:
   | typaram=TYPARAM {
         ([ (typaram, None) ], [])
       }
+  | typaram=TYPARAM; CONS; mnbkd=bkd {
+        ([ (typaram, Some(mnbkd)) ], [])
+      }
   | typaram=TYPARAM; COMMA; tail=typaramssub {
         let (typarams, rowparams) = tail in
         ((typaram, None) :: typarams, rowparams)
+      }
+  | typaram=TYPARAM; CONS; mnbkd=bkd COMMA; tail=typaramssub {
+        let (typarams, rowparams) = tail in
+        ((typaram, Some(mnbkd)) :: typarams, rowparams)
       }
 ;
 rowparams:
@@ -635,6 +642,16 @@ opttydomsfixed:
   |                                                     { [] }
   | rlabel=OPTLABEL; mty=ty                             { [ (rlabel, mty) ] }
   | rlabel=OPTLABEL; mty=ty; COMMA; tail=opttydomsfixed { (rlabel, mty) :: tail }
+;
+bkd:
+  | ident=IDENT {
+        let (rng, kdnm) = ident in
+        (rng, MKindName(kdnm))
+      }
+  | tokL=LBRACE; tyrecord=tyrecord; tokR=RBRACE {
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, MRecordKind(tyrecord))
+      }
 ;
 ty:
   | utmod=modchain; tyident=DOTIDENT {
