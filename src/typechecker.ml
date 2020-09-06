@@ -913,11 +913,10 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   | BinaryByInts(_)   -> (rng, BaseType(BinaryType))
 
 
-let rec make_bound_to_free_map (pre : pre) (typarams : (BoundID.t * manual_base_kind) list) : mono_type list * mono_type_var BoundIDMap.t =
+let make_bound_to_free_map (pre : pre) (typarams : (BoundID.t * mono_base_kind) list) : mono_type list * mono_type_var BoundIDMap.t =
   let (tyargacc, bfmap) =
-    typarams |> List.fold_left (fun (tyargacc, bfmap) (bid, mnbkd) ->
+    typarams |> List.fold_left (fun (tyargacc, bfmap) (bid, mbkd) ->
       let fid = FreeID.fresh ~message:"make_bound_to_free_map" pre.level in
-      let mbkd = decode_manual_base_kind pre mnbkd in
       KindStore.register_free_id fid mbkd;
       let mtvu = ref (Free(fid)) in
       let mtv = Updatable(mtvu) in
@@ -931,7 +930,7 @@ let rec make_bound_to_free_map (pre : pre) (typarams : (BoundID.t * manual_base_
   (Alist.to_list tyargacc, bfmap)
 
 
-and decode_manual_base_kind (pre : pre) (mnbkd : manual_base_kind) : mono_base_kind =
+let rec decode_manual_base_kind (pre : pre) (mnbkd : manual_base_kind) : mono_base_kind =
 
   let aux_labeled_list =
     decode_manual_record_type_scheme (fun _ -> ()) pre
@@ -1499,7 +1498,10 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name
       raise_error (UndefinedConstructor(rng, ctornm))
 
   | Some(tyid, ctorid, typarams, ptys) ->
-      let (tyargs, bfmap) = make_bound_to_free_map pre (typarams |> List.map (fun bid -> (bid, (Range.dummy "ctor", MKindName("o"))))) in  (* TODO: refine this *)
+      let (tyargs, bfmap) =
+        make_bound_to_free_map pre (typarams |> List.map (fun bid -> (bid, UniversalKind)))
+          (* TODO: generalize `UniversalKind` to base kinds *)
+      in
       let tys_expected = ptys |> List.map (TypeConv.instantiate_by_map bfmap) in
       (tyid, ctorid, tyargs, tys_expected)
 
