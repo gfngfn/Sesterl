@@ -1413,6 +1413,16 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       unify ty1 tyF;
       (tyret, IRecordAccess(e1, label))
 
+  | RecordUpdate(utast1, (_, label), utast2) ->
+      let (ty1, e1) = typecheck pre utast1 in
+      let (ty2, e2) = typecheck pre utast2 in
+      let tyF =
+        let labmap = LabelAssoc.singleton label ty2 in
+        fresh_type_variable pre.level (RecordKind(labmap)) (Range.dummy "RecordUpdate")
+      in
+      unify ty1 tyF;
+      (ty1, IRecordUpdate(e1, label, e2))
+
   | ModProjVal(modident1, (rng2, x2)) ->
       let (modsig1, _) = find_module pre.tyenv modident1 in
 (*

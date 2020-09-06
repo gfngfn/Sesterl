@@ -118,6 +118,7 @@ and untyped_ast_main =
   | BinaryByList of (int ranged) list
   | Record       of labeled_untyped_ast list
   | RecordAccess of untyped_ast * label ranged
+  | RecordUpdate of untyped_ast * label ranged * untyped_ast
   | ModProjVal   of module_name ranged * identifier ranged
 
 and internal_or_external =
@@ -420,6 +421,7 @@ and ast =
   | IConstructor of ConstructorID.t * ast list
   | IRecord      of ast LabelAssoc.t
   | IRecordAccess of ast * label
+  | IRecordUpdate of ast * label * ast
   | IThunk       of ast
   | IForce       of ast
 

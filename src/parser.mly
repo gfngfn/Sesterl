@@ -529,6 +529,16 @@ exprbot:
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, Record(les))
       }
+  | tokL=LBRACE; e1=exprbot; BAR; les=record; tokR=RBRACE {
+        let (_, eaccmain) =
+          List.fold_left (fun eacc (rlabel, e2) ->
+            let rng = make_range (Token(tokL)) (Ranged(e2)) in
+            (rng, RecordUpdate(eacc, rlabel, e2))
+          ) e1 les
+        in
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, eaccmain)
+      }
   | e=exprbot; rlabel=DOTIDENT {
         let rng = make_range (Ranged(e)) (Ranged(rlabel)) in
         (rng, RecordAccess(e, rlabel))

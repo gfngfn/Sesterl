@@ -274,6 +274,11 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
       let s1 = iter ast1 in
       Printf.sprintf "maps:get(%s, %s)" label s1
 
+  | IRecordUpdate(ast1, label, ast2) ->
+      let s1 = iter ast1 in
+      let s2 = iter ast2 in
+      Printf.sprintf "maps:put(%s, %s, %s)" label s2 s1
+
   | ILetIn(lname, ast1, ast2) ->
       let s0 = OutputIdentifier.output_local lname in
       let s1 = iter ast1 in

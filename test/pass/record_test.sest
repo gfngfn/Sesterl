@@ -2,6 +2,8 @@ module RecordTest = struct
 
   let get_foo(x) = x.foo
 
+  let update_bar(x) = { x | bar = false }
+
   let add_foo_and_bar(x) =
     x.foo + (if x.bar then 1 else 0)
 
@@ -12,6 +14,11 @@ module RecordTest = struct
 
   let main(args) =
     let r = record() in
-    print_debug((r, get_foo(r), add_foo_and_bar(r)))
+    print_debug({
+      original   = r,
+      projection = get_foo(r),
+      update     = update_bar(r),
+      operation  = add_foo_and_bar(r),
+    })
 
 end
