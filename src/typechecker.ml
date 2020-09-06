@@ -2911,7 +2911,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       let (graph, tydefacc) =
         syns |> List.fold_left (fun (graph, tydefacc) syn ->
           let ((_, tynm), tyvars, mtyreal, sid) = syn in
-          let typaramassoc = make_type_parameter_assoc pre tyvars in
+          let typaramassoc = make_type_parameter_assoc { pre with level = 1 } tyvars in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
           let pre =
               let localtyparams = pre.local_type_parameters |> add_local_type_parameter typaramassoc in
@@ -2936,7 +2936,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       let (tydefacc, ctordefacc) =
         vntacc |> Alist.to_list |> List.fold_left (fun (tydefacc, ctordefacc) vnt ->
           let ((_, tynm), tyvars, ctorbrs, vid) = vnt in
-          let typaramassoc = make_type_parameter_assoc pre tyvars in
+          let typaramassoc = make_type_parameter_assoc { pre with level = 1 } tyvars in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
           let pre =
             let localtyparams = pre.local_type_parameters |> add_local_type_parameter typaramassoc in
