@@ -69,7 +69,7 @@
 %type<Syntax.labeled_manual_type list * Syntax.manual_row> labtydoms
 %type<Syntax.manual_row> opttydoms
 %type<Syntax.labeled_manual_type list> opttydomsfixed
-%type<(Range.t * Syntax.type_variable_name) list * ((Range.t * Syntax.row_variable_name) * Syntax.labeled_manual_type list) list> typarams
+%type<Syntax.type_variable_binder list * ((Range.t * Syntax.row_variable_name) * Syntax.labeled_manual_type list) list> typarams
 %type<((Range.t * Syntax.row_variable_name) * Syntax.labeled_manual_type list) list> rowparams
 %type<Syntax.untyped_let_binding> bindvalsingle
 %type<Range.t * Syntax.internal_or_external> bindvaltop
@@ -142,11 +142,11 @@ typaramssub:
         ([], rowparams)
       }
   | typaram=TYPARAM {
-        ([ typaram ], [])
+        ([ (typaram, None) ], [])
       }
   | typaram=TYPARAM; COMMA; tail=typaramssub {
         let (typarams, rowparams) = tail in
-        (typaram :: typarams, rowparams)
+        ((typaram, None) :: typarams, rowparams)
       }
 ;
 rowparams:
