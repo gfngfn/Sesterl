@@ -215,24 +215,6 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
     tyenv
 
 
-let make_bound_to_free_map (lev : int) (typarams : BoundID.t list) : mono_type list * mono_type_var BoundIDMap.t =
-  let (tyargacc, bfmap) =
-    typarams |> List.fold_left (fun (tyargacc, bfmap) bid ->
-      let fid = FreeID.fresh ~message:"make_bound_to_free_map" lev in
-      let mbkd = UniversalKind in  (* TODO: generalize this *)
-      KindStore.register_free_id fid mbkd;
-      let mtvu = ref (Free(fid)) in
-      let mtv = Updatable(mtvu) in
-      let ty = (Range.dummy "constructor-arg", TypeVar(mtv)) in
-(*
-      Format.printf "BTOF L%d %a\n" lev pp_mono_type ty;  (* for debug *)
-*)
-      (Alist.extend tyargacc ty, bfmap |> BoundIDMap.add bid mtv)
-    ) (Alist.empty, BoundIDMap.empty)
-  in
-  (Alist.to_list tyargacc, bfmap)
-
-
 let add_local_type_parameter (typaramassoc : type_parameter_assoc) (localtyparams : local_type_parameter_map) : local_type_parameter_map =
   typaramassoc |> TypeParameterAssoc.fold_left (fun map tyvar mbbid ->
     map |> TypeParameterMap.add tyvar mbbid
@@ -931,10 +913,56 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   | BinaryByInts(_)   -> (rng, BaseType(BinaryType))
 
 
-let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (rowparams : local_row_parameter_map) (mty : manual_type) : mono_type =
+let rec make_bound_to_free_map (pre : pre) (typarams : (BoundID.t * manual_base_kind) list) : mono_type list * mono_type_var BoundIDMap.t =
+  let (tyargacc, bfmap) =
+    typarams |> List.fold_left (fun (tyargacc, bfmap) (bid, mnbkd) ->
+      let fid = FreeID.fresh ~message:"make_bound_to_free_map" pre.level in
+      let mbkd = decode_manual_base_kind pre.tyenv pre.local_type_parameters pre.local_row_parameters mnbkd in
+      KindStore.register_free_id fid mbkd;
+      let mtvu = ref (Free(fid)) in
+      let mtv = Updatable(mtvu) in
+      let ty = (Range.dummy "constructor-arg", TypeVar(mtv)) in
+(*
+      Format.printf "BTOF L%d %a\n" lev pp_mono_type ty;  (* for debug *)
+*)
+      (Alist.extend tyargacc ty, bfmap |> BoundIDMap.add bid mtv)
+    ) (Alist.empty, BoundIDMap.empty)
+  in
+  (Alist.to_list tyargacc, bfmap)
+
+
+and decode_manual_base_kind (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (rowparams : local_row_parameter_map) (mnbkd : manual_base_kind) : mono_base_kind =
+
+  let aux_labeled_list =
+    decode_manual_record_type_scheme (fun _ -> ()) tyenv typarams rowparams
+  in
+
+  let rec aux (rng, mnbkdmain) =
+    match mnbkdmain with
+    | MKindName(kdnm) ->
+        begin
+          match kdnm with
+          | "o" -> UniversalKind
+          | _   -> raise_error (UndefinedKindName(rng, kdnm))
+        end
+
+    | MRecordKind(labmtys) ->
+        let labmap = aux_labeled_list labmtys in
+        RecordKind(labmap)
+  in
+  aux mnbkd
+
+
+and decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (rowparams : local_row_parameter_map) (mty : manual_type) : mono_type =
+
   let invalid rng tynm ~expect:len_expected ~actual:len_actual =
     raise_error (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
   in
+
+  let aux_labeled_list =
+    decode_manual_record_type_scheme k tyenv typarams rowparams
+  in
+
   let rec aux (rng, mtymain) =
     let tymain =
       match mtymain with
@@ -1051,18 +1079,20 @@ let rec decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (ty
           | Some((mbbrid, _)) ->
               RowVar(MustBeBoundRow(mbbrid))
         end
-
-  and aux_labeled_list (labmtys : labeled_manual_type list) : mono_type LabelAssoc.t =
-    labmtys |> List.fold_left (fun labmap (rlabel, mty) ->
-      let (rnglabel, label) = rlabel in
-      if labmap |> LabelAssoc.mem label then
-        raise_error (DuplicatedLabel(rnglabel, label))
-      else
-        let ty = aux mty in
-        labmap |> LabelAssoc.add label ty
-    ) LabelAssoc.empty
   in
   aux mty
+
+
+and decode_manual_record_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (rowparams : local_row_parameter_map) (labmtys : labeled_manual_type list) : mono_type LabelAssoc.t =
+  let aux = decode_manual_type_scheme k tyenv typarams rowparams in
+  labmtys |> List.fold_left (fun labmap (rlabel, mty) ->
+    let (rnglabel, label) = rlabel in
+    if labmap |> LabelAssoc.mem label then
+      raise_error (DuplicatedLabel(rnglabel, label))
+    else
+      let ty = aux mty in
+      labmap |> LabelAssoc.add label ty
+  ) LabelAssoc.empty
 
 
 and decode_manual_type (tyenv : Typeenv.t) : local_type_parameter_map -> local_row_parameter_map -> manual_type -> mono_type =
@@ -1463,8 +1493,7 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name
       raise_error (UndefinedConstructor(rng, ctornm))
 
   | Some(tyid, ctorid, typarams, ptys) ->
-      let lev = pre.level in
-      let (tyargs, bfmap) = make_bound_to_free_map lev typarams in
+      let (tyargs, bfmap) = make_bound_to_free_map pre (typarams |> List.map (fun bid -> (bid, (Range.dummy "ctor", MKindName("o"))))) in  (* TODO: refine this *)
       let tys_expected = ptys |> List.map (TypeConv.instantiate_by_map bfmap) in
       (tyid, ctorid, tyargs, tys_expected)
 

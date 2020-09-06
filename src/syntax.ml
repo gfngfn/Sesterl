@@ -12,6 +12,9 @@ type identifier = string
 type type_name = string
 [@@deriving show { with_path = false; } ]
 
+type kind_name = string
+[@@deriving show { with_path = false; } ]
+
 type constructor_name = string
 [@@deriving show { with_path = false; } ]
 
@@ -69,11 +72,17 @@ type base_constant =
   | BinaryByInts   of int list
 [@@deriving show { with_path = false; } ]
 
-type manual_kind = int
-  (* -- order-0 or order-1 kind only; just tracks arity -- *)
-[@@deriving show { with_path = false; } ]
+type manual_kind =
+  | MKind of manual_base_kind list * manual_base_kind
 
-type manual_type = manual_type_main ranged
+and manual_base_kind =
+  manual_base_kind_main ranged
+
+and manual_base_kind_main =
+  | MKindName   of kind_name
+  | MRecordKind of labeled_manual_type list
+
+and manual_type = manual_type_main ranged
 
 and manual_type_main =
   | MTypeName    of type_name * manual_type list
@@ -206,7 +215,7 @@ and untyped_declaration =
 and untyped_declaration_main =
   | DeclVal        of identifier ranged * (type_variable_name ranged) list * (row_variable_name ranged * (label ranged * manual_type) list) list * manual_type
   | DeclTypeTrans  of type_name ranged * manual_type
-  | DeclTypeOpaque of type_name ranged * manual_kind
+  | DeclTypeOpaque of type_name ranged * int  (* TODO: generalize this (from `int` to `manual_kind`) *)
   | DeclModule     of module_name ranged * untyped_signature
   | DeclSig        of signature_name ranged * untyped_signature
   | DeclInclude    of untyped_signature

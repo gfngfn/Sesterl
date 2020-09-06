@@ -20,6 +20,7 @@ type type_error =
   | UndefinedConstructor                of Range.t * constructor_name
   | InvalidNumberOfConstructorArguments of Range.t * constructor_name * int * int
   | UndefinedTypeName                   of Range.t * type_name
+  | UndefinedKindName                   of Range.t * kind_name
   | InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
   | TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
   | RowParameterBoundMoreThanOnce       of Range.t * row_variable_name
