@@ -2,9 +2,7 @@
 
 ## Summary
 
-*Sesterl* (pronounced as /səsˈtɚːl/) is an ML-like statically-typed functional language that is intended to compile to Erlang.
-
-Contrary to its name, Sesterl has not supported session types yet; it only checks the type of messages every process can receive. As mentioned in the section “[Features](#features)” below, however, many features as a typed functional language have already been furnished. Among them are the following:
+*Sesterl* (pronounced as /səsˈtɚːl/) is an ML-like statically-typed functional language that is intended to compile to Erlang. Contrary to its name, Sesterl has not supported session types yet; it only checks the type of messages every process can receive. As mentioned in the section “[Features](#features)” below, however, many features as a typed functional language have already been furnished. Among them are the following:
 
 * First-class higher-order functions
 * ADTs and pattern matching
@@ -28,6 +26,7 @@ Contrary to its name, Sesterl has not supported session types yet; it only check
   - [FFI](#ffi)
   - [Labeled optional parameters](#labeled-optional-parameters)
   - [Labeled mandatory parameters](#labeled-mandatory-parameters)
+  - [Records](#records)
 - [Major differences from similar projects](#major-differences-from-similar-projects)
 - [Future work](#future-work)
   - [TODO list](#todo-list)
@@ -435,9 +434,9 @@ You can use non-labeled parameters (resp. arguments) and labeled ones for the sa
 In other words, abstractions (resp. applications) must be of the following form:
 
 ```
-fun(param_1, …, param_L, -mlabel_1 mparam_1, … -mlabel_M mparam_M, ?olabel_1 oparam_1, … ?olabel_N oparam_N) -> …
+fun(param1, …, paramL, -m1 mparam1, … -mM mparamM, ?o1 oparam1, … ?oN oparamN) -> …
 
-f(arg_1, …, arg_L, -mlabel_1 marg_1, … -mlabel_M marg_M, ?olabel_1 oarg_1, … ?olabel_N oarg_N)
+f(arg1, …, argL, -m1 marg1, … -mM margM, ?o1 oarg1, … ?oN oargN)
 ```
 
 
@@ -449,7 +448,7 @@ A *record* is a labeled tuple that has the following syntax:
 {foo = 42, bar = true}
 ```
 
-Labels should be distinct from each other in one record values. The expression above has the following type:
+Labels should be distinct from each other in one record value. The expression above has the following type:
 
 ```
 {foo : int, bar : bool}
@@ -536,7 +535,6 @@ Also, though not supporting them currently, we want to add features like the fol
 * Support (multiparty) session types.
   - Type checking based on session types may well be optional or something like gradual types. This is because message passing is quite frequent in typical uses of Erlang-style concurrency and thereby strict assertion for sessions may rather complicate in the short term how to program concurrent computations.
 * Connection with [rebar3](https://github.com/erlang/rebar3).
-
 
 
 ### TODO list
