@@ -917,7 +917,7 @@ let rec make_bound_to_free_map (pre : pre) (typarams : (BoundID.t * manual_base_
   let (tyargacc, bfmap) =
     typarams |> List.fold_left (fun (tyargacc, bfmap) (bid, mnbkd) ->
       let fid = FreeID.fresh ~message:"make_bound_to_free_map" pre.level in
-      let mbkd = decode_manual_base_kind pre.tyenv pre.local_type_parameters pre.local_row_parameters mnbkd in
+      let mbkd = decode_manual_base_kind pre mnbkd in
       KindStore.register_free_id fid mbkd;
       let mtvu = ref (Free(fid)) in
       let mtv = Updatable(mtvu) in
@@ -931,10 +931,10 @@ let rec make_bound_to_free_map (pre : pre) (typarams : (BoundID.t * manual_base_
   (Alist.to_list tyargacc, bfmap)
 
 
-and decode_manual_base_kind (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (rowparams : local_row_parameter_map) (mnbkd : manual_base_kind) : mono_base_kind =
+and decode_manual_base_kind (pre : pre) (mnbkd : manual_base_kind) : mono_base_kind =
 
   let aux_labeled_list =
-    decode_manual_record_type_scheme (fun _ -> ()) tyenv typarams rowparams
+    decode_manual_record_type_scheme (fun _ -> ()) pre
   in
 
   let rec aux (rng, mnbkdmain) =
@@ -953,14 +953,18 @@ and decode_manual_base_kind (tyenv : Typeenv.t) (typarams : local_type_parameter
   aux mnbkd
 
 
-and decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (rowparams : local_row_parameter_map) (mty : manual_type) : mono_type =
+and decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_type) : mono_type =
+
+  let tyenv = pre.tyenv in
+  let typarams = pre.local_type_parameters in
+  let rowparams = pre.local_row_parameters in
 
   let invalid rng tynm ~expect:len_expected ~actual:len_actual =
     raise_error (InvalidNumberOfTypeArguments(rng, tynm, len_expected, len_actual))
   in
 
   let aux_labeled_list =
-    decode_manual_record_type_scheme k tyenv typarams rowparams
+    decode_manual_record_type_scheme k pre
   in
 
   let rec aux (rng, mtymain) =
@@ -1083,8 +1087,8 @@ and decode_manual_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (typara
   aux mty
 
 
-and decode_manual_record_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (rowparams : local_row_parameter_map) (labmtys : labeled_manual_type list) : mono_type LabelAssoc.t =
-  let aux = decode_manual_type_scheme k tyenv typarams rowparams in
+and decode_manual_record_type_scheme (k : TypeID.t -> unit) (pre : pre) (labmtys : labeled_manual_type list) : mono_type LabelAssoc.t =
+  let aux = decode_manual_type_scheme k pre in
   labmtys |> List.fold_left (fun labmap (rlabel, mty) ->
     let (rnglabel, label) = rlabel in
     if labmap |> LabelAssoc.mem label then
@@ -1095,8 +1099,8 @@ and decode_manual_record_type_scheme (k : TypeID.t -> unit) (tyenv : Typeenv.t) 
   ) LabelAssoc.empty
 
 
-and decode_manual_type (tyenv : Typeenv.t) : local_type_parameter_map -> local_row_parameter_map -> manual_type -> mono_type =
-  decode_manual_type_scheme (fun _ -> ()) tyenv
+and decode_manual_type (pre : pre) : manual_type -> mono_type =
+  decode_manual_type_scheme (fun _ -> ()) pre
 
 
 and decode_manual_type_and_get_dependency (vertices : SynonymIDSet.t) (pre : pre) (mty : manual_type) : mono_type * SynonymIDSet.t =
@@ -1113,7 +1117,7 @@ and decode_manual_type_and_get_dependency (vertices : SynonymIDSet.t) (pre : pre
     | _ ->
         ()
   in
-  let ty = decode_manual_type_scheme k pre.tyenv pre.local_type_parameters pre.local_row_parameters mty in
+  let ty = decode_manual_type_scheme k pre mty in
   let dependencies =
     SynonymIDHashSet.fold (fun sid () set ->
       set |> SynonymIDSet.add sid
@@ -1122,26 +1126,28 @@ and decode_manual_type_and_get_dependency (vertices : SynonymIDSet.t) (pre : pre
   (ty, dependencies)
 
 
-and add_local_row_parameter (lev : int) (tyenv : Typeenv.t) (typarams : local_type_parameter_map) (rowvars : (row_variable_name ranged * (label ranged * manual_type) list) list) (rowparams : local_row_parameter_map) : local_row_parameter_map =
-  rowvars |> List.fold_left (fun rowparams ((rng, rowvarnm), mkind) ->
+and add_local_row_parameter (rowvars : (row_variable_name ranged * (label ranged * manual_type) list) list) (pre : pre) : pre =
+  rowvars |> List.fold_left (fun pre ((rng, rowvarnm), mkind) ->
+    let rowparams = pre.local_row_parameters in
     if rowparams |> RowParameterMap.mem rowvarnm then
       raise_error (RowParameterBoundMoreThanOnce(rng, rowvarnm))
     else
-      let mbbrid = MustBeBoundRowID.fresh lev in
+      let mbbrid = MustBeBoundRowID.fresh pre.level in
       let plabmap =
         mkind |> List.fold_left (fun plabmap (rlabel, mty) ->
           let (rnglabel, label) = rlabel in
           if plabmap |> LabelAssoc.mem label then
             raise_error (DuplicatedLabel(rnglabel, label))
           else
-            let ty = decode_manual_type tyenv typarams rowparams mty in
+            let ty = decode_manual_type pre mty in
             let pty = TypeConv.lift ty in
             plabmap |> LabelAssoc.add label pty
         ) LabelAssoc.empty
       in
       KindStore.register_bound_row (MustBeBoundRowID.to_bound mbbrid) plabmap;
-      rowparams |> RowParameterMap.add rowvarnm (mbbrid, plabmap)
-  ) rowparams
+      let rowparams = rowparams |> RowParameterMap.add rowvarnm (mbbrid, plabmap) in
+      { pre with local_row_parameters = rowparams }
+  ) pre
 
 
 and decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) : mono_type =
@@ -1150,7 +1156,7 @@ and decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) :
       fresh_type_variable ~name:x pre.level UniversalKind rng
 
   | Some(mty) ->
-      decode_manual_type pre.tyenv pre.local_type_parameters pre.local_row_parameters mty
+      decode_manual_type pre mty
 
 
 and decode_parameter (pre : pre) (binder : binder) =
@@ -1606,15 +1612,17 @@ fun namef pre letbind ->
   let utast0 = letbind.vb_body in
 
   let (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap) =
-    let levS = pre.level + 1 in
-    let assoc = make_type_parameter_assoc levS letbind.vb_forall in
-    let localtyparams = pre.local_type_parameters |> add_local_type_parameter assoc in
-    let localrowparams =
-      pre.local_row_parameters
-        |> add_local_row_parameter pre.level pre.tyenv localtyparams letbind.vb_forall_row
+
+   (* First, add local type/row parameters at level `levS`. *)
+    let pre =
+      let levS = pre.level + 1 in
+      let assoc = make_type_parameter_assoc levS letbind.vb_forall in
+      let localtyparams = pre.local_type_parameters |> add_local_type_parameter assoc in
+      let pre = { pre with level = levS; local_type_parameters = localtyparams } in
+      pre |> add_local_row_parameter letbind.vb_forall_row
     in
-    let pre = { pre with level = levS; local_type_parameters = localtyparams } in
-      (* Add local type parameters at level `levS` *)
+
+   (* Second, add local value parameters at level `levS`. *)
     let (tyenv, tys, lnames) = add_parameters_to_type_environment pre ordparams in
     let (tyenv, mndlabmap, mndnamemap) =
       add_labeled_parameters_to_type_environment ~optional:false { pre with tyenv } mndparams
@@ -1622,10 +1630,12 @@ fun namef pre letbind ->
     let (tyenv, optlabmap, optnamemap) =
       add_labeled_parameters_to_type_environment ~optional:true { pre with tyenv } optparams
     in
-    let (ty0, e0) = typecheck { pre with tyenv } utast0 in
+    let pre = { pre with tyenv } in
 
+    (* Finally, typecheck the body expression. *)
+    let (ty0, e0) = typecheck pre utast0 in
     letbind.vb_return_type |> Option.map (fun mty0 ->
-      let ty0_expected = decode_manual_type tyenv localtyparams localrowparams mty0 in
+      let ty0_expected = decode_manual_type pre mty0 in
       unify ty0 ty0_expected
     ) |> Option.value ~default:();
     (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)
@@ -1672,15 +1682,17 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
   let optparams = letbind.vb_optionals in
   let utast0 = letbind.vb_body in
 
-  let levS = pre.level + 1 in
   let (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap) =
-    let assoc = make_type_parameter_assoc levS letbind.vb_forall in
-    let localtyparams = pre.local_type_parameters |> add_local_type_parameter assoc in
-    let localrowparams =
-      pre.local_row_parameters
-        |> add_local_row_parameter levS pre.tyenv localtyparams letbind.vb_forall_row
+    (* First, add local type/row parameters at level `levS`. *)
+    let pre =
+      let levS = pre.level + 1 in
+      let assoc = make_type_parameter_assoc levS letbind.vb_forall in
+      let localtyparams = pre.local_type_parameters |> add_local_type_parameter assoc in
+      let pre = { pre with level = levS; local_type_parameters = localtyparams } in
+      pre |> add_local_row_parameter letbind.vb_forall_row
     in
-    let pre = { pre with level = levS; local_type_parameters = localtyparams } in
+
+    (* Second, add local value parameters at level `levS`. *)
     let (tyenv, tys, lnames) =
       add_parameters_to_type_environment pre ordparams
     in
@@ -1690,9 +1702,12 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
     let (tyenv, optlabmap, optnamemap) =
       add_labeled_parameters_to_type_environment ~optional:true { pre with tyenv } optparams
     in
-    let (ty0, e0) = typecheck { pre with tyenv } utast0 in
+    let pre = { pre with tyenv } in
+
+    (* Finally, typecheck the body expression. *)
+    let (ty0, e0) = typecheck pre utast0 in
     letbind.vb_return_type |> Option.map (fun mty0 ->
-      let ty0_expected = decode_manual_type tyenv localtyparams localrowparams mty0 in
+      let ty0_expected = decode_manual_type pre mty0 in
       unify ty0 ty0_expected;
     ) |> Option.value ~default:();
     (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)
@@ -1708,10 +1723,7 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ctorbrs |> List.fold_left (fun ctormap ctorbr ->
     match ctorbr with
     | ConstructorBranch((rng, ctornm), mtyargs) ->
-        let tyargs =
-          mtyargs |> List.map
-            (decode_manual_type pre.tyenv pre.local_type_parameters pre.local_row_parameters)
-        in
+        let tyargs = mtyargs |> List.map (decode_manual_type pre) in
         let ptyargs = tyargs |> List.map (TypeConv.generalize pre.level) in
         let ctorid =
           match ConstructorID.make ctornm with
@@ -2524,12 +2536,23 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
 and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
   let (_, utdeclmain) = utdecl in
   match utdeclmain with
-  | DeclVal(ident, typarams, rowparams, mty) ->
-      let (_, x) = ident in
-      let typaramassoc = make_type_parameter_assoc 1 typarams in
-      let localtyparams = TypeParameterMap.empty |> add_local_type_parameter typaramassoc in
-      let localrowparams = RowParameterMap.empty |> add_local_row_parameter 1 tyenv localtyparams rowparams in
-      let ty = decode_manual_type tyenv localtyparams localrowparams mty in
+  | DeclVal((_, x), typarams, rowparams, mty) ->
+      let pre =
+        let localtyparams =
+          let typaramassoc = make_type_parameter_assoc 1 typarams in
+          TypeParameterMap.empty |> add_local_type_parameter typaramassoc
+        in
+        let pre =
+          {
+            level                 = 1;
+            tyenv                 = tyenv;
+            local_type_parameters = localtyparams;
+            local_row_parameters  = RowParameterMap.empty;
+          }
+        in
+        pre |> add_local_row_parameter rowparams
+      in
+      let ty = decode_manual_type pre mty in
       let pty = TypeConv.generalize 0 ty in
       let gname = OutputIdentifier.fresh_global_dummy () in
       let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
@@ -2734,8 +2757,15 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                   let typaramassoc = make_type_parameter_assoc 1 tyvaridents in
                   let pty =
                     let localtyparams = TypeParameterMap.empty |> add_local_type_parameter typaramassoc in
-                    let localrowparams = RowParameterMap.empty in
-                    let ty = decode_manual_type tyenv localtyparams localrowparams mty in
+                    let pre =
+                      {
+                        level = 1;
+                        tyenv = tyenv;
+                        local_type_parameters = localtyparams;
+                        local_row_parameters  = RowParameterMap.empty;
+                      }
+                    in
+                    let ty = decode_manual_type pre mty in
                     TypeConv.generalize 0 ty
                   in
                   let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
@@ -2767,11 +2797,21 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       let mty = extbind.ext_type_annot in
       let (rngv, x) = extbind.ext_identifier in
       let arity = extbind.ext_arity in
-      let typaramassoc = make_type_parameter_assoc 1 extbind.ext_type_params in
       let pty =
-        let localtyparams = TypeParameterMap.empty |> add_local_type_parameter typaramassoc in
-        let localrowparams = RowParameterMap.empty |> add_local_row_parameter 1 tyenv localtyparams extbind.ext_row_params in
-        let ty = decode_manual_type tyenv localtyparams localrowparams mty in
+        let pre =
+          let typaramassoc = make_type_parameter_assoc 1 extbind.ext_type_params in
+          let localtyparams = TypeParameterMap.empty |> add_local_type_parameter typaramassoc in
+          let pre =
+            {
+              level                 = 1;
+              tyenv                 = tyenv;
+              local_type_parameters = localtyparams;
+              local_row_parameters  = RowParameterMap.empty;
+            }
+          in
+          pre |> add_local_row_parameter extbind.ext_row_params
+        in
+        let ty = decode_manual_type pre mty in
         TypeConv.generalize 0 ty
       in
       let has_option = extbind.ext_has_option in
