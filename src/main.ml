@@ -112,7 +112,7 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
   | CyclicFileDependencyFound(abspaths) ->
       Format.printf "! [Build error] cyclic file dependency found among:\n";
       abspaths |> TupleList.to_list |> List.iter (fun abspath ->
-        Format.printf "  - %s\n" abspath
+        Format.printf "  - '%s'\n" abspath
       );
       exit 1
 

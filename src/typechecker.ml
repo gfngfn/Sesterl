@@ -2954,17 +2954,21 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           (tydefacc, ctordefacc)
         ) (tydefacc, Alist.empty)
       in
-      if DependencyGraph.has_cycle graph then
-        let tyidents = syns |> List.map (fun (tyident, _, _, _) -> tyident) in
-        raise_error (CyclicSynonymTypeDefinition(tyidents))
-      else
-        let sigr = SigRecord.empty |> SigRecord.add_types (tydefacc |> Alist.to_list) in
-        let sigr =
-          ctordefacc |> Alist.to_list |> List.fold_left (fun sigr (vid, typarams, ctorbrmap) ->
-            sigr |> SigRecord.add_constructors vid typarams ctorbrmap
-          ) sigr
-        in
-        ((OpaqueIDSet.empty, sigr), [])
+      begin
+        match DependencyGraph.find_cycle graph with
+        | Some(scc) ->
+            let tyidents = scc |> TupleList.map (fun (_, tyident) -> tyident) in
+            raise_error (CyclicSynonymTypeDefinition(tyidents))
+
+        | None ->
+            let sigr = SigRecord.empty |> SigRecord.add_types (tydefacc |> Alist.to_list) in
+            let sigr =
+              ctordefacc |> Alist.to_list |> List.fold_left (fun sigr (vid, typarams, ctorbrmap) ->
+                sigr |> SigRecord.add_constructors vid typarams ctorbrmap
+              ) sigr
+            in
+            ((OpaqueIDSet.empty, sigr), [])
+      end
 
   | BindModule(modident, utmod) ->
       let (rngm, m) = modident in

@@ -151,9 +151,9 @@ let report_type_error (e : type_error) : unit =
 
   | CyclicSynonymTypeDefinition(tyidents) ->
       Format.printf "cyclic type definitions:\n";
-    tyidents |> List.iter (fun (rng, tynm) ->
-      Format.printf "%s (%a)\n" tynm Range.pp rng
-    )
+      tyidents |> TupleList.to_list |> List.iter (fun (rng, tynm) ->
+        Format.printf "  - %s (%a)\n" tynm Range.pp rng
+      )
 
   | UnboundModuleName(rng, modnm) ->
       Format.printf "%a: unbound module name '%s'\n"
