@@ -3,7 +3,7 @@ open MyUtil
 open Syntax
 open Env
 
-exception CyclicFileDependencyFound
+exception CyclicFileDependencyFound of absolute_path list
 
 
 let make_absolute_path (dir : absolute_dir) (fpath : string) : absolute_path =
@@ -60,10 +60,10 @@ let read_source_recursively (abspath : absolute_path) : (absolute_path * (module
     aux state vertex abspath
   in
   match FileDependencyGraph.topological_sort state.graph with
-  | None ->
-      raise CyclicFileDependencyFound
+  | Error(scc) ->
+      raise (CyclicFileDependencyFound(scc))
 
-  | Some(sources) ->
+  | Ok(sources) ->
       sources |> List.map (fun abspath ->
         match state.loaded |> ContentMap.find_opt abspath with
         | None          -> assert false
@@ -109,8 +109,11 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       Logging.report_parser_error rng;
       exit 1
 
-  | CyclicFileDependencyFound ->
-      Format.printf "! [Build error] cyclic file dependency found (TODO: detailed explanation)\n";
+  | CyclicFileDependencyFound(abspaths) ->
+      Format.printf "! [Build error] cyclic file dependency found among:\n";
+      abspaths |> List.iter (fun abspath ->
+        Format.printf "  - %s\n" abspath
+      );
       exit 1
 
   | Typechecker.Error(e) ->

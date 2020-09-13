@@ -4,7 +4,7 @@ open Syntax
 
 module GraphImpl = Graph.Persistent.Digraph.Abstract(String)
 
-module TraverseImpl = Graph.Traverse.Dfs(GraphImpl)
+module ComponentImpl = Graph.Components.Make(GraphImpl)
 
 module TopologicalImpl = Graph.Topological.Make(GraphImpl)
 
@@ -48,14 +48,24 @@ let add_edge ~depending:(vertex2 : vertex) ~depended:(vertex1 : vertex) (graph :
   { graph with main = GraphImpl.add_edge graph.main vertex1 vertex2 }
 
 
-let topological_sort (graph : t) : (absolute_path list) option =
-  if TraverseImpl.has_cycle graph.main then
-    None
-  else
+let topological_sort (graph : t) : (absolute_path list, absolute_path list) result =
+  let sccs = ComponentImpl.scc_list graph.main in
+  match
+    sccs |> List.find_map (fun vertices ->
+      match vertices with
+      | []     -> assert false
+      | [ _ ]  -> None
+      | _ :: _ -> Some(vertices)
+    )
+  with
+  | Some(vertices) ->
+      Error(vertices |> List.map GraphImpl.V.label)
+
+  | None ->
     let acc =
       TopologicalImpl.fold (fun vertex acc ->
         let abspath = GraphImpl.V.label vertex in
         Alist.extend acc abspath
       ) graph.main Alist.empty
     in
-    Some(Alist.to_list acc)
+    Ok(Alist.to_list acc)
