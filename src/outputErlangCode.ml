@@ -166,7 +166,7 @@ let rec stringify_option_decoding_operation (gmap : global_name_map) (sname_map 
             label
 
       | Some(ast) ->
-          Printf.sprintf "%s = %s:%s(%s, %s, fun() -> %s end)"
+          Printf.sprintf "%s = %s:%s(%s, %s, fun() -> %s end), "
             sname
             Primitives.primitive_module_name
             Primitives.decode_option_function_with_default
