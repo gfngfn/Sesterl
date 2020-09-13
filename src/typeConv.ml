@@ -551,8 +551,16 @@ let rec show_poly_type_var bidht bridht = function
       begin
         if BoundIDHashTable.mem bidht bid then () else
           let pbkd = KindStore.get_bound_id bid in
-          let skd = show_poly_base_kind_sub bidht bridht pbkd in
-          BoundIDHashTable.add bidht bid skd
+          let skdopt =
+            match pbkd with
+            | UniversalKind ->
+                None
+
+            | _ ->
+                let skd = show_poly_base_kind_sub bidht bridht pbkd in
+                Some(skd)
+          in
+          BoundIDHashTable.add bidht bid skdopt
       end;
       Format.asprintf "%a" BoundID.pp bid
 
@@ -587,8 +595,13 @@ let show_poly_type (pty : poly_type) : string list * string list * string =
   let bridht = BoundRowIDHashTable.create 32 in
   let smain = show_poly_type_sub bidht bridht pty in
   let sbids =
-    BoundIDHashTable.fold (fun bid skd acc ->
-      Alist.extend acc (Format.asprintf "%a :: %s" BoundID.pp bid skd)
+    BoundIDHashTable.fold (fun bid skdopt acc ->
+      let s =
+        match skdopt with
+        | Some(skd) -> Format.asprintf "%a :: %s" BoundID.pp bid skd
+        | None      -> Format.asprintf "%a" BoundID.pp bid
+      in
+      Alist.extend acc s
     ) bidht Alist.empty |> Alist.to_list
   in
   let sbrids =
