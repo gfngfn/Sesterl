@@ -3,7 +3,7 @@ open MyUtil
 open Syntax
 open Env
 
-exception CyclicFileDependencyFound of absolute_path list
+exception CyclicFileDependencyFound of absolute_path TupleList.t
 
 
 let make_absolute_path (dir : absolute_dir) (fpath : string) : absolute_path =
@@ -111,7 +111,7 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
 
   | CyclicFileDependencyFound(abspaths) ->
       Format.printf "! [Build error] cyclic file dependency found among:\n";
-      abspaths |> List.iter (fun abspath ->
+      abspaths |> TupleList.to_list |> List.iter (fun abspath ->
         Format.printf "  - %s\n" abspath
       );
       exit 1

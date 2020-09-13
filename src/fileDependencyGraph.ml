@@ -48,18 +48,18 @@ let add_edge ~depending:(vertex2 : vertex) ~depended:(vertex1 : vertex) (graph :
   { graph with main = GraphImpl.add_edge graph.main vertex1 vertex2 }
 
 
-let topological_sort (graph : t) : (absolute_path list, absolute_path list) result =
+let topological_sort (graph : t) : (absolute_path list, absolute_path TupleList.t) result =
   let sccs = ComponentImpl.scc_list graph.main in
   match
     sccs |> List.find_map (fun vertices ->
       match vertices with
-      | []     -> assert false
-      | [ _ ]  -> None
-      | _ :: _ -> Some(vertices)
+      | []                -> assert false
+      | [ _ ]             -> None
+      | v1 :: v2 :: vrest -> Some(TupleList.make v1 v2 vrest)
     )
   with
   | Some(vertices) ->
-      Error(vertices |> List.map GraphImpl.V.label)
+      Error(vertices |> TupleList.map GraphImpl.V.label)
 
   | None ->
     let acc =

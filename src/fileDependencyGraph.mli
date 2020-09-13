@@ -14,7 +14,7 @@ val add_vertex : absolute_path -> t -> t * vertex
 
 val add_edge : depending:vertex -> depended:vertex -> t -> t
 
-val topological_sort : t -> (absolute_path list, absolute_path list) result
+val topological_sort : t -> (absolute_path list, absolute_path TupleList.t) result
 (** [topological_sort g] returns either:
  {ul
    {- [Ok(paths)] where [paths] is the sorted list of absolute paths of source files, or}
