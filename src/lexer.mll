@@ -140,7 +140,7 @@ rule token = parse
   | "\"" {
       let posL = Range.from_lexbuf lexbuf in
       let strbuf = Buffer.create 128 in
-      string posL strbuf lexbuf
+      binary_literal posL strbuf lexbuf
     }
 
   | ("`" +) {
@@ -153,12 +153,12 @@ rule token = parse
   | eof  { EOI }
   | _ as c { raise_error (UnidentifiedToken(Range.from_lexbuf lexbuf, String.make 1 c)) }
 
-and string posL strbuf = parse
-  | "\\\"" { Buffer.add_char strbuf '"'; string posL strbuf lexbuf }
+and binary_literal posL strbuf = parse
   | break  { raise_error (SeeBreakInStringLiteral(posL)) }
-  | "\""   { let posR = Range.from_lexbuf lexbuf in STRING(Range.unite posL posR, Buffer.contents strbuf) }
   | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
-  | _ as c { Buffer.add_char strbuf c; string posL strbuf lexbuf }
+  | "\""   { let posR = Range.from_lexbuf lexbuf in STRING(Range.unite posL posR, Buffer.contents strbuf) }
+  | "\\\"" { Buffer.add_char strbuf '"'; binary_literal posL strbuf lexbuf }
+  | _ as c { Buffer.add_char strbuf c; binary_literal posL strbuf lexbuf }
 
 and string_block num_start posL strbuf = parse
   | ("`" +) {
