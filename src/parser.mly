@@ -59,9 +59,9 @@
 %type<Syntax.untyped_binding> bindtop
 %type<string list * Syntax.module_name Syntax.ranged * Syntax.untyped_module> main
 %type<Syntax.manual_type> ty
-%type<Syntax.binder list * (Syntax.labeled_binder list * Syntax.labeled_binder list)> params
-%type<Syntax.labeled_binder list * Syntax.labeled_binder list> labparams
-%type<Syntax.labeled_binder list> optparams
+%type<Syntax.binder list * (Syntax.labeled_binder list * Syntax.labeled_optional_binder list)> params
+%type<Syntax.labeled_binder list * Syntax.labeled_optional_binder list> labparams
+%type<Syntax.labeled_optional_binder list> optparams
 %type<Syntax.untyped_ast list * (Syntax.labeled_untyped_ast list * Syntax.labeled_untyped_ast list)> args
 %type<Syntax.labeled_untyped_ast list * Syntax.labeled_untyped_ast list> labargs
 %type<Syntax.labeled_untyped_ast list> optargs
@@ -249,9 +249,17 @@ labparams:
       }
 ;
 optparams:
-  |                                                                      { [] }
-  | rlabel=OPTLABEL; ident=IDENT; tyannot=tyannot                        { [ (rlabel, (ident, tyannot)) ] }
-  | rlabel=OPTLABEL; ident=IDENT; tyannot=tyannot; COMMA; tail=optparams { (rlabel, (ident, tyannot)) :: tail }
+  |                                          { [] }
+  | optparam=optparam                        { [ optparam ] }
+  | optparam=optparam; COMMA; tail=optparams { optparam :: tail }
+;
+optparam:
+  | rlabel=OPTLABEL; ident=IDENT; tyannot=tyannot {
+        ((rlabel, (ident, tyannot)), None)
+      }
+  | rlabel=OPTLABEL; ident=IDENT; tyannot=tyannot; DEFEQ; utast=exprlet {
+        ((rlabel, (ident, tyannot)), Some(utast))
+      }
 ;
 tyannot:
   |               { None }

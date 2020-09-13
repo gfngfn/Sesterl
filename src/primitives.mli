@@ -6,6 +6,8 @@ val primitive_module_name : string
 
 val decode_option_function : string
 
+val decode_option_function_with_default : string
+
 type source_definition = {
   identifier  : string;
   typ         : poly_type;
