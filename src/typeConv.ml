@@ -595,10 +595,10 @@ let show_poly_type (pty : poly_type) : string list * string list * string =
     BoundRowIDHashTable.fold (fun brid smap acc ->
       let skd =
         LabelAssoc.fold (fun label sty acc ->
-          Alist.extend acc (Format.asprintf "%s %s" label sty)
+          Alist.extend acc (Format.asprintf "?%s %s" label sty)
         ) smap Alist.empty |> Alist.to_list |> String.concat ", "
       in
-      Alist.extend acc (Format.asprintf "%a :: %s" BoundRowID.pp brid skd)
+      Alist.extend acc (Format.asprintf "%a :: (%s)" BoundRowID.pp brid skd)
     ) bridht Alist.empty |> Alist.to_list
   in
   (sbids, sbrids, smain)
