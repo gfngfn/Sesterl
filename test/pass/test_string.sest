@@ -1,0 +1,9 @@
+module TestString = struct
+
+  let phrase() =
+    'Hello World!'
+
+  let main(args) =
+    print_debug(phrase())
+
+end
