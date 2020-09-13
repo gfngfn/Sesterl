@@ -112,7 +112,7 @@ and untyped_ast =
 and untyped_ast_main =
   | BaseConst    of base_constant
   | Var          of identifier
-  | Lambda       of binder list * labeled_binder list * labeled_binder list * untyped_ast
+  | Lambda       of binder list * labeled_binder list * labeled_optional_binder list * untyped_ast
   | Apply        of untyped_ast * untyped_ast list * labeled_untyped_ast list * labeled_untyped_ast list
   | If           of untyped_ast * untyped_ast * untyped_ast
   | LetIn        of rec_or_nonrec * untyped_ast
@@ -157,7 +157,7 @@ and untyped_let_binding = {
   vb_forall_row  : (row_variable_name ranged * labeled_manual_type list) list;
   vb_parameters  : binder list;
   vb_mandatories : labeled_binder list;
-  vb_optionals   : labeled_binder list;
+  vb_optionals   : labeled_optional_binder list;
   vb_return_type : manual_type option;
   vb_body        : untyped_ast;
 }
@@ -225,6 +225,9 @@ and untyped_declaration_main =
 
 and labeled_binder =
   label ranged * binder
+
+and labeled_optional_binder =
+  labeled_binder * untyped_ast option
 
 and labeled_untyped_ast =
   label ranged * untyped_ast
@@ -422,7 +425,7 @@ and binding =
 and ast =
   | IBaseConst   of base_constant
   | IVar         of name
-  | ILambda      of local_name option * local_name list * local_name LabelAssoc.t * local_name LabelAssoc.t * ast
+  | ILambda      of local_name option * local_name list * local_name LabelAssoc.t * (local_name * ast option) LabelAssoc.t * ast
   | IApply       of name * mono_row * ast list * ast LabelAssoc.t * ast LabelAssoc.t
   | ILetIn       of local_name * ast * ast
   | ICase        of ast * branch list
@@ -494,7 +497,17 @@ and pp_ast ppf = function
         snamerec
         (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameparams
         (LabelAssoc.pp OutputIdentifier.pp_local) mndnamemap
-        (LabelAssoc.pp OutputIdentifier.pp_local) optnamemap
+        (LabelAssoc.pp (fun ppf (lname, astopt) ->
+          match astopt with
+          | None ->
+              Format.fprintf ppf "%a"
+                OutputIdentifier.pp_local lname
+
+          | Some(ast) ->
+              Format.fprintf ppf "%a = %a"
+                OutputIdentifier.pp_local lname
+                pp_ast ast
+        )) optnamemap
         pp_ast e
 
   | IApply(name, _, eargs, mndargmap, optargmap) ->

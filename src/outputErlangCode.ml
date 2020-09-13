@@ -8,7 +8,7 @@ let fresh_local_symbol () =
 
 
 type val_binding_output =
-  | OBindVal         of global_name * local_name list * local_name LabelAssoc.t * local_name LabelAssoc.t * global_name_map * ast
+  | OBindVal         of global_name * local_name list * local_name LabelAssoc.t * (local_name * ast option) LabelAssoc.t * global_name_map * ast
   | OBindValExternal of global_name * string
 
 type module_binding_output =
@@ -144,21 +144,6 @@ let stringify_single (gmap : global_name_map) = function
       Printf.sprintf "(fun(%s, %s) -> %s %s %s end)" s1 s2 s1 sop s2
 
 
-let stringify_option_decoding_operation (sname_map : string) (optnamemap : local_name LabelAssoc.t) : string =
-  LabelAssoc.fold (fun label lname acc ->
-    let sname = OutputIdentifier.output_local lname in
-    let s =
-      Printf.sprintf "%s = %s:%s(%s, %s), "
-        sname
-        Primitives.primitive_module_name
-        Primitives.decode_option_function
-        sname_map
-        label
-    in
-    Alist.extend acc s
-  ) optnamemap Alist.empty |> Alist.to_list |> String.concat ""
-
-
 let make_mandatory_parameters (ordlnames : local_name list) (mndnamemap : local_name LabelAssoc.t) : local_name list =
   let mndlnames =
     mndnamemap |> LabelAssoc.bindings |> List.map (fun (_, lname) -> lname)
@@ -167,7 +152,33 @@ let make_mandatory_parameters (ordlnames : local_name list) (mndnamemap : local_
   List.append ordlnames mndlnames
 
 
-let rec stringify_ast (gmap : global_name_map) (ast : ast) =
+let rec stringify_option_decoding_operation (gmap : global_name_map) (sname_map : string) (optnamemap : (local_name * ast option) LabelAssoc.t) : string =
+  LabelAssoc.fold (fun label (lname, default) acc ->
+    let sname = OutputIdentifier.output_local lname in
+    let s =
+      match default with
+      | None ->
+          Printf.sprintf "%s = %s:%s(%s, %s), "
+            sname
+            Primitives.primitive_module_name
+            Primitives.decode_option_function
+            sname_map
+            label
+
+      | Some(ast) ->
+          Printf.sprintf "%s = %s:%s(%s, %s, fun() -> %s end)"
+            sname
+            Primitives.primitive_module_name
+            Primitives.decode_option_function_with_default
+            sname_map
+            label
+            (stringify_ast gmap ast)
+    in
+    Alist.extend acc s
+  ) optnamemap Alist.empty |> Alist.to_list |> String.concat ""
+
+
+and stringify_ast (gmap : global_name_map) (ast : ast) =
   let iter = stringify_ast gmap in
   match ast with
   | IVar(name) ->
@@ -196,7 +207,7 @@ let rec stringify_ast (gmap : global_name_map) (ast : ast) =
       else
         let sparamscatcomma = snames |> List.map (fun s -> s ^ ", ") |> String.concat "" in
         let sname_map = fresh_local_symbol () in
-        let sgetopts = stringify_option_decoding_operation sname_map optnamemap in
+        let sgetopts = stringify_option_decoding_operation gmap sname_map optnamemap in
         Printf.sprintf "fun%s(%s%s) -> %s%s end"
           srec
           sparamscatcomma
@@ -402,7 +413,7 @@ let stringify_val_binding_output : val_binding_output -> string list = function
       let sparamscat = String.concat ", " sparams in
       let sparamscatcomma = sparams |> List.map (fun s -> s ^ ", ") |> String.concat "" in
       let sname_map = fresh_local_symbol () in
-      let sgetopts = stringify_option_decoding_operation sname_map optnamemap in
+      let sgetopts = stringify_option_decoding_operation gmap sname_map optnamemap in
       let s0 = stringify_ast gmap ast0 in
       if r.has_option then
         let s_without_option =

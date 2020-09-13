@@ -11,6 +11,10 @@ let decode_option_function =
   "decode_option"
 
 
+let decode_option_function_with_default =
+  "decode_option_with_default"
+
+
 let fresh_bound () =
   let bid = BoundID.fresh () in
   KindStore.register_bound_id bid UniversalKind;
@@ -167,6 +171,14 @@ let primitive_definitions = [
       target_name = decode_option_function;
       parameters  = ["Options"; "Key"];
       code        = "case maps:find(Key, Options) of error -> none; {ok, Value} -> {some, Value} end";
+    };
+  };
+  {
+    source = None;
+    target = {
+      target_name = decode_option_function_with_default;
+      parameters  = ["Options"; "Key"; "Thunk"];
+      code        = "case maps:find(Key, Options) of error -> Thunk(); {ok, Value} -> Value end";
     };
   };
 ]
