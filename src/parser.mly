@@ -249,14 +249,16 @@ labparams:
       }
 ;
 optparams:
-  | {
-        []
-      }
+  |                                          { [] }
+  | optparam=optparam                        { [ optparam ] }
+  | optparam=optparam; COMMA; tail=optparams { optparam :: tail }
+;
+optparam:
   | rlabel=OPTLABEL; ident=IDENT; tyannot=tyannot {
-        [ ((rlabel, (ident, tyannot)), None) ]
+        ((rlabel, (ident, tyannot)), None)
       }
-  | rlabel=OPTLABEL; ident=IDENT; tyannot=tyannot; COMMA; tail=optparams {
-        ((rlabel, (ident, tyannot)), None) :: tail
+  | rlabel=OPTLABEL; ident=IDENT; tyannot=tyannot; DEFEQ; utast=exprlet {
+        ((rlabel, (ident, tyannot)), Some(utast))
       }
 ;
 tyannot:
