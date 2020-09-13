@@ -61,6 +61,7 @@ type base_type =
   | BoolType
   | UnitType
   | BinaryType
+  | CharType
 [@@deriving show { with_path = false; } ]
 
 type base_constant =
@@ -70,6 +71,7 @@ type base_constant =
   | Float          of float
   | BinaryByString of string
   | BinaryByInts   of int list
+  | String         of string
 [@@deriving show { with_path = false; } ]
 
 type manual_kind =

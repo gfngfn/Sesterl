@@ -891,6 +891,7 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   | Float(_) -> (rng, BaseType(FloatType))
   | BinaryByString(_)
   | BinaryByInts(_)   -> (rng, BaseType(BinaryType))
+  | String(_) -> (rng, ListType((Range.dummy "string_literal", BaseType(CharType))))
 
 
 let make_bound_to_free_map (pre : pre) (typarams : (BoundID.t * mono_base_kind) list) : mono_type list * mono_type_var BoundIDMap.t =
@@ -991,6 +992,8 @@ and decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_t
                   | ("float", _)    -> invalid rng "float" ~expect:0 ~actual:len_actual
                   | ("binary", [])  -> BaseType(BinaryType)
                   | ("binary", _)   -> invalid rng "binary" ~expect:0 ~actual:len_actual
+                  | ("char", [])    -> BaseType(CharType)
+                  | ("char", _)     -> invalid rng "char" ~expect:0 ~actual:len_actual
                   | ("list", [ty])  -> ListType(ty)
                   | ("list", _)     -> invalid rng "list" ~expect:1 ~actual:len_actual
                   | ("pid", [ty])   -> PidType(Pid(ty))

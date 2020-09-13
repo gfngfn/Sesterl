@@ -52,7 +52,7 @@
 %token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
 %token<Range.t * int> INT
 %token<Range.t * float> FLOAT
-%token<Range.t * string> STRING STRING_BLOCK
+%token<Range.t * string> BINARY STRING STRING_BLOCK
 %token EOI
 
 %start main
@@ -84,7 +84,7 @@ main:
       }
 ;
 dep:
-  | REQUIRE; strlit=STRING { let (_, s) = strlit in s }
+  | REQUIRE; strlit=BINARY { let (_, s) = strlit in s }
 ;
 ident:
   | ident=IDENT { ident }
@@ -536,9 +536,13 @@ exprbot:
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, BinaryByList(ns))
       }
-  | strlit=STRING {
+  | strlit=BINARY {
         let (rng, s) = strlit in
         (rng, BaseConst(BinaryByString(s)))
+      }
+  | strlit=STRING {
+        let (rng, s) = strlit in
+        (rng, BaseConst(String(s)))
       }
   | tokL=LBRACE; les=record; tokR=RBRACE {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
