@@ -13,7 +13,7 @@ module OptionalParameter2 = struct
   end
 
   let main(args) =
-    let ans =
+    let ans1 =
       f2(fun(n, ?foo topt) ->
         case topt of
         | None    -> n * 2
@@ -21,6 +21,11 @@ module OptionalParameter2 = struct
         end
       )
     in
-    print_debug(ans)
+    let ans2 =
+      f2(fun(n, ?foo t = 2) ->
+        n * t
+      )
+    in
+    print_debug((ans1, ans2))
 
 end

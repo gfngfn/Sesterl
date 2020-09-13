@@ -8,11 +8,15 @@ module OptionalParameter = struct
     | Some(d) -> n + d
     end
 
+  let succ_concise(n : int, ?diff d : int = 1) =
+    n + d
+
   let f(g) =
     (g(36), g(36, ?diff 64))
 
   let main(args) =
-    let ans = (succ(42), succ(42, ?diff 15), f(succ)) in
-    print_debug(ans)
+    let ans1 = (succ(42), succ(42, ?diff 15), f(succ)) in
+    let ans2 = (succ_concise(42), succ_concise(42, ?diff 15), f(succ_concise)) in
+    print_debug((ans1, ans2))
 
 end
