@@ -1,11 +1,17 @@
 module KindedParameter = struct
 
-  type t<$a :: o> =
+  type t<$a :: {foo : int}> =
     | HasFoo($a)
 
   let f(x) =
     case x of
     | HasFoo(r) -> r
+    end
+
+  let g(b, x, y) =
+    case x of
+    | HasFoo(r) ->
+        if b then r else { y | bar = b }
     end
 
 end
