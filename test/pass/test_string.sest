@@ -3,7 +3,16 @@ module TestString = struct
   let phrase() =
     'Hello World!'
 
+  let chop_first(s) =
+    case s of
+    | []         -> None
+    | ch :: tail -> Some((ch, tail))
+    end
+
   let main(args) =
-    print_debug(phrase())
+    let s = phrase() in
+    let ans1 = chop_first(s) in
+    let ans2 = $'F' :: 'oo' in
+    print_debug((s, ans1, ans2))
 
 end
