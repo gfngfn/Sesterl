@@ -211,10 +211,7 @@ fun intern intern_row pty ->
   aux pty
 
 
-let instantiate (lev : int) (pty : poly_type) : mono_type =
-  let bidht = BoundIDHashTable.create 32 in
-  let bridht = BoundRowIDHashTable.create 32 in
-    (* -- hash tables are created at every (non-partial) call of `instantiate` -- *)
+let instantiate_by_hash_table bidht bridht (lev : int) (pty : poly_type) : mono_type =
 
   let rec intern (rng : Range.t) (ptv : poly_type_var) : mono_type =
     match ptv with
@@ -272,6 +269,22 @@ let instantiate (lev : int) (pty : poly_type) : mono_type =
   aux pty
 
 
+let instantiate (lev : int) (pty : poly_type) =
+  let bidht = BoundIDHashTable.create 32 in
+  let bridht = BoundRowIDHashTable.create 32 in
+    (* Hash tables are created at every (non-partial) call of `instantiate`. *)
+  instantiate_by_hash_table bidht bridht lev pty
+
+
+let instantiate_base_kind_by_hash_table bidht bridht (lev : int) (pbkd : poly_base_kind) : mono_base_kind =
+  match pbkd with
+  | UniversalKind ->
+      UniversalKind
+
+  | RecordKind(plabmap) ->
+      RecordKind(plabmap |> LabelAssoc.map (instantiate_by_hash_table bidht bridht lev))
+
+(*
 let instantiate_by_map (bfmap : mono_type_var BoundIDMap.t) =
   let intern (rng : Range.t) (ptv : poly_type_var) : mono_type =
     match ptv with
@@ -289,7 +302,7 @@ let instantiate_by_map (bfmap : mono_type_var BoundIDMap.t) =
     failwith "TODO: instantiate_by_map, intern_row"
   in
   instantiate_scheme intern intern_row
-
+*)
 
 let substitute_mono_type (substmap : mono_type BoundIDMap.t) : poly_type -> mono_type =
   let intern (rng : Range.t) (ptv : poly_type_var) : mono_type =
