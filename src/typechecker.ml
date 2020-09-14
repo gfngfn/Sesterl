@@ -2599,7 +2599,7 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       failwith "TODO: DeclTypeTrans"
         (* -- maybe should handle mutually recursive types -- *)
 
-  | DeclTypeOpaque(tyident, mnbkd) ->
+  | DeclTypeOpaque(tyident, kdannot) ->
       let (_, tynm) = tyident in
       let pre_init =
         {
@@ -2609,7 +2609,11 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
           local_row_parameters  = RowParameterMap.empty;
         }
       in
-      let mkd = decode_manual_kind pre_init mnbkd in
+      let mkd =
+        match kdannot with
+        | None        -> Kind([], UniversalKind)
+        | Some(mnbkd) -> decode_manual_kind pre_init mnbkd
+      in
       let oid = TypeID.Opaque.fresh tynm in
       let sigr = SigRecord.empty |> SigRecord.add_opaque_type tynm oid (TypeConv.lift_kind mkd) in
       (OpaqueIDSet.singleton oid, sigr)

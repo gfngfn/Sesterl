@@ -274,7 +274,11 @@ decl:
       }
   | tokL=TYPE; tyident=IDENT; CONS; kd=kd {
         let rng = make_range (Token(tokL)) (Ranged(kd)) in
-        (rng, DeclTypeOpaque(tyident, kd))
+        (rng, DeclTypeOpaque(tyident, Some(kd)))
+      }
+  | tokL=TYPE; tyident=IDENT {
+        let rng = make_range (Token(tokL)) (Ranged(tyident)) in
+        (rng, DeclTypeOpaque(tyident, None))
       }
   | tokL=MODULE; modident=CTOR; COLON; utsig=sigexpr {
         let rng = make_range (Token(tokL)) (Ranged(utsig)) in
