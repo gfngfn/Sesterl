@@ -2924,6 +2924,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           local_row_parameters  = RowParameterMap.empty;
         }
       in
+
+      (* First, add the arity of each type to be defined. *)
       let (synacc, vntacc, vertices, graph, tyenv) =
         tybinds |> List.fold_left (fun (synacc, vntacc, vertices, graph, tyenv) (tyident, tyvars, syn_or_vnt) ->
           let (_, tynm) = tyident in
@@ -2954,6 +2956,9 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         ) (Alist.empty, Alist.empty, SynonymIDSet.empty, DependencyGraph.empty, tyenv)
       in
       let pre = { pre_init with tyenv = tyenv } in
+
+      (* Second, traverse each definition of the synonym types.
+         Here, the dependency among synonym types are extracted. *)
       let (graph, tydefacc) =
         synacc |> Alist.to_list |> List.fold_left (fun (graph, tydefacc) syn ->
           let ((_, tynm), tyvars, mtyreal, sid, pkd) = syn in
@@ -2968,12 +2973,11 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           in
           TypeDefinitionStore.add_synonym_type sid typarams ptyreal;
           let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Synonym(sid), pkd)) in
-(*
-          Format.printf "SYN %s %a <%d> = %a\n" tynm TypeID.Synonym.pp sid (List.length typarams) pp_poly_type ptyreal;  (* for debug *)
-*)
           (graph, tydefacc)
         ) (graph, Alist.empty)
       in
+
+      (* Third, traverse each definition of the variant types. *)
       let (tydefacc, ctordefacc) =
         vntacc |> Alist.to_list |> List.fold_left (fun (tydefacc, ctordefacc) vnt ->
           let ((_, tynm), tyvars, ctorbrs, vid, pkd) = vnt in
@@ -2988,6 +2992,9 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           (tydefacc, ctordefacc)
         ) (tydefacc, Alist.empty)
       in
+
+      (* Finally, check that no cyclic dependency exists among synonym types
+         and make the signature to be returned from the type definitions. *)
       begin
         match DependencyGraph.find_cycle graph with
         | Some(scc) ->
