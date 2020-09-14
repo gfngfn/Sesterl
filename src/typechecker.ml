@@ -1575,6 +1575,9 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
   | PBool(b) -> immediate (BaseType(BoolType)) (IPBool(b))
   | PInt(n)  -> immediate (BaseType(IntType)) (IPInt(n))
 
+  | PChar(uchar) ->
+      immediate (BaseType(CharType)) (IPChar(uchar))
+
   | PVar(x) ->
       let ty = fresh_type_variable ~name:x pre.level UniversalKind rng in
       let lname = generate_local_name rng x in
