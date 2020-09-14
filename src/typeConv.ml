@@ -373,6 +373,7 @@ let show_base_type = function
   | IntType    -> "int"
   | FloatType  -> "float"
   | BinaryType -> "binary"
+  | CharType   -> "char"
 
 
 let rec show_label_assoc : 'a 'b. prefix:string -> suffix:string -> ('a -> string) -> ('b -> string option) -> (('a, 'b) typ) LabelAssoc.t -> string option =

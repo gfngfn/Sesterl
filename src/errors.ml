@@ -8,6 +8,7 @@ type lexer_error =
   | SeeEndOfFileInStringLiteral      of Range.t
   | BlockClosedWithTooManyBackQuotes of Range.t
   | SeeBreakInStringLiteral          of Range.t
+  | NotASingleCodePoint              of Range.t
 
 type type_error =
   | UnboundVariable                     of Range.t * identifier

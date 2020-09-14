@@ -111,8 +111,11 @@ let stringify_base_constant (bc : base_constant) =
              valid as constants in Erlang source? *)
       else
         assert false
+
   | BinaryByString(s) -> Printf.sprintf "<<\"%s\">>" (String.escaped s)
   | BinaryByInts(ns)  -> Printf.sprintf "<<%s>>" (ns |> List.map string_of_int |> String.concat ", ")
+  | String(s)         -> Printf.sprintf "\"%s\"" (String.escaped s)
+  | Char(uchar)       -> Printf.sprintf "%d" (Uchar.to_int uchar)
 
 
 let get_module_string (gmap : global_name_map) (gname : global_name) : string =
@@ -377,6 +380,7 @@ and stringify_pattern (ipat : pattern) =
   | IPBool(true)  -> "true"
   | IPBool(false) -> "false"
   | IPInt(n)      -> string_of_int n
+  | IPChar(uchar) -> string_of_int (Uchar.to_int uchar)
   | IPVar(lname)  -> OutputIdentifier.output_local lname
   | IPWildCard    -> "_"
   | IPListNil     -> "[]"

@@ -51,6 +51,10 @@ let pp_identifier ppf s =
   Format.fprintf ppf "\"%s\"" s
 
 
+let pp_uchar ppf uchar =
+  Format.fprintf ppf "U+%X" (Uchar.to_int uchar)
+
+
 type module_name_chain =
   module_name ranged * (module_name ranged) list
 [@@deriving show { with_path = false; } ]
@@ -61,6 +65,7 @@ type base_type =
   | BoolType
   | UnitType
   | BinaryType
+  | CharType
 [@@deriving show { with_path = false; } ]
 
 type base_constant =
@@ -70,6 +75,9 @@ type base_constant =
   | Float          of float
   | BinaryByString of string
   | BinaryByInts   of int list
+  | String         of string
+  | Char           of Uchar.t
+      [@printer (fun ppf uchar -> Format.fprintf ppf "Char(%a)" pp_uchar uchar)]
 [@@deriving show { with_path = false; } ]
 
 type manual_kind =
@@ -173,6 +181,8 @@ and untyped_pattern_main =
   | PUnit
   | PBool        of bool
   | PInt         of int
+  | PChar        of Uchar.t
+      [@printer (fun ppf uchar -> Format.fprintf ppf "PChar(%a)" pp_uchar uchar) ]
   | PVar         of identifier
   | PWildCard
   | PListNil
@@ -394,6 +404,8 @@ type pattern =
   | IPUnit
   | IPBool        of bool
   | IPInt         of int
+  | IPChar        of Uchar.t
+      [@printer (fun ppf uchar -> Format.fprintf ppf "IPChar(%a)" pp_uchar uchar)]
   | IPVar         of local_name
   | IPWildCard
   | IPListNil

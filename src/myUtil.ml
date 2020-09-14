@@ -35,3 +35,22 @@ end
 type absolute_path = string
 
 type absolute_dir = string
+
+
+module Utf : sig
+  val uchar_of_utf8 : string -> Uchar.t list
+end = struct
+
+  let uchar_of_utf8 (s : string) =
+    let decoder = Uutf.decoder ~encoding:`UTF_8 (`String(s)) in
+    let rec iter acc =
+      match Uutf.decode decoder with
+      | `End          -> Alist.to_list acc
+      | `Uchar(u)     -> iter (Alist.extend acc u)
+      | `Await        -> iter acc
+      | `Malformed(_) -> iter (Alist.extend acc Uutf.u_rep)
+          (* Silently replaces malformed sequences with `Uutf.u_rep`. *)
+    in
+    iter Alist.empty
+
+end
