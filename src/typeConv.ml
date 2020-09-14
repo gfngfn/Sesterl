@@ -287,6 +287,41 @@ let instantiate_base_kind_by_hash_table bidht bridht (lev : int) (pbkd : poly_ba
       RecordKind(plabmap |> LabelAssoc.map (instantiate_by_hash_table bidht bridht lev))
 
 
+let make_bound_to_free_hash_table bidht bridht (lev : int) (typarams : BoundID.t list) : mono_type list =
+  let tyargacc =
+    typarams |> List.fold_left (fun tyargacc bid ->
+      let mtv =
+        match BoundIDHashTable.find_opt bidht bid with
+        | Some(mtvu) ->
+            Updatable(mtvu)
+
+        | None ->
+            let fid = FreeID.fresh ~message:"make_bound_to_free_hash_table" lev in
+            let pbkd = KindStore.get_bound_id bid in
+            let mbkd = instantiate_base_kind_by_hash_table bidht bridht lev pbkd in
+            KindStore.register_free_id fid mbkd;
+            let mtvu = ref (Free(fid)) in
+            BoundIDHashTable.add bidht bid mtvu;
+            Updatable(mtvu)
+      in
+      let ty = (Range.dummy "constructor-arg", TypeVar(mtv)) in
+(*
+      Format.printf "BTOF L%d %a\n" lev pp_mono_type ty;  (* for debug *)
+*)
+      Alist.extend tyargacc ty
+    ) Alist.empty
+  in
+  Alist.to_list tyargacc
+
+
+let instantiate_type_arguments (lev : int) (typarams : BoundID.t list) (ptys : poly_type list) : mono_type list * mono_type list =
+  let bidht = BoundIDHashTable.create 32 in
+  let bridht = BoundRowIDHashTable.create 32 in
+  let tyargs = make_bound_to_free_hash_table bidht bridht lev typarams in
+  let tys_expected = ptys |> List.map (instantiate_by_hash_table bidht bridht lev) in
+  (tyargs, tys_expected)
+
+
 let substitute_mono_type (substmap : mono_type BoundIDMap.t) : poly_type -> mono_type =
   let intern (rng : Range.t) (ptv : poly_type_var) : mono_type =
     match ptv with
