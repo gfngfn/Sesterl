@@ -6,7 +6,7 @@ module ModSeq = struct
     | Some($a)
 
   signature Decomposable = sig
-    type s :: 1
+    type s :: (o) -> o
     val decompose<$a> : fun(s<$a>) -> option<($a, s<$a>)>
   end
 

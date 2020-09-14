@@ -6,7 +6,7 @@ module Mod = struct
     | Some($a)
 
   signature Ord = sig
-    type s :: 0
+    type s :: o
     val compare : fun(s, s) -> int
   end
 
