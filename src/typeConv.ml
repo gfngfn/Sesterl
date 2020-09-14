@@ -12,6 +12,8 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
   let fidht = FreeIDHashTable.create 32 in
   let fridht = FreeRowIDHashTable.create 32 in
 
+  (* TODO: check that no cyclic dependency exists between bound IDs. *)
+
   let rec intern fid =
     match FreeIDHashTable.find_opt fidht fid with
     | Some(bid) ->
