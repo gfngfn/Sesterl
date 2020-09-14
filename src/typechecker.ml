@@ -909,6 +909,7 @@ let make_bound_to_free_hash_table bidht bridht (pre : pre) (typarams : BoundID.t
             let mbkd = TypeConv.instantiate_base_kind_by_hash_table bidht bridht pre.level pbkd in
             KindStore.register_free_id fid mbkd;
             let mtvu = ref (Free(fid)) in
+            BoundIDHashTable.add bidht bid mtvu;
             Updatable(mtvu)
       in
       let ty = (Range.dummy "constructor-arg", TypeVar(mtv)) in
