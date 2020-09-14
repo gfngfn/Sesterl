@@ -2611,8 +2611,8 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       in
       let mkd =
         match kdannot with
-        | None        -> Kind([], UniversalKind)
-        | Some(mnbkd) -> decode_manual_kind pre_init mnbkd
+        | None       -> Kind([], UniversalKind)
+        | Some(mnkd) -> decode_manual_kind pre_init mnkd
       in
       let oid = TypeID.Opaque.fresh tynm in
       let sigr = SigRecord.empty |> SigRecord.add_opaque_type tynm oid (TypeConv.lift_kind mkd) in
@@ -2916,11 +2916,28 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       assert false
 
   | BindType((_ :: _) as tybinds) ->
+      let pre_init =
+        {
+          level                 = 0;
+          tyenv                 = tyenv;
+          local_type_parameters = TypeParameterMap.empty;
+          local_row_parameters  = RowParameterMap.empty;
+        }
+      in
       let (synacc, vntacc, vertices, graph, tyenv) =
         tybinds |> List.fold_left (fun (synacc, vntacc, vertices, graph, tyenv) (tyident, tyvars, syn_or_vnt) ->
           let (_, tynm) = tyident in
-          let arity = List.length tyvars in
-          let pkd = TypeConv.kind_of_arity arity in
+          let pkd =
+            let bkddoms =
+              tyvars |> List.map (fun (_, kdannot) ->
+                match kdannot with
+                | None        -> UniversalKind
+                | Some(mnbkd) -> decode_manual_base_kind pre_init mnbkd
+              )
+            in
+            let kd = Kind(bkddoms, UniversalKind) in
+            TypeConv.lift_kind kd
+          in
           match syn_or_vnt with
           | BindSynonym(synbind) ->
               let sid = TypeID.Synonym.fresh tynm in
@@ -2935,14 +2952,6 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
               let vntacc = Alist.extend vntacc (tyident, tyvars, vntbind, vid, pkd) in
               (synacc, vntacc, vertices, graph, tyenv)
         ) (Alist.empty, Alist.empty, SynonymIDSet.empty, DependencyGraph.empty, tyenv)
-      in
-      let pre_init =
-        {
-          level                 = 0;
-          tyenv                 = tyenv;
-          local_type_parameters = TypeParameterMap.empty;
-          local_row_parameters  = RowParameterMap.empty;
-        }
       in
       let (graph, tydefacc) =
         synacc |> Alist.to_list |> List.fold_left (fun (graph, tydefacc) syn ->
