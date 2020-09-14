@@ -2926,13 +2926,13 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
               let sid = TypeID.Synonym.fresh tynm in
               let graph = graph |> DependencyGraph.add_vertex sid tyident in
               let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Synonym(sid)) pkd in
-              let synacc = Alist.extend synacc (tyident, tyvars, synbind, sid) in
+              let synacc = Alist.extend synacc (tyident, tyvars, synbind, sid, pkd) in
               (synacc, vntacc, vertices |> SynonymIDSet.add sid, graph, tyenv)
 
           | BindVariant(vntbind) ->
               let vid = TypeID.Variant.fresh tynm in
               let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Variant(vid)) pkd in
-              let vntacc = Alist.extend vntacc (tyident, tyvars, vntbind, vid) in
+              let vntacc = Alist.extend vntacc (tyident, tyvars, vntbind, vid, pkd) in
               (synacc, vntacc, vertices, graph, tyenv)
         ) (Alist.empty, Alist.empty, SynonymIDSet.empty, DependencyGraph.empty, tyenv)
       in
@@ -2944,10 +2944,9 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           local_row_parameters  = RowParameterMap.empty;
         }
       in
-      let syns = synacc |> Alist.to_list in
       let (graph, tydefacc) =
-        syns |> List.fold_left (fun (graph, tydefacc) syn ->
-          let ((_, tynm), tyvars, mtyreal, sid) = syn in
+        synacc |> Alist.to_list |> List.fold_left (fun (graph, tydefacc) syn ->
+          let ((_, tynm), tyvars, mtyreal, sid, pkd) = syn in
           let (pre, typaramassoc) = make_type_parameter_assoc pre_init tyvars in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
           let (tyreal, dependencies) = decode_manual_type_and_get_dependency vertices pre mtyreal in
@@ -2958,7 +2957,6 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             ) dependencies
           in
           TypeDefinitionStore.add_synonym_type sid typarams ptyreal;
-          let pkd = TypeConv.kind_of_arity (List.length typarams) in
           let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Synonym(sid), pkd)) in
 (*
           Format.printf "SYN %s %a <%d> = %a\n" tynm TypeID.Synonym.pp sid (List.length typarams) pp_poly_type ptyreal;  (* for debug *)
@@ -2968,14 +2966,13 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       in
       let (tydefacc, ctordefacc) =
         vntacc |> Alist.to_list |> List.fold_left (fun (tydefacc, ctordefacc) vnt ->
-          let ((_, tynm), tyvars, ctorbrs, vid) = vnt in
+          let ((_, tynm), tyvars, ctorbrs, vid, pkd) = vnt in
           let (pre, typaramassoc) = make_type_parameter_assoc pre_init tyvars in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
           let ctorbrmap =
             make_constructor_branch_map pre ctorbrs
           in
           TypeDefinitionStore.add_variant_type vid typarams ctorbrmap;
-          let pkd = TypeConv.kind_of_arity (List.length typarams) in
           let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Variant(vid), pkd)) in
           let ctordefacc = Alist.extend ctordefacc (vid, typarams, ctorbrmap) in
           (tydefacc, ctordefacc)
