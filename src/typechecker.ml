@@ -895,18 +895,18 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   | Char(_)   -> (rng, BaseType(CharType))
 
 
-let make_bound_to_free_hash_table bidht bridht (pre : pre) (typarams : BoundID.t list) : mono_type list * mono_type_var BoundIDMap.t =
-  let (tyargacc, bfmap) =
-    typarams |> List.fold_left (fun (tyargacc, bfmap) bid ->
+let make_bound_to_free_hash_table bidht bridht (lev : int) (typarams : BoundID.t list) : mono_type list =
+  let tyargacc =
+    typarams |> List.fold_left (fun tyargacc bid ->
       let mtv =
         match BoundIDHashTable.find_opt bidht bid with
         | Some(mtvu) ->
             Updatable(mtvu)
 
         | None ->
-            let fid = FreeID.fresh ~message:"make_bound_to_free_hash_table" pre.level in
+            let fid = FreeID.fresh ~message:"make_bound_to_free_hash_table" lev in
             let pbkd = KindStore.get_bound_id bid in
-            let mbkd = TypeConv.instantiate_base_kind_by_hash_table bidht bridht pre.level pbkd in
+            let mbkd = TypeConv.instantiate_base_kind_by_hash_table bidht bridht lev pbkd in
             KindStore.register_free_id fid mbkd;
             let mtvu = ref (Free(fid)) in
             BoundIDHashTable.add bidht bid mtvu;
@@ -916,10 +916,10 @@ let make_bound_to_free_hash_table bidht bridht (pre : pre) (typarams : BoundID.t
 (*
       Format.printf "BTOF L%d %a\n" lev pp_mono_type ty;  (* for debug *)
 *)
-      (Alist.extend tyargacc ty, bfmap |> BoundIDMap.add bid mtv)
-    ) (Alist.empty, BoundIDMap.empty)
+      Alist.extend tyargacc ty
+    ) Alist.empty
   in
-  (Alist.to_list tyargacc, bfmap)
+  Alist.to_list tyargacc
 
 
 let rec make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder list) : pre * type_parameter_assoc =
@@ -1544,7 +1544,7 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name
   | Some(tyid, ctorid, typarams, ptys) ->
       let bidht = BoundIDHashTable.create 32 in
       let bridht = BoundRowIDHashTable.create 32 in
-      let (tyargs, _) = make_bound_to_free_hash_table bidht bridht pre typarams in
+      let tyargs = make_bound_to_free_hash_table bidht bridht pre.level typarams in
       let tys_expected = ptys |> List.map (TypeConv.instantiate_by_hash_table bidht bridht pre.level) in
       (tyid, ctorid, tyargs, tys_expected)
 
