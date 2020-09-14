@@ -898,12 +898,19 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
 let make_bound_to_free_hash_table bidht bridht (pre : pre) (typarams : BoundID.t list) : mono_type list * mono_type_var BoundIDMap.t =
   let (tyargacc, bfmap) =
     typarams |> List.fold_left (fun (tyargacc, bfmap) bid ->
-      let fid = FreeID.fresh ~message:"make_bound_to_free_hash_table" pre.level in
-      let pbkd = KindStore.get_bound_id bid in
-      let mbkd = TypeConv.instantiate_base_kind_by_hash_table bidht bridht pre.level pbkd in
-      KindStore.register_free_id fid mbkd;
-      let mtvu = ref (Free(fid)) in
-      let mtv = Updatable(mtvu) in
+      let mtv =
+        match BoundIDHashTable.find_opt bidht bid with
+        | Some(mtvu) ->
+            Updatable(mtvu)
+
+        | None ->
+            let fid = FreeID.fresh ~message:"make_bound_to_free_hash_table" pre.level in
+            let pbkd = KindStore.get_bound_id bid in
+            let mbkd = TypeConv.instantiate_base_kind_by_hash_table bidht bridht pre.level pbkd in
+            KindStore.register_free_id fid mbkd;
+            let mtvu = ref (Free(fid)) in
+            Updatable(mtvu)
+      in
       let ty = (Range.dummy "constructor-arg", TypeVar(mtv)) in
 (*
       Format.printf "BTOF L%d %a\n" lev pp_mono_type ty;  (* for debug *)

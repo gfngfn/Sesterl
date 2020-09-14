@@ -284,25 +284,6 @@ let instantiate_base_kind_by_hash_table bidht bridht (lev : int) (pbkd : poly_ba
   | RecordKind(plabmap) ->
       RecordKind(plabmap |> LabelAssoc.map (instantiate_by_hash_table bidht bridht lev))
 
-(*
-let instantiate_by_map (bfmap : mono_type_var BoundIDMap.t) =
-  let intern (rng : Range.t) (ptv : poly_type_var) : mono_type =
-    match ptv with
-    | Mono(mtv) ->
-        (rng, TypeVar(mtv))
-
-    | Bound(bid) ->
-        begin
-          match bfmap |> BoundIDMap.find_opt bid with
-          | None      -> assert false
-          | Some(mtv) -> (rng, TypeVar(mtv))
-        end
-  in
-  let intern_row (prv : poly_row_var) =
-    failwith "TODO: instantiate_by_map, intern_row"
-  in
-  instantiate_scheme intern intern_row
-*)
 
 let substitute_mono_type (substmap : mono_type BoundIDMap.t) : poly_type -> mono_type =
   let intern (rng : Range.t) (ptv : poly_type_var) : mono_type =
