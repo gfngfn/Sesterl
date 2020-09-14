@@ -272,10 +272,9 @@ decl:
         let rng = make_range (Token(tokL)) (Ranged(mty)) in
         (rng, DeclVal(ident, typarams, rowparams, mty))
       }
-  | tokL=TYPE; tyident=IDENT; CONS; inttok=INT {
-        let (tokR, mkind) = inttok in
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, DeclTypeOpaque(tyident, mkind))
+  | tokL=TYPE; tyident=IDENT; CONS; kd=kd {
+        let rng = make_range (Token(tokL)) (Ranged(kd)) in
+        (rng, DeclTypeOpaque(tyident, kd))
       }
   | tokL=MODULE; modident=CTOR; COLON; utsig=sigexpr {
         let rng = make_range (Token(tokL)) (Ranged(utsig)) in
@@ -660,6 +659,21 @@ opttydomsfixed:
   |                                                     { [] }
   | rlabel=OPTLABEL; mty=ty                             { [ (rlabel, mty) ] }
   | rlabel=OPTLABEL; mty=ty; COMMA; tail=opttydomsfixed { (rlabel, mty) :: tail }
+;
+kd:
+  | tokL=LPAREN; bkddoms=bkds; RPAREN; ARROW; bkdcod=bkd {
+        let rng = make_range (Token(tokL)) (Ranged(bkdcod)) in
+        (rng, MKind(bkddoms, bkdcod))
+      }
+  | bkd=bkd {
+        let (rng, _) = bkd in
+        (rng, MKind([], bkd))
+      }
+;
+bkds:
+  | bkd=bkd                   { [ bkd ] }
+  | bkd=bkd; COMMA            { [ bkd ] }
+  | bkd=bkd; COMMA; tail=bkds { bkd :: tail }
 ;
 bkd:
   | ident=IDENT {

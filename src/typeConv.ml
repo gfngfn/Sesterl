@@ -354,13 +354,33 @@ let rec kind_of_arity n =
   Kind(bkddoms, UniversalKind)
 
 
-let generalize_base_kind (lev : int) (mbkd : mono_base_kind) : poly_base_kind =
+let lift_base_kind_scheme (rngf : Range.t -> Range.t) (levf : int -> bool) (mbkd : mono_base_kind) : poly_base_kind =
   match mbkd with
   | UniversalKind ->
       UniversalKind
 
   | RecordKind(labmap) ->
-      RecordKind(labmap |> LabelAssoc.map (generalize lev))
+      RecordKind(labmap |> LabelAssoc.map (lift_scheme rngf levf))
+
+
+let generalize_base_kind (lev : int) : mono_base_kind -> poly_base_kind =
+  lift_base_kind_scheme
+    (fun _ -> Range.dummy "erased")
+    (fun levx -> lev < levx)
+
+
+let lift_base_kind =
+  lift_base_kind_scheme
+    (fun rng -> rng)
+    (fun _ -> false)
+
+
+let lift_kind (kd : mono_kind) : poly_kind =
+  match kd with
+  | Kind(bkddoms, bkdcod) ->
+      let pbkddoms = bkddoms |> List.map lift_base_kind in
+      let pbkdcod = lift_base_kind bkdcod in
+      Kind(pbkddoms, pbkdcod)
 
 
 let rec arity_of_kind = function

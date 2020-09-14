@@ -81,6 +81,9 @@ type base_constant =
 [@@deriving show { with_path = false; } ]
 
 type manual_kind =
+  manual_kind_main ranged
+
+and manual_kind_main =
   | MKind of manual_base_kind list * manual_base_kind
 
 and manual_base_kind =
@@ -228,7 +231,7 @@ and untyped_declaration =
 and untyped_declaration_main =
   | DeclVal        of identifier ranged * type_variable_binder list * (row_variable_name ranged * (label ranged * manual_type) list) list * manual_type
   | DeclTypeTrans  of type_name ranged * manual_type
-  | DeclTypeOpaque of type_name ranged * int  (* TODO: generalize this (from `int` to `manual_kind`) *)
+  | DeclTypeOpaque of type_name ranged * manual_kind
   | DeclModule     of module_name ranged * untyped_signature
   | DeclSig        of signature_name ranged * untyped_signature
   | DeclInclude    of untyped_signature

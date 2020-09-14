@@ -958,6 +958,14 @@ and decode_manual_base_kind (pre : pre) (mnbkd : manual_base_kind) : mono_base_k
   aux mnbkd
 
 
+and decode_manual_kind (pre : pre) (mnkd : manual_kind) : mono_kind =
+  match mnkd with
+  | (_, MKind(mnbkddoms, mnbkdcod)) ->
+      let bkddoms = mnbkddoms |> List.map (decode_manual_base_kind pre) in
+      let bkdcod = decode_manual_base_kind pre mnbkdcod in
+      Kind(bkddoms, bkdcod)
+
+
 and decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_type) : mono_type =
 
   let tyenv = pre.tyenv in
@@ -2591,11 +2599,19 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       failwith "TODO: DeclTypeTrans"
         (* -- maybe should handle mutually recursive types -- *)
 
-  | DeclTypeOpaque(tyident, mkd) ->
+  | DeclTypeOpaque(tyident, mnbkd) ->
       let (_, tynm) = tyident in
-      let pkd = TypeConv.kind_of_arity mkd in
+      let pre_init =
+        {
+          level                 = 0;
+          tyenv                 = tyenv;
+          local_type_parameters = TypeParameterMap.empty;
+          local_row_parameters  = RowParameterMap.empty;
+        }
+      in
+      let mkd = decode_manual_kind pre_init mnbkd in
       let oid = TypeID.Opaque.fresh tynm in
-      let sigr = SigRecord.empty |> SigRecord.add_opaque_type tynm oid pkd in
+      let sigr = SigRecord.empty |> SigRecord.add_opaque_type tynm oid (TypeConv.lift_kind mkd) in
       (OpaqueIDSet.singleton oid, sigr)
 
   | DeclModule(modident, utsig) ->
