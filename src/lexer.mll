@@ -140,13 +140,24 @@ rule token = parse
   | "\"" {
       let posL = Range.from_lexbuf lexbuf in
       let strbuf = Buffer.create 128 in
-      binary_literal posL strbuf lexbuf
+      let (rng, s) = binary_literal posL strbuf lexbuf in
+      BINARY(rng, s)
     }
 
   | "\'" {
       let posL = Range.from_lexbuf lexbuf in
       let strbuf = Buffer.create 128 in
-      string_literal posL strbuf lexbuf
+      let (rng, s) = string_literal posL strbuf lexbuf in
+      STRING(rng, s)
+    }
+
+  | "$\'" {
+      let posL = Range.from_lexbuf lexbuf in
+      let strbuf = Buffer.create 16 in
+      let (rng, s) = string_literal posL strbuf lexbuf in
+      match MyUtil.Utf.uchar_of_utf8 s with
+      | [ uchar ] -> CHAR(rng, uchar)
+      | _         -> raise_error (NotASingleCodePoint(rng))
     }
 
   | ("`" +) {
@@ -162,14 +173,14 @@ rule token = parse
 and binary_literal posL strbuf = parse
   | break  { raise_error (SeeBreakInStringLiteral(posL)) }
   | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
-  | "\""   { let posR = Range.from_lexbuf lexbuf in BINARY(Range.unite posL posR, Buffer.contents strbuf) }
+  | "\""   { let posR = Range.from_lexbuf lexbuf in (Range.unite posL posR, Buffer.contents strbuf) }
   | "\\\"" { Buffer.add_char strbuf '"'; binary_literal posL strbuf lexbuf }
   | _ as c { Buffer.add_char strbuf c; binary_literal posL strbuf lexbuf }
 
 and string_literal posL strbuf = parse
   | break  { raise_error (SeeBreakInStringLiteral(posL)) }
   | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
-  | "\'"   { let posR = Range.from_lexbuf lexbuf in STRING(Range.unite posL posR, Buffer.contents strbuf) }
+  | "\'"   { let posR = Range.from_lexbuf lexbuf in (Range.unite posL posR, Buffer.contents strbuf) }
   | "\\\'" { Buffer.add_char strbuf '\''; string_literal posL strbuf lexbuf }
   | _ as c { Buffer.add_char strbuf c; string_literal posL strbuf lexbuf }
 

@@ -72,6 +72,8 @@ type base_constant =
   | BinaryByString of string
   | BinaryByInts   of int list
   | String         of string
+  | Char           of Uchar.t
+      [@printer (fun ppf uchar -> Format.fprintf ppf "U+%X" (Uchar.to_int uchar))]
 [@@deriving show { with_path = false; } ]
 
 type manual_kind =

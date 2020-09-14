@@ -892,6 +892,7 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   | BinaryByString(_)
   | BinaryByInts(_)   -> (rng, BaseType(BinaryType))
   | String(_) -> (rng, ListType((Range.dummy "string_literal", BaseType(CharType))))
+  | Char(_)   -> (rng, BaseType(CharType))
 
 
 let make_bound_to_free_map (pre : pre) (typarams : (BoundID.t * mono_base_kind) list) : mono_type list * mono_type_var BoundIDMap.t =

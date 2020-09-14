@@ -61,6 +61,10 @@ let report_lexer_error (e : lexer_error) : unit =
       Format.printf "%a: a string block ends with too many back quotes\n"
         Range.pp rngR
 
+  | NotASingleCodePoint(rng) ->
+      Format.printf "%a: not a single code point\n"
+        Range.pp rng
+
 
 let report_type_error (e : type_error) : unit =
   Format.printf "! [Type error] ";

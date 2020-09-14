@@ -53,6 +53,7 @@
 %token<Range.t * int> INT
 %token<Range.t * float> FLOAT
 %token<Range.t * string> BINARY STRING STRING_BLOCK
+%token<Range.t * Uchar.t> CHAR
 %token EOI
 
 %start main
@@ -543,6 +544,10 @@ exprbot:
   | strlit=STRING {
         let (rng, s) = strlit in
         (rng, BaseConst(String(s)))
+      }
+  | charlit=CHAR {
+        let (rng, uchar) = charlit in
+        (rng, BaseConst(Char(uchar)))
       }
   | tokL=LBRACE; les=record; tokR=RBRACE {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
