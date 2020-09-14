@@ -2953,10 +2953,11 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
               (synacc, vntacc, vertices, graph, tyenv)
         ) (Alist.empty, Alist.empty, SynonymIDSet.empty, DependencyGraph.empty, tyenv)
       in
+      let pre = { pre_init with tyenv = tyenv } in
       let (graph, tydefacc) =
         synacc |> Alist.to_list |> List.fold_left (fun (graph, tydefacc) syn ->
           let ((_, tynm), tyvars, mtyreal, sid, pkd) = syn in
-          let (pre, typaramassoc) = make_type_parameter_assoc pre_init tyvars in
+          let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
           let (tyreal, dependencies) = decode_manual_type_and_get_dependency vertices pre mtyreal in
           let ptyreal = TypeConv.generalize 0 tyreal in
@@ -2976,7 +2977,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       let (tydefacc, ctordefacc) =
         vntacc |> Alist.to_list |> List.fold_left (fun (tydefacc, ctordefacc) vnt ->
           let ((_, tynm), tyvars, ctorbrs, vid, pkd) = vnt in
-          let (pre, typaramassoc) = make_type_parameter_assoc pre_init tyvars in
+          let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
           let ctorbrmap =
             make_constructor_branch_map pre ctorbrs
