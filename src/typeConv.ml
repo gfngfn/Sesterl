@@ -611,31 +611,59 @@ and show_poly_base_kind_sub bidht bridht : poly_base_kind -> string =
   show_base_kind (show_poly_type_var bidht bridht) (show_poly_row_var bidht bridht)
 
 
+let show_bound_type_ids bidht =
+  BoundIDHashTable.fold (fun bid skdopt acc ->
+    let s =
+      match skdopt with
+      | Some(skd) -> Format.asprintf "%a :: %s" BoundID.pp bid skd
+      | None      -> Format.asprintf "%a" BoundID.pp bid
+    in
+    Alist.extend acc s
+  ) bidht Alist.empty |> Alist.to_list
+
+
+let show_bound_row_ids bridht =
+  BoundRowIDHashTable.fold (fun brid smap acc ->
+    let skd =
+      LabelAssoc.fold (fun label sty acc ->
+        Alist.extend acc (Format.asprintf "?%s %s" label sty)
+      ) smap Alist.empty |> Alist.to_list |> String.concat ", "
+    in
+    Alist.extend acc (Format.asprintf "%a :: (%s)" BoundRowID.pp brid skd)
+  ) bridht Alist.empty |> Alist.to_list
+
+
 let show_poly_type (pty : poly_type) : string list * string list * string =
   let bidht = BoundIDHashTable.create 32 in
   let bridht = BoundRowIDHashTable.create 32 in
   let smain = show_poly_type_sub bidht bridht pty in
-  let sbids =
-    BoundIDHashTable.fold (fun bid skdopt acc ->
-      let s =
-        match skdopt with
-        | Some(skd) -> Format.asprintf "%a :: %s" BoundID.pp bid skd
-        | None      -> Format.asprintf "%a" BoundID.pp bid
-      in
-      Alist.extend acc s
-    ) bidht Alist.empty |> Alist.to_list
-  in
-  let sbrids =
-    BoundRowIDHashTable.fold (fun brid smap acc ->
-      let skd =
-        LabelAssoc.fold (fun label sty acc ->
-          Alist.extend acc (Format.asprintf "?%s %s" label sty)
-        ) smap Alist.empty |> Alist.to_list |> String.concat ", "
-      in
-      Alist.extend acc (Format.asprintf "%a :: (%s)" BoundRowID.pp brid skd)
-    ) bridht Alist.empty |> Alist.to_list
-  in
+  let sbids = show_bound_type_ids bidht in
+  let sbrids = show_bound_row_ids bridht in
   (sbids, sbrids, smain)
+
+
+let show_poly_base_kind (pbkd : poly_base_kind) : string list * string list * string =
+  let bidht = BoundIDHashTable.create 32 in
+  let bridht = BoundRowIDHashTable.create 32 in
+  let smain = show_poly_base_kind_sub bidht bridht pbkd in
+  let sbids = show_bound_type_ids bidht in
+  let sbrids = show_bound_row_ids bridht in
+  (sbids, sbrids, smain)
+
+
+let show_poly_kind (pkd : poly_kind) : string list * string list * string =
+  let bidht = BoundIDHashTable.create 32 in
+  let bridht = BoundRowIDHashTable.create 32 in
+  match pkd with
+  | Kind(pbkddoms, pbkdcod) ->
+      let smain =
+        let sdoms = pbkddoms |> List.map (show_poly_base_kind_sub bidht bridht) in
+        let scod = show_poly_base_kind_sub bidht bridht pbkdcod in
+        Printf.sprintf "(%s) -> %s" (String.concat ", " sdoms) scod
+      in
+      let sbids = show_bound_type_ids bidht in
+      let sbrids = show_bound_row_ids bridht in
+      (sbids, sbrids, smain)
 
 
 let pp_poly_type ppf pty =

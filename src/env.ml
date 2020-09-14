@@ -190,12 +190,12 @@ module Typeenv = struct
 
 
   let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * poly_kind) option =
-    tyenv.type_names |> TypeNameMap.find_opt tynm |> Option.map (fun (tyentry, arity) ->
+    tyenv.type_names |> TypeNameMap.find_opt tynm |> Option.map (fun (tyentry, pkd) ->
       match tyentry with
-      | Defining(tyid)      -> (tyid, arity)
-      | DefinedVariant(vid) -> (TypeID.Variant(vid), arity)
-      | DefinedSynonym(sid) -> (TypeID.Synonym(sid), arity)
-      | DefinedOpaque(oid)  -> (TypeID.Opaque(oid), arity)
+      | Defining(tyid)      -> (tyid, pkd)
+      | DefinedVariant(vid) -> (TypeID.Variant(vid), pkd)
+      | DefinedSynonym(sid) -> (TypeID.Synonym(sid), pkd)
+      | DefinedOpaque(oid)  -> (TypeID.Opaque(oid), pkd)
     )
 
 
@@ -429,10 +429,25 @@ let pp_comma ppf () =
   Format.fprintf ppf ", "
 
 
+let pp_bound_type_id ppf bid =
+  let pkd = KindStore.get_bound_id bid in
+  match pkd with
+  | UniversalKind ->
+      Format.fprintf ppf "%a" BoundID.pp bid
+
+  | _ ->
+      let (_, _, skd) = TypeConv.show_poly_base_kind pkd in
+      Format.fprintf ppf "%a :: %s" BoundID.pp bid skd
+
+
 let pp_type_parameters ppf typarams =
   match typarams with
-  | []     -> ()
-  | _ :: _ -> Format.fprintf ppf "<%a>" (Format.pp_print_list ~pp_sep:pp_comma BoundID.pp) typarams
+  | [] ->
+      ()
+
+  | _ :: _ ->
+      Format.fprintf ppf "<%a>"
+        (Format.pp_print_list ~pp_sep:pp_comma pp_bound_type_id) typarams
 
 
 let display_poly_type pty =
@@ -494,10 +509,11 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
                 pp_type_parameters typarams
 
           | TypeID.Opaque(oid) ->
-              Format.printf "%stype %a :: %d\n"
+              let (_, _, skd) = TypeConv.show_poly_kind pkd in
+              Format.printf "%stype %a :: %s\n"
                 indent
                 TypeID.Opaque.pp oid
-                (TypeConv.arity_of_kind pkd)
+                skd
         )
       )
       ~m:(fun modnm (modsig, _) () ->
