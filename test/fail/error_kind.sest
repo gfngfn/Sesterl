@@ -1,0 +1,13 @@
+module ErrorKind = struct
+
+  module Impl = struct
+    type t = binary
+    let v() = "Hello"
+  end
+
+  include Impl :> sig
+    type t :: {foo : int}
+    val v : fun() -> t
+  end
+
+end
