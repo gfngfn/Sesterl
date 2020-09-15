@@ -14,30 +14,30 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
 
   (* TODO: check that no cyclic dependency exists between bound IDs. *)
 
-  let rec intern fid =
+  let rec intern (fid : FreeID.t) : BoundID.t =
     match FreeIDHashTable.find_opt fidht fid with
     | Some(bid) ->
         bid
 
     | None ->
-        let mbkd = KindStore.get_free_id fid in
         let bid = BoundID.fresh () in
+        FreeIDHashTable.add fidht fid bid;
+        let mbkd = KindStore.get_free_id fid in
         let pbkd = aux_base_kind mbkd in
         KindStore.register_bound_id bid pbkd;
-        FreeIDHashTable.add fidht fid bid;
         bid
 
-  and intern_row frid =
+  and intern_row (frid : FreeRowID.t) : BoundRowID.t =
     match FreeRowIDHashTable.find_opt fridht frid with
     | Some(brid) ->
         brid
 
     | None ->
+        let brid = BoundRowID.fresh () in
+        FreeRowIDHashTable.add fridht frid brid;
         let labmap = KindStore.get_free_row frid in
         let plabmap = labmap |> LabelAssoc.map aux in
-        let brid = BoundRowID.fresh () in
         KindStore.register_bound_row brid plabmap;
-        FreeRowIDHashTable.add fridht frid brid;
         brid
 
   and aux_base_kind (mbkd : mono_base_kind) : poly_base_kind =
