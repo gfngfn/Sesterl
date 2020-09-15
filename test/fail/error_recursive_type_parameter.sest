@@ -1,0 +1,5 @@
+module ErrorRecursiveTypeParameter = struct
+
+  let f(x) = { x | foo = x }
+
+end

@@ -1,0 +1,17 @@
+module ErrorKindedParameter = struct
+
+  type t<$a :: {foo : int}> =
+    | HasFoo($a)
+
+  let f(x) =
+    case x of
+    | HasFoo(r) -> r
+    end
+
+  let g(b, x, y) =
+    case x of
+    | HasFoo(r) ->
+        if b then r else { y | bar = x }
+    end
+
+end
