@@ -598,6 +598,7 @@ let pp_mono_base_kind ppf mbkd =
   Format.fprintf ppf "%s" (show_mono_base_kind mbkd)
 
 
+(* Caution: falls into an infinite loop when type variables are mutually dependent or cyclic *)
 let rec show_poly_type_var bidht bridht = function
   | Bound(bid) ->
       begin
