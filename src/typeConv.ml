@@ -36,9 +36,12 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let brid = BoundRowID.fresh () in
         FreeRowIDHashTable.add fridht frid brid;
         let labmap = KindStore.get_free_row frid in
-        let plabmap = labmap |> LabelAssoc.map aux in
+        let plabmap = aux_label_assoc labmap in
         KindStore.register_bound_row brid plabmap;
         brid
+
+  and aux_label_assoc (labmap : mono_type LabelAssoc.t) : poly_type LabelAssoc.t =
+    labmap |> LabelAssoc.map aux
 
   and aux_base_kind (mbkd : mono_base_kind) : poly_base_kind =
     match mbkd with
@@ -46,7 +49,8 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         UniversalKind
 
     | RecordKind(labmap) ->
-        RecordKind(labmap |> LabelAssoc.map aux)
+        let plabmap = aux_label_assoc labmap in
+        RecordKind(plabmap)
 
   and aux (rng, tymain) =
     match tymain with
