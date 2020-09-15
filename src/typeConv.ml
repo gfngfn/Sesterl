@@ -598,26 +598,30 @@ let pp_mono_base_kind ppf mbkd =
   Format.fprintf ppf "%s" (show_mono_base_kind mbkd)
 
 
-type hash_tables = (string option) BoundIDHashTable.t * (string LabelAssoc.t) BoundRowIDHashTable.t
+type 'a state =
+  | Touching
+  | Touched of 'a
+
+type hash_tables = ((string option) state) BoundIDHashTable.t * ((string LabelAssoc.t) state) BoundRowIDHashTable.t
 
 
-(* Caution: falls into an infinite loop when type variables are mutually dependent or cyclic *)
+(* Does NOT fall into an infinite loop even when type variables are mutually dependent or cyclic. *)
 let rec show_poly_type_var (hts : hash_tables) = function
   | Bound(bid) ->
       let (bidht, _) = hts in
-      begin
-        if BoundIDHashTable.mem bidht bid then () else
-          let pbkd = KindStore.get_bound_id bid in
-          let skdopt =
-            match pbkd with
-            | UniversalKind ->
-                None
+      if BoundIDHashTable.mem bidht bid then () else begin
+        BoundIDHashTable.add bidht bid Touching;
+        let pbkd = KindStore.get_bound_id bid in
+        let skdopt =
+          match pbkd with
+          | UniversalKind ->
+              None
 
-            | _ ->
-                let skd = show_poly_base_kind_sub hts pbkd in
-                Some(skd)
-          in
-          BoundIDHashTable.add bidht bid skdopt
+          | _ ->
+              let skd = show_poly_base_kind_sub hts pbkd in
+              Some(skd)
+        in
+        BoundIDHashTable.replace bidht bid (Touched(skdopt))
       end;
       Format.asprintf "%a" BoundID.pp bid
 
@@ -628,11 +632,11 @@ let rec show_poly_type_var (hts : hash_tables) = function
 and show_poly_row_var (hts : hash_tables) = function
   | BoundRow(brid) ->
       let (_, bridht) = hts in
-      begin
-        if BoundRowIDHashTable.mem bridht brid then () else
-          let plabmap = KindStore.get_bound_row brid in
-          let smap = plabmap |> LabelAssoc.map (show_poly_type_sub hts) in
-          BoundIDHashTable.add bridht brid smap
+      if BoundRowIDHashTable.mem bridht brid then () else begin
+        BoundRowIDHashTable.add bridht brid Touching;
+        let plabmap = KindStore.get_bound_row brid in
+        let smap = plabmap |> LabelAssoc.map (show_poly_type_sub hts) in
+        BoundRowIDHashTable.replace bridht brid (Touched(smap))
       end;
       Some(Format.asprintf "%a" BoundRowID.pp brid)
 
@@ -652,21 +656,28 @@ let show_bound_type_ids ((bidht, _) : hash_tables) =
   BoundIDHashTable.fold (fun bid skdopt acc ->
     let s =
       match skdopt with
-      | Some(skd) -> Format.asprintf "%a :: %s" BoundID.pp bid skd
-      | None      -> Format.asprintf "%a" BoundID.pp bid
+      | Touching           -> assert false
+      | Touched(Some(skd)) -> Format.asprintf "%a :: %s" BoundID.pp bid skd
+      | Touched(None)      -> Format.asprintf "%a" BoundID.pp bid
     in
     Alist.extend acc s
   ) bidht Alist.empty |> Alist.to_list
 
 
 let show_bound_row_ids ((_, bridht) : hash_tables) =
-  BoundRowIDHashTable.fold (fun brid smap acc ->
-    let skd =
-      LabelAssoc.fold (fun label sty acc ->
-        Alist.extend acc (Format.asprintf "?%s %s" label sty)
-      ) smap Alist.empty |> Alist.to_list |> String.concat ", "
-    in
-    Alist.extend acc (Format.asprintf "%a :: (%s)" BoundRowID.pp brid skd)
+  BoundRowIDHashTable.fold (fun brid state acc ->
+    match state with
+    | Touching ->
+        assert false
+
+    | Touched(smap) ->
+        let skd =
+          LabelAssoc.fold (fun label sty acc ->
+            Alist.extend acc (Format.asprintf "?%s %s" label sty)
+          ) smap Alist.empty |> Alist.to_list |> String.concat ", "
+        in
+        Alist.extend acc (Format.asprintf "%a :: (%s)" BoundRowID.pp brid skd)
+
   ) bridht Alist.empty |> Alist.to_list
 
 
