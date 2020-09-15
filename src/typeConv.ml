@@ -598,8 +598,11 @@ let pp_mono_base_kind ppf mbkd =
   Format.fprintf ppf "%s" (show_mono_base_kind mbkd)
 
 
+type hash_tables = (string option) BoundIDHashTable.t * (string LabelAssoc.t) BoundRowIDHashTable.t
+
+
 (* Caution: falls into an infinite loop when type variables are mutually dependent or cyclic *)
-let rec show_poly_type_var hts = function
+let rec show_poly_type_var (hts : hash_tables) = function
   | Bound(bid) ->
       let (bidht, _) = hts in
       begin
@@ -622,7 +625,7 @@ let rec show_poly_type_var hts = function
       show_mono_type_var mtv
 
 
-and show_poly_row_var hts = function
+and show_poly_row_var (hts : hash_tables) = function
   | BoundRow(brid) ->
       let (_, bridht) = hts in
       begin
@@ -637,15 +640,15 @@ and show_poly_row_var hts = function
       show_mono_row_var mrv
 
 
-and show_poly_type_sub hts : poly_type -> string =
+and show_poly_type_sub (hts : hash_tables) : poly_type -> string =
   show_type (show_poly_type_var hts) (show_poly_row_var hts)
 
 
-and show_poly_base_kind_sub hts : poly_base_kind -> string =
+and show_poly_base_kind_sub (hts : hash_tables) : poly_base_kind -> string =
   show_base_kind (show_poly_type_var hts) (show_poly_row_var hts)
 
 
-let show_bound_type_ids (bidht, _) =
+let show_bound_type_ids ((bidht, _) : hash_tables) =
   BoundIDHashTable.fold (fun bid skdopt acc ->
     let s =
       match skdopt with
@@ -656,7 +659,7 @@ let show_bound_type_ids (bidht, _) =
   ) bidht Alist.empty |> Alist.to_list
 
 
-let show_bound_row_ids (_, bridht) =
+let show_bound_row_ids ((_, bridht) : hash_tables) =
   BoundRowIDHashTable.fold (fun brid smap acc ->
     let skd =
       LabelAssoc.fold (fun label sty acc ->
@@ -667,10 +670,11 @@ let show_bound_row_ids (_, bridht) =
   ) bridht Alist.empty |> Alist.to_list
 
 
-let create_initial_hash_tables () =
+let create_initial_hash_tables () : hash_tables =
   let bidht = BoundIDHashTable.create 32 in
   let bridht = BoundRowIDHashTable.create 32 in
   (bidht, bridht)
+
 
 let show_poly_type (pty : poly_type) : string list * string list * string =
   let hts = create_initial_hash_tables () in
