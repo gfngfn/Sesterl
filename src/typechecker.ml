@@ -1182,7 +1182,7 @@ and add_labeled_optional_parameters_to_type_environment (pre : pre) (optbinders 
         match utdefault with
         | None ->
             let ty_outer = fresh_type_variable pre.level UniversalKind (Range.dummy "optional") in
-            unify ty_inner (Primitives.option_type ty_outer);
+            unify ty_inner (Primitives.option_type (Range.dummy "option") ty_outer);
             (ty_outer, None)
 
         | Some(utast) ->

@@ -196,8 +196,8 @@ let vid_option = TypeID.Variant.fresh "option"
 let vid_list = TypeID.Variant.fresh "list"
 
 
-let option_type (ty : mono_type) : mono_type =
-  (dr, DataType(TypeID.Variant(vid_option), [ty]))
+let option_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
+  (rng, DataType(TypeID.Variant(vid_option), [ty]))
 
 
 let list_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
