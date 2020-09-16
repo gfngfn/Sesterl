@@ -917,12 +917,13 @@ let type_of_base_constant (lev : int) (rng : Range.t) (bc : base_constant) =
   | Char(_)   -> (rng, BaseType(CharType))
 
   | FormatString(fmtelems) ->
-      begin
+      let tyarg =
         match types_of_format lev fmtelems with
         | []                -> raise_error (NullaryFormatString(rng))
-        | [ (_, tymain) ]   -> (rng, tymain)
-        | ty1 :: ty2 :: tys -> (rng, ProductType(TupleList.make ty1 ty2 tys))
-      end
+        | [ ty ]            -> ty
+        | ty1 :: ty2 :: tys -> (Range.dummy "format", ProductType(TupleList.make ty1 ty2 tys))
+      in
+      Primitives.format_type rng tyarg
 
 
 let rec make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder list) : pre * type_parameter_assoc =
