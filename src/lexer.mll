@@ -1,4 +1,5 @@
 {
+  open MyUtil
   open Syntax
   open Parser
   open Errors
@@ -9,6 +10,29 @@
 
   let raise_error e =
     raise (Error(e))
+
+
+  let hole_of_char = function
+    | 'c' -> HoleC
+    | 'f' -> HoleF
+    | 'e' -> HoleE
+    | 'g' -> HoleG
+    | 's' -> HoleS
+    | 'p' -> HoleP
+    | 'w' -> HoleW
+    | _   -> assert false
+
+
+  let int_of_string_or_empty = function
+    | "" -> None
+    | s  -> Some(int_of_string s)
+
+
+  let flush_buffer strbuf =
+    let s = Buffer.contents strbuf in
+    Buffer.clear strbuf;
+    FormatConst(s)
+
 }
 
 let space = [' ' '\t']
@@ -22,6 +46,8 @@ let latin = (small | capital)
 let identifier = (small (digit | latin | "_")*)
 let constructor = (capital (digit | latin | "_")*)
 let nssymbol = ['&' '|' '=' '/' '+' '-' '.']
+let fmtdigits = (("-" digit+) | (digit*))
+let hole = ['c' 'f' 'e' 'g' 's' 'p' 'w']
 
 rule token = parse
   | space { token lexbuf }
@@ -151,6 +177,13 @@ rule token = parse
       STRING(rng, s)
     }
 
+  | "f\'" {
+      let posL = Range.from_lexbuf lexbuf in
+      let strbuf = Buffer.create 128 in
+      let (rng, fmtelemacc) = format_literal posL strbuf Alist.empty lexbuf in
+      FORMAT(rng, Alist.to_list fmtelemacc)
+    }
+
   | "$\'" {
       let posL = Range.from_lexbuf lexbuf in
       let strbuf = Buffer.create 16 in
@@ -183,6 +216,60 @@ and string_literal posL strbuf = parse
   | "\'"   { let posR = Range.from_lexbuf lexbuf in (Range.unite posL posR, Buffer.contents strbuf) }
   | "\\\'" { Buffer.add_char strbuf '\''; string_literal posL strbuf lexbuf }
   | _ as c { Buffer.add_char strbuf c; string_literal posL strbuf lexbuf }
+
+and format_literal posL strbuf acc = parse
+  | break  { raise_error (SeeBreakInStringLiteral(posL)) }
+  | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
+
+  | "\'" {
+      let posR = Range.from_lexbuf lexbuf in
+      let elem = flush_buffer strbuf in
+      (Range.unite posL posR, Alist.extend acc elem)
+    }
+
+  | "\\\'" { Buffer.add_char strbuf '\''; format_literal posL strbuf acc lexbuf }
+
+  | "~~" {
+      let elem = flush_buffer strbuf in
+      format_literal posL strbuf (Alist.append acc [elem; FormatTilde]) lexbuf
+    }
+
+  | "~n" {
+      let elem = flush_buffer strbuf in
+      format_literal posL strbuf (Alist.append acc [elem; FormatBreak]) lexbuf
+    }
+  | ("~" (fmtdigits as s1) (hole as c)) {
+      let elem = flush_buffer strbuf in
+      let hole = hole_of_char c in
+      let control =
+        {
+          field_width = int_of_string_or_empty s1;
+          precision   = None;
+          padding     = None;
+        }
+      in
+      format_literal posL strbuf (Alist.append acc [elem; FormatHole(hole, control)]) lexbuf
+    }
+
+  | ("~" (fmtdigits as s1) "." (fmtdigits as s2) (hole as c)) {
+      let elem = flush_buffer strbuf in
+      let hole = hole_of_char c in
+      let control =
+        {
+          field_width = int_of_string_or_empty s1;
+          precision   = int_of_string_or_empty s2;
+          padding     = None;
+        }
+      in
+      format_literal posL strbuf (Alist.append acc [elem; FormatHole(hole, control)]) lexbuf
+    }
+
+  | "\\\"" {
+      let elem = flush_buffer strbuf in
+      format_literal posL strbuf (Alist.append acc [elem; FormatDQuote]) lexbuf
+    }
+
+  | _ as c { Buffer.add_char strbuf c; format_literal posL strbuf acc lexbuf }
 
 and string_block num_start posL strbuf = parse
   | ("`" +) {

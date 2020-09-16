@@ -53,3 +53,4 @@ type type_error =
   | InvalidIdentifier                   of Range.t * string
   | ConflictInSignature                 of Range.t * string
   | DuplicatedLabel                     of Range.t * label
+  | NullaryFormatString                 of Range.t

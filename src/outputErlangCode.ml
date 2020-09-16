@@ -97,6 +97,34 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
 let unit_atom = "ok"
 
 
+let stringify_hole = function
+  | HoleC -> "c"
+  | HoleF -> "f"
+  | HoleE -> "e"
+  | HoleG -> "g"
+  | HoleS -> "s"
+  | HoleP -> "p"
+  | HoleW -> "w"
+
+
+let stringify_format_element = function
+  | FormatBreak    -> (0, "~n")
+  | FormatTilde    -> (0, "~~")
+  | FormatDQuote   -> (0, "\\\"")
+  | FormatConst(s) -> (0, s)
+
+  | FormatHole(hole, control) ->
+      let ch = stringify_hole hole in
+      let s =
+        match (control.field_width, control.precision) with
+        | (Some(n1), Some(n2)) -> Printf.sprintf "%d.%d" n1 n2
+        | (Some(n1), None)     -> Printf.sprintf "%d" n1
+        | (None, Some(n2))     -> Printf.sprintf ".%d" n2
+        | (None, None)         -> ""
+      in
+      (1, Printf.sprintf "~%s%s" s ch)
+
+
 let stringify_base_constant (bc : base_constant) =
   match bc with
   | Unit        -> unit_atom
@@ -116,6 +144,12 @@ let stringify_base_constant (bc : base_constant) =
   | BinaryByInts(ns)  -> Printf.sprintf "<<%s>>" (ns |> List.map string_of_int |> String.concat ", ")
   | String(s)         -> Printf.sprintf "\"%s\"" (String.escaped s)
   | Char(uchar)       -> Printf.sprintf "%d" (Uchar.to_int uchar)
+
+  | FormatString(fmtelems) ->
+      let pairs = fmtelems |> List.map stringify_format_element in
+      let s = pairs |> List.map (fun (_, s) -> s) |> String.concat "" in
+      let arity = pairs |> List.fold_left (fun arity (n, _) -> arity + n) 0 in
+      Printf.sprintf "{\"%s\", %d}" s arity
 
 
 let get_module_string (gmap : global_name_map) (gname : global_name) : string =

@@ -15,6 +15,27 @@ let decode_option_function_with_default =
   "decode_option_with_default"
 
 
+let vid_option = TypeID.Variant.fresh "option"
+
+
+let vid_list = TypeID.Variant.fresh "list"
+
+
+let vid_format = TypeID.Variant.fresh "format"
+
+
+let option_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
+  (rng, DataType(TypeID.Variant(vid_option), [ty]))
+
+
+let list_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
+  (rng, DataType(TypeID.Variant(vid_list), [ty]))
+
+
+let format_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
+  (rng, DataType(TypeID.Variant(vid_format), [ty]))
+
+
 let fresh_bound () =
   let bid = BoundID.fresh () in
   KindStore.register_bound_id bid UniversalKind;
@@ -26,6 +47,7 @@ let u = (dr, BaseType(UnitType))
 let b = (dr, BaseType(BoolType))
 let i = (dr, BaseType(IntType))
 let f = (dr, BaseType(FloatType))
+let c = (dr, BaseType(CharType))
 let ( @-> ) tydoms tycod = (dr, FuncType(tydoms, LabelAssoc.empty, FixedRow(LabelAssoc.empty), tycod))
 let eff tyrcv ty0 = (dr, EffType(Effect(tyrcv), ty0))
 let pid tyrcv = (dr, PidType(Pid(tyrcv)))
@@ -57,6 +79,11 @@ let tyself : poly_type =
 let typrintdebug : poly_type =
   let typaram = fresh_bound () in
   [typaram] @-> u
+
+
+let tyformat : poly_type =
+  let typaram = fresh_bound () in
+  [format_type dr typaram; typaram] @-> list_type dr c
 
 
 type source_definition = {
@@ -134,6 +161,17 @@ let primitive_definitions = [
   };
   {
     source = Some{
+      identifier = "format";
+      typ        = tyformat;
+    };
+    target = {
+      target_name = "format";
+      parameters  = ["{Fmt, Arity}"; "Arg"];
+      code        = "Args = case Arity of 1 -> [Arg]; _ -> tuple_to_list(Arg) end, lists:flatten(io_lib:format(Fmt, Args))"
+    };
+  };
+  {
+    source = Some{
       identifier = "float";
       typ        = [i] @-> f;
     };
@@ -188,20 +226,6 @@ let make_constructor_id ctor =
   match ConstructorID.make ctor with
   | None         -> assert false
   | Some(ctorid) -> ctorid
-
-
-let vid_option = TypeID.Variant.fresh "option"
-
-
-let vid_list = TypeID.Variant.fresh "list"
-
-
-let option_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
-  (rng, DataType(TypeID.Variant(vid_option), [ty]))
-
-
-let list_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
-  (rng, DataType(TypeID.Variant(vid_list), [ty]))
 
 
 let add_variant_types vntdefs (tyenv, gmap) =
@@ -274,6 +298,12 @@ let initial_environment =
         ("list", vid_list, [bid], [
           (* Here is no constructor definition
              because `ListNil` and `ListCons` are provided for type `untyped_ast`. *)
+        ])
+      end;
+      begin
+        let bid = BoundID.fresh () in
+        KindStore.register_bound_id bid UniversalKind;
+        ("format", vid_format, [bid], [
         ])
       end;
     ]

@@ -300,3 +300,7 @@ let report_type_error (e : type_error) : unit =
       Format.printf "%a: label '%s' is used more than once in a binding\n"
         Range.pp rng
         label
+
+  | NullaryFormatString(rng) ->
+      Format.printf "%a: nullary format string\n"
+        Range.pp rng
