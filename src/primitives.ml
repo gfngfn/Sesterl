@@ -193,8 +193,15 @@ let make_constructor_id ctor =
 let vid_option = TypeID.Variant.fresh "option"
 
 
+let vid_list = TypeID.Variant.fresh "list"
+
+
 let option_type (ty : mono_type) : mono_type =
   (dr, DataType(TypeID.Variant(vid_option), [ty]))
+
+
+let list_type (rng : Range.t) (ty : mono_type) : mono_type =
+  (rng, DataType(TypeID.Variant(vid_list), [ty]))
 
 
 let initial_environment =
@@ -251,12 +258,20 @@ let initial_environment =
 
   (Typeenv.empty, GlobalNameMap.empty)
     |> add_variant_types [
-      let bid = BoundID.fresh () in
-      KindStore.register_bound_id bid UniversalKind;
-      ("option", vid_option, [bid], [
-        ("None", []);
-        ("Some", [(dr, TypeVar(Bound(bid)))])
-      ]);
+      begin
+        let bid = BoundID.fresh () in
+        KindStore.register_bound_id bid UniversalKind;
+        ("option", vid_option, [bid], [
+          ("None", []);
+          ("Some", [(dr, TypeVar(Bound(bid)))])
+        ])
+      end;
+      begin
+        let bid = BoundID.fresh () in
+        KindStore.register_bound_id bid UniversalKind;
+        ("list", vid_list, [bid], [
+        ])
+      end;
     ]
     |> add_operators [
       ("&&", tylogic, "and");
