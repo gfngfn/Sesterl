@@ -2,6 +2,10 @@
 open MyUtil
 
 
+type 'a cycle =
+  | Loop  of 'a
+  | Cycle of 'a TupleList.t
+
 type 'a ranged = Range.t * 'a
 
 let pp_ranged ppsub ppf (_, x) =

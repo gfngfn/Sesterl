@@ -7,6 +7,8 @@ val make : 'a -> 'a -> 'a list -> 'a t
 
 val map : ('a -> 'b) -> 'a t -> 'b t
 
+val map_and_fold : ('c -> 'a -> 'c * 'b) -> 'c -> 'a t -> 'c * 'b t
+
 val to_list : 'a t -> 'a list
 (** [to_list] forgets the constraint of the length. *)
 

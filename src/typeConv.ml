@@ -3,16 +3,95 @@ open MyUtil
 open Syntax
 
 
+
+module BoundBothID = struct
+
+  type t =
+    | Type of BoundID.t
+    | Row  of BoundRowID.t
+  [@@deriving show { with_path = false }]
+
+  let hash = function
+    | Type(bid) -> BoundID.hash bid
+    | Row(brid) -> BoundRowID.hash brid
+
+  let compare x1 x2 =
+    match (x1, x2) with
+    | (Type(bid1), Type(bid2)) -> BoundID.compare bid1 bid2
+    | (Row(brid1), Row(brid2)) -> BoundRowID.compare brid1 brid2
+    | (Type(_), Row(_))        -> 1
+    | (Row(_), Type(_))        -> -1
+
+  let equal x1 x2 =
+    compare x1 x2 = 0
+
+end
+
+module BoundBothIDSet = Set.Make(BoundBothID)
+
+module BoundBothIDHashTable = Hashtbl.Make(BoundBothID)
+
+module BoundBothIDDependencyGraph : sig
+  type vertex = BoundBothID.t
+  type t
+  val empty : t
+  val add_vertex : t -> vertex -> t
+  val add_edge : t -> vertex -> vertex -> t
+  val find_cycle : t -> (vertex cycle) option
+end = struct
+
+  module GraphImpl = Graph.Persistent.Digraph.Concrete(BoundBothID)
+
+  module ComponentImpl = Graph.Components.Make(GraphImpl)
+
+  type vertex = BoundBothID.t
+
+  type t = GraphImpl.t
+
+  let empty =
+    GraphImpl.empty
+
+  let add_vertex graph bbid =
+    GraphImpl.add_vertex graph bbid
+
+  let add_edge graph bbid1 bbid2 =
+    Format.printf "ADD-EDGE %a ---> %a\n" BoundBothID.pp bbid1 BoundBothID.pp bbid2;  (* for debug *)
+    GraphImpl.add_edge graph bbid1 bbid2
+
+  let find_loop graph =
+    GraphImpl.fold_vertex (fun v acc ->
+      match acc with
+      | Some(_) -> acc
+      | None    -> if GraphImpl.mem_edge graph v v then Some(v) else None
+    ) graph None
+
+  let find_cycle graph =
+    match find_loop graph with
+    | Some(v) ->
+        Some(Loop(v))
+
+    | None ->
+    let sccs = ComponentImpl.scc_list graph in
+    sccs |> List.find_map (fun vertices ->
+      match vertices with
+      | []                -> assert false
+      | [ _ ]             -> None
+      | v1 :: v2 :: vrest -> Some(Cycle(TupleList.make v1 v2 vrest))
+    )
+
+
+end
+
 (* Arguments:
    - `levpred`:
      Given a level of free/must-be-bound ID,
      this predicate returns whether it should be bound or not. *)
-let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_type) : poly_type =
+let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_type) : (poly_type, BoundBothID.t cycle * poly_type) result =
 
   let fidht = FreeIDHashTable.create 32 in
   let fridht = FreeRowIDHashTable.create 32 in
 
-  (* TODO: check that no cyclic dependency exists between bound IDs. *)
+  let bdepsht = BoundBothIDHashTable.create 32 in
 
   let rec intern (fid : FreeID.t) : BoundID.t =
     match FreeIDHashTable.find_opt fidht fid with
@@ -23,7 +102,8 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let bid = BoundID.fresh () in
         FreeIDHashTable.add fidht fid bid;
         let mbkd = KindStore.get_free_id fid in
-        let pbkd = aux_base_kind mbkd in
+        let (bbidset, pbkd) = aux_base_kind mbkd in
+        BoundBothIDHashTable.add bdepsht (BoundBothID.Type(bid)) bbidset;
         KindStore.register_bound_id bid pbkd;
         bid
 
@@ -36,117 +116,166 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let brid = BoundRowID.fresh () in
         FreeRowIDHashTable.add fridht frid brid;
         let labmap = KindStore.get_free_row frid in
-        let plabmap = aux_label_assoc labmap in
+        let (bbidset, plabmap) = aux_label_assoc labmap in
+        BoundBothIDHashTable.add bdepsht (BoundBothID.Row(brid)) bbidset;
         KindStore.register_bound_row brid plabmap;
         brid
 
-  and aux_label_assoc (labmap : mono_type LabelAssoc.t) : poly_type LabelAssoc.t =
-    labmap |> LabelAssoc.map aux
+  and aux_label_assoc (labmap : mono_type LabelAssoc.t) : BoundBothIDSet.t * poly_type LabelAssoc.t =
+    LabelAssoc.fold (fun label ty (bbidsetacc, plabmap) ->
+      let (bbidset, pty) = aux ty in
+      (BoundBothIDSet.union bbidsetacc bbidset, plabmap |> LabelAssoc.add label pty)
+    ) labmap (BoundBothIDSet.empty, LabelAssoc.empty)
 
-  and aux_base_kind (mbkd : mono_base_kind) : poly_base_kind =
+  and aux_base_kind (mbkd : mono_base_kind) : BoundBothIDSet.t * poly_base_kind =
     match mbkd with
     | UniversalKind ->
-        UniversalKind
+        (BoundBothIDSet.empty, UniversalKind)
 
     | RecordKind(labmap) ->
-        let plabmap = aux_label_assoc labmap in
-        RecordKind(plabmap)
+        let (bbidset, plabmap) = aux_label_assoc labmap in
+        (bbidset, RecordKind(plabmap))
 
-  and aux (rng, tymain) =
+  and aux ((rng, tymain) : mono_type) : BoundBothIDSet.t * poly_type =
     match tymain with
     | BaseType(bty) ->
-        (rngf rng, BaseType(bty))
+        let pty = (rngf rng, BaseType(bty)) in
+        (BoundBothIDSet.empty, pty)
 
     | TypeVar(Updatable{contents = Link(ty)}) ->
         aux ty
 
     | TypeVar(Updatable{contents = Free(fid)} as mtv) ->
-        let ptv =
+        let (bbidset, ptv) =
           if levpred (FreeID.get_level fid) then
             let bid = intern fid in
-            Bound(bid)
+            (BoundBothIDSet.singleton (BoundBothID.Type(bid)), Bound(bid))
           else
-            Mono(mtv)
+            (BoundBothIDSet.empty, Mono(mtv))
         in
-        (rngf rng, TypeVar(ptv))
+        let pty = (rngf rng, TypeVar(ptv)) in
+        (bbidset, pty)
 
     | TypeVar(MustBeBound(mbbid) as mtv) ->
-        let ptv =
+        let (bbidset, ptv) =
           if levpred (MustBeBoundID.get_level mbbid) then
             let bid = MustBeBoundID.to_bound mbbid in
-            Bound(bid)
+            (BoundBothIDSet.singleton (BoundBothID.Type(bid)), Bound(bid))
           else
-            Mono(mtv)
+            (BoundBothIDSet.empty, Mono(mtv))
         in
-        (rngf rng, TypeVar(ptv))
+        let pty = (rngf rng, TypeVar(ptv)) in
+        (bbidset, pty)
 
     | FuncType(tydoms, mndlabmap, optrow, tycod) ->
-        let ptydoms = tydoms |> List.map aux in
-        let pmndlabmap = mndlabmap |> LabelAssoc.map aux in
-        let poptrow = aux_option_row optrow in
-        let ptycod = aux tycod in
-        (rngf rng, FuncType(ptydoms, pmndlabmap, poptrow, ptycod))
+        let (bbidset1, ptydoms) = aux_list tydoms in
+        let (bbidset2, pmndlabmap) = aux_label_assoc mndlabmap in
+        let (bbidset3, poptrow) = aux_option_row optrow in
+        let (bbidset4, ptycod) = aux tycod in
+        let bbidset = List.fold_left BoundBothIDSet.union bbidset1 [bbidset2; bbidset3; bbidset4] in
+        let pty = (rngf rng, FuncType(ptydoms, pmndlabmap, poptrow, ptycod)) in
+        (bbidset, pty)
 
     | EffType(eff, ty0) ->
-        (rngf rng, EffType(aux_effect eff, aux ty0))
+        let (bbidset1, peff) = aux_effect eff in
+        let (bbidset2, pty0) = aux ty0 in
+        let pty = (rngf rng, EffType(peff, pty0)) in
+        (BoundBothIDSet.union bbidset1 bbidset2, pty)
 
     | PidType(pidty) ->
-        (rngf rng, PidType(aux_pid_type pidty))
+        let (bbidset, ppidty) = aux_pid_type pidty in
+        let pty = (rngf rng, PidType(ppidty)) in
+        (bbidset, pty)
 
     | ProductType(tys) ->
-        let ptys = tys |> TupleList.map aux in
-        (rngf rng, ProductType(ptys))
+        let (bbidset, ptys) =
+          tys |> TupleList.map_and_fold (fun bbidsetacc ty ->
+            let (bbidset, pty) = aux ty in
+            (BoundBothIDSet.union bbidsetacc bbidset, pty)
+          ) BoundBothIDSet.empty
+        in
+        let pty = (rngf rng, ProductType(ptys)) in
+        (bbidset, pty)
 
     | ListType(ty0) ->
-        (rngf rng, ListType(aux ty0))
+        let (bbidset, pty0) = aux ty0 in
+        let pty = (rngf rng, ListType(pty0)) in
+        (bbidset, pty)
 
     | RecordType(labmap) ->
-        let plabmap = labmap |> LabelAssoc.map aux in
-        (rngf rng, RecordType(plabmap))
+        let (bbidset, plabmap) = aux_label_assoc labmap in
+        let pty = (rngf rng, RecordType(plabmap)) in
+        (bbidset, pty)
 
     | DataType(tyid, tyargs) ->
-        (rngf rng, DataType(tyid, tyargs |> List.map aux))
+        let (bbidset, ptyargs) = aux_list tyargs in
+        let pty = (rngf rng, DataType(tyid, ptyargs)) in
+        (bbidset, pty)
+
+  and aux_list (tys : mono_type list) =
+    let (bbidsetacc, ptyacc) =
+      tys |> List.fold_left (fun (bbidsetacc, ptyacc) ty ->
+        let (bbidset, pty) = aux ty in
+        (BoundBothIDSet.union bbidsetacc bbidset, Alist.extend ptyacc pty)
+      ) (BoundBothIDSet.empty, Alist.empty)
+    in
+    (bbidsetacc, Alist.to_list ptyacc)
 
   and aux_effect (Effect(ty)) =
-    let pty = aux ty in
-    Effect(pty)
+    let (bbidset, pty) = aux ty in
+    (bbidset, Effect(pty))
 
   and aux_pid_type (Pid(ty)) =
-    let pty = aux ty in
-    Pid(pty)
+    let (bbidset, pty) = aux ty in
+    (bbidset, Pid(pty))
 
-  and aux_option_row = function
+  and aux_option_row : mono_row -> BoundBothIDSet.t * poly_row = function
     | FixedRow(labmap) ->
-        let plabmap = labmap |> LabelAssoc.map aux in
-        FixedRow(plabmap)
+        let (bbidset, plabmap) = aux_label_assoc labmap in
+        (bbidset, FixedRow(plabmap))
 
     | RowVar(UpdatableRow{contents = LinkRow(labmap)}) ->
-        let plabmap = labmap |> LabelAssoc.map aux in
-        FixedRow(plabmap)
+        let (bbidset, plabmap) = aux_label_assoc labmap in
+        (bbidset, FixedRow(plabmap))
 
     | RowVar((UpdatableRow{contents = FreeRow(frid)}) as mrv) ->
         if levpred (FreeRowID.get_level frid) then
           let brid = intern_row frid in
-          RowVar(BoundRow(brid))
+          (BoundBothIDSet.singleton (BoundBothID.Row(brid)), RowVar(BoundRow(brid)))
         else
-          RowVar(MonoRow(mrv))
+          (BoundBothIDSet.empty, RowVar(MonoRow(mrv)))
 
     | RowVar(MustBeBoundRow(mbbrid)) ->
         if levpred (MustBeBoundRowID.get_level mbbrid) then
           let brid = MustBeBoundRowID.to_bound mbbrid in
-          RowVar(BoundRow(brid))
+          (BoundBothIDSet.singleton (BoundBothID.Row(brid)), RowVar(BoundRow(brid)))
             (* We do not need to register a kind to `KindStore`,
                since it has been done when `mbbrid` was created. *)
         else
-          RowVar(MonoRow(MustBeBoundRow(mbbrid)))
+          (BoundBothIDSet.empty, RowVar(MonoRow(MustBeBoundRow(mbbrid))))
 
   in
-  aux ty
+  let (bbidset, pty) = aux ty in
+  let graph =
+    BoundBothIDDependencyGraph.empty |> BoundBothIDSet.fold (fun bbid graph ->
+      BoundBothIDDependencyGraph.add_vertex graph bbid
+    ) bbidset
+  in
+  let graph =
+    BoundBothIDHashTable.fold (fun bbid_from bbidset_to graph ->
+      graph |> BoundBothIDSet.fold (fun bbid_to graph ->
+        BoundBothIDDependencyGraph.add_edge graph bbid_from bbid_to
+      ) bbidset_to
+    ) bdepsht graph
+  in
+  match BoundBothIDDependencyGraph.find_cycle graph with
+  | Some(cycle) -> Error((cycle, pty))
+  | None        -> Ok(pty)
 
 
 (* `generalize lev ty` transforms a monotype `ty` into a polytype
    by binding type variables the level of which is higher than `lev`. *)
-let generalize (lev : int) (ty : mono_type) : poly_type =
+let generalize (lev : int) (ty : mono_type) : (poly_type, BoundBothID.t cycle * poly_type) result =
   lift_scheme
     (fun _ -> Range.dummy "erased")
     (fun levx -> lev < levx)
@@ -155,7 +284,10 @@ let generalize (lev : int) (ty : mono_type) : poly_type =
 
 (* `lift` projects monotypes into polytypes without binding any type variables. *)
 let lift (ty : mono_type) : poly_type =
-  lift_scheme (fun rng -> rng) (fun _ -> false) ty
+  let res = lift_scheme (fun rng -> rng) (fun _ -> false) ty in
+  match res with
+  | Ok(pty)  -> pty
+  | Error(_) -> assert false
 
 
 let instantiate_scheme : 'a 'b. (Range.t -> poly_type_var -> ('a, 'b) typ) -> (poly_row_var -> 'b) -> poly_type -> ('a, 'b) typ =
@@ -389,16 +521,24 @@ let rec kind_of_arity n =
   Kind(bkddoms, UniversalKind)
 
 
-let lift_base_kind_scheme (rngf : Range.t -> Range.t) (levf : int -> bool) (mbkd : mono_base_kind) : poly_base_kind =
+let lift_base_kind_scheme (rngf : Range.t -> Range.t) (levf : int -> bool) (mbkd : mono_base_kind) : (poly_base_kind, BoundBothID.t cycle * poly_type) result =
+  let open ResultMonad in
   match mbkd with
   | UniversalKind ->
-      UniversalKind
+      return UniversalKind
 
   | RecordKind(labmap) ->
-      RecordKind(labmap |> LabelAssoc.map (lift_scheme rngf levf))
+      begin
+        LabelAssoc.fold (fun label ty acc ->
+          acc >>= fun plabmap ->
+          lift_scheme rngf levf ty >>= fun pty ->
+          return (plabmap |> LabelAssoc.add label pty)
+        ) labmap (Ok(LabelAssoc.empty))
+      end >>= fun plabmap ->
+      return (RecordKind(plabmap))
 
 
-let generalize_base_kind (lev : int) : mono_base_kind -> poly_base_kind =
+let generalize_base_kind (lev : int) : mono_base_kind -> (poly_base_kind, BoundBothID.t cycle * poly_type) result =
   lift_base_kind_scheme
     (fun _ -> Range.dummy "erased")
     (fun levx -> lev < levx)
@@ -411,11 +551,25 @@ let lift_base_kind =
 
 
 let lift_kind (kd : mono_kind) : poly_kind =
+  let open ResultMonad in
   match kd with
   | Kind(bkddoms, bkdcod) ->
-      let pbkddoms = bkddoms |> List.map lift_base_kind in
-      let pbkdcod = lift_base_kind bkdcod in
-      Kind(pbkddoms, pbkdcod)
+      let res =
+        begin
+          bkddoms |> List.fold_left (fun acc bkddom ->
+            acc >>= fun pbkddomacc ->
+            lift_base_kind bkddom >>= fun pbkddom ->
+            return (Alist.extend pbkddomacc pbkddom)
+          ) (return Alist.empty)
+        end >>= fun pbkddomacc ->
+        lift_base_kind bkdcod >>= fun pbkdcod ->
+        return (Kind(Alist.to_list pbkddomacc, pbkdcod))
+      in
+      begin
+        match res with
+        | Ok(pkd)  -> pkd
+        | Error(_) -> assert false
+      end
 
 
 let rec arity_of_kind = function
