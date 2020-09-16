@@ -204,58 +204,60 @@ let list_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
   (rng, DataType(TypeID.Variant(vid_list), [ty]))
 
 
+let add_variant_types vntdefs (tyenv, gmap) =
+  let tyenv : Typeenv.t =
+    vntdefs |> List.fold_left (fun tyenv vntdef ->
+      let (tynm, vid, bids, ctordefs) = vntdef in
+      let pkd = TypeConv.kind_of_arity (List.length bids) in
+      let tyenv = tyenv |> Typeenv.add_variant_type tynm vid pkd in
+      ctordefs |> List.fold_left (fun tyenv ctordef ->
+        let (ctor, paramtys) = ctordef in
+        let ctorentry =
+          {
+            belongs         = vid;
+            constructor_id  = make_constructor_id ctor;
+            type_variables  = bids;
+            parameter_types = paramtys;
+          }
+        in
+        tyenv |> Typeenv.add_constructor ctor ctorentry
+      ) tyenv
+    ) tyenv
+  in
+  (tyenv, gmap)
+
+
+let add_operators (ops : (string * poly_type * string) list) ((tyenv, gmap) : Typeenv.t * global_name_map) : Typeenv.t * global_name_map =
+  let tyenv =
+    ops |> List.fold_left (fun tyenv (x, pty, target) ->
+      let name = OutputIdentifier.Operator(OutputIdentifier.operator target) in
+      tyenv |> Typeenv.add_val x pty name
+    ) tyenv
+  in
+  (tyenv, gmap)
+
+
+let add_primitives (prims : primitive_definition list) ((tyenv, gmap) : Typeenv.t * global_name_map) : Typeenv.t * global_name_map =
+  prims |> List.fold_left (fun (tyenv, gmap) primdef ->
+    match primdef.source with
+    | None ->
+        (tyenv, gmap)
+
+    | Some(srcdef) ->
+        let targetdef = primdef.target in
+        let gname =
+          let arity = List.length targetdef.parameters in
+          match OutputIdentifier.generate_global targetdef.target_name ~arity:arity ~has_option:false with
+          | None        -> assert false
+          | Some(gname) -> gname
+        in
+        let tyenv = tyenv |> Typeenv.add_val srcdef.identifier srcdef.typ (OutputIdentifier.Global(gname)) in
+        let gmap = gmap |> GlobalNameMap.add gname primitive_module_name in
+        (tyenv, gmap)
+  ) (tyenv, gmap)
+
+
 let initial_environment =
-  let add_variant_types vntdefs (tyenv, gmap) =
-    let tyenv : Typeenv.t =
-      vntdefs |> List.fold_left (fun tyenv vntdef ->
-        let (tynm, vid, bids, ctordefs) = vntdef in
-        let pkd = TypeConv.kind_of_arity (List.length bids) in
-        let tyenv = tyenv |> Typeenv.add_variant_type tynm vid pkd in
-        ctordefs |> List.fold_left (fun tyenv ctordef ->
-          let (ctor, paramtys) = ctordef in
-          let ctorentry =
-            {
-              belongs         = vid;
-              constructor_id  = make_constructor_id ctor;
-              type_variables  = bids;
-              parameter_types = paramtys;
-            }
-          in
-          tyenv |> Typeenv.add_constructor ctor ctorentry
-        ) tyenv
-      ) tyenv
-    in
-    (tyenv, gmap)
-  in
-  let add_operators (ops : (string * poly_type * string) list) ((tyenv, gmap) : Typeenv.t * global_name_map) : Typeenv.t * global_name_map =
-    let tyenv =
-      ops |> List.fold_left (fun tyenv (x, pty, target) ->
-        let name = OutputIdentifier.Operator(OutputIdentifier.operator target) in
-        tyenv |> Typeenv.add_val x pty name
-      ) tyenv
-    in
-    (tyenv, gmap)
-  in
-  let add_primitives (prims : primitive_definition list) ((tyenv, gmap) : Typeenv.t * global_name_map) : Typeenv.t * global_name_map =
-    prims |> List.fold_left (fun (tyenv, gmap) primdef ->
-      match primdef.source with
-      | None ->
-          (tyenv, gmap)
-
-      | Some(srcdef) ->
-          let targetdef = primdef.target in
-          let gname =
-            let arity = List.length targetdef.parameters in
-            match OutputIdentifier.generate_global targetdef.target_name ~arity:arity ~has_option:false with
-            | None        -> assert false
-            | Some(gname) -> gname
-          in
-          let tyenv = tyenv |> Typeenv.add_val srcdef.identifier srcdef.typ (OutputIdentifier.Global(gname)) in
-          let gmap = gmap |> GlobalNameMap.add gname primitive_module_name in
-          (tyenv, gmap)
-    ) (tyenv, gmap)
-  in
-
   (Typeenv.empty, GlobalNameMap.empty)
     |> add_variant_types [
       begin
