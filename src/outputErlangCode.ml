@@ -108,10 +108,10 @@ let stringify_hole = function
 
 
 let stringify_format_element = function
-  | FormatBreak    -> "~n"
-  | FormatTilde    -> "~~"
-  | FormatDQuote   -> "\\\""
-  | FormatConst(s) -> s
+  | FormatBreak    -> (0, "~n")
+  | FormatTilde    -> (0, "~~")
+  | FormatDQuote   -> (0, "\\\"")
+  | FormatConst(s) -> (0, s)
 
   | FormatHole(hole, control) ->
       let ch = stringify_hole hole in
@@ -122,7 +122,7 @@ let stringify_format_element = function
         | (None, Some(n2))     -> Printf.sprintf ".%d" n2
         | (None, None)         -> ""
       in
-      Printf.sprintf "~%s%s" s ch
+      (1, Printf.sprintf "~%s%s" s ch)
 
 
 let stringify_base_constant (bc : base_constant) =
@@ -146,8 +146,10 @@ let stringify_base_constant (bc : base_constant) =
   | Char(uchar)       -> Printf.sprintf "%d" (Uchar.to_int uchar)
 
   | FormatString(fmtelems) ->
-      let s = fmtelems |> List.map stringify_format_element |> String.concat "" in
-      Printf.sprintf "\"%s\"" s
+      let pairs = fmtelems |> List.map stringify_format_element in
+      let s = pairs |> List.map (fun (_, s) -> s) |> String.concat "" in
+      let arity = pairs |> List.fold_left (fun arity (n, _) -> arity + n) 0 in
+      Printf.sprintf "{\"%s\", %d}" s arity
 
 
 let get_module_string (gmap : global_name_map) (gname : global_name) : string =
