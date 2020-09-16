@@ -1406,8 +1406,8 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         BindingMap.fold (fun x (ty, lname, _) tyenv ->
           let pty =
             match TypeConv.generalize pre.level ty with
-            | Ok(pty)  -> pty
-            | Error(_) -> failwith "TODO: LetPatIn, error handling"
+            | Ok(pty)             -> pty
+            | Error((cycle, pty)) -> raise_error (CyclicTypeParameter(rng, cycle, pty))
           in
           tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname))
         ) bindmap pre.tyenv
@@ -1670,8 +1670,8 @@ fun namef pre letbind ->
 
   let pty1 =
     match TypeConv.generalize pre.level ty1 with
-    | Ok(pty1) -> pty1
-    | Error(_) -> failwith "TODO: typecheck_let, error handling"
+    | Ok(pty1)             -> pty1
+    | Error((cycle, pty1)) -> raise_error (CyclicTypeParameter(rngv, cycle, pty1))
   in
   let name = namef rngv x in
   (pty1, name, e1)
@@ -1745,8 +1745,8 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
   unify ty1 tyf;
   let ptyf =
     match TypeConv.generalize pre.level ty1 with
-    | Ok(ptyf) -> ptyf
-    | Error(_) -> failwith "TODO: typecheck_letrec_single, error handling"
+    | Ok(ptyf)             -> ptyf
+    | Error((cycle, ptyf)) -> raise_error (CyclicTypeParameter(rngv, cycle, ptyf))
   in
   (ptyf, e1)
 

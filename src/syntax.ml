@@ -259,6 +259,34 @@ module BoundRowID = BoundID  (* temporary *)
 
 module MustBeBoundRowID = MustBeBoundID  (* temporary *)
 
+
+module BoundBothID = struct
+
+  type t =
+    | Type of BoundID.t
+    | Row  of BoundRowID.t
+
+  let hash = function
+    | Type(bid) -> BoundID.hash bid
+    | Row(brid) -> BoundRowID.hash brid
+
+  let compare x1 x2 =
+    match (x1, x2) with
+    | (Type(bid1), Type(bid2)) -> BoundID.compare bid1 bid2
+    | (Row(brid1), Row(brid2)) -> BoundRowID.compare brid1 brid2
+    | (Type(_), Row(_))        -> 1
+    | (Row(_), Type(_))        -> -1
+
+  let equal x1 x2 =
+    compare x1 x2 = 0
+
+  let pp ppf = function
+    | Type(bid) -> BoundID.pp ppf bid
+    | Row(brid) -> BoundRowID.pp ppf brid
+
+end
+
+
 type ('a, 'b) typ =
   (('a, 'b) typ_main) ranged
 

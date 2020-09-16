@@ -3,30 +3,6 @@ open MyUtil
 open Syntax
 
 
-
-module BoundBothID = struct
-
-  type t =
-    | Type of BoundID.t
-    | Row  of BoundRowID.t
-  [@@deriving show { with_path = false }]
-
-  let hash = function
-    | Type(bid) -> BoundID.hash bid
-    | Row(brid) -> BoundRowID.hash brid
-
-  let compare x1 x2 =
-    match (x1, x2) with
-    | (Type(bid1), Type(bid2)) -> BoundID.compare bid1 bid2
-    | (Row(brid1), Row(brid2)) -> BoundRowID.compare brid1 brid2
-    | (Type(_), Row(_))        -> 1
-    | (Row(_), Type(_))        -> -1
-
-  let equal x1 x2 =
-    compare x1 x2 = 0
-
-end
-
 module BoundBothIDSet = Set.Make(BoundBothID)
 
 module BoundBothIDHashTable = Hashtbl.Make(BoundBothID)
@@ -55,7 +31,6 @@ end = struct
     GraphImpl.add_vertex graph bbid
 
   let add_edge graph bbid1 bbid2 =
-    Format.printf "ADD-EDGE %a ---> %a\n" BoundBothID.pp bbid1 BoundBothID.pp bbid2;  (* for debug *)
     GraphImpl.add_edge graph bbid1 bbid2
 
   let find_loop graph =

@@ -164,6 +164,24 @@ let report_type_error (e : type_error) : unit =
         Format.printf "  - %s (%a)\n" tynm Range.pp rng
       )
 
+  | CyclicTypeParameter(rng, cycle, pty) ->
+      let bbids =
+        match cycle with
+        | Loop(bbid)   -> [ bbid ]
+        | Cycle(bbids) -> bbids |> TupleList.to_list
+      in
+      Format.printf "%a: cyclic type variables:\n"
+        Range.pp rng;
+      bbids |> List.iter (fun bbid ->
+        Format.printf "  - %a\n"
+          BoundBothID.pp bbid
+      );
+      Format.printf "  in:\n";
+      let (sbids, sbrids, smain) = TypeConv.show_poly_type pty in
+      let ss = List.append sbids sbrids in
+      let sb = if List.length ss = 0 then "" else "<" ^ String.concat ", " ss ^ ">" in
+      Format.printf "  %s %s\n" sb smain
+
   | UnboundModuleName(rng, modnm) ->
       Format.printf "%a: unbound module name '%s'\n"
         Range.pp rng
