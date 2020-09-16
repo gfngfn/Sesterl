@@ -97,6 +97,30 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
 let unit_atom = "ok"
 
 
+let stringify_hole = function
+  | HoleC -> "c"
+  | HoleF -> "f"
+  | HoleE -> "e"
+  | HoleG -> "g"
+  | HoleS -> "s"
+  | HoleP -> "p"
+  | HoleW -> "w"
+
+
+let stringify_format_element = function
+  | FormatBreak    -> "~n"
+  | FormatTilde    -> "~~"
+  | FormatConst(s) -> s
+
+  | FormatHole(hole, control) ->
+      let ch = stringify_hole hole in
+      Printf.sprintf "%d.%d.%c%s"
+        control.field_width
+        control.precision
+        control.padding
+        ch
+
+
 let stringify_base_constant (bc : base_constant) =
   match bc with
   | Unit        -> unit_atom
@@ -116,6 +140,9 @@ let stringify_base_constant (bc : base_constant) =
   | BinaryByInts(ns)  -> Printf.sprintf "<<%s>>" (ns |> List.map string_of_int |> String.concat ", ")
   | String(s)         -> Printf.sprintf "\"%s\"" (String.escaped s)
   | Char(uchar)       -> Printf.sprintf "%d" (Uchar.to_int uchar)
+
+  | FormatString(fmtelems) ->
+      fmtelems |> List.map stringify_format_element |> String.concat ""
 
 
 let get_module_string (gmap : global_name_map) (gname : global_name) : string =

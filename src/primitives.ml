@@ -196,12 +196,19 @@ let vid_option = TypeID.Variant.fresh "option"
 let vid_list = TypeID.Variant.fresh "list"
 
 
+let vid_format = TypeID.Variant.fresh "format"
+
+
 let option_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
   (rng, DataType(TypeID.Variant(vid_option), [ty]))
 
 
 let list_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
   (rng, DataType(TypeID.Variant(vid_list), [ty]))
+
+
+let format_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
+  (rng, DataType(TypeID.Variant(vid_format), [ty]))
 
 
 let add_variant_types vntdefs (tyenv, gmap) =
@@ -274,6 +281,12 @@ let initial_environment =
         ("list", vid_list, [bid], [
           (* Here is no constructor definition
              because `ListNil` and `ListCons` are provided for type `untyped_ast`. *)
+        ])
+      end;
+      begin
+        let bid = BoundID.fresh () in
+        KindStore.register_bound_id bid UniversalKind;
+        ("format", vid_format, [bid], [
         ])
       end;
     ]

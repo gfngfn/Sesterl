@@ -30,4 +30,6 @@ val option_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ
 
 val list_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ
 
+val format_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ
+
 val initial_environment : Typeenv.t * global_name_map

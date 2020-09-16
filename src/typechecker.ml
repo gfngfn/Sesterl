@@ -873,7 +873,38 @@ let generate_global_name ~arity:(arity : int) ~has_option:(has_option : bool) (r
   | Some(gname) -> gname
 
 
-let type_of_base_constant (rng : Range.t) (bc : base_constant) =
+let types_of_format (lev : int) (fmtelems : format_element list) : mono_type list =
+  fmtelems |> List.map (function
+  | FormatHole(hole, _) ->
+      let rng = Range.dummy "format" in
+      let ty =
+        match hole with
+        | HoleC ->
+            (rng, BaseType(CharType))
+
+        | HoleF
+        | HoleE
+        | HoleG ->
+            (rng, BaseType(FloatType))
+
+        | HoleS ->
+            Primitives.list_type rng (rng, BaseType(CharType))
+
+        | HoleP
+        | HoleW ->
+            fresh_type_variable lev UniversalKind rng
+      in
+      [ ty ]
+
+  | FormatConst(_)
+  | FormatBreak
+  | FormatTilde ->
+      []
+
+  ) |> List.concat
+
+
+let type_of_base_constant (lev : int) (rng : Range.t) (bc : base_constant) =
   match bc with
   | Unit     -> (rng, BaseType(UnitType))
   | Bool(_)  -> (rng, BaseType(BoolType))
@@ -883,6 +914,14 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   | BinaryByInts(_)   -> (rng, BaseType(BinaryType))
   | String(_) -> Primitives.list_type rng (Range.dummy "string_literal", BaseType(CharType))
   | Char(_)   -> (rng, BaseType(CharType))
+
+  | FormatString(fmtelems) ->
+      begin
+        match types_of_format lev fmtelems with
+        | []                -> raise_error (NullaryFormatString(rng))
+        | [ (_, tymain) ]   -> (rng, tymain)
+        | ty1 :: ty2 :: tys -> (rng, ProductType(TupleList.make ty1 ty2 tys))
+      end
 
 
 let rec make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder list) : pre * type_parameter_assoc =
@@ -1214,7 +1253,7 @@ and add_labeled_mandatory_parameters_to_type_environment (pre : pre) (mndbinders
 and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   match utastmain with
   | BaseConst(bc) ->
-      let ty = type_of_base_constant rng bc in
+      let ty = type_of_base_constant pre.level rng bc in
       (ty, IBaseConst(bc))
 
   | Var(x) ->

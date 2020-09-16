@@ -72,6 +72,33 @@ type base_type =
   | CharType
 [@@deriving show { with_path = false; } ]
 
+(* `format_*` are the types for representing format string literals.
+   For the detail of format strings, see:
+   http://erlang.org/doc/man/io.html *)
+type format_hole =
+  | HoleC  (* Characters. *)
+  | HoleF  (* `[-]ddd.ddd` for floating-point numbers. *)
+  | HoleE  (* `[-]d.ddde+-ddd` for floating-point numbers. *)
+  | HoleG  (* Same as `HoleF` for `[0.1, 10000)` and same as `HoleE` otherwise. *)
+  | HoleS  (* Strings. *)
+  | HoleP
+  | HoleW
+[@@deriving show {with_path = false; } ]
+
+type format_control = {
+  field_width : int;
+  precision   : int;
+  padding     : char;
+}
+[@@deriving show {with_path = false; } ]
+
+type format_element =
+  | FormatTilde
+  | FormatBreak
+  | FormatConst of string
+  | FormatHole  of format_hole * format_control
+[@@deriving show {with_path = false; } ]
+
 type base_constant =
   | Unit
   | Bool           of bool
@@ -82,6 +109,7 @@ type base_constant =
   | String         of string
   | Char           of Uchar.t
       [@printer (fun ppf uchar -> Format.fprintf ppf "Char(%a)" pp_uchar uchar)]
+  | FormatString   of format_element list
 [@@deriving show { with_path = false; } ]
 
 type manual_kind =
