@@ -5,4 +5,11 @@ module TestFormat = struct
   let f3() = f'repeat: ~10c, bound: ~20s'
   let f4() = f'\"Hello, ~10.3f!\"'
 
+  let main(args) =
+    let res1 = format(f1(), 'World') in
+    let res2 = format(f2(), (42, true)) in
+    let res3 = format(f3(), ($'*', 'The quick brown fox jumps over the lazy dog.')) in
+    let res4 = format(f4(), 3.14159265) in
+    print_debug((res1, res2, res3, res4))
+
 end
