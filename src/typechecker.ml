@@ -906,7 +906,8 @@ let rec make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder l
     let pbkd =
       match TypeConv.generalize_base_kind pre.level mbkd with
       | Ok(pbkd) -> pbkd
-      | Error(_) -> failwith "TODO: error handling"
+      | Error(_) -> assert false
+          (* Type parameters occurring in handwritten kinds cannot be cyclic. *)
     in
     KindStore.register_bound_id (MustBeBoundID.to_bound mbbid) pbkd;
 (*
@@ -1760,7 +1761,8 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
           tyargs |> List.map (fun ty ->
             match TypeConv.generalize pre.level ty with
             | Ok(pty)  -> pty
-            | Error(_) -> failwith "TODO: make_constructor_branch_map, error handling"
+            | Error(_) -> assert false
+                (* Type parameters occurring in handwritten types cannot be cyclic. *)
           )
         in
         let ctorid =
@@ -2594,7 +2596,8 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       let pty =
         match TypeConv.generalize 0 ty with
         | Ok(pty)  -> pty
-        | Error(_) -> failwith "TODO: typecheck_declaration, error handling"
+        | Error(_) -> assert false
+            (* Type parameters occurring in handwritten types cannot be cyclic. *)
       in
       let gname = OutputIdentifier.fresh_global_dummy () in
       let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
@@ -2821,7 +2824,8 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                     let ty = decode_manual_type pre mty in
                     match TypeConv.generalize 0 ty with
                     | Ok(pty)  -> pty
-                    | Error(_) -> failwith "TODO: SigWith, error handling"
+                    | Error(_) -> assert false
+                        (* Type parameters occurring in handwritten types cannot be cyclic. *)
                   in
                   let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
                   let arity_expected = TypeConv.arity_of_kind pkd in
@@ -2868,7 +2872,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         let ty = decode_manual_type pre mty in
         match TypeConv.generalize 0 ty with
         | Ok(pty)  -> pty
-        | Error(_) -> failwith "TODO: typecheck_binding, error handling"
+        | Error(_) -> assert false
+            (* Type parameters occurring in handwritten types cannot be cyclic. *)
       in
       let has_option = extbind.ext_has_option in
       let gname = generate_global_name ~arity:arity ~has_option:has_option rngv x in
@@ -2977,7 +2982,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           let ptyreal =
             match TypeConv.generalize 0 tyreal with
             | Ok(ptyreal) -> ptyreal
-            | Error(_)    -> failwith "TODO: BindType, error handling"
+            | Error(_)    -> assert false
+                (* Type parameters occurring in handwritten types cannot be cyclic. *)
           in
           let graph =
             graph |> SynonymIDSet.fold (fun siddep graph ->
