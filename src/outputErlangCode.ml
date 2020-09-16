@@ -110,15 +110,19 @@ let stringify_hole = function
 let stringify_format_element = function
   | FormatBreak    -> "~n"
   | FormatTilde    -> "~~"
+  | FormatDQuote   -> "\\\""
   | FormatConst(s) -> s
 
   | FormatHole(hole, control) ->
       let ch = stringify_hole hole in
-      Printf.sprintf "%d.%d.%c%s"
-        control.field_width
-        control.precision
-        control.padding
-        ch
+      let s =
+        match (control.field_width, control.precision) with
+        | (Some(n1), Some(n2)) -> Printf.sprintf "%d.%d" n1 n2
+        | (Some(n1), None)     -> Printf.sprintf "%d" n1
+        | (None, Some(n2))     -> Printf.sprintf ".%d" n2
+        | (None, None)         -> ""
+      in
+      Printf.sprintf "~%s%s" s ch
 
 
 let stringify_base_constant (bc : base_constant) =
@@ -142,7 +146,8 @@ let stringify_base_constant (bc : base_constant) =
   | Char(uchar)       -> Printf.sprintf "%d" (Uchar.to_int uchar)
 
   | FormatString(fmtelems) ->
-      fmtelems |> List.map stringify_format_element |> String.concat ""
+      let s = fmtelems |> List.map stringify_format_element |> String.concat "" in
+      Printf.sprintf "\"%s\"" s
 
 
 let get_module_string (gmap : global_name_map) (gname : global_name) : string =

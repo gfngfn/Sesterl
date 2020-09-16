@@ -86,15 +86,16 @@ type format_hole =
 [@@deriving show {with_path = false; } ]
 
 type format_control = {
-  field_width : int;
-  precision   : int;
-  padding     : char;
+  field_width : int option;
+  precision   : int option;
+  padding     : char option;
 }
 [@@deriving show {with_path = false; } ]
 
 type format_element =
   | FormatTilde
   | FormatBreak
+  | FormatDQuote
   | FormatConst of string
   | FormatHole  of format_hole * format_control
 [@@deriving show {with_path = false; } ]

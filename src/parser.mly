@@ -53,6 +53,7 @@
 %token<Range.t * int> INT
 %token<Range.t * float> FLOAT
 %token<Range.t * string> BINARY STRING STRING_BLOCK
+%token<Range.t * Syntax.format_element list> FORMAT
 %token<Range.t * Uchar.t> CHAR
 %token EOI
 
@@ -547,6 +548,10 @@ exprbot:
   | strlit=STRING {
         let (rng, s) = strlit in
         (rng, BaseConst(String(s)))
+      }
+  | fmtlit=FORMAT {
+        let (rng, fmtelems) = fmtlit in
+        (rng, BaseConst(FormatString(fmtelems)))
       }
   | charlit=CHAR {
         let (rng, uchar) = charlit in

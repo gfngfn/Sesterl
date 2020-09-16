@@ -897,6 +897,7 @@ let types_of_format (lev : int) (fmtelems : format_element list) : mono_type lis
       [ ty ]
 
   | FormatConst(_)
+  | FormatDQuote
   | FormatBreak
   | FormatTilde ->
       []
