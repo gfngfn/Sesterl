@@ -26,6 +26,8 @@ type primitive_definition = {
 
 val primitive_definitions : primitive_definition list
 
-val option_type : mono_type -> mono_type
+val option_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ
+
+val list_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ
 
 val initial_environment : Typeenv.t * global_name_map

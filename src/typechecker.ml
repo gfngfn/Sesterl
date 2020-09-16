@@ -311,9 +311,6 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     | ProductType(tys) ->
         tys |> TupleList.to_list |> aux_list
 
-    | ListType(ty) ->
-        aux ty
-
     | RecordType(labmap) ->
         aux_label_assoc labmap
 
@@ -406,9 +403,6 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
     | ProductType(tys) ->
         tys |> TupleList.to_list |> aux_list
 
-    | ListType(ty) ->
-        aux ty
-
     | RecordType(labmap) ->
         aux_label_assoc labmap
 
@@ -450,7 +444,6 @@ fun tyidp tvp oidset ->
     | BaseType(_)             -> false
     | PidType(typid)          -> aux_pid typid
     | EffType(tyeff, tysub)   -> aux_effect tyeff || aux tysub
-    | ListType(tysub)         -> aux tysub
     | ProductType(tys)        -> tys |> TupleList.to_list |> List.exists aux
 
     | FuncType(tydoms, mndlabmap, optrow, tycod) ->
@@ -628,9 +621,6 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
 
     | (ProductType(tys1), ProductType(tys2)) ->
         aux_list (tys1 |> TupleList.to_list) (tys2 |> TupleList.to_list)
-
-    | (ListType(ty1), ListType(ty2)) ->
-        aux ty1 ty2
 
     | (DataType(TypeID.Variant(vid1), tyargs1), DataType(TypeID.Variant(vid2), tyargs2)) ->
         if TypeID.Variant.equal vid1 vid2 then
@@ -891,7 +881,7 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   | Float(_) -> (rng, BaseType(FloatType))
   | BinaryByString(_)
   | BinaryByInts(_)   -> (rng, BaseType(BinaryType))
-  | String(_) -> (rng, ListType((Range.dummy "string_literal", BaseType(CharType))))
+  | String(_) -> Primitives.list_type rng (Range.dummy "string_literal", BaseType(CharType))
   | Char(_)   -> (rng, BaseType(CharType))
 
 
@@ -991,8 +981,6 @@ and decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_t
                   | ("binary", _)   -> invalid rng "binary" ~expect:0 ~actual:len_actual
                   | ("char", [])    -> BaseType(CharType)
                   | ("char", _)     -> invalid rng "char" ~expect:0 ~actual:len_actual
-                  | ("list", [ty])  -> ListType(ty)
-                  | ("list", _)     -> invalid rng "list" ~expect:1 ~actual:len_actual
                   | ("pid", [ty])   -> PidType(Pid(ty))
                   | ("pid", _)      -> invalid rng "pid" ~expect:1 ~actual:len_actual
                   | _               -> raise_error (UndefinedTypeName(rng, tynm))
@@ -1194,7 +1182,7 @@ and add_labeled_optional_parameters_to_type_environment (pre : pre) (optbinders 
         match utdefault with
         | None ->
             let ty_outer = fresh_type_variable pre.level UniversalKind (Range.dummy "optional") in
-            unify ty_inner (Primitives.option_type ty_outer);
+            unify ty_inner (Primitives.option_type (Range.dummy "option") ty_outer);
             (ty_outer, None)
 
         | Some(utast) ->
@@ -1378,13 +1366,13 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
   | ListNil ->
       let tysub = fresh_type_variable pre.level UniversalKind (Range.dummy "list-nil") in
-      let ty = (rng, ListType(tysub)) in
+      let ty = Primitives.list_type rng tysub in
       (ty, IListNil)
 
   | ListCons(utast1, utast2) ->
       let (ty1, e1) = typecheck pre utast1 in
       let (ty2, e2) = typecheck pre utast2 in
-      unify ty2 (Range.dummy "list-cons", ListType(ty1));
+      unify ty2 (Primitives.list_type (Range.dummy "list-cons") ty1);
       (ty2, IListCons(e1, e2))
 
   | Case(utast0, branches) ->
@@ -1586,7 +1574,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
   | PListNil ->
       let ty =
         let tysub = fresh_type_variable pre.level UniversalKind rng in
-        (rng, ListType(tysub))
+        Primitives.list_type rng tysub
       in
       (ty, IPListNil, BindingMap.empty)
 
@@ -1594,7 +1582,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
       let (ty1, ipat1, bindmap1) = typecheck_pattern pre pat1 in
       let (ty2, ipat2, bindmap2) = typecheck_pattern pre pat2 in
       let bindmap = binding_map_union rng bindmap1 bindmap2 in
-      unify ty2 (Range.dummy "pattern-cons", ListType(ty1));
+      unify ty2 (Primitives.list_type (Range.dummy "pattern-cons") ty1);
       (ty2, IPListCons(ipat1, ipat2), bindmap)
 
   | PTuple(pats) ->
@@ -1826,9 +1814,6 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
 
     | (ProductType(ptys1), ProductType(ptys2)) ->
         aux_list (TupleList.to_list ptys1) (TupleList.to_list ptys2)
-
-    | (ListType(ptysub1), ListType(ptysub2)) ->
-        aux ptysub1 ptysub2
 
     | (RecordType(plabmap1), RecordType(plabmap2)) ->
         aux_label_assoc plabmap1 plabmap2
@@ -2082,9 +2067,6 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
 
     | (RecordType(plabmap1), RecordType(plabmap2)) ->
         aux_label_assoc plabmap1 plabmap2
-
-    | (ListType(pty1), ListType(pty2)) ->
-        aux pty1 pty2
 
     | (DataType(TypeID.Variant(vid1), ptyargs1), DataType(TypeID.Variant(vid2), ptyargs2)) ->
         TypeID.Variant.equal vid1 vid2 && aux_list ptyargs1 ptyargs2
@@ -2529,7 +2511,6 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
       | EffType(peff, ptysub)     -> EffType(aux_effect peff, aux ptysub)
       | TypeVar(_)                -> ptymain
       | ProductType(ptys)         -> ProductType(ptys |> TupleList.map aux)
-      | ListType(ptysub)          -> ListType(aux ptysub)
 
       | FuncType(ptydoms, pmndlabmap, poptrow, ptycod) ->
           FuncType(ptydoms |> List.map aux, pmndlabmap |> LabelAssoc.map aux, aux_option_row poptrow, aux ptycod)

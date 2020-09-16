@@ -172,11 +172,6 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let pty = (rngf rng, ProductType(ptys)) in
         (bbidset, pty)
 
-    | ListType(ty0) ->
-        let (bbidset, pty0) = aux ty0 in
-        let pty = (rngf rng, ListType(pty0)) in
-        (bbidset, pty)
-
     | RecordType(labmap) ->
         let (bbidset, plabmap) = aux_label_assoc labmap in
         let pty = (rngf rng, RecordType(plabmap)) in
@@ -302,9 +297,6 @@ fun intern intern_row pty ->
     | ProductType(ptys) ->
         let tys = ptys |> TupleList.map aux in
         (rng, ProductType(tys))
-
-    | ListType(pty0) ->
-        (rng, ListType(aux pty0))
 
     | RecordType(plabmap) ->
         let labmap = plabmap |> LabelAssoc.map aux in
@@ -626,10 +618,6 @@ fun showtv showrv ty ->
     | ProductType(tys) ->
         let ss = tys |> TupleList.to_list |> List.map aux in
         Printf.sprintf "(%s)" (String.concat ", " ss)
-
-    | ListType(ty0) ->
-        let s0 = aux ty0 in
-        Printf.sprintf "list<%s>" s0
 
     | RecordType(labmap) ->
         begin

@@ -297,7 +297,6 @@ and ('a, 'b) typ_main =
   | EffType     of ('a, 'b) effect * ('a, 'b) typ
   | TypeVar     of 'a
   | ProductType of (('a, 'b) typ) TupleList.t
-  | ListType    of ('a, 'b) typ
   | DataType    of TypeID.t * (('a, 'b) typ) list
   | RecordType  of (('a, 'b) typ) LabelAssoc.t
 
