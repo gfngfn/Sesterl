@@ -26,7 +26,8 @@ type type_error =
   | TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
   | RowParameterBoundMoreThanOnce       of Range.t * row_variable_name
   | InvalidByte                         of Range.t
-  | CyclicSynonymTypeDefinition         of (type_name ranged) TupleList.t
+  | CyclicSynonymTypeDefinition         of (TypeID.Synonym.t * type_name ranged) cycle
+  | CyclicTypeParameter                 of Range.t * BoundBothID.t cycle * poly_type
   | UnboundModuleName                   of Range.t * module_name
   | NotOfStructureType                  of Range.t * module_signature
   | NotOfFunctorType                    of Range.t * module_signature

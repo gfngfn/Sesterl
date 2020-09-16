@@ -32,10 +32,29 @@ end = struct
 end
 
 
+module ResultMonad : sig
+  val return : 'a -> ('a, 'e) result
+  val err : 'e -> ('a, 'e) result
+  val ( >>= ) : ('a, 'e) result -> ('a -> ('b, 'e) result) -> ('b, 'e) result
+end = struct
+
+  let return v =
+    Ok(v)
+
+  let err e =
+    Error(e)
+
+  let ( >>= ) v f =
+    match v with
+    | Ok(x)    -> f x
+    | Error(e) -> Error(e)
+
+end
+
+
 type absolute_path = string
 
 type absolute_dir = string
-
 
 module Utf : sig
   val uchar_of_utf8 : string -> Uchar.t list

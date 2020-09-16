@@ -3,7 +3,7 @@ module Functor = struct
   let n() = 42
 
   signature S = sig
-    type t :: 0
+    type t :: o
     val zero : fun() -> t
   end
 

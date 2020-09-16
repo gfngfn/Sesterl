@@ -18,7 +18,7 @@ module Mod3 = struct
   end
 
   signature Eq = sig
-    type t :: 0
+    type t :: o
     val equal : fun(t, t) -> bool
   end
 

@@ -895,23 +895,6 @@ let type_of_base_constant (rng : Range.t) (bc : base_constant) =
   | Char(_)   -> (rng, BaseType(CharType))
 
 
-let make_bound_to_free_map (pre : pre) (typarams : (BoundID.t * mono_base_kind) list) : mono_type list * mono_type_var BoundIDMap.t =
-  let (tyargacc, bfmap) =
-    typarams |> List.fold_left (fun (tyargacc, bfmap) (bid, mbkd) ->
-      let fid = FreeID.fresh ~message:"make_bound_to_free_map" pre.level in
-      KindStore.register_free_id fid mbkd;
-      let mtvu = ref (Free(fid)) in
-      let mtv = Updatable(mtvu) in
-      let ty = (Range.dummy "constructor-arg", TypeVar(mtv)) in
-(*
-      Format.printf "BTOF L%d %a\n" lev pp_mono_type ty;  (* for debug *)
-*)
-      (Alist.extend tyargacc ty, bfmap |> BoundIDMap.add bid mtv)
-    ) (Alist.empty, BoundIDMap.empty)
-  in
-  (Alist.to_list tyargacc, bfmap)
-
-
 let rec make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder list) : pre * type_parameter_assoc =
   tyvarnms |> List.fold_left (fun (pre, assoc) ((rng, tyvarnm), kdannot) ->
     let mbbid = MustBeBoundID.fresh (pre.level + 1) in
@@ -920,7 +903,11 @@ let rec make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder l
       | None        -> UniversalKind
       | Some(mnbkd) -> decode_manual_base_kind pre mnbkd
     in
-    let pbkd = TypeConv.generalize_base_kind pre.level mbkd in
+    let pbkd =
+      match TypeConv.generalize_base_kind pre.level mbkd with
+      | Ok(pbkd) -> pbkd
+      | Error(_) -> failwith "TODO: error handling"
+    in
     KindStore.register_bound_id (MustBeBoundID.to_bound mbbid) pbkd;
 (*
     Format.printf "MUST-BE-BOUND %s : L%d %a\n" tyvarnm lev MustBeBoundID.pp mbbid;  (* for debug *)
@@ -956,6 +943,14 @@ and decode_manual_base_kind (pre : pre) (mnbkd : manual_base_kind) : mono_base_k
         RecordKind(labmap)
   in
   aux mnbkd
+
+
+and decode_manual_kind (pre : pre) (mnkd : manual_kind) : mono_kind =
+  match mnkd with
+  | (_, MKind(mnbkddoms, mnbkdcod)) ->
+      let bkddoms = mnbkddoms |> List.map (decode_manual_base_kind pre) in
+      let bkdcod = decode_manual_base_kind pre mnbkdcod in
+      Kind(bkddoms, bkdcod)
 
 
 and decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_type) : mono_type =
@@ -1409,7 +1404,11 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       unify ty1 typat;
       let tyenv =
         BindingMap.fold (fun x (ty, lname, _) tyenv ->
-          let pty = TypeConv.generalize pre.level ty in
+          let pty =
+            match TypeConv.generalize pre.level ty with
+            | Ok(pty)             -> pty
+            | Error((cycle, pty)) -> raise_error (CyclicTypeParameter(rng, cycle, pty))
+          in
           tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname))
         ) bindmap pre.tyenv
       in
@@ -1524,11 +1523,7 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name
       raise_error (UndefinedConstructor(rng, ctornm))
 
   | Some(tyid, ctorid, typarams, ptys) ->
-      let (tyargs, bfmap) =
-        make_bound_to_free_map pre (typarams |> List.map (fun bid -> (bid, UniversalKind)))
-          (* TODO: generalize `UniversalKind` to base kinds *)
-      in
-      let tys_expected = ptys |> List.map (TypeConv.instantiate_by_map bfmap) in
+      let (tyargs, tys_expected) = TypeConv.instantiate_type_arguments pre.level typarams ptys in
       (tyid, ctorid, tyargs, tys_expected)
 
 
@@ -1673,7 +1668,11 @@ fun namef pre letbind ->
   let ty1 = (rngv, FuncType(tys, mndlabmap, FixedRow(optlabmap), ty0)) in
   let e1 = ILambda(None, lnames, mndnamemap, optnamemap, e0) in
 
-  let pty1 = TypeConv.generalize pre.level ty1 in
+  let pty1 =
+    match TypeConv.generalize pre.level ty1 with
+    | Ok(pty1)             -> pty1
+    | Error((cycle, pty1)) -> raise_error (CyclicTypeParameter(rngv, cycle, pty1))
+  in
   let name = namef rngv x in
   (pty1, name, e1)
 
@@ -1744,7 +1743,11 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
   let ty1 = (rngv, FuncType(tys, mndlabmap, FixedRow(optlabmap), ty0)) in
   let e1 = ILambda(None, lnames, mndnamemap, optnamemap, e0) in
   unify ty1 tyf;
-  let ptyf = TypeConv.generalize pre.level ty1 in
+  let ptyf =
+    match TypeConv.generalize pre.level ty1 with
+    | Ok(ptyf)             -> ptyf
+    | Error((cycle, ptyf)) -> raise_error (CyclicTypeParameter(rngv, cycle, ptyf))
+  in
   (ptyf, e1)
 
 
@@ -1753,7 +1756,13 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
     match ctorbr with
     | ConstructorBranch((rng, ctornm), mtyargs) ->
         let tyargs = mtyargs |> List.map (decode_manual_type pre) in
-        let ptyargs = tyargs |> List.map (TypeConv.generalize pre.level) in
+        let ptyargs =
+          tyargs |> List.map (fun ty ->
+            match TypeConv.generalize pre.level ty with
+            | Ok(pty)  -> pty
+            | Error(_) -> failwith "TODO: make_constructor_branch_map, error handling"
+          )
+        in
         let ctorid =
           match ConstructorID.make ctornm with
           | Some(ctorid) -> ctorid
@@ -2582,7 +2591,11 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
         { pre with level = 1 } |> add_local_row_parameter rowparams
       in
       let ty = decode_manual_type pre mty in
-      let pty = TypeConv.generalize 0 ty in
+      let pty =
+        match TypeConv.generalize 0 ty with
+        | Ok(pty)  -> pty
+        | Error(_) -> failwith "TODO: typecheck_declaration, error handling"
+      in
       let gname = OutputIdentifier.fresh_global_dummy () in
       let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
       (OpaqueIDSet.empty, sigr)
@@ -2591,11 +2604,23 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       failwith "TODO: DeclTypeTrans"
         (* -- maybe should handle mutually recursive types -- *)
 
-  | DeclTypeOpaque(tyident, mkd) ->
+  | DeclTypeOpaque(tyident, kdannot) ->
       let (_, tynm) = tyident in
-      let pkd = TypeConv.kind_of_arity mkd in
+      let pre_init =
+        {
+          level                 = 0;
+          tyenv                 = tyenv;
+          local_type_parameters = TypeParameterMap.empty;
+          local_row_parameters  = RowParameterMap.empty;
+        }
+      in
+      let mkd =
+        match kdannot with
+        | None       -> Kind([], UniversalKind)
+        | Some(mnkd) -> decode_manual_kind pre_init mnkd
+      in
       let oid = TypeID.Opaque.fresh tynm in
-      let sigr = SigRecord.empty |> SigRecord.add_opaque_type tynm oid pkd in
+      let sigr = SigRecord.empty |> SigRecord.add_opaque_type tynm oid (TypeConv.lift_kind mkd) in
       (OpaqueIDSet.singleton oid, sigr)
 
   | DeclModule(modident, utsig) ->
@@ -2794,7 +2819,9 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                   let (pre, typaramassoc) = make_type_parameter_assoc pre_init tyvars in
                   let pty =
                     let ty = decode_manual_type pre mty in
-                    TypeConv.generalize 0 ty
+                    match TypeConv.generalize 0 ty with
+                    | Ok(pty)  -> pty
+                    | Error(_) -> failwith "TODO: SigWith, error handling"
                   in
                   let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
                   let arity_expected = TypeConv.arity_of_kind pkd in
@@ -2839,7 +2866,9 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           { pre with level = 1 } |> add_local_row_parameter extbind.ext_row_params
         in
         let ty = decode_manual_type pre mty in
-        TypeConv.generalize 0 ty
+        match TypeConv.generalize 0 ty with
+        | Ok(pty)  -> pty
+        | Error(_) -> failwith "TODO: typecheck_binding, error handling"
       in
       let has_option = extbind.ext_has_option in
       let gname = generate_global_name ~arity:arity ~has_option:has_option rngv x in
@@ -2896,26 +2925,6 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       assert false
 
   | BindType((_ :: _) as tybinds) ->
-      let (synacc, vntacc, vertices, graph, tyenv) =
-        tybinds |> List.fold_left (fun (synacc, vntacc, vertices, graph, tyenv) (tyident, tyvars, syn_or_vnt) ->
-          let (_, tynm) = tyident in
-          let arity = List.length tyvars in
-          let pkd = TypeConv.kind_of_arity arity in
-          match syn_or_vnt with
-          | BindSynonym(synbind) ->
-              let sid = TypeID.Synonym.fresh tynm in
-              let graph = graph |> DependencyGraph.add_vertex sid tyident in
-              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Synonym(sid)) pkd in
-              let synacc = Alist.extend synacc (tyident, tyvars, synbind, sid) in
-              (synacc, vntacc, vertices |> SynonymIDSet.add sid, graph, tyenv)
-
-          | BindVariant(vntbind) ->
-              let vid = TypeID.Variant.fresh tynm in
-              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Variant(vid)) pkd in
-              let vntacc = Alist.extend vntacc (tyident, tyvars, vntbind, vid) in
-              (synacc, vntacc, vertices, graph, tyenv)
-        ) (Alist.empty, Alist.empty, SynonymIDSet.empty, DependencyGraph.empty, tyenv)
-      in
       let pre_init =
         {
           level                 = 0;
@@ -2924,48 +2933,85 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
           local_row_parameters  = RowParameterMap.empty;
         }
       in
-      let syns = synacc |> Alist.to_list in
+
+      (* First, add the arity of each type to be defined. *)
+      let (synacc, vntacc, vertices, graph, tyenv) =
+        tybinds |> List.fold_left (fun (synacc, vntacc, vertices, graph, tyenv) (tyident, tyvars, syn_or_vnt) ->
+          let (_, tynm) = tyident in
+          let pkd =
+            let bkddoms =
+              tyvars |> List.map (fun (_, kdannot) ->
+                match kdannot with
+                | None        -> UniversalKind
+                | Some(mnbkd) -> decode_manual_base_kind pre_init mnbkd
+              )
+            in
+            let kd = Kind(bkddoms, UniversalKind) in
+            TypeConv.lift_kind kd
+          in
+          match syn_or_vnt with
+          | BindSynonym(synbind) ->
+              let sid = TypeID.Synonym.fresh tynm in
+              let graph = graph |> DependencyGraph.add_vertex sid tyident in
+              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Synonym(sid)) pkd in
+              let synacc = Alist.extend synacc (tyident, tyvars, synbind, sid, pkd) in
+              (synacc, vntacc, vertices |> SynonymIDSet.add sid, graph, tyenv)
+
+          | BindVariant(vntbind) ->
+              let vid = TypeID.Variant.fresh tynm in
+              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Variant(vid)) pkd in
+              let vntacc = Alist.extend vntacc (tyident, tyvars, vntbind, vid, pkd) in
+              (synacc, vntacc, vertices, graph, tyenv)
+        ) (Alist.empty, Alist.empty, SynonymIDSet.empty, DependencyGraph.empty, tyenv)
+      in
+      let pre = { pre_init with tyenv = tyenv } in
+
+      (* Second, traverse each definition of the synonym types.
+         Here, the dependency among synonym types are extracted. *)
       let (graph, tydefacc) =
-        syns |> List.fold_left (fun (graph, tydefacc) syn ->
-          let ((_, tynm), tyvars, mtyreal, sid) = syn in
-          let (pre, typaramassoc) = make_type_parameter_assoc pre_init tyvars in
+        synacc |> Alist.to_list |> List.fold_left (fun (graph, tydefacc) syn ->
+          let ((_, tynm), tyvars, mtyreal, sid, pkd) = syn in
+          let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
           let (tyreal, dependencies) = decode_manual_type_and_get_dependency vertices pre mtyreal in
-          let ptyreal = TypeConv.generalize 0 tyreal in
+          let ptyreal =
+            match TypeConv.generalize 0 tyreal with
+            | Ok(ptyreal) -> ptyreal
+            | Error(_)    -> failwith "TODO: BindType, error handling"
+          in
           let graph =
             graph |> SynonymIDSet.fold (fun siddep graph ->
               graph |> DependencyGraph.add_edge sid siddep
             ) dependencies
           in
           TypeDefinitionStore.add_synonym_type sid typarams ptyreal;
-          let pkd = TypeConv.kind_of_arity (List.length typarams) in
           let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Synonym(sid), pkd)) in
-(*
-          Format.printf "SYN %s %a <%d> = %a\n" tynm TypeID.Synonym.pp sid (List.length typarams) pp_poly_type ptyreal;  (* for debug *)
-*)
           (graph, tydefacc)
         ) (graph, Alist.empty)
       in
+
+      (* Third, traverse each definition of the variant types. *)
       let (tydefacc, ctordefacc) =
         vntacc |> Alist.to_list |> List.fold_left (fun (tydefacc, ctordefacc) vnt ->
-          let ((_, tynm), tyvars, ctorbrs, vid) = vnt in
-          let (pre, typaramassoc) = make_type_parameter_assoc pre_init tyvars in
+          let ((_, tynm), tyvars, ctorbrs, vid, pkd) = vnt in
+          let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
           let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
           let ctorbrmap =
             make_constructor_branch_map pre ctorbrs
           in
           TypeDefinitionStore.add_variant_type vid typarams ctorbrmap;
-          let pkd = TypeConv.kind_of_arity (List.length typarams) in
           let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Variant(vid), pkd)) in
           let ctordefacc = Alist.extend ctordefacc (vid, typarams, ctorbrmap) in
           (tydefacc, ctordefacc)
         ) (tydefacc, Alist.empty)
       in
+
+      (* Finally, check that no cyclic dependency exists among synonym types
+         and make the signature to be returned from the type definitions. *)
       begin
         match DependencyGraph.find_cycle graph with
-        | Some(scc) ->
-            let tyidents = scc |> TupleList.map (fun (_, tyident) -> tyident) in
-            raise_error (CyclicSynonymTypeDefinition(tyidents))
+        | Some(cycle) ->
+            raise_error (CyclicSynonymTypeDefinition(cycle))
 
         | None ->
             let sigr = SigRecord.empty |> SigRecord.add_types (tydefacc |> Alist.to_list) in

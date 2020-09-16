@@ -2,6 +2,10 @@
 open MyUtil
 
 
+type 'a cycle =
+  | Loop  of 'a
+  | Cycle of 'a TupleList.t
+
 type 'a ranged = Range.t * 'a
 
 let pp_ranged ppsub ppf (_, x) =
@@ -81,6 +85,9 @@ type base_constant =
 [@@deriving show { with_path = false; } ]
 
 type manual_kind =
+  manual_kind_main ranged
+
+and manual_kind_main =
   | MKind of manual_base_kind list * manual_base_kind
 
 and manual_base_kind =
@@ -228,7 +235,7 @@ and untyped_declaration =
 and untyped_declaration_main =
   | DeclVal        of identifier ranged * type_variable_binder list * (row_variable_name ranged * (label ranged * manual_type) list) list * manual_type
   | DeclTypeTrans  of type_name ranged * manual_type
-  | DeclTypeOpaque of type_name ranged * int  (* TODO: generalize this (from `int` to `manual_kind`) *)
+  | DeclTypeOpaque of type_name ranged * manual_kind option
   | DeclModule     of module_name ranged * untyped_signature
   | DeclSig        of signature_name ranged * untyped_signature
   | DeclInclude    of untyped_signature
@@ -251,6 +258,34 @@ module FreeRowID = FreeID  (* temporary *)
 module BoundRowID = BoundID  (* temporary *)
 
 module MustBeBoundRowID = MustBeBoundID  (* temporary *)
+
+
+module BoundBothID = struct
+
+  type t =
+    | Type of BoundID.t
+    | Row  of BoundRowID.t
+
+  let hash = function
+    | Type(bid) -> BoundID.hash bid
+    | Row(brid) -> BoundRowID.hash brid
+
+  let compare x1 x2 =
+    match (x1, x2) with
+    | (Type(bid1), Type(bid2)) -> BoundID.compare bid1 bid2
+    | (Row(brid1), Row(brid2)) -> BoundRowID.compare brid1 brid2
+    | (Type(_), Row(_))        -> 1
+    | (Row(_), Type(_))        -> -1
+
+  let equal x1 x2 =
+    compare x1 x2 = 0
+
+  let pp ppf = function
+    | Type(bid) -> BoundID.pp ppf bid
+    | Row(brid) -> BoundRowID.pp ppf brid
+
+end
+
 
 type ('a, 'b) typ =
   (('a, 'b) typ_main) ranged

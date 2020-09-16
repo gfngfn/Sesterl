@@ -1,7 +1,7 @@
 module Functor2 = struct
 
   signature S = sig
-    type t :: 0
+    type t :: o
     val zero : fun() -> t
   end
 
