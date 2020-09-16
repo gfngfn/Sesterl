@@ -1,0 +1,8 @@
+module TestFormat = struct
+
+  let f1() = f'Hello, ~s!'
+  let f2() = f'~~ Hello, ~p! ~~'
+  let f3() = f'repeat: ~10c'
+  let f4() = f'\"Hello, ~10.3f!\"'
+
+end
