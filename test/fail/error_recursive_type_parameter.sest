@@ -1,8 +1,5 @@
 module ErrorRecursiveTypeParameter = struct
 
   let f(x) = { x | foo = x }
-/*
-  let main(args) =
-    f({foo = 42, bar = true})
-*/
+
 end
