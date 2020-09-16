@@ -271,14 +271,9 @@ let initial_environment =
       begin
         let bid = BoundID.fresh () in
         KindStore.register_bound_id bid UniversalKind;
-(*
-        let elem = (dr, TypeVar(Bound(bid))) in
-*)
         ("list", vid_list, [bid], [
-(*
-          ("[]", []);
-          ("::", [elem; list_type dr elem])
-*)
+          (* Here is no constructor definition
+             because `ListNil` and `ListCons` are provided for type `untyped_ast`. *)
         ])
       end;
     ]
