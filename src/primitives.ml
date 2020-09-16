@@ -200,7 +200,7 @@ let option_type (ty : mono_type) : mono_type =
   (dr, DataType(TypeID.Variant(vid_option), [ty]))
 
 
-let list_type (rng : Range.t) (ty : mono_type) : mono_type =
+let list_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
   (rng, DataType(TypeID.Variant(vid_list), [ty]))
 
 
@@ -269,7 +269,14 @@ let initial_environment =
       begin
         let bid = BoundID.fresh () in
         KindStore.register_bound_id bid UniversalKind;
+(*
+        let elem = (dr, TypeVar(Bound(bid))) in
+*)
         ("list", vid_list, [bid], [
+(*
+          ("[]", []);
+          ("::", [elem; list_type dr elem])
+*)
         ])
       end;
     ]
