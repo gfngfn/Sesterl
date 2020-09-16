@@ -3010,9 +3010,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
          and make the signature to be returned from the type definitions. *)
       begin
         match DependencyGraph.find_cycle graph with
-        | Some(scc) ->
-            let tyidents = scc |> TupleList.map (fun (_, tyident) -> tyident) in
-            raise_error (CyclicSynonymTypeDefinition(tyidents))
+        | Some(cycle) ->
+            raise_error (CyclicSynonymTypeDefinition(cycle))
 
         | None ->
             let sigr = SigRecord.empty |> SigRecord.add_types (tydefacc |> Alist.to_list) in

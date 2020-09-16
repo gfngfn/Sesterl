@@ -153,9 +153,14 @@ let report_type_error (e : type_error) : unit =
       Format.printf "%a: invalid byte\n"
         Range.pp rng
 
-  | CyclicSynonymTypeDefinition(tyidents) ->
+  | CyclicSynonymTypeDefinition(cycle) ->
+      let tyidents =
+        match cycle with
+        | Loop((_, tyident)) -> [ tyident ]
+        | Cycle(vs)          -> vs |> TupleList.to_list |> List.map (fun (_, tyident) -> tyident)
+      in
       Format.printf "cyclic type definitions:\n";
-      tyidents |> TupleList.to_list |> List.iter (fun (rng, tynm) ->
+      tyidents |> List.iter (fun (rng, tynm) ->
         Format.printf "  - %s (%a)\n" tynm Range.pp rng
       )
 
