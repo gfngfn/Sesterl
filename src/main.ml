@@ -36,6 +36,9 @@ type reading_state = {
 }
 
 
+(* `read_source_recursively abspath` lists up all the parsed source files
+   on which `abspath` depends either directly or indirectly,
+   and sorts them in a topological order according to the dependency among them. *)
 let read_source_recursively (abspath : absolute_path) : (absolute_path * (module_name ranged * untyped_module)) list =
   let rec aux (state : reading_state) (vertex : FileDependencyGraph.vertex) (abspath : absolute_path) : reading_state =
     Logging.begin_to_parse abspath;
@@ -45,10 +48,12 @@ let read_source_recursively (abspath : absolute_path) : (absolute_path * (module
       let graph = state.graph in
       match graph |> FileDependencyGraph.find_vertex abspath_sub with
       | Some(vertex_sub) ->
+        (* If the depended source file has already been parsed *)
           let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
           { state with graph = graph }
 
       | None ->
+        (* If the depended source file has not been parsed yet *)
           let (graph, vertex_sub) = graph |> FileDependencyGraph.add_vertex abspath_sub in
           let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
           aux { state with graph = graph } vertex_sub abspath_sub
