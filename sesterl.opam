@@ -16,6 +16,7 @@ depends: [
   "ocamlgraph" {>= "1.8.8"}
   "core" {>= "0.13.0"}
   "uutf" {>= "1.0.2"}
+  "yaml" {>= "2.1.0"}
 ]
 build: [
   ["dune" "subst"] {pinned}
