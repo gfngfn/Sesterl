@@ -30,11 +30,11 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       Logging.report_unsupported_feature msg;
       exit 1
 
-  | Lexer.Error(e) ->
+  | SourceLoader.SyntaxError(LexerError(e)) ->
       Logging.report_lexer_error e;
       exit 1
 
-  | SourceLoader.ParseError(rng) ->
+  | SourceLoader.SyntaxError(ParseError(rng)) ->
       Logging.report_parser_error rng;
       exit 1
 

@@ -15,6 +15,10 @@ type lexer_error =
   | SeeBreakInStringLiteral          of Range.t
   | NotASingleCodePoint              of Range.t
 
+type syntax_error =
+  | LexerError of lexer_error
+  | ParseError of Range.t
+
 type type_error =
   | UnboundVariable                     of Range.t * identifier
   | ContradictionError                  of mono_type * mono_type

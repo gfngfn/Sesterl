@@ -4,7 +4,7 @@ open Syntax
 open Errors
 
 exception ConfigError of config_error
-exception ParseError  of Range.t
+exception SyntaxError of syntax_error
 
 
 let listup_sources_in_directory (dir : absolute_dir) : absolute_path list =
@@ -24,7 +24,7 @@ let make_absolute_path (dir : absolute_dir) (fpath : string) : absolute_path =
     Core.Filename.realpath fpath
 
 
-let read_source (fpath_in : absolute_path) : (absolute_path list * (module_name ranged * untyped_module), Range.t) result =
+let read_source (fpath_in : absolute_path) : (absolute_path list * (module_name ranged * untyped_module), syntax_error) result =
   let inc = open_in fpath_in in
   let lexbuf = Lexing.from_channel inc in
   let fname = Filename.basename fpath_in in
@@ -58,7 +58,7 @@ let read_source_recursively (abspath : absolute_path) : (absolute_path * (module
     let (deps, content) =
       match read_source abspath with
       | Ok(source) -> source
-      | Error(rng) -> raise (ParseError(rng))
+      | Error(e)   -> raise (SyntaxError(e))
     in
     let loaded = state.loaded |> ContentMap.add abspath content in
     deps |> List.fold_left (fun state abspath_sub ->
