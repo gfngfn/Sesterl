@@ -1,0 +1,6 @@
+package: stdlib
+
+source_directories:
+  - "./"
+
+main_module: "./container.sest"
