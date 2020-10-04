@@ -85,8 +85,8 @@ let read_source_recursively (abspath : absolute_path) : (absolute_path * (module
 let read_sources (abspaths : absolute_path list) =
 
   (* First, add vertices to the graph for solving dependency. *)
-  let (graph, nmmap, acc) =
-    abspaths |> List.fold_left (fun (graph, nmmap, acc) abspath ->
+  let (graph, nmmap) =
+    abspaths |> List.fold_left (fun (graph, nmmap) abspath ->
       match read_source abspath with
       | Ok(source) ->
           let (_, ((_, modnm), _)) = source in
@@ -98,21 +98,20 @@ let read_sources (abspaths : absolute_path list) =
             | None ->
                 let (graph, vertex) = graph |> FileDependencyGraph.add_vertex modnm in
                 let nmmap = nmmap |> ModuleNameMap.add modnm (abspath, vertex, source) in
-                let acc = Alist.extend acc (vertex, source) in
-                (graph, nmmap, acc)
+                (graph, nmmap)
           end
 
       | Error(e) ->
           raise (SyntaxError(e))
             (* TODO: change error into warning *)
 
-    ) (FileDependencyGraph.empty, ModuleNameMap.empty, Alist.empty)
+    ) (FileDependencyGraph.empty, ModuleNameMap.empty)
   in
 
   (* Second, add dependency edges to the graph. *)
   let graph =
-    acc |> Alist.to_list |> List.fold_left (fun graph (vertex, source) ->
-      let (deps, ((_, modnm), _)) = source in
+    graph |> ModuleNameMap.fold (fun modnm (_, vertex, source) graph ->
+      let (deps, _) = source in
       deps |> List.fold_left (fun graph (rng, modnm_dep) ->
         match nmmap |> ModuleNameMap.find_opt modnm_dep with
         | None ->
@@ -122,7 +121,7 @@ let read_sources (abspaths : absolute_path list) =
             graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_dep
 
       ) graph
-    ) graph
+    ) nmmap
   in
 
   match FileDependencyGraph.topological_sort graph with
