@@ -100,6 +100,9 @@ let report_config_error (e : config_error) : unit =
       Format.printf "invalid package name '%s'\n"
         s
 
+  | CannotSpecifyDependency ->
+      Format.printf "cannot specify dependency at standalone file\n"
+
 
 let report_type_error (e : type_error) : unit =
   Format.printf "! [Type error] ";

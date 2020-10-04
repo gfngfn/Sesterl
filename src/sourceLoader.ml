@@ -140,19 +140,29 @@ let read_sources (abspaths : absolute_path list) =
       )
 
 
-let main (fpath_in : string) : space_name * (absolute_path * (module_name ranged * untyped_module)) list =
+let main (fpath_in : string) : space_name option * (absolute_path * (module_name ranged * untyped_module)) list =
   let abspath_in =
     let dir = Sys.getcwd () in
     make_absolute_path dir fpath_in
   in
-(*
+
   let (_, extopt) = Core.Filename.split_extension abspath_in in
   match extopt with
   | Some("sest") ->
-      read_source_recursively abspath_in
+      begin
+        match read_source abspath_in with
+        | Error(e) ->
+            raise (SyntaxError(e))
+
+        | Ok((deps, content)) ->
+            if List.length deps > 0 then
+              raise (ConfigError(CannotSpecifyDependency))
+            else
+              let source = (abspath_in, content) in
+              (None, [ source ])
+      end
 
   | _ ->
-*)
       begin
         match ConfigLoader.load abspath_in with
         | Error(e) ->
@@ -168,5 +178,5 @@ let main (fpath_in : string) : space_name * (absolute_path * (module_name ranged
               | Some(spkgname) -> spkgname
               | None           -> raise (ConfigError(InvalidPackageName(pkgname)))
             in
-            (spkgname, sources)
+            (Some(spkgname), sources)
       end

@@ -526,7 +526,7 @@ let write_module_to_file (dir_out : string) (omodbind : module_binding_output) :
   write_file dir_out smod lines
 
 
-let write_primitive_module ~package_name:(pkgname : space_name) (dir_out : string) : unit =
+let write_primitive_module (dir_out : string) : unit =
   let smod = Primitives.primitive_module_name in
   let primdefs = Primitives.primitive_definitions in
   let exports =
@@ -556,14 +556,18 @@ let write_primitive_module ~package_name:(pkgname : space_name) (dir_out : strin
   write_file dir_out smod lines
 
 
-let main (dir_out : string) (gmap : global_name_map) ~package_name:(pkgname : space_name) ~module_name:(sname : space_name) (ibinds : binding list) : global_name_map =
+let main (dir_out : string) (gmap : global_name_map) ~package_name:(pkgnameopt : space_name option) ~module_name:(sname : space_name) (ibinds : binding list) : global_name_map =
 (*
   Format.printf "OutputErlangCode | package: %a, module: %a\n"
     OutputIdentifier.pp_space pkgname
     OutputIdentifier.pp_space sname;  (* for debug *)
 *)
   let (omodbinds, gmap_after) =
-    let spacepath = Alist.extend (Alist.extend Alist.empty pkgname) sname in
+    let spacepath =
+      match pkgnameopt with
+      | Some(pkgname) -> Alist.extend (Alist.extend Alist.empty pkgname) sname
+      | None          -> Alist.extend Alist.empty sname
+    in
     traverse_binding_list gmap spacepath ibinds
   in
   omodbinds |> List.iter (fun omodbind ->
