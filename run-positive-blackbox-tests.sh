@@ -22,14 +22,10 @@ mkdir -p "$TARGET_DIR"
 
 ERRORS=()
 
-for SOURCE in "$SOURCE_DIR"/*.sest; do
-    echo "Compiling '$SOURCE' by sesterl ..."
-    "$BIN" "$SOURCE" -o "$TARGET_DIR"
-    STATUS=$?
-    if [ $STATUS -ne 0 ]; then
-        ERRORS+=("$SOURCE")
-    fi
-done
+"$BIN" "$SOURCE_DIR/package.yaml" -o "$TARGET_DIR"
+if [ $STATUS -ne 0 ]; then
+    ERRORS+=("source")
+fi
 
 for TARGET in "$TARGET_DIR"/*.erl; do
     echo "Compiling '$TARGET' by erlc ..."

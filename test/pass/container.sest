@@ -1,0 +1,42 @@
+
+require First
+require Adt
+require Send
+require Mutrec
+require Mutrec2
+require Poly
+
+require Mod
+require Mod2
+require Mod3
+require ModStack
+require ModSeq
+
+require Functor
+require Functor2
+require Functor3
+
+require OptionalParameter
+require OptionalParameter2
+require OptionalParameterUnify
+require MandatoryParameter
+
+require RecordTest
+require RecordTest2
+
+require RequireDepended
+require RequireDepending
+
+require Coercion
+
+require Kind
+require KindedParameter
+
+require Ffi
+
+require TestFloat
+require TestFormat
+require TestString
+
+module Container = struct
+end
