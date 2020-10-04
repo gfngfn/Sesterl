@@ -1,6 +1,11 @@
 
+open MyUtil
 open Syntax
 open Env
+
+type config_error =
+  | CyclicFileDependencyFound of absolute_path cycle
+
 
 type lexer_error =
   | UnidentifiedToken                of Range.t * string

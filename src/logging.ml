@@ -66,6 +66,24 @@ let report_lexer_error (e : lexer_error) : unit =
         Range.pp rng
 
 
+let report_config_error (e : config_error) : unit =
+  Format.printf "! [Build error] ";
+  match e with
+  | CyclicFileDependencyFound(cycle) ->
+      begin
+        match cycle with
+        | Loop(abspath) ->
+            Format.printf "file '%s' is dependent on itself.\n"
+              abspath
+
+        | Cycle(abspaths) ->
+            Format.printf "cyclic file dependency found among:\n";
+            abspaths |> TupleList.to_list |> List.iter (fun abspath ->
+              Format.printf "  - '%s'\n" abspath
+            )
+      end
+
+
 let report_type_error (e : type_error) : unit =
   Format.printf "! [Type error] ";
   match e with
