@@ -4,6 +4,7 @@ open Syntax
 open Errors
 
 exception ConfigError of config_error
+exception ParseError  of Range.t
 
 
 let listup_sources_in_directory (dir : absolute_dir) : absolute_path list =
@@ -23,19 +24,21 @@ let make_absolute_path (dir : absolute_dir) (fpath : string) : absolute_path =
     Core.Filename.realpath fpath
 
 
-let read_source (fpath_in : absolute_path) : absolute_path list * (module_name ranged * untyped_module) =
+let read_source (fpath_in : absolute_path) : (absolute_path list * (module_name ranged * untyped_module), Range.t) result =
   let inc = open_in fpath_in in
   let lexbuf = Lexing.from_channel inc in
-  let (deps_raw, modident, utmod) =
-    let fname = Filename.basename fpath_in in
-    ParserInterface.process fname lexbuf
-  in
-  let deps =
-    let dir = Filename.dirname fpath_in in
-    deps_raw |> List.map (make_absolute_path dir)
+  let fname = Filename.basename fpath_in in
+  let res =
+    let open ResultMonad in
+    ParserInterface.process ~fname:fname lexbuf >>= fun (deps_raw, modident, utmod) ->
+    let deps =
+      let dir = Filename.dirname fpath_in in
+      deps_raw |> List.map (make_absolute_path dir)
+    in
+    return (deps, (modident, utmod))
   in
   close_in inc;
-  (deps, (modident, utmod))
+  res
 
 
 module ContentMap = Map.Make(String)
@@ -52,7 +55,11 @@ type reading_state = {
 let read_source_recursively (abspath : absolute_path) : (absolute_path * (module_name ranged * untyped_module)) list =
   let rec aux (state : reading_state) (vertex : FileDependencyGraph.vertex) (abspath : absolute_path) : reading_state =
     Logging.begin_to_parse abspath;
-    let (deps, content) = read_source abspath in
+    let (deps, content) =
+      match read_source abspath with
+      | Ok(source) -> source
+      | Error(rng) -> raise (ParseError(rng))
+    in
     let loaded = state.loaded |> ContentMap.add abspath content in
     deps |> List.fold_left (fun state abspath_sub ->
       let graph = state.graph in

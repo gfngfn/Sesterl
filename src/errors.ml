@@ -7,7 +7,6 @@ type config_error =
   | CyclicFileDependencyFound of absolute_path cycle
   | ConfigFileError           of YamlDecoder.error
 
-
 type lexer_error =
   | UnidentifiedToken                of Range.t * string
   | SeeEndOfFileInComment            of Range.t

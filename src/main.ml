@@ -34,7 +34,7 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       Logging.report_lexer_error e;
       exit 1
 
-  | ParserInterface.Error(rng) ->
+  | SourceLoader.ParseError(rng) ->
       Logging.report_parser_error rng;
       exit 1
 
