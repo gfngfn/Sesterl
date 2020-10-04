@@ -22,12 +22,12 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.decoder =
       source_directories = List.map (make_absolute_path confdir) srcdirs;
     }
   in
-
+(*
   Format.printf "name: %s, srcdirs: %a, main: %s\n"
     config.package_name
     (Format.pp_print_list Format.pp_print_string) config.source_directories
     config.main_module_path;  (* for debug *)
-
+*)
   succeed config
 
 
