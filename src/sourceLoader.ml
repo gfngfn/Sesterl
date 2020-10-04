@@ -91,4 +91,20 @@ let main (fpath_in : string) : (absolute_path * (module_name ranged * untyped_mo
     let dir = Sys.getcwd () in
     make_absolute_path dir fpath_in
   in
-  read_source_recursively abspath_in
+  let (_, extopt) = Core.Filename.split_extension abspath_in in
+  match extopt with
+  | Some("sest") ->
+      read_source_recursively abspath_in
+
+  | _ ->
+      begin
+        match ConfigLoader.load abspath_in with
+        | Error(e) ->
+            raise (ConfigError(ConfigFileError(e)))
+
+        | Ok(config) ->
+            let srcdirs = config.ConfigLoader.source_directories in
+            let abspaths = srcdirs |> List.map listup_sources_in_directory |> List.concat in
+            let _sources = abspaths |> List.map read_source in
+            failwith "TODO: SourceLoader.main"
+      end

@@ -1,6 +1,8 @@
 
 type error
 
+val pp_error : Format.formatter -> error -> unit
+
 type 'a decoder
 
 val run : 'a decoder -> string -> ('a, error) result

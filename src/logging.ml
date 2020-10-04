@@ -69,6 +69,10 @@ let report_lexer_error (e : lexer_error) : unit =
 let report_config_error (e : config_error) : unit =
   Format.printf "! [Build error] ";
   match e with
+  | ConfigFileError(e) ->
+      Format.printf "malformed config file; %a\n"
+        YamlDecoder.pp_error e
+
   | CyclicFileDependencyFound(cycle) ->
       begin
         match cycle with

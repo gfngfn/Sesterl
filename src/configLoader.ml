@@ -18,7 +18,7 @@ let config_decoder : config YamlDecoder.decoder =
   succeed { package_name; main_module; source_directories }
 
 
-let load (srcpath : string) : (config, YamlDecoder.error) result =
+let load (srcpath : absolute_path) : (config, YamlDecoder.error) result =
   let open ResultMonad in
   let fin = open_in srcpath in
   let s = Core.In_channel.input_all fin in

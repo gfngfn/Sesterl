@@ -10,6 +10,18 @@ type error =
   | NotAnObject
   | OtherMessage of string
 
+
+let pp_error (ppf : Format.formatter) =
+  let p = Format.fprintf in
+  function
+  | FieldNotFound(field) -> p ppf "field '%s' not found" field
+  | NotAFloat            -> p ppf "not a float value"
+  | NotAString           -> p ppf "not a string value"
+  | NotAnArray           -> p ppf "not an array"
+  | NotAnObject          -> p ppf "not an object"
+  | OtherMessage(msg)    -> p ppf "%s" msg
+
+
 type 'a decoder = Yaml.value -> ('a, error) result
 
 
