@@ -59,7 +59,7 @@
 
 %start main
 %type<Syntax.untyped_binding> bindtop
-%type<string list * Syntax.module_name Syntax.ranged * Syntax.untyped_module> main
+%type<(Syntax.module_name Syntax.ranged) list * Syntax.module_name Syntax.ranged * Syntax.untyped_module> main
 %type<Syntax.manual_type> ty
 %type<Syntax.binder list * (Syntax.labeled_binder list * Syntax.labeled_optional_binder list)> params
 %type<Syntax.labeled_binder list * Syntax.labeled_optional_binder list> labparams
@@ -86,7 +86,7 @@ main:
       }
 ;
 dep:
-  | REQUIRE; strlit=BINARY { let (_, s) = strlit in s }
+  | REQUIRE; modident=CTOR { modident }
 ;
 ident:
   | ident=IDENT { ident }

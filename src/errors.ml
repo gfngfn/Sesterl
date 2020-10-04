@@ -6,6 +6,8 @@ open Env
 type config_error =
   | CyclicFileDependencyFound of absolute_path cycle
   | ConfigFileError           of YamlDecoder.error
+  | MultipleModuleOfTheSameName of module_name * absolute_path * absolute_path
+  | ModuleNotFound              of Range.t * module_name
 
 type lexer_error =
   | UnidentifiedToken                of Range.t * string

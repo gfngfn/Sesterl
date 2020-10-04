@@ -87,6 +87,15 @@ let report_config_error (e : config_error) : unit =
             )
       end
 
+  | MultipleModuleOfTheSameName(modnm, abspath1, abspath2) ->
+      Format.printf "multiple module bound with the same name '%s':\n  - %s\n  - %s\n"
+        modnm abspath1 abspath2;
+
+  | ModuleNotFound(rng, modnm) ->
+      Format.printf "%a: module '%s' not found\n"
+        Range.pp rng
+        modnm
+
 
 let report_type_error (e : type_error) : unit =
   Format.printf "! [Type error] ";

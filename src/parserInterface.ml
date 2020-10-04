@@ -19,7 +19,7 @@ let k_fail chkpt =
       assert false
 
 
-let process ~fname:(fname : string) (lexbuf : Lexing.lexbuf) : (string list * module_name ranged * untyped_module, syntax_error) result =
+let process ~fname:(fname : string) (lexbuf : Lexing.lexbuf) : ((module_name ranged) list * module_name ranged * untyped_module, syntax_error) result =
   try
     lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = fname };
     let supplier = I.lexer_lexbuf_to_supplier Lexer.token lexbuf in

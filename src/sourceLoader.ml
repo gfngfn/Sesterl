@@ -17,24 +17,13 @@ let listup_sources_in_directory (dir : absolute_dir) : absolute_path list =
   )
 
 
-let make_absolute_path (dir : absolute_dir) (fpath : string) : absolute_path =
-  if Filename.is_relative fpath then
-    Core.Filename.realpath (Filename.concat dir fpath)
-  else
-    Core.Filename.realpath fpath
-
-
-let read_source (fpath_in : absolute_path) : (absolute_path list * (module_name ranged * untyped_module), syntax_error) result =
+let read_source (fpath_in : absolute_path) : ((module_name ranged) list * (module_name ranged * untyped_module), syntax_error) result =
   let inc = open_in fpath_in in
   let lexbuf = Lexing.from_channel inc in
   let fname = Filename.basename fpath_in in
   let res =
     let open ResultMonad in
-    ParserInterface.process ~fname:fname lexbuf >>= fun (deps_raw, modident, utmod) ->
-    let deps =
-      let dir = Filename.dirname fpath_in in
-      deps_raw |> List.map (make_absolute_path dir)
-    in
+    ParserInterface.process ~fname:fname lexbuf >>= fun (deps, modident, utmod) ->
     return (deps, (modident, utmod))
   in
   close_in inc;
@@ -61,7 +50,7 @@ let read_source_recursively (abspath : absolute_path) : (absolute_path * (module
       | Error(e)   -> raise (SyntaxError(e))
     in
     let loaded = state.loaded |> ContentMap.add abspath content in
-    deps |> List.fold_left (fun state abspath_sub ->
+    deps |> List.fold_left (fun state (_, abspath_sub) (* TEMPORARY *) ->
       let graph = state.graph in
       match graph |> FileDependencyGraph.find_vertex abspath_sub with
       | Some(vertex_sub) ->
@@ -93,6 +82,65 @@ let read_source_recursively (abspath : absolute_path) : (absolute_path * (module
       )
 
 
+let read_sources (abspaths : absolute_path list) =
+
+  (* First, add vertices to the graph for solving dependency. *)
+  let (graph, nmmap, acc) =
+    abspaths |> List.fold_left (fun (graph, nmmap, acc) abspath ->
+      match read_source abspath with
+      | Ok(source) ->
+          let (_, ((_, modnm), _)) = source in
+          begin
+            match nmmap |> ModuleNameMap.find_opt modnm with
+            | Some((abspath0, _, _)) ->
+                raise (ConfigError(MultipleModuleOfTheSameName(modnm, abspath0, abspath)))
+
+            | None ->
+                let (graph, vertex) = graph |> FileDependencyGraph.add_vertex modnm in
+                let nmmap = nmmap |> ModuleNameMap.add modnm (abspath, vertex, source) in
+                let acc = Alist.extend acc (vertex, source) in
+                (graph, nmmap, acc)
+          end
+
+      | Error(e) ->
+          raise (SyntaxError(e))
+            (* TODO: change error into warning *)
+
+    ) (FileDependencyGraph.empty, ModuleNameMap.empty, Alist.empty)
+  in
+
+  (* Second, add dependency edges to the graph. *)
+  let graph =
+    acc |> Alist.to_list |> List.fold_left (fun graph (vertex, source) ->
+      let (deps, ((_, modnm), _)) = source in
+      deps |> List.fold_left (fun graph (rng, modnm_dep) ->
+        match nmmap |> ModuleNameMap.find_opt modnm_dep with
+        | None ->
+            raise (ConfigError(ModuleNotFound(rng, modnm_dep)))
+
+        | Some((_, vertex_dep, _)) ->
+            graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_dep
+
+      ) graph
+    ) graph
+  in
+
+  match FileDependencyGraph.topological_sort graph with
+  | Error(cycle) ->
+      raise (ConfigError(CyclicFileDependencyFound(cycle)))
+
+  | Ok(sorted_paths) ->
+      sorted_paths |> List.map (fun modnm ->
+        match nmmap |> ModuleNameMap.find_opt modnm with
+        | None ->
+            assert false
+
+        | Some((abspath, _, source)) ->
+            let (_, content) = source in
+            (abspath, content)
+      )
+
+
 let main (fpath_in : string) : (absolute_path * (module_name ranged * untyped_module)) list =
   let abspath_in =
     let dir = Sys.getcwd () in
@@ -112,6 +160,5 @@ let main (fpath_in : string) : (absolute_path * (module_name ranged * untyped_mo
         | Ok(config) ->
             let srcdirs = config.ConfigLoader.source_directories in
             let abspaths = srcdirs |> List.map listup_sources_in_directory |> List.concat in
-            let _sources = abspaths |> List.map read_source in
-            failwith "TODO: SourceLoader.main"
+            read_sources abspaths
       end
