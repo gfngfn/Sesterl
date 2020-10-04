@@ -29,7 +29,7 @@ let read_source (fpath_in : absolute_path) : ((module_name ranged) list * (modul
   close_in inc;
   res
 
-
+(*
 module ContentMap = Map.Make(String)
 
 type reading_state = {
@@ -80,7 +80,7 @@ let read_source_recursively (abspath : absolute_path) : (absolute_path * (module
         | None          -> assert false
         | Some(content) -> (abspath, content)
       )
-
+*)
 
 let read_sources (abspaths : absolute_path list) =
 
@@ -141,17 +141,19 @@ let read_sources (abspaths : absolute_path list) =
       )
 
 
-let main (fpath_in : string) : (absolute_path * (module_name ranged * untyped_module)) list =
+let main (fpath_in : string) : space_name * (absolute_path * (module_name ranged * untyped_module)) list =
   let abspath_in =
     let dir = Sys.getcwd () in
     make_absolute_path dir fpath_in
   in
+(*
   let (_, extopt) = Core.Filename.split_extension abspath_in in
   match extopt with
   | Some("sest") ->
       read_source_recursively abspath_in
 
   | _ ->
+*)
       begin
         match ConfigLoader.load abspath_in with
         | Error(e) ->
@@ -160,5 +162,12 @@ let main (fpath_in : string) : (absolute_path * (module_name ranged * untyped_mo
         | Ok(config) ->
             let srcdirs = config.ConfigLoader.source_directories in
             let abspaths = srcdirs |> List.map listup_sources_in_directory |> List.concat in
-            read_sources abspaths
+            let sources = read_sources abspaths in
+            let spkgname =
+              let pkgname = config.package_name in
+              match OutputIdentifier.space_of_package_name pkgname with
+              | Some(spkgname) -> spkgname
+              | None           -> raise (ConfigError(InvalidPackageName(pkgname)))
+            in
+            (spkgname, sources)
       end

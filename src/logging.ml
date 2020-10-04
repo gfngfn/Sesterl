@@ -96,6 +96,10 @@ let report_config_error (e : config_error) : unit =
         Range.pp rng
         modnm
 
+  | InvalidPackageName(s) ->
+      Format.printf "invalid package name '%s'\n"
+        s
+
 
 let report_type_error (e : type_error) : unit =
   Format.printf "! [Type error] ";

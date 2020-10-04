@@ -26,7 +26,7 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.decoder =
   Format.printf "name: %s, srcdirs: %a, main: %s\n"
     config.package_name
     (Format.pp_print_list Format.pp_print_string) config.source_directories
-    config.main_module_path;
+    config.main_module_path;  (* for debug *)
 
   succeed config
 

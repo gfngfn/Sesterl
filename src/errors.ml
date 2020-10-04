@@ -8,6 +8,7 @@ type config_error =
   | ConfigFileError           of YamlDecoder.error
   | MultipleModuleOfTheSameName of module_name * absolute_path * absolute_path
   | ModuleNotFound              of Range.t * module_name
+  | InvalidPackageName          of string
 
 type lexer_error =
   | UnidentifiedToken                of Range.t * string

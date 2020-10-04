@@ -34,8 +34,12 @@ type global_answer = {
 }
 
 
-let space : string -> space option =
+let space_of_module_name : string -> space option =
   IdentifierScheme.from_upper_camel_case
+
+
+let space_of_package_name : string -> space option =
+  IdentifierScheme.from_snake_case
 
 
 let fresh_number : unit -> int =

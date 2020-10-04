@@ -6,7 +6,7 @@ open Env
 
 let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
   try
-    let sources = SourceLoader.main fpath_in in
+    let (spkgname, sources) = SourceLoader.main fpath_in in
     let (_, outacc) =
       let (tyenv, _) = Primitives.initial_environment in
       sources |> List.fold_left (fun (tyenv, outacc) (abspath, (modident, utmod)) ->
@@ -19,8 +19,9 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
     in
     let (_, gmap) = Primitives.initial_environment in
     outacc |> Alist.to_list |> List.fold_left (fun gmap (sname, binds) ->
-      OutputErlangCode.main dir_out gmap sname binds
-    ) gmap |> ignore
+      OutputErlangCode.main dir_out gmap ~package_name:spkgname ~module_name:sname binds
+    ) gmap |> ignore;
+    OutputErlangCode.write_primitive_module ~package_name:spkgname dir_out
   with
   | Sys_error(msg) ->
       Logging.report_system_error msg;
