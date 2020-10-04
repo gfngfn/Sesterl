@@ -1,4 +1,4 @@
-require "./gen_server.sest"
+require GenServer
 
 module SampleProject = struct
 
@@ -41,7 +41,7 @@ module SampleProject = struct
 
     end
 
-    include SesterlStdlib.GenServer.Make(Callback)
+    include GenServer.Make(Callback)
 
     let set_number<$a>(pid : proc, m : int) : [$a]unit =
       cast(pid, SetNumber(m))

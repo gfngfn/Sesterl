@@ -66,6 +66,44 @@ let report_lexer_error (e : lexer_error) : unit =
         Range.pp rng
 
 
+let report_config_error (e : config_error) : unit =
+  Format.printf "! [Build error] ";
+  match e with
+  | ConfigFileError(e) ->
+      Format.printf "malformed config file; %a\n"
+        YamlDecoder.pp_error e
+
+  | CyclicFileDependencyFound(cycle) ->
+      begin
+        match cycle with
+        | Loop(abspath) ->
+            Format.printf "file '%s' is dependent on itself.\n"
+              abspath
+
+        | Cycle(abspaths) ->
+            Format.printf "cyclic file dependency found among:\n";
+            abspaths |> TupleList.to_list |> List.iter (fun abspath ->
+              Format.printf "  - '%s'\n" abspath
+            )
+      end
+
+  | MultipleModuleOfTheSameName(modnm, abspath1, abspath2) ->
+      Format.printf "multiple module bound with the same name '%s':\n  - %s\n  - %s\n"
+        modnm abspath1 abspath2;
+
+  | ModuleNotFound(rng, modnm) ->
+      Format.printf "%a: module '%s' not found\n"
+        Range.pp rng
+        modnm
+
+  | InvalidPackageName(s) ->
+      Format.printf "invalid package name '%s'\n"
+        s
+
+  | CannotSpecifyDependency ->
+      Format.printf "cannot specify dependency at standalone file\n"
+
+
 let report_type_error (e : type_error) : unit =
   Format.printf "! [Type error] ";
   match e with

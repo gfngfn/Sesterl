@@ -1,0 +1,7 @@
+require GenServer
+
+module Stdlib = struct
+
+  module GenServer = GenServer
+
+end

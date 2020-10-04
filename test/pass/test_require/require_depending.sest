@@ -1,4 +1,4 @@
-require "require_depended.sest"
+require RequireDepended
 
 module RequireDepending = struct
 

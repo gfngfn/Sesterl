@@ -856,7 +856,7 @@ let check_properly_used (tyenv : Typeenv.t) ((rng, x) : identifier ranged) =
 
 
 let get_space_name (rng : Range.t) (m : module_name) : space_name =
-  match OutputIdentifier.space m with
+  match OutputIdentifier.space_of_module_name m with
   | None        -> raise_error (InvalidIdentifier(rng, m))
   | Some(sname) -> sname
 

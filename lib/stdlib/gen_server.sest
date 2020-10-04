@@ -1,0 +1,97 @@
+module GenServer = struct
+
+  signature Behaviour = sig
+
+    type init_arg :: o
+
+    type request :: o
+      /* temporary; should be a unary GADT */
+
+    type response :: o
+      /* temporary; should be a unary GADT  */
+
+    type cast_message :: o
+
+    type state :: o
+
+    val init : fun(init_arg) -> state
+
+    val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
+
+    val handle_cast : fun(cast_message, state) -> state
+
+  end
+
+  module Make = fun(Callback : Behaviour) -> struct
+
+    type request = Callback.request
+
+    type response = Callback.response
+
+    type cast_message = Callback.cast_message
+
+    type gen_server = unit
+
+    type proc = pid<gen_server>
+
+    let init_impl(arg : Callback.init_arg) =
+      Callback.init(arg)
+
+    let init<$a> : $a = external 1 ```
+      init(Args) ->
+          State = ?MODULE:init_impl(Args),
+          {ok, State}.
+    ```
+
+    let handle_call_impl<$a>(req : Callback.request, pid : pid<$a>, state : Callback.state) =
+      Callback.handle_call(req, pid, state)
+
+    let handle_call<$a> : $a = external 3 ```
+      handle_call(Msg, From, State0) ->
+          {Pid, _} = From,
+          {Response, State1} = ?MODULE:handle_call_impl(Msg, Pid, State0),
+          {reply, Response, State1}.
+    ```
+
+    let handle_cast_impl(msg : Callback.cast_message, state : Callback.state) =
+      Callback.handle_cast(msg, state)
+
+    let handle_cast<$a> : $a = external 2 ```
+      handle_cast(Msg, State0) ->
+          State1 = ?MODULE:handle_cast_impl(Msg, State0),
+          {noreply, State1}.
+    ```
+
+    let call<$a> : fun(proc, request, ?timeout int) -> [$a]response = external 2+ ```
+      call(Pid, Msg) ->
+          fun() -> gen_server:call(Pid, Msg) end.
+            % thunk
+
+      call(Pid, Msg, Options) ->
+          case maps:find(timeout, Options) of
+              {ok, Timeout} -> fun() -> gen_server:call(Pid, Msg, Timeout) end;
+              error         -> fun() -> gen_server:call(Pid, Msg) end
+          end.
+            % thunk
+    ```
+
+    let cast<$a> : fun(proc, cast_message) -> [$a]unit = external 2 ```
+      cast(Pid, Msg) ->
+          fun() -> gen_server:cast(Pid, Msg) end.
+            % thunk
+    ```
+
+    let start_link<$a> : fun(Callback.init_arg) -> [$a]proc = external 1 ```
+      start_link(Args) ->
+          fun() ->
+              case gen_server:start_link(?MODULE, Args, []) of
+                  {ok, Pid} -> Pid;
+                  Other     -> erlang:error({unsupported, Other})
+              end
+          end.
+            % thunk
+    ```
+
+  end
+
+end

@@ -1,0 +1,5 @@
+package: test_require
+source_directories:
+  - "./"
+
+main_module: "./require_depending.sest"

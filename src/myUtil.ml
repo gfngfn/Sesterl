@@ -56,6 +56,15 @@ type absolute_path = string
 
 type absolute_dir = string
 
+
+let make_absolute_path ?canonicalize:(canonicalize = false) (dir : absolute_dir) (fpath : string) : absolute_path =
+  let f = if canonicalize then Core.Filename.realpath else (fun s -> s) in
+  if Filename.is_relative fpath then
+    f (Filename.concat dir fpath)
+  else
+    f fpath
+
+
 module Utf : sig
   val uchar_of_utf8 : string -> Uchar.t list
 end = struct

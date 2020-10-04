@@ -19,7 +19,9 @@ type global_answer = {
   has_option    : bool;
 }
 
-val space : string -> space option
+val space_of_module_name : string -> space option
+
+val space_of_package_name : string -> space option
 
 val fresh : unit -> local
 

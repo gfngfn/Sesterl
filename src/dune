@@ -8,7 +8,8 @@
     cmdliner
     ocamlgraph
     core
-    uutf)
+    uutf
+    yaml)
   (preprocess
     (pps
       ppx_deriving.show)))

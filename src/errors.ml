@@ -1,6 +1,15 @@
 
+open MyUtil
 open Syntax
 open Env
+
+type config_error =
+  | CyclicFileDependencyFound of absolute_path cycle
+  | ConfigFileError           of YamlDecoder.error
+  | MultipleModuleOfTheSameName of module_name * absolute_path * absolute_path
+  | ModuleNotFound              of Range.t * module_name
+  | InvalidPackageName          of string
+  | CannotSpecifyDependency
 
 type lexer_error =
   | UnidentifiedToken                of Range.t * string
@@ -9,6 +18,10 @@ type lexer_error =
   | BlockClosedWithTooManyBackQuotes of Range.t
   | SeeBreakInStringLiteral          of Range.t
   | NotASingleCodePoint              of Range.t
+
+type syntax_error =
+  | LexerError of lexer_error
+  | ParseError of Range.t
 
 type type_error =
   | UnboundVariable                     of Range.t * identifier

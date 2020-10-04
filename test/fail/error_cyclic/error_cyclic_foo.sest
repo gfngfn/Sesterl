@@ -1,4 +1,4 @@
-require "./error_cyclic_bar.sest"
+require ErrorCyclicBar
 
 module ErrorCyclicFoo = struct
   let main() = ()
