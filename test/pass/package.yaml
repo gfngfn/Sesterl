@@ -1,6 +1,0 @@
-package: test_pass
-
-source_directories:
-  - "./"
-
-main_module: "./container.sest"

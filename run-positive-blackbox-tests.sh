@@ -22,10 +22,23 @@ mkdir -p "$TARGET_DIR"
 
 ERRORS=()
 
-"$BIN" "$SOURCE_DIR/package.yaml" -o "$TARGET_DIR"
-if [ $STATUS -ne 0 ]; then
-    ERRORS+=("source")
-fi
+for PKG_DIR in "$SOURCE_DIR"/*/; do
+    echo "Compiling package '$PKG_DIR/' ..."
+    "$BIN" "$PKG_DIR/package.yaml" -o "$TARGET_DIR"
+    STATUS=$?
+    if [ $STATUS -ne 0 ]; then
+        ERRORS+=("$PKG_DIR")
+    fi
+done
+
+for SOURCE in "$SOURCE_DIR"/*.sest; do
+    echo "Compiling standalone file '$SOURCE' by sesterl ..."
+    "$BIN" "$SOURCE" -o "$TARGET_DIR"
+    STATUS=$?
+    if [ $STATUS -ne 0 ]; then
+        ERRORS+=("$SOURCE")
+    fi
+done
 
 for TARGET in "$TARGET_DIR"/*.erl; do
     echo "Compiling '$TARGET' by erlc ..."
