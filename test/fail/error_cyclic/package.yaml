@@ -1,0 +1,6 @@
+package: test_fail_error_cyclic
+
+source_directories:
+  - "./"
+
+main_module: "./error_cyclic_foo.sest"

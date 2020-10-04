@@ -2,7 +2,7 @@
 module ErrorFunctor = struct
 
   signature S = sig
-    type t :: 0
+    type t :: o
   end
 
   module F = fun(X : S) -> fun(Y : S) -> struct
