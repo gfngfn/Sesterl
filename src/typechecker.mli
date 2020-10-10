@@ -5,4 +5,6 @@ open Errors
 
 exception Error of type_error
 
-val main : Typeenv.t -> module_name ranged -> untyped_signature option -> untyped_module -> Typeenv.t * SigRecord.t abstracted * space_name * binding list
+val typecheck_signature : Typeenv.t -> untyped_signature -> module_signature abstracted
+
+val main : Typeenv.t -> module_name ranged -> (module_signature abstracted) option -> untyped_module -> Typeenv.t * SigRecord.t abstracted * space_name * binding list

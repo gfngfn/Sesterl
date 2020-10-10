@@ -3056,8 +3056,13 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       let (absmodsig1, ibindssub) = typecheck_module tyenv utmod1 in
       let (oidset, modsig) =
         match utsigopt2 with
-        | None         -> absmodsig1
-        | Some(utsig2) -> let (_, modsig1) = absmodsig1 in coerce_signature tyenv rngm modsig1 utsig2
+        | None ->
+            absmodsig1
+
+        | Some(utsig2) ->
+            let (_, modsig1) = absmodsig1 in
+            let absmodsig2 = typecheck_signature tyenv utsig2 in
+            coerce_signature tyenv rngm modsig1 absmodsig2
       in
       let sname = get_space_name rngm m in
       let sigr = SigRecord.empty |> SigRecord.add_module m modsig sname in
@@ -3191,10 +3196,11 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
             end
       end
 
-  | ModCoerce(modident0, utsig) ->
-      let (modsig0, _) = find_module tyenv modident0 in
-      let (rng0, _) = modident0 in
-      let absmodsig = coerce_signature tyenv rng0 modsig0 utsig in
+  | ModCoerce(modident1, utsig2) ->
+      let (modsig1, _) = find_module tyenv modident1 in
+      let (rng1, _) = modident1 in
+      let absmodsig2 = typecheck_signature tyenv utsig2 in
+      let absmodsig = coerce_signature tyenv rng1 modsig1 absmodsig2 in
       (absmodsig, [])
 
 
@@ -3221,20 +3227,19 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
   ((oidsetacc, sigracc), Alist.to_list ibindacc)
 
 
-and coerce_signature (tyenv : Typeenv.t) (rng : Range.t) (modsig1 : module_signature) (utsig2 : untyped_signature) =
-  let absmodsig2 = typecheck_signature tyenv utsig2 in
+and coerce_signature (tyenv : Typeenv.t) (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
   let wtmap = subtype_signature rng modsig1 absmodsig2 in
   absmodsig2 |> substitute_abstract wtmap
 
 
-let main (tyenv : Typeenv.t) (modident : module_name ranged) (utsigopt2 : untyped_signature option) (utmod1 : untyped_module) : Typeenv.t * SigRecord.t abstracted * space_name * binding list =
+let main (tyenv : Typeenv.t) (modident : module_name ranged) (absmodsigopt2 : (module_signature abstracted) option) (utmod1 : untyped_module) : Typeenv.t * SigRecord.t abstracted * space_name * binding list =
   let (rng, modnm) = modident in
   let sname = get_space_name rng modnm in
   let (absmodsig1, ibinds) = typecheck_module tyenv utmod1 in
   let (oidset, modsig) =
-    match utsigopt2 with
-    | None         -> absmodsig1
-    | Some(utsig2) -> let (_, modsig1) = absmodsig1 in coerce_signature tyenv rng modsig1 utsig2
+    match absmodsigopt2 with
+    | None             -> absmodsig1
+    | Some(absmodsig2) -> let (_, modsig1) = absmodsig1 in coerce_signature tyenv rng modsig1 absmodsig2
   in
   match modsig with
   | ConcFunctor(_) ->

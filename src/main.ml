@@ -36,7 +36,7 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
               failwith "TODO: non-existent directory"
     in
     let (tyenv, _) = Primitives.initial_environment in
-    let outs = PackageChecker.main is_verbose tyenv submods mainmod in
+    let (tyenv_next, outs) = PackageChecker.main is_verbose tyenv submods mainmod in
     let (_, gmap) = Primitives.initial_environment in
     outs |> List.fold_left (fun gmap (sname, binds) ->
       OutputErlangCode.main dir_out gmap ~package_name:pkgnameopt ~module_name:sname binds
