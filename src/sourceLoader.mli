@@ -6,9 +6,15 @@ open Errors
 exception ConfigError of config_error
 exception SyntaxError of syntax_error
 
+type loaded_module = {
+  source_path       : absolute_path;
+  module_identifier : module_name ranged;
+  module_content    : untyped_module;
+}
+
 type loaded_package = {
   space_name   : space_name option;
-  modules      : (absolute_path * (module_name ranged * untyped_module)) list;
+  modules      : loaded_module list;
   dependencies : ConfigLoader.dependency list;
 }
 

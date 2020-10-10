@@ -11,7 +11,10 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
     let sources = pkg.SourceLoader.modules in
     let (_, outacc) =
       let (tyenv, _) = Primitives.initial_environment in
-      sources |> List.fold_left (fun (tyenv, outacc) (abspath, (modident, utmod)) ->
+      sources |> List.fold_left (fun (tyenv, outacc) source ->
+        let abspath = source.SourceLoader.source_path in
+        let modident = source.SourceLoader.module_identifier in
+        let utmod = source.SourceLoader.module_content in
         Logging.begin_to_typecheck abspath;
         let (tyenv, (oidset, sigr), sname, binds) = Typechecker.main tyenv modident utmod in
         if is_verbose then display_structure 0 sigr;

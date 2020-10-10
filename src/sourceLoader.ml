@@ -7,9 +7,15 @@ exception ConfigError of config_error
 exception SyntaxError of syntax_error
 
 
+type loaded_module = {
+  source_path       : absolute_path;
+  module_identifier : module_name ranged;
+  module_content    : untyped_module;
+}
+
 type loaded_package = {
   space_name   : space_name option;
-  modules      : (absolute_path * (module_name ranged * untyped_module)) list;
+  modules      : loaded_module list;
   dependencies : ConfigLoader.dependency list;
 }
 
@@ -89,7 +95,7 @@ let read_source_recursively (abspath : absolute_path) : (absolute_path * (module
       )
 *)
 
-let read_sources (abspaths : absolute_path list) =
+let read_sources (abspaths : absolute_path list) : loaded_module list =
 
   (* First, add vertices to the graph for solving dependency. *)
   let (graph, nmmap) =
@@ -142,8 +148,12 @@ let read_sources (abspaths : absolute_path list) =
             assert false
 
         | Some((abspath, _, source)) ->
-            let (_, content) = source in
-            (abspath, content)
+            let (_, (modident, utmod)) = source in
+            {
+              source_path       = abspath;
+              module_identifier = modident;
+              module_content    = utmod;
+            }
       )
 
 
@@ -165,7 +175,14 @@ let main (fpath_in : string) : loaded_package =
             if List.length deps > 0 then
               raise (ConfigError(CannotSpecifyDependency))
             else
-              let source = (abspath_in, content) in
+              let (modident, utmod) = content in
+              let source =
+                {
+                  source_path       = abspath_in;
+                  module_identifier = modident;
+                  module_content    = utmod;
+                }
+              in
               {
                 space_name   = None;
                 modules      = [ source ];
