@@ -65,12 +65,13 @@ let resolve_dependency (baremods : bare_loaded_module list) : loaded_module list
       let abspath = baremod.bare_source_path in
       begin
         match nmmap |> ModuleNameMap.find_opt modnm with
-        | Some((abspath0, _, _)) ->
+        | Some((_, baremod0)) ->
+            let abspath0 = baremod0.bare_source_path in
             raise (ConfigError(MultipleModuleOfTheSameName(modnm, abspath0, abspath)))
 
         | None ->
             let (graph, vertex) = graph |> FileDependencyGraph.add_vertex modnm in
-            let nmmap = nmmap |> ModuleNameMap.add modnm (abspath, vertex, baremod) in
+            let nmmap = nmmap |> ModuleNameMap.add modnm (vertex, baremod) in
             (graph, nmmap)
       end
     ) (FileDependencyGraph.empty, ModuleNameMap.empty)
@@ -78,14 +79,14 @@ let resolve_dependency (baremods : bare_loaded_module list) : loaded_module list
 
   (* Second, add dependency edges to the graph. *)
   let graph =
-    graph |> ModuleNameMap.fold (fun modnm (_, vertex, baremod) graph ->
+    graph |> ModuleNameMap.fold (fun modnm (vertex, baremod) graph ->
       let deps = baremod.bare_dependencies in
       deps |> List.fold_left (fun graph (rng, modnm_dep) ->
         match nmmap |> ModuleNameMap.find_opt modnm_dep with
         | None ->
             raise (ConfigError(ModuleNotFound(rng, modnm_dep)))
 
-        | Some((_, vertex_dep, _)) ->
+        | Some((vertex_dep, _)) ->
             graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_dep
 
       ) graph
@@ -102,13 +103,11 @@ let resolve_dependency (baremods : bare_loaded_module list) : loaded_module list
         | None ->
             assert false
 
-        | Some((abspath, _, baremod)) ->
-            let modident = baremod.bare_module_identifier in
-            let utmod = baremod.bare_content in
+        | Some((_, baremod)) ->
             {
-              source_path       = abspath;
-              module_identifier = modident;
-              module_content    = utmod;
+              source_path       = baremod.bare_source_path;
+              module_identifier = baremod.bare_module_identifier;
+              module_content    = baremod.bare_content;
             }
       )
 
