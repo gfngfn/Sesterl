@@ -1,0 +1,7 @@
+require ErrorCyclicFoo
+require ErrorCyclicBar
+
+module ErrorCyclic = struct
+  let main() =
+    (ErrorCyclicFoo.main(), ErrorCyclicBar.main())
+end
