@@ -11,6 +11,8 @@ type config_error =
   | InvalidPackageName          of string
   | CannotSpecifyDependency
 
+exception ConfigError of config_error
+
 type lexer_error =
   | UnidentifiedToken                of Range.t * string
   | SeeEndOfFileInComment            of Range.t

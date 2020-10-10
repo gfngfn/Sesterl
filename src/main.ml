@@ -1,14 +1,34 @@
 
 open MyUtil
 open Syntax
+open Errors
 open Env
 
 
 let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
   try
-    let pkg = SourceLoader.main fpath_in in
-    let pkgnameopt = pkg.SourceLoader.space_name in
-    let sources = pkg.SourceLoader.modules in
+    let abspath_in =
+      let dir = Sys.getcwd () in
+      make_absolute_path dir fpath_in
+    in
+    let (_, extopt) = Core.Filename.split_extension abspath_in in
+    let (pkgnameopt, sources) =
+      match extopt with
+      | Some("sest") ->
+          let source = SourceLoader.single abspath_in in
+          (None, [source])
+
+      | _ ->
+          begin
+            match ConfigLoader.load abspath_in with
+            | Error(e) ->
+                raise (ConfigError(ConfigFileError(e)))
+
+            | Ok(config) ->
+                let pkg = SourceLoader.main config in
+                (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.modules)
+          end
+    in
     let (_, outacc) =
       let (tyenv, _) = Primitives.initial_environment in
       sources |> List.fold_left (fun (tyenv, outacc) source ->
@@ -44,7 +64,7 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       Logging.report_parser_error rng;
       exit 1
 
-  | SourceLoader.ConfigError(e) ->
+  | ConfigError(e) ->
       Logging.report_config_error e;
       exit 1
 

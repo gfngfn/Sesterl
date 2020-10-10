@@ -3,7 +3,6 @@ open MyUtil
 open Syntax
 open Errors
 
-exception ConfigError of config_error
 exception SyntaxError of syntax_error
 
 
@@ -14,7 +13,7 @@ type loaded_module = {
 }
 
 type loaded_package = {
-  space_name   : space_name option;
+  space_name   : space_name;
   modules      : loaded_module list;
   dependencies : ConfigLoader.dependency list;
 }
@@ -157,58 +156,36 @@ let read_sources (abspaths : absolute_path list) : loaded_module list =
       )
 
 
-let main (fpath_in : string) : loaded_package =
-  let abspath_in =
-    let dir = Sys.getcwd () in
-    make_absolute_path dir fpath_in
+
+let single (abspath_in : absolute_path) : loaded_module =
+  match read_source abspath_in with
+  | Error(e) ->
+      raise (SyntaxError(e))
+
+  | Ok((deps, content)) ->
+      if List.length deps > 0 then
+        raise (ConfigError(CannotSpecifyDependency))
+      else
+        let (modident, utmod) = content in
+        {
+          source_path       = abspath_in;
+          module_identifier = modident;
+          module_content    = utmod;
+        }
+
+
+let main (config : ConfigLoader.config) : loaded_package =
+  let srcdirs = config.ConfigLoader.source_directories in
+  let abspaths = srcdirs |> List.map listup_sources_in_directory |> List.concat in
+  let sources = read_sources abspaths in
+  let spkgname =
+    let pkgname = config.package_name in
+    match OutputIdentifier.space_of_package_name pkgname with
+    | Some(spkgname) -> spkgname
+    | None           -> raise (ConfigError(InvalidPackageName(pkgname)))
   in
-
-  let (_, extopt) = Core.Filename.split_extension abspath_in in
-  match extopt with
-  | Some("sest") ->
-      begin
-        match read_source abspath_in with
-        | Error(e) ->
-            raise (SyntaxError(e))
-
-        | Ok((deps, content)) ->
-            if List.length deps > 0 then
-              raise (ConfigError(CannotSpecifyDependency))
-            else
-              let (modident, utmod) = content in
-              let source =
-                {
-                  source_path       = abspath_in;
-                  module_identifier = modident;
-                  module_content    = utmod;
-                }
-              in
-              {
-                space_name   = None;
-                modules      = [ source ];
-                dependencies = [];
-              }
-      end
-
-  | _ ->
-      begin
-        match ConfigLoader.load abspath_in with
-        | Error(e) ->
-            raise (ConfigError(ConfigFileError(e)))
-
-        | Ok(config) ->
-            let srcdirs = config.ConfigLoader.source_directories in
-            let abspaths = srcdirs |> List.map listup_sources_in_directory |> List.concat in
-            let sources = read_sources abspaths in
-            let spkgname =
-              let pkgname = config.package_name in
-              match OutputIdentifier.space_of_package_name pkgname with
-              | Some(spkgname) -> spkgname
-              | None           -> raise (ConfigError(InvalidPackageName(pkgname)))
-            in
-            {
-              space_name   = Some(spkgname);
-              modules      = sources;
-              dependencies = config.ConfigLoader.dependencies;
-            }
-      end
+  {
+    space_name   = spkgname;
+    modules      = sources;
+    dependencies = config.ConfigLoader.dependencies;
+  }

@@ -3,7 +3,6 @@ open MyUtil
 open Syntax
 open Errors
 
-exception ConfigError of config_error
 exception SyntaxError of syntax_error
 
 type loaded_module = {
@@ -13,12 +12,14 @@ type loaded_module = {
 }
 
 type loaded_package = {
-  space_name   : space_name option;
+  space_name   : space_name;
   modules      : loaded_module list;
   dependencies : ConfigLoader.dependency list;
 }
 
-val main : string -> loaded_package
+val single : absolute_path -> loaded_module
+
+val main : ConfigLoader.config -> loaded_package
 (** Receiving a (possibly-relative) path [p] to a package configuration file (or a single source file),
     [main p] loads all the source files constituting the package into modules,
     and returns [pkg] where:
