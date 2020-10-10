@@ -14,7 +14,6 @@ type loaded_module = {
 type loaded_package = {
   space_name   : space_name;
   modules      : loaded_module list;
-  dependencies : ConfigLoader.dependency list;
 }
 
 val single : absolute_path -> loaded_module

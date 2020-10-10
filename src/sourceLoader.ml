@@ -15,7 +15,6 @@ type loaded_module = {
 type loaded_package = {
   space_name   : space_name;
   modules      : loaded_module list;
-  dependencies : ConfigLoader.dependency list;
 }
 
 
@@ -187,5 +186,4 @@ let main (config : ConfigLoader.config) : loaded_package =
   {
     space_name   = spkgname;
     modules      = sources;
-    dependencies = config.ConfigLoader.dependencies;
   }
