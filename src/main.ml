@@ -35,21 +35,10 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
             else
               failwith "TODO: non-existent directory"
     in
-    let (_, outacc) =
-      let (tyenv, _) = Primitives.initial_environment in
-      sources |> List.fold_left (fun (tyenv, outacc) source ->
-        let abspath = source.SourceLoader.source_path in
-        let modident = source.SourceLoader.module_identifier in
-        let utmod = source.SourceLoader.module_content in
-        Logging.begin_to_typecheck abspath;
-        let (tyenv, (oidset, sigr), sname, binds) = Typechecker.main tyenv modident utmod in
-        if is_verbose then display_structure 0 sigr;
-        let outacc = Alist.extend outacc (sname, binds) in
-        (tyenv, outacc)
-      ) (tyenv, Alist.empty)
-    in
+    let (tyenv, _) = Primitives.initial_environment in
+    let outs = PackageChecker.main is_verbose tyenv sources in
     let (_, gmap) = Primitives.initial_environment in
-    outacc |> Alist.to_list |> List.fold_left (fun gmap (sname, binds) ->
+    outs |> List.fold_left (fun gmap (sname, binds) ->
       OutputErlangCode.main dir_out gmap ~package_name:pkgnameopt ~module_name:sname binds
     ) gmap |> ignore;
     OutputErlangCode.write_primitive_module dir_out
