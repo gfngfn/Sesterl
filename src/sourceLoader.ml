@@ -9,6 +9,7 @@ exception SyntaxError of syntax_error
 type loaded_module = {
   source_path       : absolute_path;
   module_identifier : module_name ranged;
+  signature         : untyped_signature option;
   module_content    : untyped_module;
 }
 
@@ -41,12 +42,13 @@ let read_source (abspath_in : absolute_path) : (bare_loaded_module, syntax_error
   let fname = Filename.basename abspath_in in
   let res =
     let open ResultMonad in
-    ParserInterface.process ~fname:fname lexbuf >>= fun (deps, modident, utmod) ->
+    ParserInterface.process ~fname:fname lexbuf >>= fun (deps, modident, utsigopt, utmod) ->
     return {
       bare_dependencies = deps;
       bare_module = {
         source_path       = abspath_in;
         module_identifier = modident;
+        signature         = utsigopt;
         module_content    = utmod;
       };
     }

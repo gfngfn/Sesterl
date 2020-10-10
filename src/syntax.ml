@@ -246,7 +246,7 @@ and untyped_binding =
 and untyped_binding_main =
   | BindVal     of internal_or_external
   | BindType    of (type_name ranged * type_variable_binder list * synonym_or_variant) list
-  | BindModule  of module_name ranged * untyped_module
+  | BindModule  of module_name ranged * untyped_signature option * untyped_module
   | BindSig     of signature_name ranged * untyped_signature
   | BindInclude of untyped_module
 

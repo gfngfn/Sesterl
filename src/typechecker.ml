@@ -3051,10 +3051,19 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             ((OpaqueIDSet.empty, sigr), [])
       end
 
-  | BindModule(modident, utmod) ->
+  | BindModule(modident, utsigopt2, utmod1) ->
       let (rngm, m) = modident in
-      let (absmodsig, ibindssub) = typecheck_module tyenv utmod in
-      let (oidset, modsig) = absmodsig in
+      let (absmodsig1, ibindssub) = typecheck_module tyenv utmod1 in
+      let (oidset1, modsig1) = absmodsig1 in
+      let modsig =
+        match utsigopt2 with
+        | None ->
+            modsig1
+
+        | Some(utsig2) ->
+            let _absmodsig2 = typecheck_signature tyenv utsig2 in
+            failwith "TODO: BindModule with coercion"
+      in
       let sname = get_space_name rngm m in
       let sigr = SigRecord.empty |> SigRecord.add_module m modsig sname in
       let ibinds =
@@ -3062,7 +3071,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         | []     -> []
         | _ :: _ -> [IBindModule(sname, ibindssub)]
       in
-      ((oidset, sigr), ibinds)
+      ((oidset1, sigr), ibinds)
 
   | BindInclude(utmod) ->
       let (absmodsig, ibinds) = typecheck_module tyenv utmod in
