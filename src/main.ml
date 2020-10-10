@@ -11,23 +11,29 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       let dir = Sys.getcwd () in
       make_absolute_path dir fpath_in
     in
-    let (_, extopt) = Core.Filename.split_extension abspath_in in
     let (pkgnameopt, sources) =
-      match extopt with
-      | Some("sest") ->
-          let source = SourceLoader.single abspath_in in
-          (None, [source])
+        let (_, extopt) = Core.Filename.split_extension abspath_in in
+        match extopt with
+        | Some("sest") ->
+            let source = SourceLoader.single abspath_in in
+            (None, [source])
 
-      | _ ->
-          begin
-            match ConfigLoader.load abspath_in with
-            | Error(e) ->
-                raise (ConfigError(ConfigFileError(e)))
+        | Some(ext) ->
+            failwith (Printf.sprintf "TODO: unrecognizable extensions '%s'" ext)
 
-            | Ok(config) ->
-                let pkg = SourceLoader.main config in
-                (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.modules)
-          end
+        | _ ->
+            if is_existing_directory abspath_in then
+              let absdir_in = abspath_in in
+              let pkgs = PackageLoader.main absdir_in in
+              match pkgs with
+              | [ (_, config) ] ->
+                  let pkg = SourceLoader.main config in
+                  (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.modules)
+
+              | _ ->
+                  failwith "TODO: package having dependency"
+            else
+              failwith "TODO: non-existent directory"
     in
     let (_, outacc) =
       let (tyenv, _) = Primitives.initial_environment in

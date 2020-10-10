@@ -28,10 +28,11 @@ let listup_sources_in_directory (dir : absolute_dir) : absolute_path list =
   )
 
 
-let read_source (fpath_in : absolute_path) : ((module_name ranged) list * (module_name ranged * untyped_module), syntax_error) result =
-  let inc = open_in fpath_in in
+let read_source (abspath_in : absolute_path) : ((module_name ranged) list * (module_name ranged * untyped_module), syntax_error) result =
+  Logging.begin_to_parse abspath_in;
+  let inc = open_in abspath_in in
   let lexbuf = Lexing.from_channel inc in
-  let fname = Filename.basename fpath_in in
+  let fname = Filename.basename abspath_in in
   let res =
     let open ResultMonad in
     ParserInterface.process ~fname:fname lexbuf >>= fun (deps, modident, utmod) ->
@@ -40,58 +41,6 @@ let read_source (fpath_in : absolute_path) : ((module_name ranged) list * (modul
   close_in inc;
   res
 
-(*
-module ContentMap = Map.Make(String)
-
-type reading_state = {
-  loaded : (module_name ranged * untyped_module) ContentMap.t;
-  graph  : FileDependencyGraph.t;
-}
-
-
-(* `read_source_recursively abspath` lists up all the parsed source files
-   on which `abspath` depends either directly or indirectly,
-   and sorts them in a topological order according to the dependency among them. *)
-let read_source_recursively (abspath : absolute_path) : (absolute_path * (module_name ranged * untyped_module)) list =
-  let rec aux (state : reading_state) (vertex : FileDependencyGraph.vertex) (abspath : absolute_path) : reading_state =
-    Logging.begin_to_parse abspath;
-    let (deps, content) =
-      match read_source abspath with
-      | Ok(source) -> source
-      | Error(e)   -> raise (SyntaxError(e))
-    in
-    let loaded = state.loaded |> ContentMap.add abspath content in
-    deps |> List.fold_left (fun state (_, abspath_sub) (* TEMPORARY *) ->
-      let graph = state.graph in
-      match graph |> FileDependencyGraph.find_vertex abspath_sub with
-      | Some(vertex_sub) ->
-        (* If the depended source file has already been parsed *)
-          let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
-          { state with graph = graph }
-
-      | None ->
-        (* If the depended source file has not been parsed yet *)
-          let (graph, vertex_sub) = graph |> FileDependencyGraph.add_vertex abspath_sub in
-          let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
-          aux { state with graph = graph } vertex_sub abspath_sub
-    ) { state with loaded = loaded }
-  in
-  let state =
-    let (graph, vertex) = FileDependencyGraph.empty |> FileDependencyGraph.add_vertex abspath in
-    let state = { graph = graph; loaded = ContentMap.empty } in
-    aux state vertex abspath
-  in
-  match FileDependencyGraph.topological_sort state.graph with
-  | Error(cycle) ->
-      raise (ConfigError(CyclicFileDependencyFound(cycle)))
-
-  | Ok(sources) ->
-      sources |> List.map (fun abspath ->
-        match state.loaded |> ContentMap.find_opt abspath with
-        | None          -> assert false
-        | Some(content) -> (abspath, content)
-      )
-*)
 
 let read_sources (abspaths : absolute_path list) : loaded_module list =
 
