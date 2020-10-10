@@ -6,18 +6,15 @@ open Errors
 exception SyntaxError of syntax_error
 
 
-type bare_loaded_module = {
-  bare_dependencies      : (module_name ranged) list;
-  bare_source_path       : absolute_path;
-  bare_module_identifier : module_name ranged;
-  bare_content           : untyped_module;
-}
-
-
 type loaded_module = {
   source_path       : absolute_path;
   module_identifier : module_name ranged;
   module_content    : untyped_module;
+}
+
+type bare_loaded_module = {
+  bare_dependencies : (module_name ranged) list;
+  bare_module         : loaded_module;
 }
 
 type loaded_package = {
@@ -46,10 +43,12 @@ let read_source (abspath_in : absolute_path) : (bare_loaded_module, syntax_error
     let open ResultMonad in
     ParserInterface.process ~fname:fname lexbuf >>= fun (deps, modident, utmod) ->
     return {
-      bare_source_path       = abspath_in;
-      bare_dependencies      = deps;
-      bare_module_identifier = modident;
-      bare_content           = utmod;
+      bare_dependencies = deps;
+      bare_module = {
+        source_path       = abspath_in;
+        module_identifier = modident;
+        module_content    = utmod;
+      };
     }
   in
   close_in inc;
@@ -61,12 +60,12 @@ let resolve_dependency (baremods : bare_loaded_module list) : loaded_module list
   (* First, add vertices to the graph for solving dependency. *)
   let (graph, nmmap) =
     baremods |> List.fold_left (fun (graph, nmmap) baremod ->
-      let (_, modnm) = baremod.bare_module_identifier in
-      let abspath = baremod.bare_source_path in
+      let (_, modnm) = baremod.bare_module.module_identifier in
+      let abspath = baremod.bare_module.source_path in
       begin
         match nmmap |> ModuleNameMap.find_opt modnm with
         | Some((_, baremod0)) ->
-            let abspath0 = baremod0.bare_source_path in
+            let abspath0 = baremod0.bare_module.source_path in
             raise (ConfigError(MultipleModuleOfTheSameName(modnm, abspath0, abspath)))
 
         | None ->
@@ -104,11 +103,7 @@ let resolve_dependency (baremods : bare_loaded_module list) : loaded_module list
             assert false
 
         | Some((_, baremod)) ->
-            {
-              source_path       = baremod.bare_source_path;
-              module_identifier = baremod.bare_module_identifier;
-              module_content    = baremod.bare_content;
-            }
+            baremod.bare_module
       )
 
 
@@ -123,11 +118,7 @@ let single (abspath_in : absolute_path) : loaded_module =
       if List.length deps > 0 then
         raise (ConfigError(CannotSpecifyDependency))
       else
-        {
-          source_path       = abspath_in;
-          module_identifier = baremod.bare_module_identifier;
-          module_content    = baremod.bare_content;
-        }
+        baremod.bare_module
 
 
 let main (config : ConfigLoader.config) : loaded_package =
@@ -143,7 +134,7 @@ let main (config : ConfigLoader.config) : loaded_package =
   in
   let (baremains, baresubs) =
     baremods |> List.partition (fun baremod ->
-      let (_, modnm) = baremod.bare_module_identifier in
+      let (_, modnm) = baremod.bare_module.module_identifier in
       String.equal modnm main_module_name
     )
   in
@@ -157,11 +148,7 @@ let main (config : ConfigLoader.config) : loaded_package =
         assert false
 
     | [ baremain ] ->
-        {
-          source_path       = baremain.bare_source_path;
-          module_identifier = baremain.bare_module_identifier;
-          module_content    = baremain.bare_content;
-        }
+        baremain.bare_module
   in
   let subs = resolve_dependency baresubs in
   let spkgname =
