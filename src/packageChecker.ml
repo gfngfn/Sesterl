@@ -7,9 +7,10 @@ open Env
 let check_single (is_verbose : bool) (tyenv : Typeenv.t) (source : SourceLoader.loaded_module) : Typeenv.t * (space_name * binding list) =
   let abspath = source.SourceLoader.source_path in
   let modident = source.SourceLoader.module_identifier in
+  let utsigopt = source.SourceLoader.signature in
   let utmod = source.SourceLoader.module_content in
   Logging.begin_to_typecheck abspath;
-  let (tyenv, (oidset, sigr), sname, binds) = Typechecker.main tyenv modident utmod in
+  let (tyenv, (oidset, sigr), sname, binds) = Typechecker.main tyenv modident utsigopt utmod in
   if is_verbose then display_structure 0 sigr;
   let out = (sname, binds) in
   (tyenv, out)
