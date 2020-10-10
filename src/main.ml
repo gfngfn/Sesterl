@@ -6,7 +6,9 @@ open Env
 
 let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
   try
-    let (pkgnameopt, sources) = SourceLoader.main fpath_in in
+    let pkg = SourceLoader.main fpath_in in
+    let pkgnameopt = pkg.SourceLoader.space_name in
+    let sources = pkg.SourceLoader.modules in
     let (_, outacc) =
       let (tyenv, _) = Primitives.initial_environment in
       sources |> List.fold_left (fun (tyenv, outacc) (abspath, (modident, utmod)) ->

@@ -7,6 +7,13 @@ exception ConfigError of config_error
 exception SyntaxError of syntax_error
 
 
+type loaded_package = {
+  space_name   : space_name option;
+  modules      : (absolute_path * (module_name ranged * untyped_module)) list;
+  dependencies : ConfigLoader.dependency list;
+}
+
+
 let listup_sources_in_directory (dir : absolute_dir) : absolute_path list =
   let filenames = Core.Sys.ls_dir dir in
   filenames |> List.filter_map (fun filename ->
@@ -140,7 +147,7 @@ let read_sources (abspaths : absolute_path list) =
       )
 
 
-let main (fpath_in : string) : space_name option * (absolute_path * (module_name ranged * untyped_module)) list =
+let main (fpath_in : string) : loaded_package =
   let abspath_in =
     let dir = Sys.getcwd () in
     make_absolute_path dir fpath_in
@@ -159,7 +166,11 @@ let main (fpath_in : string) : space_name option * (absolute_path * (module_name
               raise (ConfigError(CannotSpecifyDependency))
             else
               let source = (abspath_in, content) in
-              (None, [ source ])
+              {
+                space_name   = None;
+                modules      = [ source ];
+                dependencies = [];
+              }
       end
 
   | _ ->
@@ -178,5 +189,9 @@ let main (fpath_in : string) : space_name option * (absolute_path * (module_name
               | Some(spkgname) -> spkgname
               | None           -> raise (ConfigError(InvalidPackageName(pkgname)))
             in
-            (Some(spkgname), sources)
+            {
+              space_name   = Some(spkgname);
+              modules      = sources;
+              dependencies = config.ConfigLoader.dependencies;
+            }
       end
