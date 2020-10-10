@@ -1,18 +1,19 @@
 
 open MyUtil
+open Syntax
 
 
 type dependency_source =
   | Local of absolute_path
 
 type dependency = {
-  dependency_name   : string;
+  dependency_name   : package_name;
   dependency_source : dependency_source;
 }
 
 type config = {
-  package_name       : string;
-  main_module_path   : absolute_path;
+  package_name       : package_name;
+  main_module_name   : module_name;
   source_directories : absolute_dir list;
   dependencies       : dependency list;
 }
@@ -46,12 +47,12 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.decoder =
   let ( >>= ) = bind in
   get "package" string >>= fun package_name ->
   get "source_directories" (list string) >>= fun srcdirs ->
-  get "main_module" string >>= fun mainpath ->
+  get "main_module" string >>= fun main_module_name ->
   get_or_else "dependencies" (list (dependency_decoder confdir)) [] >>= fun dependencies ->
   let config =
     {
       package_name       = package_name;
-      main_module_path   = make_absolute_path confdir mainpath;
+      main_module_name   = main_module_name;
       source_directories = List.map (make_absolute_path confdir) srcdirs;
       dependencies       = dependencies;
     }

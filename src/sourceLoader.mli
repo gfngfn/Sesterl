@@ -13,7 +13,8 @@ type loaded_module = {
 
 type loaded_package = {
   space_name   : space_name;
-  modules      : loaded_module list;
+  submodules   : loaded_module list;
+  main_module  : loaded_module;
 }
 
 val single : absolute_path -> loaded_module

@@ -103,6 +103,10 @@ let report_config_error (e : config_error) : unit =
   | CannotSpecifyDependency ->
       Format.printf "cannot specify dependency at standalone file\n"
 
+  | MainModuleNotFound(pkgname, modnm) ->
+      Format.printf "main module '%s' not found in package '%s'\n"
+        modnm pkgname
+
 
 let report_package_error (e : package_error) : unit =
   Format.printf "! [Build error] ";

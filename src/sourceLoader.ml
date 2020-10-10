@@ -6,6 +6,14 @@ open Errors
 exception SyntaxError of syntax_error
 
 
+type bare_loaded_module = {
+  bare_dependencies      : (module_name ranged) list;
+  bare_source_path       : absolute_path;
+  bare_module_identifier : module_name ranged;
+  bare_content           : untyped_module;
+}
+
+
 type loaded_module = {
   source_path       : absolute_path;
   module_identifier : module_name ranged;
@@ -14,7 +22,8 @@ type loaded_module = {
 
 type loaded_package = {
   space_name   : space_name;
-  modules      : loaded_module list;
+  submodules   : loaded_module list;
+  main_module  : loaded_module;
 }
 
 
@@ -28,7 +37,7 @@ let listup_sources_in_directory (dir : absolute_dir) : absolute_path list =
   )
 
 
-let read_source (abspath_in : absolute_path) : ((module_name ranged) list * (module_name ranged * untyped_module), syntax_error) result =
+let read_source (abspath_in : absolute_path) : (bare_loaded_module, syntax_error) result =
   Logging.begin_to_parse abspath_in;
   let inc = open_in abspath_in in
   let lexbuf = Lexing.from_channel inc in
@@ -36,42 +45,41 @@ let read_source (abspath_in : absolute_path) : ((module_name ranged) list * (mod
   let res =
     let open ResultMonad in
     ParserInterface.process ~fname:fname lexbuf >>= fun (deps, modident, utmod) ->
-    return (deps, (modident, utmod))
+    return {
+      bare_source_path       = abspath_in;
+      bare_dependencies      = deps;
+      bare_module_identifier = modident;
+      bare_content           = utmod;
+    }
   in
   close_in inc;
   res
 
 
-let read_sources (abspaths : absolute_path list) : loaded_module list =
+let resolve_dependency (baremods : bare_loaded_module list) : loaded_module list =
 
   (* First, add vertices to the graph for solving dependency. *)
   let (graph, nmmap) =
-    abspaths |> List.fold_left (fun (graph, nmmap) abspath ->
-      match read_source abspath with
-      | Ok(source) ->
-          let (_, ((_, modnm), _)) = source in
-          begin
-            match nmmap |> ModuleNameMap.find_opt modnm with
-            | Some((abspath0, _, _)) ->
-                raise (ConfigError(MultipleModuleOfTheSameName(modnm, abspath0, abspath)))
+    baremods |> List.fold_left (fun (graph, nmmap) baremod ->
+      let (_, modnm) = baremod.bare_module_identifier in
+      let abspath = baremod.bare_source_path in
+      begin
+        match nmmap |> ModuleNameMap.find_opt modnm with
+        | Some((abspath0, _, _)) ->
+            raise (ConfigError(MultipleModuleOfTheSameName(modnm, abspath0, abspath)))
 
-            | None ->
-                let (graph, vertex) = graph |> FileDependencyGraph.add_vertex modnm in
-                let nmmap = nmmap |> ModuleNameMap.add modnm (abspath, vertex, source) in
-                (graph, nmmap)
-          end
-
-      | Error(e) ->
-          raise (SyntaxError(e))
-            (* TODO: change error into warning *)
-
+        | None ->
+            let (graph, vertex) = graph |> FileDependencyGraph.add_vertex modnm in
+            let nmmap = nmmap |> ModuleNameMap.add modnm (abspath, vertex, baremod) in
+            (graph, nmmap)
+      end
     ) (FileDependencyGraph.empty, ModuleNameMap.empty)
   in
 
   (* Second, add dependency edges to the graph. *)
   let graph =
-    graph |> ModuleNameMap.fold (fun modnm (_, vertex, source) graph ->
-      let (deps, _) = source in
+    graph |> ModuleNameMap.fold (fun modnm (_, vertex, baremod) graph ->
+      let deps = baremod.bare_dependencies in
       deps |> List.fold_left (fun graph (rng, modnm_dep) ->
         match nmmap |> ModuleNameMap.find_opt modnm_dep with
         | None ->
@@ -94,8 +102,9 @@ let read_sources (abspaths : absolute_path list) : loaded_module list =
         | None ->
             assert false
 
-        | Some((abspath, _, source)) ->
-            let (_, (modident, utmod)) = source in
+        | Some((abspath, _, baremod)) ->
+            let modident = baremod.bare_module_identifier in
+            let utmod = baremod.bare_content in
             {
               source_path       = abspath;
               module_identifier = modident;
@@ -110,22 +119,52 @@ let single (abspath_in : absolute_path) : loaded_module =
   | Error(e) ->
       raise (SyntaxError(e))
 
-  | Ok((deps, content)) ->
+  | Ok(baremod) ->
+      let deps = baremod.bare_dependencies in
       if List.length deps > 0 then
         raise (ConfigError(CannotSpecifyDependency))
       else
-        let (modident, utmod) = content in
         {
           source_path       = abspath_in;
-          module_identifier = modident;
-          module_content    = utmod;
+          module_identifier = baremod.bare_module_identifier;
+          module_content    = baremod.bare_content;
         }
 
 
 let main (config : ConfigLoader.config) : loaded_package =
   let srcdirs = config.ConfigLoader.source_directories in
+  let main_module_name = config.ConfigLoader.main_module_name in
   let abspaths = srcdirs |> List.map listup_sources_in_directory |> List.concat in
-  let sources = read_sources abspaths in
+  let baremods =
+    abspaths |> List.map (fun abspath ->
+      match read_source abspath with
+      | Ok(baremod) -> baremod
+      | Error(e)    -> raise (SyntaxError(e))
+    )
+  in
+  let (baremains, baresubs) =
+    baremods |> List.partition (fun baremod ->
+      let (_, modnm) = baremod.bare_module_identifier in
+      String.equal modnm main_module_name
+    )
+  in
+  let main =
+    match baremains with
+    | [] ->
+        let pkgname = config.ConfigLoader.package_name in
+        raise (ConfigError(MainModuleNotFound(pkgname, main_module_name)))
+
+    | _ :: _ :: _ ->
+        assert false
+
+    | [ baremain ] ->
+        {
+          source_path       = baremain.bare_source_path;
+          module_identifier = baremain.bare_module_identifier;
+          module_content    = baremain.bare_content;
+        }
+  in
+  let subs = resolve_dependency baresubs in
   let spkgname =
     let pkgname = config.package_name in
     match OutputIdentifier.space_of_package_name pkgname with
@@ -133,6 +172,7 @@ let main (config : ConfigLoader.config) : loaded_package =
     | None           -> raise (ConfigError(InvalidPackageName(pkgname)))
   in
   {
-    space_name   = spkgname;
-    modules      = sources;
+    space_name  = spkgname;
+    submodules  = subs;
+    main_module = main;
   }

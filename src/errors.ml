@@ -10,6 +10,7 @@ type config_error =
   | ModuleNotFound              of Range.t * module_name
   | InvalidPackageName          of string
   | CannotSpecifyDependency
+  | MainModuleNotFound          of package_name * module_name
 
 exception ConfigError of config_error
 

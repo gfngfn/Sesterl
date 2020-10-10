@@ -11,12 +11,12 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       let dir = Sys.getcwd () in
       make_absolute_path dir fpath_in
     in
-    let (pkgnameopt, sources) =
+    let (pkgnameopt, submods, mainmod) =
         let (_, extopt) = Core.Filename.split_extension abspath_in in
         match extopt with
         | Some("sest") ->
             let source = SourceLoader.single abspath_in in
-            (None, [source])
+            (None, [], source)
 
         | Some(ext) ->
             failwith (Printf.sprintf "TODO: unrecognizable extensions '%s'" ext)
@@ -28,7 +28,7 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
               match pkgs with
               | [ (_, config) ] ->
                   let pkg = SourceLoader.main config in
-                  (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.modules)
+                  (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.submodules, pkg.SourceLoader.main_module)
 
               | _ ->
                   failwith "TODO: package having dependency"
@@ -36,7 +36,7 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
               failwith "TODO: non-existent directory"
     in
     let (tyenv, _) = Primitives.initial_environment in
-    let outs = PackageChecker.main is_verbose tyenv sources in
+    let outs = PackageChecker.main is_verbose tyenv submods mainmod in
     let (_, gmap) = Primitives.initial_environment in
     outs |> List.fold_left (fun gmap (sname, binds) ->
       OutputErlangCode.main dir_out gmap ~package_name:pkgnameopt ~module_name:sname binds
