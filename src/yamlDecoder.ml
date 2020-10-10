@@ -40,7 +40,7 @@ let failure (msg : string) : 'a decoder =
   fun _ -> Error(OtherMessage(msg))
 
 
-let get (field : string) (d : 'a decoder) : 'a decoder =
+let get_scheme (field : string) (d : 'a decoder) (k : unit -> ('a, error) result) : 'a decoder =
   let open ResultMonad in
   function
   | `O(keyvals) ->
@@ -48,12 +48,22 @@ let get (field : string) (d : 'a decoder) : 'a decoder =
         match
           List.find_map (fun (k, v) -> if String.equal k field then Some(v) else None) keyvals
         with
-        | None    -> err (FieldNotFound(field))
+        | None    -> k ()
         | Some(v) -> d v
       end
 
   | _ ->
       err NotAnObject
+
+
+let get (field : string) (d : 'a decoder) : 'a decoder =
+  let open ResultMonad in
+  get_scheme field d (fun () -> err (FieldNotFound(field)))
+
+
+let get_or_else (field : string) (d : 'a decoder) (default : 'a) : 'a decoder =
+  let open ResultMonad in
+  get_scheme field d (fun () -> return default)
 
 
 let bind (d : 'a decoder) (df : 'a -> 'b decoder) : 'b decoder =
