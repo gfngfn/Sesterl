@@ -1,0 +1,5 @@
+module ErrorCoercion2 :> sig
+  val f<$a> : fun($a) -> $a
+end = struct
+  let f(n) = n + 1
+end

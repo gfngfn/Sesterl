@@ -1,4 +1,4 @@
-module Coercion = struct
+module ErrorCoercion = struct
   module Sub = struct
     module Impl = struct
       letrec aux(acc, n, x) =
