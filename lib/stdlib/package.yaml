@@ -3,4 +3,4 @@ package: stdlib
 source_directories:
   - "./"
 
-main_module: "./container.sest"
+main_module: "Stdlib"
