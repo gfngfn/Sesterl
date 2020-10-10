@@ -4,11 +4,7 @@ open Syntax
 open Errors
 
 
-type package_name = string
-  (* temporary; should migrate to `Syntax` etc. *)
-
-exception DuplicatedPackageName of package_name * absolute_path * absolute_path
-  (* temporary; should migrate to `Errors` *)
+exception PackageError of package_error
 
 
 let load_config absdir_in =
@@ -37,7 +33,7 @@ let main (absdir : absolute_dir) : (absolute_path * ConfigLoader.config) list =
     let pkgname = config.ConfigLoader.package_name in
     match state.loaded_names |> PackageNameMap.find_opt pkgname with
     | Some(absdir0) ->
-        raise (DuplicatedPackageName(pkgname, absdir0, absdir))
+        raise (PackageError(DuplicatedPackageName(pkgname, absdir0, absdir)))
 
     | None ->
         let loaded_dirs = state.loaded_dirs |> PackageDirMap.add absdir config in

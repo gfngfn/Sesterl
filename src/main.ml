@@ -62,6 +62,10 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       Logging.report_unsupported_feature msg;
       exit 1
 
+  | PackageLoader.PackageError(e) ->
+      Logging.report_package_error e;
+      exit 1
+
   | SourceLoader.SyntaxError(LexerError(e)) ->
       Logging.report_lexer_error e;
       exit 1

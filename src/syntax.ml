@@ -2,6 +2,8 @@
 open MyUtil
 
 
+type package_name = string
+
 type 'a cycle =
   | Loop  of 'a
   | Cycle of 'a TupleList.t

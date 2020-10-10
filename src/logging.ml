@@ -89,7 +89,7 @@ let report_config_error (e : config_error) : unit =
 
   | MultipleModuleOfTheSameName(modnm, abspath1, abspath2) ->
       Format.printf "multiple module bound with the same name '%s':\n  - %s\n  - %s\n"
-        modnm abspath1 abspath2;
+        modnm abspath1 abspath2
 
   | ModuleNotFound(rng, modnm) ->
       Format.printf "%a: module '%s' not found\n"
@@ -102,6 +102,14 @@ let report_config_error (e : config_error) : unit =
 
   | CannotSpecifyDependency ->
       Format.printf "cannot specify dependency at standalone file\n"
+
+
+let report_package_error (e : package_error) : unit =
+  Format.printf "! [Build error] ";
+  match e with
+  | DuplicatedPackageName(pkgname, abspath1, abspath2) ->
+      Format.printf "multiple package have the same name '%s':\n  - %s\n  - %s\n"
+        pkgname abspath1 abspath2
 
 
 let report_type_error (e : type_error) : unit =
