@@ -9,8 +9,8 @@ mkdir -p "$TARGET_DIR"
 NO_ERRORS=()
 
 for PKG_DIR in "$SOURCE_DIR"/*/; do
-    echo "Compiling package '$PKG_DIR/' ..."
-    "$BIN" "$PKG_DIR/package.yaml" -o "$TARGET_DIR"
+    echo "Compiling package '$PKG_DIR' ..."
+    "$BIN" "$PKG_DIR" -o "$TARGET_DIR"
     STATUS=$?
     if [ $STATUS -eq 0 ]; then
         NO_ERRORS+=("$PKG_DIR")
