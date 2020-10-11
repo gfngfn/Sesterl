@@ -312,9 +312,19 @@ let report_type_error (e : type_error) : unit =
         Range.pp rng
         ctor
 
-  | NotASubtypeSynonym(rng, _sid1, _sid2) ->
-      Format.printf "%a: not a subtype type synonym (TODO: detailed explanation)\n"
+  | NotASubtypeSynonym(rng, sid1, sid2) ->
+      let (bids1, pty1) = TypeDefinitionStore.find_synonym_type sid1 in
+      let (bids2, pty2) = TypeDefinitionStore.find_synonym_type sid2 in
+      Format.printf "%a: type %a is not a subtype of %a;\n  - %a<%a> = %a\n  - %a<%a> = %a\n"
         Range.pp rng
+        TypeID.Synonym.pp sid1
+        TypeID.Synonym.pp sid2
+        TypeID.Synonym.pp sid1
+        (Format.pp_print_list BoundID.pp) bids1
+        TypeConv.pp_poly_type pty1
+        TypeID.Synonym.pp sid2
+        (Format.pp_print_list BoundID.pp) bids2
+        TypeConv.pp_poly_type pty2
 
   | OpaqueIDExtrudesScopeViaValue(rng, _pty) ->
       Format.printf "%a: an abstract type extrudes its scope via value (TODO: detailed explanation)\n"
