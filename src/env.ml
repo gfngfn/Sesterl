@@ -336,51 +336,51 @@ module SigRecord = struct
 
 
   let map_and_fold (type a)
-      ~v:(fv : poly_type * global_name -> a -> (poly_type * global_name) * a)
-      ~t:(ft : type_opacity list -> a -> type_opacity list * a)
-      ~m:(fm : module_signature * space_name -> a -> (module_signature * space_name) * a)
-      ~s:(fs : module_signature abstracted -> a -> module_signature abstracted * a)
-      ~c:(fc : constructor_entry -> a -> constructor_entry * a)
+      ~v:(fv : identifier -> poly_type * global_name -> a -> (poly_type * global_name) * a)
+      ~t:(ft : (type_name * type_opacity) list -> a -> type_opacity list * a)
+      ~m:(fm : module_name -> module_signature * space_name -> a -> (module_signature * space_name) * a)
+      ~s:(fs : signature_name -> module_signature abstracted -> a -> module_signature abstracted * a)
+      ~c:(fc : constructor_name -> constructor_entry -> a -> constructor_entry * a)
       (init : a) (sigr : t) : t * a =
       sigr |> Alist.to_list |> List.fold_left (fun (sigracc, acc) entry ->
         match entry with
         | SRVal(x, ventry) ->
-            let (ventry, acc) = fv ventry acc in
+            let (ventry, acc) = fv x ventry acc in
             (Alist.extend sigracc (SRVal(x, ventry)), acc)
 
         | SRRecTypes(tydefs) ->
             let tynms = tydefs |> List.map fst in
-            let (tyopacs, acc) = ft (tydefs |> List.map snd) acc in
+            let (tyopacs, acc) = ft tydefs acc in
             (Alist.extend sigracc (SRRecTypes(List.combine tynms tyopacs)), acc)
 
         | SRModule(modnm, mentry) ->
-            let (mentry, acc) = fm mentry acc in
+            let (mentry, acc) = fm modnm mentry acc in
             (Alist.extend sigracc (SRModule(modnm, mentry)), acc)
 
         | SRSig(signm, absmodsig) ->
-            let (absmodsig, acc) = fs absmodsig acc in
+            let (absmodsig, acc) = fs signm absmodsig acc in
             (Alist.extend sigracc (SRSig(signm, absmodsig)), acc)
 
-        | SRCtor(ctor, ctorentry) ->
-            let (ctorentry, acc) = fc ctorentry acc in
-            (Alist.extend sigracc (SRCtor(ctor, ctorentry)), acc)
+        | SRCtor(ctornm, ctorentry) ->
+            let (ctorentry, acc) = fc ctornm ctorentry acc in
+            (Alist.extend sigracc (SRCtor(ctornm, ctorentry)), acc)
       ) (Alist.empty, init)
 
 
   let map (type a)
-      ~v:(fv : poly_type * global_name -> poly_type * global_name)
-      ~t:(ft : type_opacity list -> type_opacity list)
-      ~m:(fm : module_signature * space_name -> module_signature * space_name)
-      ~s:(fs : module_signature abstracted -> module_signature abstracted)
-      ~c:(fc : constructor_entry -> constructor_entry)
+      ~v:(fv : identifier -> poly_type * global_name -> poly_type * global_name)
+      ~t:(ft : (type_name * type_opacity) list -> type_opacity list)
+      ~m:(fm : module_name -> module_signature * space_name -> module_signature * space_name)
+      ~s:(fs : signature_name -> module_signature abstracted -> module_signature abstracted)
+      ~c:(fc : constructor_name -> constructor_entry -> constructor_entry)
       (sigr : t) : t =
     let (sigr, ()) =
       sigr |> map_and_fold
-          ~v:(fun v () -> (fv v, ()))
-          ~t:(fun t () -> (ft t, ()))
-          ~m:(fun m () -> (fm m, ()))
-          ~s:(fun s () -> (fs s, ()))
-          ~c:(fun c () -> (fc c, ()))
+          ~v:(fun x ventry () -> (fv x ventry, ()))
+          ~t:(fun tydefs () -> (ft tydefs, ()))
+          ~m:(fun modnm mentry () -> (fm modnm mentry, ()))
+          ~s:(fun signm sentry () -> (fs signm sentry, ()))
+          ~c:(fun ctornm centry () -> (fc ctornm centry, ()))
           ()
     in
     sigr

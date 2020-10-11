@@ -101,19 +101,19 @@ module SigRecord : sig
     'a -> t -> 'a
 
   val map_and_fold :
-    v:(poly_type * global_name -> 'a -> (poly_type * global_name) * 'a) ->
-    t:(type_opacity list -> 'a -> type_opacity list * 'a) ->
-    m:(module_signature * space_name -> 'a -> (module_signature * space_name) * 'a) ->
-    s:(module_signature abstracted -> 'a -> module_signature abstracted * 'a) ->
-    c:(constructor_entry -> 'a -> constructor_entry * 'a) ->
+    v:(identifier -> poly_type * global_name -> 'a -> (poly_type * global_name) * 'a) ->
+    t:((type_name * type_opacity) list -> 'a -> type_opacity list * 'a) ->
+    m:(module_name -> module_signature * space_name -> 'a -> (module_signature * space_name) * 'a) ->
+    s:(signature_name -> module_signature abstracted -> 'a -> module_signature abstracted * 'a) ->
+    c:(constructor_name -> constructor_entry -> 'a -> constructor_entry * 'a) ->
     'a -> t -> t * 'a
 
   val map :
-    v:(poly_type * global_name -> poly_type * global_name) ->
-    t:(type_opacity list -> type_opacity list) ->
-    m:(module_signature * space_name -> module_signature * space_name) ->
-    s:(module_signature abstracted -> module_signature abstracted) ->
-    c:(constructor_entry -> constructor_entry) ->
+    v:(identifier -> poly_type * global_name -> poly_type * global_name) ->
+    t:((type_name * type_opacity) list -> type_opacity list) ->
+    m:(module_name -> module_signature * space_name -> module_signature * space_name) ->
+    s:(signature_name -> module_signature abstracted -> module_signature abstracted) ->
+    c:(constructor_name -> constructor_entry -> constructor_entry) ->
     t -> t
 
   val disjoint_union : t -> t -> (t, string) result

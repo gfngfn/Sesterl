@@ -1897,7 +1897,18 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
         begin
           match wtmap |> WitnessMap.find_opaque oid2 with
           | None ->
-              assert false
+            (* Existentially quantified type IDs will be not found in `wtmap`. *)
+              begin
+                match ptymain1 with
+                | DataType(TypeID.Opaque(oid1), ptyargs1) ->
+                    if TypeID.Opaque.equal oid1 oid2 then
+                      aux_list ptyargs1 ptyargs2
+                    else
+                      false
+
+                | _ ->
+                    false
+              end
 
           | Some(TypeID.Synonym(sid)) ->
               let pty2real = get_real_poly_type sid ptyargs2 in
@@ -2433,10 +2444,52 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
       ConcStructure(sigr)
 
 
+(* Given `modsig1` and `modsig2` which are already known to satisfy `modsig1 <= modsig2`,
+   `copy_closure` copies every closure in `modsig1` into the corresponding one in `modsig2`. *)
+and copy_closure (modsig1 : module_signature) (modsig2 : module_signature) : module_signature =
+  match (modsig1, modsig2) with
+  | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
+      let sigr2new = copy_closure_in_structure sigr1 sigr2 in
+      ConcStructure(sigr2new)
+
+  | (ConcFunctor(sigftor1), ConcFunctor(sigftor2)) ->
+      let Domain(sigrdom1) = sigftor1.domain in
+      let Domain(sigrdom2) = sigftor2.domain in
+      let sigrdom2new = copy_closure_in_structure sigrdom1 sigrdom2 in
+      let (_, modsig1) = sigftor1.codomain in
+      let (oidset2, modsig2) = sigftor2.codomain in
+      let modsig2new = copy_closure modsig1 modsig2 in
+      ConcFunctor({ sigftor2 with
+        domain   = Domain(sigrdom2new);
+        codomain = (oidset2, modsig2new);
+        closure  = sigftor1.closure;
+      })
+
+  | _ ->
+      assert false
+
+
+and copy_closure_in_structure (sigr1 : SigRecord.t) (sigr2 : SigRecord.t) : SigRecord.t =
+  sigr2 |> SigRecord.map
+    ~v:(fun _ ventry -> ventry)
+    ~t:(fun tydefs -> tydefs |> List.map (fun (_, tyopac) -> tyopac))
+    ~s:(fun _ sentry -> sentry)
+    ~c:(fun _ centry -> centry)
+    ~m:(fun modnm (modsig2, sname2) ->
+      match sigr1 |> SigRecord.find_module modnm with
+      | None ->
+          assert false
+
+      | Some((modsig1, sname2)) ->
+          let modsig2new = copy_closure modsig1 modsig2 in
+          (modsig2new, sname2)
+    )
+
+
 and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord.t =
   let (sigr, _wtmap) =
     sigr |> SigRecord.map_and_fold
-        ~v:(fun (pty, gname_from) wtmap ->
+        ~v:(fun _ (pty, gname_from) wtmap ->
           let gname_to =
             match wtmap |> WitnessMap.find_name gname_from with
             | None ->
@@ -2453,9 +2506,9 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
           let ventry = (substitute_poly_type wtmap pty, gname_to) in
           (ventry, wtmap)
         )
-        ~t:(fun tyopacs_from wtmap ->
+        ~t:(fun tydefs_from wtmap ->
           let wtmap =
-            tyopacs_from |> List.fold_left (fun wtmap (tyid_from, arity) ->
+            tydefs_from |> List.fold_left (fun wtmap (_, (tyid_from, arity)) ->
               match tyid_from with
               | TypeID.Synonym(sid_from) ->
                   let sid_to =
@@ -2476,7 +2529,7 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
             ) wtmap
           in
           let tyopacs_to =
-            tyopacs_from |> List.map (fun (tyid_from, arity) ->
+            tydefs_from |> List.map (fun (_, (tyid_from, arity)) ->
               match tyid_from with
               | TypeID.Synonym(sid_from) ->
                   let (typarams, ptyreal_from) = TypeDefinitionStore.find_synonym_type sid_from in
@@ -2520,14 +2573,14 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
           in
           (tyopacs_to, wtmap)
         )
-        ~m:(fun (modsig, name) wtmap ->
+        ~m:(fun _ (modsig, name) wtmap ->
           let mentry = (substitute_concrete wtmap modsig, name) in
           (mentry, wtmap)
         )
-        ~s:(fun absmodsig wtmap ->
+        ~s:(fun _ absmodsig wtmap ->
           (substitute_abstract wtmap absmodsig, wtmap)
         )
-        ~c:(fun ctorentry wtmap ->
+        ~c:(fun _ ctorentry wtmap ->
           let ptys = ctorentry.parameter_types |> List.map (substitute_poly_type wtmap) in
           let ctorentry = { ctorentry with parameter_types = ptys } in
           (ctorentry, wtmap)
@@ -3229,7 +3282,8 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
 
 and coerce_signature (tyenv : Typeenv.t) (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
   let wtmap = subtype_signature rng modsig1 absmodsig2 in
-  absmodsig2 |> substitute_abstract wtmap
+  let (oidset2, modsig2) = absmodsig2 |> substitute_abstract wtmap in
+  (oidset2, copy_closure modsig1 modsig2)
 
 
 let main (tyenv : Typeenv.t) (modident : module_name ranged) (absmodsigopt2 : (module_signature abstracted) option) (utmod1 : untyped_module) : Typeenv.t * SigRecord.t abstracted * space_name * binding list =
