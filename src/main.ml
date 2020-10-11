@@ -11,12 +11,12 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       let dir = Sys.getcwd () in
       make_absolute_path dir fpath_in
     in
-    let (pkgnameopt, submods, mainmod) =
+    let pkgs =
         let (_, extopt) = Core.Filename.split_extension abspath_in in
         match extopt with
         | Some("sest") ->
             let source = SourceLoader.single abspath_in in
-            (None, [], source)
+            [ (None, [], source) ]
 
         | Some(ext) ->
             failwith (Printf.sprintf "TODO: unrecognizable extensions '%s'" ext)
@@ -24,22 +24,31 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
         | _ ->
             if is_existing_directory abspath_in then
               let absdir_in = abspath_in in
-              let pkgs = PackageLoader.main absdir_in in
-              match pkgs with
-              | [ (_, config) ] ->
-                  let pkg = SourceLoader.main config in
-                  (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.submodules, pkg.SourceLoader.main_module)
-
-              | _ ->
-                  failwith "TODO: package having dependency"
+              let pkgconfigs = PackageLoader.main absdir_in in
+              pkgconfigs |> List.map (fun (_, config) ->
+                let pkg = SourceLoader.main config in
+                (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.submodules, pkg.SourceLoader.main_module)
+              )
             else
               failwith "TODO: non-existent directory"
     in
+
+    (* Typecheck each package. *)
     let (tyenv, _) = Primitives.initial_environment in
-    let (tyenv_next, outs) = PackageChecker.main is_verbose tyenv submods mainmod in
+    let (_, pkgoutsacc) =
+      pkgs |> List.fold_left (fun (tyenv, outsacc) pkg ->
+        let (pkgnameopt, submods, mainmod) = pkg in
+        let (tyenv, outs) = PackageChecker.main is_verbose tyenv submods mainmod in
+        (tyenv, Alist.extend outsacc (pkgnameopt, outs))
+      ) (tyenv, Alist.empty)
+    in
+
+    (* Generate and output code corresponding to each package. *)
     let (_, gmap) = Primitives.initial_environment in
-    outs |> List.fold_left (fun gmap (sname, binds) ->
-      OutputErlangCode.main dir_out gmap ~package_name:pkgnameopt ~module_name:sname binds
+    pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, outs) ->
+      outs |> List.fold_left (fun gmap (sname, binds) ->
+        OutputErlangCode.main dir_out gmap ~package_name:pkgnameopt ~module_name:sname binds
+      ) gmap
     ) gmap |> ignore;
     OutputErlangCode.write_primitive_module dir_out
   with
