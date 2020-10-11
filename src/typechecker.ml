@@ -53,11 +53,9 @@ module GlobalNameMap = Map.Make(OutputIdentifier.Global)
 module WitnessMap : sig
   type t
   val empty : t
-  val add_name : global_name -> global_name -> t -> t
   val add_variant : TypeID.Variant.t -> TypeID.Variant.t -> t -> t
   val add_opaque : TypeID.Opaque.t -> TypeID.t -> t -> t
   val add_synonym : TypeID.Synonym.t -> TypeID.Synonym.t -> t -> t
-  val find_name : global_name -> t -> global_name option
   val find_synonym : TypeID.Synonym.t -> t -> TypeID.Synonym.t option
   val find_variant : TypeID.Variant.t -> t -> TypeID.Variant.t option
   val find_opaque : TypeID.Opaque.t -> t -> TypeID.t option
@@ -2245,13 +2243,13 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
               | None ->
                   raise_error (MissingRequiredValName(rng, x2, pty2))
 
-              | Some(_, gname1) ->
+              | Some(_) ->
 (*
                   Format.printf "lookup substitution %a ---> %a\n"
                     OutputIdentifier.pp_global gname2
                     OutputIdentifier.pp_global gname1;  (* for debug *)
 *)
-                  wtmapacc |> WitnessMap.add_name gname2 gname1
+                  wtmapacc
             )
             ~t:(fun tydefs2 wtmapacc ->
               tydefs2 |> List.fold_left (fun wtmapacc (tynm2, tyopac2) ->
@@ -2492,7 +2490,8 @@ and copy_closure_in_structure (sigr1 : SigRecord.t) (sigr2 : SigRecord.t) : SigR
 
 and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord.t * WitnessMap.t =
     sigr |> SigRecord.map_and_fold
-        ~v:(fun _ (pty, gname_from) wtmap ->
+        ~v:(fun _ (pty, gname) wtmap ->
+(*
           let gname_to =
             match wtmap |> WitnessMap.find_name gname_from with
             | None ->
@@ -2506,7 +2505,8 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
 *)
                 gname
           in
-          let ventry = (substitute_poly_type wtmap pty, gname_to) in
+*)
+          let ventry = (substitute_poly_type wtmap pty, gname) in
           (ventry, wtmap)
         )
         ~t:(fun tydefs_from wtmap ->
