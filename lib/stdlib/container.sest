@@ -2,6 +2,16 @@ require GenServer
 
 module Stdlib :> sig
 
+  module List : sig
+    val map<$a, $b> : fun(fun($a) -> $b, list<$a>) -> list<$b>
+    val foldl<$a, $b> : fun(fun($b, $a) -> $b, $b, list<$a>) -> $b
+    val foldr<$a, $b> : fun(fun($a, $b) -> $b, $b, list<$a>) -> $b
+    val all<$a> : fun(fun($a) -> bool, list<$a>) -> bool
+    val any<$a> : fun(fun($a) -> bool, list<$a>) -> bool
+    val append<$a> : fun(list<$a>, list<$a>) -> list<$a>
+    val reverse<$a> : fun(list<$a>) -> list<$a>
+  end
+
   module GenServer : sig
     signature Behaviour = sig
       type init_arg :: o
@@ -23,5 +33,6 @@ module Stdlib :> sig
   end
 
 end = struct
+  module List = List
   module GenServer = GenServer
 end

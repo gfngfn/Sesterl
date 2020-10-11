@@ -1,0 +1,38 @@
+module List = struct
+
+  let map<$a, $b> : fun(fun($a) -> $b, list<$a>) -> list<$b> = external 2 ```
+    map(f, xs) ->
+        lists:map(f, xs).
+  ```
+
+  let foldl<$a, $b> : fun(fun($b, $a) -> $b, $b, list<$a>) -> $b = external 3 ```
+    foldl(F, I, Xs) ->
+        lists:foldl(fun(X, AccIn) -> F(AccIn, X) end, I, Xs).
+  ```
+
+  let foldr<$a, $b> : fun(fun($a, $b) -> $b, $b, list<$a>) -> $b = external 3 ```
+    foldr(F, I, Xs) ->
+        lists:foldr(F, I, Xs).
+  ```
+
+  let all<$a> : fun(fun($a) -> bool, list<$a>) -> bool = external 2 ```
+    all(P, Xs) ->
+        lists:all(P, Xs).
+  ```
+
+  let any<$a> : fun(fun($a) -> bool, list<$a>) -> bool = external 2 ```
+    any(P, Xs) ->
+        lists:any(P, Xs).
+  ```
+
+  let append<$a> : fun(list<$a>, list<$a>) -> list<$a> = external 2 ```
+    append(List1, List2) ->
+        lists:append(List1, List2).
+  ```
+
+  let reverse<$a> : fun(list<$a>) -> list<$a> = external 1 ```
+    reverse(List) ->
+        lists:reverse(List).
+  ```
+
+end
