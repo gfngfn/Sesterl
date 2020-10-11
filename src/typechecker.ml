@@ -3227,25 +3227,29 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
         | ConcFunctor(sigftor1) ->
             let oidset           = sigftor1.opaques in
             let Domain(sigrdom1) = sigftor1.domain in
+            let absmodsigcod1    = sigftor1.codomain in
             begin
               match sigftor1.closure with
               | None ->
                   assert false
 
               | Some(modident0, utmodC, tyenv0) ->
-                  let _wtmap =
+                  (* Check the subtype relation between the signature `modsig2` of the argument module
+                     and the domain `modsigdom1` of the applied functor. *)
+                  let wtmap =
                     let ((rng2, _), _) = modidentchain2 in
                     let modsigdom1 = ConcStructure(sigrdom1) in
                     subtype_signature rng2 modsig2 (oidset, modsigdom1)
                   in
-                  let (absmodsigres, ibinds) =
+                  let ((_, modsig0), ibinds) =
                     let tyenv0 =
                       let (_, m0) = modident0 in
                       tyenv0 |> Typeenv.add_module m0 modsig2 sname2
                     in
                     typecheck_module tyenv0 utmodC
                   in
-                  (absmodsigres, ibinds)
+                  let absmodsig = coerce_signature rng modsig0 (substitute_abstract wtmap absmodsigcod1) in
+                  (absmodsig, ibinds)
             end
       end
 
