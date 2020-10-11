@@ -73,7 +73,6 @@ end = struct
     variants : TypeID.Variant.t VariantIDMap.t;
     synonyms : TypeID.Synonym.t SynonymIDMap.t;
     opaques  : TypeID.t OpaqueIDMap.t;
-    names    : global_name GlobalNameMap.t;
   }
 
 
@@ -82,7 +81,6 @@ end = struct
       variants = VariantIDMap.empty;
       synonyms = SynonymIDMap.empty;
       opaques  = OpaqueIDMap.empty;
-      names    = GlobalNameMap.empty;
     }
 
 
@@ -92,12 +90,7 @@ end = struct
       variants = VariantIDMap.union  f wtmap1.variants wtmap2.variants;
       synonyms = SynonymIDMap.union  f wtmap1.synonyms wtmap2.synonyms;
       opaques  = OpaqueIDMap.union   f wtmap1.opaques  wtmap2.opaques;
-      names    = GlobalNameMap.union f wtmap1.names    wtmap2.names;
     }
-
-
-  let add_name (gname2 : global_name) (gname1 : global_name) (wtmap : t) : t =
-    { wtmap with names = wtmap.names |> GlobalNameMap.add gname2 gname1 }
 
 
   let add_variant (vid2 : TypeID.Variant.t) (vid1 : TypeID.Variant.t) (wtmap : t) : t =
@@ -110,10 +103,6 @@ end = struct
 
   let add_opaque (oid2 : TypeID.Opaque.t) (tyid1 : TypeID.t) (wtmap : t) : t =
     { wtmap with opaques = wtmap.opaques |> OpaqueIDMap.add oid2 tyid1 }
-
-
-  let find_name (gname : global_name) (wtmap : t) : global_name option =
-    wtmap.names |> GlobalNameMap.find_opt gname
 
 
   let find_variant (vid2 : TypeID.Variant.t) (wtmap : t) : TypeID.Variant.t option =
@@ -2240,16 +2229,8 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
         sigr2 |> SigRecord.fold
             ~v:(fun x2 (pty2, gname2) wtmapacc ->
               match sigr1 |> SigRecord.find_val x2 with
-              | None ->
-                  raise_error (MissingRequiredValName(rng, x2, pty2))
-
-              | Some(_) ->
-(*
-                  Format.printf "lookup substitution %a ---> %a\n"
-                    OutputIdentifier.pp_global gname2
-                    OutputIdentifier.pp_global gname1;  (* for debug *)
-*)
-                  wtmapacc
+              | None    -> raise_error (MissingRequiredValName(rng, x2, pty2))
+              | Some(_) -> wtmapacc
             )
             ~t:(fun tydefs2 wtmapacc ->
               tydefs2 |> List.fold_left (fun wtmapacc (tynm2, tyopac2) ->
@@ -2491,21 +2472,6 @@ and copy_closure_in_structure (sigr1 : SigRecord.t) (sigr2 : SigRecord.t) : SigR
 and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord.t * WitnessMap.t =
     sigr |> SigRecord.map_and_fold
         ~v:(fun _ (pty, gname) wtmap ->
-(*
-          let gname_to =
-            match wtmap |> WitnessMap.find_name gname_from with
-            | None ->
-                gname_from
-
-            | Some(gname) ->
-(*
-                Format.printf "substitution performance %a ---> %a\n"
-                  OutputIdentifier.pp_global gname_from
-                  OutputIdentifier.pp_global gname;  (* for debug *)
-*)
-                gname
-          in
-*)
           let ventry = (substitute_poly_type wtmap pty, gname) in
           (ventry, wtmap)
         )
