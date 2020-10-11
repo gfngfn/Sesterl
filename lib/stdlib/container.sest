@@ -15,6 +15,10 @@ module Stdlib :> sig
     end
 
     module Make : fun(Callback : Behaviour) -> sig
+      type proc :: o
+      val call<$a> : fun(proc, Callback.request, ?timeout int) -> [$a]Callback.response
+      val cast<$a> : fun(proc, Callback.cast_message) -> [$a]unit
+      val start_link<$a> : fun(Callback.init_arg) -> [$a]proc
     end
   end
 
