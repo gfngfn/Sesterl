@@ -2424,7 +2424,8 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
 
 
 (* Given `modsig1` and `modsig2` which are already known to satisfy `modsig1 <= modsig2`,
-   `copy_closure` copies every closure in `modsig1` into the corresponding one in `modsig2`. *)
+   `copy_closure` copies every closure and every global name occurred in `modsig1`
+   into the corresponding occurrence in `modsig2`. *)
 and copy_closure (modsig1 : module_signature) (modsig2 : module_signature) : module_signature =
   match (modsig1, modsig2) with
   | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
