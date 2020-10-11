@@ -519,7 +519,6 @@ Major differences between the features of Sesterl and those of the languages abo
 On the other hand, the following are currently possible weak points:
 
 * No seamless connection with build systems such as [*rebar3*]((https://github.com/erlang/rebar3)).
-* Few support for the separation of name spaces between libraries.
 
 Also, though not supporting them currently, we want to add features like the following (see “[Future work](#future-work)” for detail):
 
@@ -554,7 +553,7 @@ Also, though not supporting them currently, we want to add features like the fol
 * [x] Output Erlang code
 * [x] FFI
 * [ ] Data types
-  * [ ] Strings (as lists of code points)
+  * [x] Strings (as lists of code points)
   * [x] Binaries
   * [ ] Durations (e.g. `5000ms`)
   * [ ] Monitoring references `mref<$a>`
@@ -562,7 +561,6 @@ Also, though not supporting them currently, we want to add features like the fol
   * [x] Product types
   * [x] Lists
   * [x] User-defined ADTs
-  * [x] Pattern matching
   * [x] Type synonyms
   * [x] Records
   * [x] Functions with labeled optional parameters
@@ -579,7 +577,8 @@ Also, though not supporting them currently, we want to add features like the fol
   * [ ] First-class modules
 * [ ] Configuration
   * [x] Loading external modules by `require`
-  * [ ] Embedding external modules as submodules
+  * [x] Package system
+  * [x] Embedding external modules as submodules
   * [ ] Connection with rebar3
 * [ ] (Multiparty) session types
 
