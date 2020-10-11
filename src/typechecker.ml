@@ -3115,7 +3115,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
         | Some(utsig2) ->
             let (_, modsig1) = absmodsig1 in
             let absmodsig2 = typecheck_signature tyenv utsig2 in
-            coerce_signature tyenv rngm modsig1 absmodsig2
+            coerce_signature rngm modsig1 absmodsig2
       in
       let sname = get_space_name rngm m in
       let sigr = SigRecord.empty |> SigRecord.add_module m modsig sname in
@@ -3253,7 +3253,7 @@ and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signa
       let (modsig1, _) = find_module tyenv modident1 in
       let (rng1, _) = modident1 in
       let absmodsig2 = typecheck_signature tyenv utsig2 in
-      let absmodsig = coerce_signature tyenv rng1 modsig1 absmodsig2 in
+      let absmodsig = coerce_signature rng1 modsig1 absmodsig2 in
       (absmodsig, [])
 
 
@@ -3280,7 +3280,7 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
   ((oidsetacc, sigracc), Alist.to_list ibindacc)
 
 
-and coerce_signature (tyenv : Typeenv.t) (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
+and coerce_signature (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
   let wtmap = subtype_signature rng modsig1 absmodsig2 in
   let (oidset2, modsig2) = absmodsig2 |> substitute_abstract wtmap in
   (oidset2, copy_closure modsig1 modsig2)
@@ -3293,7 +3293,7 @@ let main (tyenv : Typeenv.t) (modident : module_name ranged) (absmodsigopt2 : (m
   let (oidset, modsig) =
     match absmodsigopt2 with
     | None             -> absmodsig1
-    | Some(absmodsig2) -> let (_, modsig1) = absmodsig1 in coerce_signature tyenv rng modsig1 absmodsig2
+    | Some(absmodsig2) -> let (_, modsig1) = absmodsig1 in coerce_signature rng modsig1 absmodsig2
   in
   match modsig with
   | ConcFunctor(_) ->
