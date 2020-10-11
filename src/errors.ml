@@ -10,6 +10,12 @@ type config_error =
   | ModuleNotFound              of Range.t * module_name
   | InvalidPackageName          of string
   | CannotSpecifyDependency
+  | MainModuleNotFound          of package_name * module_name
+
+exception ConfigError of config_error
+
+type package_error =
+  | DuplicatedPackageName of package_name * absolute_path * absolute_path
 
 type lexer_error =
   | UnidentifiedToken                of Range.t * string

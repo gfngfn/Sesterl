@@ -1,7 +1,27 @@
 require GenServer
 
-module Stdlib = struct
+module Stdlib :> sig
 
+  module GenServer : sig
+    signature Behaviour = sig
+      type init_arg :: o
+      type request :: o  /* temporary; should be a unary GADT */
+      type response :: o  /* temporary; should be a unary GADT  */
+      type cast_message :: o
+      type state :: o
+      val init : fun(init_arg) -> state
+      val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
+      val handle_cast : fun(cast_message, state) -> state
+    end
+
+    module Make : fun(Callback : Behaviour) -> sig
+      type proc :: o
+      val call<$a> : fun(proc, Callback.request, ?timeout int) -> [$a]Callback.response
+      val cast<$a> : fun(proc, Callback.cast_message) -> [$a]unit
+      val start_link<$a> : fun(Callback.init_arg) -> [$a]proc
+    end
+  end
+
+end = struct
   module GenServer = GenServer
-
 end

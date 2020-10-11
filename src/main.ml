@@ -1,25 +1,54 @@
 
 open MyUtil
 open Syntax
+open Errors
 open Env
 
 
 let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
   try
-    let (pkgnameopt, sources) = SourceLoader.main fpath_in in
-    let (_, outacc) =
-      let (tyenv, _) = Primitives.initial_environment in
-      sources |> List.fold_left (fun (tyenv, outacc) (abspath, (modident, utmod)) ->
-        Logging.begin_to_typecheck abspath;
-        let (tyenv, (oidset, sigr), sname, binds) = Typechecker.main tyenv modident utmod in
-        if is_verbose then display_structure 0 sigr;
-        let outacc = Alist.extend outacc (sname, binds) in
-        (tyenv, outacc)
+    let abspath_in =
+      let dir = Sys.getcwd () in
+      make_absolute_path dir fpath_in
+    in
+    let pkgs =
+        let (_, extopt) = Core.Filename.split_extension abspath_in in
+        match extopt with
+        | Some("sest") ->
+            let source = SourceLoader.single abspath_in in
+            [ (None, [], source) ]
+
+        | Some(ext) ->
+            failwith (Printf.sprintf "TODO: unrecognizable extensions '%s'" ext)
+
+        | _ ->
+            if is_existing_directory abspath_in then
+              let absdir_in = abspath_in in
+              let pkgconfigs = PackageLoader.main absdir_in in
+              pkgconfigs |> List.map (fun (_, config) ->
+                let pkg = SourceLoader.main config in
+                (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.submodules, pkg.SourceLoader.main_module)
+              )
+            else
+              failwith "TODO: non-existent directory"
+    in
+
+    (* Typecheck each package. *)
+    let (tyenv, _) = Primitives.initial_environment in
+    let (_, pkgoutsacc) =
+      pkgs |> List.fold_left (fun (tyenv, outsacc) pkg ->
+        let (pkgnameopt, submods, mainmod) = pkg in
+        let (tyenv, outs) = PackageChecker.main is_verbose tyenv submods mainmod in
+        (tyenv, Alist.extend outsacc (pkgnameopt, outs))
       ) (tyenv, Alist.empty)
     in
+
+    (* Generate and output code corresponding to each package. *)
     let (_, gmap) = Primitives.initial_environment in
-    outacc |> Alist.to_list |> List.fold_left (fun gmap (sname, binds) ->
-      OutputErlangCode.main dir_out gmap ~package_name:pkgnameopt ~module_name:sname binds
+    pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, outs) ->
+      outs |> List.fold_left (fun gmap (sname, binds) ->
+        OutputErlangCode.main dir_out gmap ~package_name:pkgnameopt ~module_name:sname binds
+      ) gmap
     ) gmap |> ignore;
     OutputErlangCode.write_primitive_module dir_out
   with
@@ -31,6 +60,10 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       Logging.report_unsupported_feature msg;
       exit 1
 
+  | PackageLoader.PackageError(e) ->
+      Logging.report_package_error e;
+      exit 1
+
   | SourceLoader.SyntaxError(LexerError(e)) ->
       Logging.report_lexer_error e;
       exit 1
@@ -39,7 +72,7 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       Logging.report_parser_error rng;
       exit 1
 
-  | SourceLoader.ConfigError(e) ->
+  | ConfigError(e) ->
       Logging.report_config_error e;
       exit 1
 

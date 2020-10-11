@@ -3,8 +3,26 @@ open MyUtil
 open Syntax
 open Errors
 
-exception ConfigError of config_error
 exception SyntaxError of syntax_error
+
+
+type loaded_module = {
+  source_path       : absolute_path;
+  module_identifier : module_name ranged;
+  signature         : untyped_signature option;
+  module_content    : untyped_module;
+}
+
+type bare_loaded_module = {
+  bare_dependencies : (module_name ranged) list;
+  bare_module         : loaded_module;
+}
+
+type loaded_package = {
+  space_name   : space_name;
+  submodules   : loaded_module list;
+  main_module  : loaded_module;
+}
 
 
 let listup_sources_in_directory (dir : absolute_dir) : absolute_path list =
@@ -17,107 +35,59 @@ let listup_sources_in_directory (dir : absolute_dir) : absolute_path list =
   )
 
 
-let read_source (fpath_in : absolute_path) : ((module_name ranged) list * (module_name ranged * untyped_module), syntax_error) result =
-  let inc = open_in fpath_in in
+let read_source (abspath_in : absolute_path) : (bare_loaded_module, syntax_error) result =
+  Logging.begin_to_parse abspath_in;
+  let inc = open_in abspath_in in
   let lexbuf = Lexing.from_channel inc in
-  let fname = Filename.basename fpath_in in
+  let fname = Filename.basename abspath_in in
   let res =
     let open ResultMonad in
-    ParserInterface.process ~fname:fname lexbuf >>= fun (deps, modident, utmod) ->
-    return (deps, (modident, utmod))
+    ParserInterface.process ~fname:fname lexbuf >>= fun (deps, modident, utsigopt, utmod) ->
+    return {
+      bare_dependencies = deps;
+      bare_module = {
+        source_path       = abspath_in;
+        module_identifier = modident;
+        signature         = utsigopt;
+        module_content    = utmod;
+      };
+    }
   in
   close_in inc;
   res
 
-(*
-module ContentMap = Map.Make(String)
 
-type reading_state = {
-  loaded : (module_name ranged * untyped_module) ContentMap.t;
-  graph  : FileDependencyGraph.t;
-}
-
-
-(* `read_source_recursively abspath` lists up all the parsed source files
-   on which `abspath` depends either directly or indirectly,
-   and sorts them in a topological order according to the dependency among them. *)
-let read_source_recursively (abspath : absolute_path) : (absolute_path * (module_name ranged * untyped_module)) list =
-  let rec aux (state : reading_state) (vertex : FileDependencyGraph.vertex) (abspath : absolute_path) : reading_state =
-    Logging.begin_to_parse abspath;
-    let (deps, content) =
-      match read_source abspath with
-      | Ok(source) -> source
-      | Error(e)   -> raise (SyntaxError(e))
-    in
-    let loaded = state.loaded |> ContentMap.add abspath content in
-    deps |> List.fold_left (fun state (_, abspath_sub) (* TEMPORARY *) ->
-      let graph = state.graph in
-      match graph |> FileDependencyGraph.find_vertex abspath_sub with
-      | Some(vertex_sub) ->
-        (* If the depended source file has already been parsed *)
-          let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
-          { state with graph = graph }
-
-      | None ->
-        (* If the depended source file has not been parsed yet *)
-          let (graph, vertex_sub) = graph |> FileDependencyGraph.add_vertex abspath_sub in
-          let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
-          aux { state with graph = graph } vertex_sub abspath_sub
-    ) { state with loaded = loaded }
-  in
-  let state =
-    let (graph, vertex) = FileDependencyGraph.empty |> FileDependencyGraph.add_vertex abspath in
-    let state = { graph = graph; loaded = ContentMap.empty } in
-    aux state vertex abspath
-  in
-  match FileDependencyGraph.topological_sort state.graph with
-  | Error(cycle) ->
-      raise (ConfigError(CyclicFileDependencyFound(cycle)))
-
-  | Ok(sources) ->
-      sources |> List.map (fun abspath ->
-        match state.loaded |> ContentMap.find_opt abspath with
-        | None          -> assert false
-        | Some(content) -> (abspath, content)
-      )
-*)
-
-let read_sources (abspaths : absolute_path list) =
+let resolve_dependency (baremods : bare_loaded_module list) : loaded_module list =
 
   (* First, add vertices to the graph for solving dependency. *)
   let (graph, nmmap) =
-    abspaths |> List.fold_left (fun (graph, nmmap) abspath ->
-      match read_source abspath with
-      | Ok(source) ->
-          let (_, ((_, modnm), _)) = source in
-          begin
-            match nmmap |> ModuleNameMap.find_opt modnm with
-            | Some((abspath0, _, _)) ->
-                raise (ConfigError(MultipleModuleOfTheSameName(modnm, abspath0, abspath)))
+    baremods |> List.fold_left (fun (graph, nmmap) baremod ->
+      let (_, modnm) = baremod.bare_module.module_identifier in
+      let abspath = baremod.bare_module.source_path in
+      begin
+        match nmmap |> ModuleNameMap.find_opt modnm with
+        | Some((_, baremod0)) ->
+            let abspath0 = baremod0.bare_module.source_path in
+            raise (ConfigError(MultipleModuleOfTheSameName(modnm, abspath0, abspath)))
 
-            | None ->
-                let (graph, vertex) = graph |> FileDependencyGraph.add_vertex modnm in
-                let nmmap = nmmap |> ModuleNameMap.add modnm (abspath, vertex, source) in
-                (graph, nmmap)
-          end
-
-      | Error(e) ->
-          raise (SyntaxError(e))
-            (* TODO: change error into warning *)
-
+        | None ->
+            let (graph, vertex) = graph |> FileDependencyGraph.add_vertex modnm in
+            let nmmap = nmmap |> ModuleNameMap.add modnm (vertex, baremod) in
+            (graph, nmmap)
+      end
     ) (FileDependencyGraph.empty, ModuleNameMap.empty)
   in
 
   (* Second, add dependency edges to the graph. *)
   let graph =
-    graph |> ModuleNameMap.fold (fun modnm (_, vertex, source) graph ->
-      let (deps, _) = source in
+    graph |> ModuleNameMap.fold (fun modnm (vertex, baremod) graph ->
+      let deps = baremod.bare_dependencies in
       deps |> List.fold_left (fun graph (rng, modnm_dep) ->
         match nmmap |> ModuleNameMap.find_opt modnm_dep with
         | None ->
             raise (ConfigError(ModuleNotFound(rng, modnm_dep)))
 
-        | Some((_, vertex_dep, _)) ->
+        | Some((vertex_dep, _)) ->
             graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_dep
 
       ) graph
@@ -134,49 +104,63 @@ let read_sources (abspaths : absolute_path list) =
         | None ->
             assert false
 
-        | Some((abspath, _, source)) ->
-            let (_, content) = source in
-            (abspath, content)
+        | Some((_, baremod)) ->
+            baremod.bare_module
       )
 
 
-let main (fpath_in : string) : space_name option * (absolute_path * (module_name ranged * untyped_module)) list =
-  let abspath_in =
-    let dir = Sys.getcwd () in
-    make_absolute_path dir fpath_in
+
+let single (abspath_in : absolute_path) : loaded_module =
+  match read_source abspath_in with
+  | Error(e) ->
+      raise (SyntaxError(e))
+
+  | Ok(baremod) ->
+      let deps = baremod.bare_dependencies in
+      if List.length deps > 0 then
+        raise (ConfigError(CannotSpecifyDependency))
+      else
+        baremod.bare_module
+
+
+let main (config : ConfigLoader.config) : loaded_package =
+  let srcdirs = config.ConfigLoader.source_directories in
+  let main_module_name = config.ConfigLoader.main_module_name in
+  let abspaths = srcdirs |> List.map listup_sources_in_directory |> List.concat in
+  let baremods =
+    abspaths |> List.map (fun abspath ->
+      match read_source abspath with
+      | Ok(baremod) -> baremod
+      | Error(e)    -> raise (SyntaxError(e))
+    )
   in
+  let (baremains, baresubs) =
+    baremods |> List.partition (fun baremod ->
+      let (_, modnm) = baremod.bare_module.module_identifier in
+      String.equal modnm main_module_name
+    )
+  in
+  let main =
+    match baremains with
+    | [] ->
+        let pkgname = config.ConfigLoader.package_name in
+        raise (ConfigError(MainModuleNotFound(pkgname, main_module_name)))
 
-  let (_, extopt) = Core.Filename.split_extension abspath_in in
-  match extopt with
-  | Some("sest") ->
-      begin
-        match read_source abspath_in with
-        | Error(e) ->
-            raise (SyntaxError(e))
+    | _ :: _ :: _ ->
+        assert false
 
-        | Ok((deps, content)) ->
-            if List.length deps > 0 then
-              raise (ConfigError(CannotSpecifyDependency))
-            else
-              let source = (abspath_in, content) in
-              (None, [ source ])
-      end
-
-  | _ ->
-      begin
-        match ConfigLoader.load abspath_in with
-        | Error(e) ->
-            raise (ConfigError(ConfigFileError(e)))
-
-        | Ok(config) ->
-            let srcdirs = config.ConfigLoader.source_directories in
-            let abspaths = srcdirs |> List.map listup_sources_in_directory |> List.concat in
-            let sources = read_sources abspaths in
-            let spkgname =
-              let pkgname = config.package_name in
-              match OutputIdentifier.space_of_package_name pkgname with
-              | Some(spkgname) -> spkgname
-              | None           -> raise (ConfigError(InvalidPackageName(pkgname)))
-            in
-            (Some(spkgname), sources)
-      end
+    | [ baremain ] ->
+        baremain.bare_module
+  in
+  let subs = resolve_dependency baresubs in
+  let spkgname =
+    let pkgname = config.package_name in
+    match OutputIdentifier.space_of_package_name pkgname with
+    | Some(spkgname) -> spkgname
+    | None           -> raise (ConfigError(InvalidPackageName(pkgname)))
+  in
+  {
+    space_name  = spkgname;
+    submodules  = subs;
+    main_module = main;
+  }

@@ -59,7 +59,7 @@
 
 %start main
 %type<Syntax.untyped_binding> bindtop
-%type<(Syntax.module_name Syntax.ranged) list * Syntax.module_name Syntax.ranged * Syntax.untyped_module> main
+%type<(Syntax.module_name Syntax.ranged) list * Syntax.module_name Syntax.ranged * Syntax.untyped_signature option * Syntax.untyped_module> main
 %type<Syntax.manual_type> ty
 %type<Syntax.binder list * (Syntax.labeled_binder list * Syntax.labeled_optional_binder list)> params
 %type<Syntax.labeled_binder list * Syntax.labeled_optional_binder list> labparams
@@ -81,8 +81,8 @@
 %%
 main:
   | deps=list(dep); bindmod=bindmod; EOI {
-        let (_, modident, utmod) = bindmod in
-        (deps, modident, utmod)
+        let (_, modident, utsigopt, utmod) = bindmod in
+        (deps, modident, utsigopt, utmod)
       }
 ;
 dep:
@@ -102,8 +102,8 @@ bindtop:
         (rng, BindVal(valbinding))
       }
   | bindmod=bindmod {
-        let (rng, modident, utmod) = bindmod in
-        (rng, BindModule(modident, utmod))
+        let (rng, modident, utsigopt, utmod) = bindmod in
+        (rng, BindModule(modident, utsigopt, utmod))
       }
   | tokL=SIGNATURE; sigident=CTOR; DEFEQ; utsig=sigexpr {
         let rng = make_range (Token(tokL)) (Ranged(utsig)) in
@@ -115,10 +115,13 @@ bindtop:
       }
 ;
 bindmod:
-  | tokL=MODULE; modident=CTOR; DEFEQ; utmod=modexpr {
+  | tokL=MODULE; modident=CTOR; utsigopt=option(coercion); DEFEQ; utmod=modexpr {
         let rng = make_range (Token(tokL)) (Ranged(utmod)) in
-        (rng, modident, utmod)
+        (rng, modident, utsigopt, utmod)
       }
+;
+coercion:
+  | COERCE; utsig=sigexpr { utsig }
 ;
 bindtypesingle:
   | ident=IDENT; tyrowparams=typarams; DEFEQ; ctorbrs=nonempty_list(ctorbranch) {

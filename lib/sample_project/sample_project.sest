@@ -1,5 +1,3 @@
-require GenServer
-
 module SampleProject = struct
 
   module Server = struct
@@ -41,7 +39,7 @@ module SampleProject = struct
 
     end
 
-    include GenServer.Make(Callback)
+    include Stdlib.GenServer.Make(Callback)
 
     let set_number<$a>(pid : proc, m : int) : [$a]unit =
       cast(pid, SetNumber(m))
