@@ -2349,7 +2349,7 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
         let modsigdom2 = ConcStructure(sigr2) in
         subtype_concrete_with_abstract rng modsigdom2 (oidset1, modsigdom1)
       in
-      let absmodsigcod1 = absmodsigcod1 |> substitute_abstract wtmap in
+      let (absmodsigcod1, _) = absmodsigcod1 |> substitute_abstract wtmap in
       subtype_abstract_with_abstract rng absmodsigcod1 absmodsigcod2
 
   | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
@@ -2403,7 +2403,7 @@ and subtype_concrete_with_abstract (rng : Range.t) (modsig1 : module_signature) 
   let (oidset2, modsig2) = absmodsig2 in
   let wtmap = lookup_record rng modsig1 modsig2 in
   check_well_formedness_of_witness_map rng wtmap;
-  let modsig2 = modsig2 |> substitute_concrete wtmap in
+  let (modsig2, wtmap) = modsig2 |> substitute_concrete wtmap in
   subtype_concrete_with_concrete rng wtmap modsig1 modsig2;
   wtmap
 
@@ -2412,12 +2412,12 @@ and subtype_signature (rng : Range.t) (modsig1 : module_signature) (absmodsig2 :
   subtype_concrete_with_abstract rng modsig1 absmodsig2
 
 
-and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : module_signature =
+and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : module_signature * WitnessMap.t =
   match modsig with
   | ConcFunctor(sigftor) ->
       let (oidset, Domain(sigr), absmodsigcod) = (sigftor.opaques, sigftor.domain, sigftor.codomain) in
-      let sigr = sigr |> substitute_structure wtmap in
-      let absmodsigcod = absmodsigcod |> substitute_abstract wtmap in
+      let (sigr, wtmap) = sigr |> substitute_structure wtmap in
+      let (absmodsigcod, wtmap) = absmodsigcod |> substitute_abstract wtmap in
       let sigftor =
         { sigftor with
           opaques  = oidset;
@@ -2425,16 +2425,15 @@ and substitute_concrete (wtmap : WitnessMap.t) (modsig : module_signature) : mod
           codomain = absmodsigcod;
         }
       in
-      ConcFunctor(sigftor)
+      (ConcFunctor(sigftor), wtmap)
         (* Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. *)
 
   | ConcStructure(sigr) ->
-      let sigr = sigr |> substitute_structure wtmap in
-      ConcStructure(sigr)
+      let (sigr, wtmap) = sigr |> substitute_structure wtmap in
+      (ConcStructure(sigr), wtmap)
 
 
-and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord.t =
-  let (sigr, _wtmap) =
+and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord.t * WitnessMap.t =
     sigr |> SigRecord.map_and_fold
         ~v:(fun (pty, gname_from) wtmap ->
           let gname_to =
@@ -2454,6 +2453,8 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
           (ventry, wtmap)
         )
         ~t:(fun tyopacs_from wtmap ->
+
+          (* Generate new type IDs that will be used after substitution *)
           let wtmap =
             tyopacs_from |> List.fold_left (fun wtmap (tyid_from, arity) ->
               match tyid_from with
@@ -2475,6 +2476,8 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
                   wtmap
             ) wtmap
           in
+
+          (* Replace all occurrences of the old type IDs *)
           let tyopacs_to =
             tyopacs_from |> List.map (fun (tyid_from, arity) ->
               match tyid_from with
@@ -2521,11 +2524,13 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
           (tyopacs_to, wtmap)
         )
         ~m:(fun (modsig, name) wtmap ->
-          let mentry = (substitute_concrete wtmap modsig, name) in
+          let (modsig, wtmap) = substitute_concrete wtmap modsig in
+          let mentry = (modsig, name) in
           (mentry, wtmap)
         )
         ~s:(fun absmodsig wtmap ->
-          (substitute_abstract wtmap absmodsig, wtmap)
+          let (absmodsig, wtmap) = substitute_abstract wtmap absmodsig in
+          (absmodsig, wtmap)
         )
         ~c:(fun ctorentry wtmap ->
           let ptys = ctorentry.parameter_types |> List.map (substitute_poly_type wtmap) in
@@ -2533,13 +2538,12 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
           (ctorentry, wtmap)
         )
         wtmap
-  in
-  sigr
 
 
-and substitute_abstract (wtmap : WitnessMap.t) (absmodsig : module_signature abstracted) : module_signature abstracted =
+and substitute_abstract (wtmap : WitnessMap.t) (absmodsig : module_signature abstracted) : module_signature abstracted * WitnessMap.t =
   let (oidset, modsig) = absmodsig in
-  (oidset, substitute_concrete wtmap modsig)
+  let (modsig, wtmap) = substitute_concrete wtmap modsig in
+  ((oidset, modsig), wtmap)
     (* Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. *)
 
 
@@ -2693,7 +2697,7 @@ and typecheck_declaration_list (tyenv : Typeenv.t) (utdecls : untyped_declaratio
   (oidsetacc, sigracc)
 
 
-and copy_abstract_signature (absmodsig_from : module_signature abstracted) : module_signature abstracted =
+and copy_abstract_signature (absmodsig_from : module_signature abstracted) : module_signature abstracted * WitnessMap.t =
   let (oidset_from, modsig_from) = absmodsig_from in
   let (oidset_to, wtmap) =
     OpaqueIDSet.fold (fun oid_from (oidset_to, wtmap) ->
@@ -2706,8 +2710,8 @@ and copy_abstract_signature (absmodsig_from : module_signature abstracted) : mod
       (oidset_to, wtmap)
     ) oidset_from (OpaqueIDSet.empty, WitnessMap.empty)
   in
-  let modsig_to = substitute_concrete wtmap modsig_from in
-  (oidset_to, modsig_to)
+  let (modsig_to, wtmap) = substitute_concrete wtmap modsig_from in
+  ((oidset_to, modsig_to), wtmap)
 
 
 and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
@@ -2719,8 +2723,9 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
         | None ->
             raise_error (UnboundSignatureName(rng, signm))
 
-        | Some(absmodsig) ->
-            copy_abstract_signature absmodsig
+        | Some(absmodsig_from) ->
+            let (absmodsig_to, _) = copy_abstract_signature absmodsig_from in
+            absmodsig_to
               (* We need to rename opaque IDs here, since otherwise
                  we would mistakenly make the following program pass:
 
@@ -2859,7 +2864,8 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
                       let wtmap =
                         WitnessMap.empty |> WitnessMap.add_opaque oid (TypeID.Synonym(sid))
                       in
-                      substitute_concrete wtmap modsig0
+                      let (modsigret, _) = substitute_concrete wtmap modsig0 in
+                      modsigret
                     in
                     (oidset0 |> OpaqueIDSet.remove oid, modsigret)
                   else
@@ -3229,7 +3235,8 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
 
 and coerce_signature (tyenv : Typeenv.t) (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
   let wtmap = subtype_signature rng modsig1 absmodsig2 in
-  absmodsig2 |> substitute_abstract wtmap
+  let (absmodsig, _) = absmodsig2 |> substitute_abstract wtmap in
+  absmodsig
 
 
 let main (tyenv : Typeenv.t) (modident : module_name ranged) (absmodsigopt2 : (module_signature abstracted) option) (utmod1 : untyped_module) : Typeenv.t * SigRecord.t abstracted * space_name * binding list =
