@@ -1,37 +1,21 @@
 module GenServer = struct
 
   signature Behaviour = sig
-
     type init_arg :: o
-
-    type request :: o
-      /* temporary; should be a unary GADT */
-
-    type response :: o
-      /* temporary; should be a unary GADT  */
-
+    type request :: o  /* temporary; should be a unary GADT */
+    type response :: o  /* temporary; should be a unary GADT  */
     type cast_message :: o
-
     type state :: o
-
     val init : fun(init_arg) -> state
-
     val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
-
     val handle_cast : fun(cast_message, state) -> state
-
   end
 
   module Make = fun(Callback : Behaviour) -> struct
-
     type request = Callback.request
-
     type response = Callback.response
-
     type cast_message = Callback.cast_message
-
     type gen_server = unit
-
     type proc = pid<gen_server>
 
     let init_impl(arg : Callback.init_arg) =
