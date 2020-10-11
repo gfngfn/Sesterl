@@ -1,0 +1,11 @@
+package: sample_project
+source_directories:
+  - "./"
+
+dependencies:
+  - name: "stdlib"
+    source:
+      type: "local"
+      directory: "../stdlib"
+
+main_module: "SampleProject"

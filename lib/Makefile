@@ -4,7 +4,7 @@ TARGET_DIR=_generated
 
 all:
 	mkdir -p $(TARGET_DIR)
-	$(SESTERL) stdlib/ -o $(TARGET_DIR) --verbose
+	$(SESTERL) sample_project/ -o $(TARGET_DIR) --verbose
 	./compile_targets.sh
 
 clean:
