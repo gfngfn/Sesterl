@@ -13,6 +13,9 @@ module Stdlib :> sig
       val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
       val handle_cast : fun(cast_message, state) -> state
     end
+
+    module Make : fun(Callback : Behaviour) -> sig
+    end
   end
 
 end = struct
