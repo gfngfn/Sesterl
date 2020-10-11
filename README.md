@@ -314,6 +314,33 @@ Note that nested modules are flattened and given lowercased names. This conforms
 What is more important here is that functors are eliminated *at compilation time*. This is realized by the technique of so-called the *static interpretation* \[Elsman, Henriksen, Annenkov & Oancea 2018\].
 
 
+### OTP as functors
+
+One of the interesting use cases of the module system is to represent OTP libraries by using functors; for example, `gen_server` can be represented by a functor that takes the callback functions (such as `init/1` or `handle_cast/3`) and related types and that returns functions provided by `gen_server` (such as `cast/2`, `call/3`, `start_link/1`, etc.). The functor `GenServer.Make` defined as follows represents principal functionalities of `gen_server`:
+
+```
+module GenServer : sig
+  signature Behaviour = sig
+    type init_arg :: o
+    type request :: o
+    type response :: o
+    type cast_message :: o
+    type state :: o
+    val init : fun(init_arg) -> state
+    val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
+    val handle_cast : fun(cast_message, state) -> state
+  end
+
+  module Make : fun(Callback : Behaviour) -> sig
+    type proc :: o
+    val call<$a> : fun(proc, Callback.request, ?timeout int) -> [$a]Callback.response
+    val cast<$a> : fun(proc, Callback.cast_message) -> [$a]unit
+    val start_link<$a> : fun(Callback.init_arg) -> [$a]proc
+  end
+end
+```
+
+
 ### FFI
 
 Functions written in Erlang can be called from Sesterl via FFI (foreign function interface) as follows:
