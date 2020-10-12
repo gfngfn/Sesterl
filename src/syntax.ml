@@ -174,6 +174,7 @@ and untyped_ast_main =
   | Record       of labeled_untyped_ast list
   | RecordAccess of untyped_ast * label ranged
   | RecordUpdate of untyped_ast * label ranged * untyped_ast
+  | Freeze       of module_name_chain * identifier ranged * untyped_ast list * labeled_untyped_ast list * labeled_untyped_ast list
   | ModProjVal   of module_name ranged * identifier ranged
 
 and internal_or_external =

@@ -1275,42 +1275,13 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
   | Apply(utastfun, utastargs, mndutastargs, optutastargs) ->
       let (tyfun, efun) = typecheck pre utastfun in
-      let tyeargs = List.map (typecheck pre) utastargs in
-      let tyargs = List.map fst tyeargs in
-      let eargs = List.map snd tyeargs in
-      let (mndlabmap, mndargmap) =
-        mndutastargs |> List.fold_left (fun (mndlabmap, mndargmap) (rlabel, utast) ->
-          let (rnglabel, label) = rlabel in
-          if mndlabmap |> LabelAssoc.mem label then
-            raise_error (DuplicatedLabel(rnglabel, label))
-          else
-            let (ty, e) = typecheck pre utast in
-            let mndlabmap = mndlabmap |> LabelAssoc.add label ty in
-            let mndargmap = mndargmap |> LabelAssoc.add label e in
-            (mndlabmap, mndargmap)
-        ) (LabelAssoc.empty, LabelAssoc.empty)
+      let (tyret, optrow, eargs, mndargmap, optargmap) =
+        typecheck_application pre rng utastargs mndutastargs optutastargs tyfun
       in
-      let (optlabmap, optargmap) =
-        optutastargs |> List.fold_left (fun (optlabmap, optargmap) (rlabel, utast) ->
-          let (rnglabel, label) = rlabel in
-          if optlabmap |> LabelAssoc.mem label then
-            raise_error (DuplicatedLabel(rnglabel, label))
-          else
-            let (ty, e) = typecheck pre utast in
-            let optlabmap = optlabmap |> LabelAssoc.add label ty in
-            let optargmap = optargmap |> LabelAssoc.add label e in
-            (optlabmap, optargmap)
-        ) (LabelAssoc.empty, LabelAssoc.empty)
-      in
-      let tyret = fresh_type_variable ~name:"(Apply)" pre.level UniversalKind rng in
-      let optrow =
-        let frid = FreeRowID.fresh ~message:"Apply, row" pre.level in
-        KindStore.register_free_row frid optlabmap;
-        let mrvu = ref (FreeRow(frid)) in
-        RowVar(UpdatableRow(mrvu))
-      in
-      unify tyfun (Range.dummy "Apply", FuncType(tyargs, mndlabmap, optrow, tyret));
       (tyret, iapply efun optrow eargs mndargmap optargmap)
+
+  | Freeze(modchain, ident, utastargs, mndutastargs, optutastargs) ->
+      failwith "TODO: Freeze"
 
   | If(utast0, utast1, utast2) ->
       let (ty0, e0) = typecheck pre utast0 in
@@ -1532,6 +1503,44 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
                     (ty, IVar(OutputIdentifier.Global(gname2)))
             end
       end
+
+and typecheck_application (pre : pre) (rng : Range.t) utastargs mndutastargs optutastargs (tyfun : mono_type) =
+  let tyeargs = List.map (typecheck pre) utastargs in
+  let tyargs = List.map fst tyeargs in
+  let eargs = List.map snd tyeargs in
+  let (mndlabmap, mndargmap) =
+    mndutastargs |> List.fold_left (fun (mndlabmap, mndargmap) (rlabel, utast) ->
+      let (rnglabel, label) = rlabel in
+      if mndlabmap |> LabelAssoc.mem label then
+        raise_error (DuplicatedLabel(rnglabel, label))
+      else
+        let (ty, e) = typecheck pre utast in
+        let mndlabmap = mndlabmap |> LabelAssoc.add label ty in
+        let mndargmap = mndargmap |> LabelAssoc.add label e in
+        (mndlabmap, mndargmap)
+    ) (LabelAssoc.empty, LabelAssoc.empty)
+  in
+  let (optlabmap, optargmap) =
+    optutastargs |> List.fold_left (fun (optlabmap, optargmap) (rlabel, utast) ->
+      let (rnglabel, label) = rlabel in
+      if optlabmap |> LabelAssoc.mem label then
+        raise_error (DuplicatedLabel(rnglabel, label))
+      else
+        let (ty, e) = typecheck pre utast in
+        let optlabmap = optlabmap |> LabelAssoc.add label ty in
+        let optargmap = optargmap |> LabelAssoc.add label e in
+        (optlabmap, optargmap)
+    ) (LabelAssoc.empty, LabelAssoc.empty)
+  in
+  let tyret = fresh_type_variable ~name:"(Apply)" pre.level UniversalKind rng in
+  let optrow =
+    let frid = FreeRowID.fresh ~message:"Apply, row" pre.level in
+    KindStore.register_free_row frid optlabmap;
+    let mrvu = ref (FreeRow(frid)) in
+    RowVar(UpdatableRow(mrvu))
+  in
+  unify tyfun (Range.dummy "Apply", FuncType(tyargs, mndlabmap, optrow, tyret));
+  (tyret, optrow, eargs, mndargmap, optargmap)
 
 
 and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name) =
