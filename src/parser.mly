@@ -44,7 +44,7 @@
 *)
 %}
 
-%token<Range.t> LET LETREC ANDREC IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE WHEN END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG EXTERNAL INCLUDE REQUIRE
+%token<Range.t> LET LETREC ANDREC IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE WHEN END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG EXTERNAL INCLUDE REQUIRE FREEZE
 %token<Range.t> LPAREN RPAREN LSQUARE RSQUARE LBRACE RBRACE
 %token<Range.t> DEFEQ COMMA ARROW REVARROW BAR UNDERSCORE CONS COLON COERCE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
@@ -463,6 +463,11 @@ exprapp:
         let (ordargs, (mndargs, optargs)) = args in
         let rng = make_range (Ranged(efun)) (Token(tokR)) in
         (rng, Apply(efun, ordargs, mndargs, optargs))
+      }
+  | tokL=FREEZE; modchain=modchainraw; ident=IDENT; LPAREN; args=args; tokR=RPAREN {
+        let (ordargs, (mndargs, optargs)) = args in
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, Freeze(modchain, ident, ordargs, mndargs, optargs))
       }
   | ctor=CTOR; LPAREN; args=args; tokR=RPAREN {
         let (ordargs, optargs) = args in

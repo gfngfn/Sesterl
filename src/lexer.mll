@@ -81,6 +81,7 @@ rule token = parse
           | "external"  -> EXTERNAL(pos)
           | "include"   -> INCLUDE(pos)
           | "require"   -> REQUIRE(pos)
+          | "freeze"    -> FREEZE(pos)
           | _           -> IDENT(pos, s)
       }
   | ("$" (identifier as s)) {
