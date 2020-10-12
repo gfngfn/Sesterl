@@ -73,7 +73,7 @@ module StaticSupervisor = struct
                                   start    => StartFunc,
                                   restart  => Restart,
                                   shutdown => ShutdownImpl,
-                                  typ      => Worker,
+                                  typ      => Worker
                               } = ChildSpec,
                               Shutdown =
                                   case ShutdownImpl of
