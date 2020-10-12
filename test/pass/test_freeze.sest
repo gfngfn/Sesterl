@@ -1,0 +1,16 @@
+module TestFreeze = struct
+
+  module Sub = struct
+    let show(x, y) =
+      print_debug(x + y)
+  end
+
+  let impl() =
+    freeze Sub.show(42, 57)
+
+  let main<$a> : fun($a) -> unit = external 1 ```
+    main(_) ->
+        {M, F, Args} = impl(),
+        apply(M, F, Args).
+  ```
+end
