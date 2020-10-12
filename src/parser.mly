@@ -464,7 +464,7 @@ exprapp:
         let rng = make_range (Ranged(efun)) (Token(tokR)) in
         (rng, Apply(efun, ordargs, mndargs, optargs))
       }
-  | tokL=FREEZE; modchain=modchainraw; ident=IDENT; LPAREN; args=args; tokR=RPAREN {
+  | tokL=FREEZE; modchain=modchainraw; ident=DOTIDENT; LPAREN; args=args; tokR=RPAREN {
         let (ordargs, (mndargs, optargs)) = args in
         let ((rng1, _), _) = modchain in
         let rngapp = make_range (Token(rng1)) (Token(tokR)) in
