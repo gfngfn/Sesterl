@@ -466,8 +466,10 @@ exprapp:
       }
   | tokL=FREEZE; modchain=modchainraw; ident=IDENT; LPAREN; args=args; tokR=RPAREN {
         let (ordargs, (mndargs, optargs)) = args in
+        let ((rng1, _), _) = modchain in
+        let rngapp = make_range (Token(rng1)) (Token(tokR)) in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, Freeze(modchain, ident, ordargs, mndargs, optargs))
+        (rng, Freeze(rngapp, modchain, ident, ordargs, mndargs, optargs))
       }
   | ctor=CTOR; LPAREN; args=args; tokR=RPAREN {
         let (ordargs, optargs) = args in

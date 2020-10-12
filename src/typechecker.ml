@@ -1280,8 +1280,27 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       in
       (tyret, iapply efun optrow eargs mndargmap optargmap)
 
-  | Freeze(modchain, ident, utastargs, mndutastargs, optutastargs) ->
-      failwith "TODO: Freeze"
+  | Freeze(rngapp, modidentchain1, ident2, utastargs, mndutastargs, optutastargs) ->
+      let (modsig1, _) = find_module_from_chain pre.tyenv modidentchain1 in
+      let (ptyfun, gname) =
+        match modsig1 with
+        | ConcFunctor(_) ->
+            let ((rng1, _), _) = modidentchain1 in
+            raise_error (NotOfStructureType(rng1, modsig1))
+
+        | ConcStructure(sigr) ->
+            let (rng2, x) = ident2 in
+            begin
+              match sigr |> SigRecord.find_val x with
+              | None    -> raise_error (UnboundVariable(rng2, x))
+              | Some(v) -> v
+            end
+      in
+      let tyfun = TypeConv.instantiate pre.level ptyfun in
+      let (tyret, optrow, eargs, mndargmap, optargmap) =
+        typecheck_application pre rngapp utastargs mndutastargs optutastargs tyfun
+      in
+      (Primitives.frozen_type rng tyret, IFreeze(gname, optrow, eargs, mndargmap, optargmap))
 
   | If(utast0, utast1, utast2) ->
       let (ty0, e0) = typecheck pre utast0 in
