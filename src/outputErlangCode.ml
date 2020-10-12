@@ -215,6 +215,22 @@ let rec stringify_option_decoding_operation (gmap : global_name_map) (sname_map 
   ) optnamemap Alist.empty |> Alist.to_list |> String.concat ""
 
 
+and stringify_arguments gmap mrow ordastargs mndargmap optargmap =
+  let iter = stringify_ast gmap in
+  let astargs =
+    let mndastargs =
+      mndargmap |> LabelAssoc.bindings |> List.map (fun (_, ast) -> ast)
+        (* Labeled mandatory arguments are placed in alphabetical order. *)
+    in
+    List.append ordastargs mndastargs
+  in
+  let sargs = astargs |> List.map iter in
+  let soptmap = mapify_label_assoc gmap optargmap in
+  let can_take_optional = TypeConv.can_row_take_optional mrow in
+  let no_mandatory_argument = (List.length astargs = 0) in
+  (sargs, soptmap, can_take_optional, no_mandatory_argument)
+
+
 and stringify_ast (gmap : global_name_map) (ast : ast) =
   let iter = stringify_ast gmap in
   match ast with
@@ -253,23 +269,16 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
           s0
 
   | IApply(name, mrow, ordastargs, mndargmap, optargmap) ->
-      let astargs =
-        let mndastargs =
-          mndargmap |> LabelAssoc.bindings |> List.map (fun (_, ast) -> ast)
-            (* Labeled mandatory arguments are placed in alphabetical order. *)
-        in
-        List.append ordastargs mndastargs
+      let (sargs, soptmap, can_take_optional, no_mandatory_argument) =
+        stringify_arguments gmap mrow ordastargs mndargmap optargmap
       in
-      let sargs = astargs |> List.map iter in
-      let soptmap = mapify_label_assoc gmap optargmap in
-      let can_take_optional = TypeConv.can_row_take_optional mrow in
       begin
         match (name, sargs) with
         | (OutputIdentifier.Local(lname), _) ->
             let sname = OutputIdentifier.output_local lname in
             let sargscat = String.concat ", " sargs in
             if can_take_optional then
-              if List.length astargs = 0 then
+              if no_mandatory_argument then
                 Printf.sprintf "%s(#{%s})"
                   sname
                   soptmap
@@ -295,7 +304,7 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
                      compiled into two variants; one has its innate arity,
                      and the other can receive a map for optional arguments via an additional argument.
                   *)
-              else if List.length astargs = 0 then
+              else if no_mandatory_argument then
                 Printf.sprintf "#{%s}" soptmap
               else
                 Printf.sprintf ", #{%s}" soptmap
@@ -313,6 +322,27 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
         | _ ->
             assert false
       end
+
+  | IFreeze(gname, mrow, ordastargs, mndargmap, optargmap) ->
+      let (sargs, soptmap, can_take_optional, no_mandatory_argument) =
+        stringify_arguments gmap mrow ordastargs mndargmap optargmap
+      in
+      let r = OutputIdentifier.output_global gname in
+      let smod = get_module_string gmap gname in
+      let sfun = r.function_name in
+      let sopts =
+        if LabelAssoc.cardinal optargmap = 0 then
+          ""
+        else if no_mandatory_argument then
+          Printf.sprintf "#{%s}" soptmap
+        else
+          Printf.sprintf ", #{%s}" soptmap
+      in
+      Printf.sprintf "{%s, %s, [%s%s]}"
+        smod
+        sfun
+        (String.concat ", " sargs)
+        sopts
 
   | IRecord(emap) ->
       let s = mapify_label_assoc gmap emap in

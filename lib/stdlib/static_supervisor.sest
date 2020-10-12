@@ -1,0 +1,136 @@
+module StaticSupervisor = struct
+
+  type strategy =
+    | OneForAll
+    | OneForOne
+    | RestForOne
+
+  type sup_flags = {
+    strategy  : strategy,
+    intensity : int,
+    period    : int,
+  }
+
+  let make_sup_flags(
+    ?strategy  strategy  = OneForOne,
+    ?intensity intensity = 1,
+    ?period    period    = 5,
+  ) : sup_flags =
+    { strategy = strategy, intensity = intensity, period = period }
+
+  type child_proc =
+    | ChildProcDummy
+
+  let make_child_proc<$a> : fun(pid<$a>) -> child_proc = external 1 ```
+    make_child_proc(Pid) -> {ok, Pid}.
+  ```
+
+  type restart =
+    | Permanent
+    | Transient
+    | Temporary
+
+  type shutdown =
+    | BrutalKill
+    | Timeout(int)
+    | Infinity
+
+  type worker =
+    | Worker
+    | Supervisor
+
+  type child_spec<$a> = {
+    id       : $a,
+    start    : frozen<child_proc>,
+    restart  : restart,
+    shutdown : shutdown,
+    typ      : worker,
+  }
+
+  let make_child_spec<$a>(
+    -id       id : $a,
+    -start    start,
+    ?restart  restart = Permanent,
+    ?shutdown shutdown_opt,
+    ?type     typ = Worker,
+  ) : child_spec<$a> =
+    let shutdown =
+      case (shutdown_opt, typ) of
+      | (Some(shutdown), _) -> shutdown
+      | (None, Worker)      -> Timeout(5000)
+      | (None, Supervisor)  -> Infinity
+      end
+    in
+    {
+      id       = id,
+      start    = start,
+      restart  = restart,
+      shutdown = shutdown,
+      typ      = typ,
+    }
+
+
+  signature Behaviour = sig
+    type child_id :: o
+    type init_arg :: o
+    val init : fun(init_arg) -> option<(sup_flags, list<child_spec<child_id>>)>
+  end
+
+  module Make = fun(Callback : Behaviour) -> struct
+
+    type proc =
+      | ProcDummy
+
+    let init_impl(args) =
+      Callback.init(args)
+
+    let init<$a> : $a = external 1 ```
+      init(Args) ->
+          case init_impl(Args) of
+              none ->
+                  ignore;
+
+              {some, {SupFlags, ChildSpecsImpl}} ->
+                  ChildSpecs =
+                      lists:map(
+                          fun(ChildSpec) ->
+                              #{
+                                  id       => ChildId,
+                                  start    => StartFunc,
+                                  restart  => Restart,
+                                  shutdown => ShutdownImpl,
+                                  typ      => Worker
+                              } = ChildSpec,
+                              Shutdown =
+                                  case ShutdownImpl of
+                                      brutal_kill  -> brutal_kill;
+                                      {timeout, N} -> max(N, 0);
+                                      infinity     -> infinity
+                                  end,
+                              #{
+                                  id       => ChildId,
+                                  start    => StartFunc,
+                                  restart  => Restart,
+                                  shutdown => Shutdown,
+                                  type     => Worker,
+                                  modules  => [?MODULE]
+                              }
+                          end,
+                          ChildSpecsImpl),
+                  {ok, {SupFlags, ChildSpecs}}
+          end.
+    ```
+
+    let start_link<$a> : fun(Callback.init_arg) -> option<proc> = external 1 ```
+      start_link(Args) ->
+          fun() ->
+              case supervisor:start_link(?MODULE, Args) of
+                  {ok, Pid} -> {some, Pid};
+                  _         -> none
+              end
+          end.
+            % thunk
+    ```
+  end
+
+end

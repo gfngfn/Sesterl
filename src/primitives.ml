@@ -24,6 +24,9 @@ let vid_list = TypeID.Variant.fresh "list"
 let vid_format = TypeID.Variant.fresh "format"
 
 
+let vid_frozen = TypeID.Variant.fresh "frozen"
+
+
 let option_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
   (rng, DataType(TypeID.Variant(vid_option), [ty]))
 
@@ -34,6 +37,10 @@ let list_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
 
 let format_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
   (rng, DataType(TypeID.Variant(vid_format), [ty]))
+
+
+let frozen_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
+  (rng, DataType(TypeID.Variant(vid_frozen), [ty]))
 
 
 let fresh_bound () =
@@ -304,6 +311,12 @@ let initial_environment =
         let bid = BoundID.fresh () in
         KindStore.register_bound_id bid UniversalKind;
         ("format", vid_format, [bid], [
+        ])
+      end;
+      begin
+        let bid = BoundID.fresh () in
+        KindStore.register_bound_id bid UniversalKind;
+        ("frozen", vid_frozen, [bid], [
         ])
       end;
     ]

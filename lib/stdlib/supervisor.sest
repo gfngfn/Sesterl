@@ -1,0 +1,10 @@
+require StaticSupervisor
+/*
+require DynamicSupervisor
+*/
+module Supervisor = struct
+  module Static = StaticSupervisor
+/*
+  module Dynamic = DynamicSupervisor
+*/
+end

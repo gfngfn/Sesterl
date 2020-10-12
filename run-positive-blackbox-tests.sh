@@ -52,7 +52,7 @@ done
 CURDIR=$(pwd)
 cd "$TARGET_DIR" || exit
 for TARGET in *.erl; do
-    NUM="$(grep -c "^main(" "$TARGET")"
+    NUM="$(grep -c "main/1" "$TARGET")"
     if [ "$NUM" -eq 0 ]; then
         echo "Skip '$TARGET' due to the absence of main/1."
     else
