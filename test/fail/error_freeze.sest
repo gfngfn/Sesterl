@@ -1,0 +1,7 @@
+module ErrorFreeze = struct
+
+  let g() =
+    let f(x) = x in
+    freeze f(42)
+
+end
