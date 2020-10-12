@@ -469,7 +469,13 @@ exprapp:
         let ((rng1, _), _) = modchain in
         let rngapp = make_range (Token(rng1)) (Token(tokR)) in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, Freeze(rngapp, modchain, ident, ordargs, mndargs, optargs))
+        (rng, Freeze(rngapp, FrozenModFun(modchain, ident), ordargs, mndargs, optargs))
+      }
+  | tokL=FREEZE; ident=IDENT; LPAREN; args=args; tokR=RPAREN {
+        let (ordargs, (mndargs, optargs)) = args in
+        let rngapp = make_range (Ranged(ident)) (Token(tokR)) in
+        let rng = make_range (Token(tokL)) (Token(tokR)) in
+        (rng, Freeze(rngapp, FrozenFun(ident), ordargs, mndargs, optargs))
       }
   | ctor=CTOR; LPAREN; args=args; tokR=RPAREN {
         let (ordargs, optargs) = args in

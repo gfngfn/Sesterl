@@ -364,3 +364,8 @@ let report_type_error (e : type_error) : unit =
   | NullaryFormatString(rng) ->
       Format.printf "%a: nullary format string\n"
         Range.pp rng
+
+  | CannotFreezeNonGlobalName(rng, x) ->
+      Format.printf "%a: cannot freeze non-top-level identifier '%s'\n"
+        Range.pp rng
+        x

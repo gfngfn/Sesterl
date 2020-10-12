@@ -73,3 +73,4 @@ type type_error =
   | ConflictInSignature                 of Range.t * string
   | DuplicatedLabel                     of Range.t * label
   | NullaryFormatString                 of Range.t
+  | CannotFreezeNonGlobalName           of Range.t * identifier

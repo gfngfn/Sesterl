@@ -1280,20 +1280,38 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       in
       (tyret, iapply efun optrow eargs mndargmap optargmap)
 
-  | Freeze(rngapp, modidentchain1, ident2, utastargs, mndutastargs, optutastargs) ->
-      let (modsig1, _) = find_module_from_chain pre.tyenv modidentchain1 in
+  | Freeze(rngapp, frozenfun, utastargs, mndutastargs, optutastargs) ->
       let (ptyfun, gname) =
-        match modsig1 with
-        | ConcFunctor(_) ->
-            let ((rng1, _), _) = modidentchain1 in
-            raise_error (NotOfStructureType(rng1, modsig1))
-
-        | ConcStructure(sigr) ->
-            let (rng2, x) = ident2 in
+        match frozenfun with
+        | FrozenModFun(modidentchain1, ident2) ->
+            let (modsig1, _) = find_module_from_chain pre.tyenv modidentchain1 in
             begin
-              match sigr |> SigRecord.find_val x with
-              | None    -> raise_error (UnboundVariable(rng2, x))
-              | Some(v) -> v
+              match modsig1 with
+              | ConcFunctor(_) ->
+                  let ((rng1, _), _) = modidentchain1 in
+                  raise_error (NotOfStructureType(rng1, modsig1))
+
+              | ConcStructure(sigr) ->
+                  let (rng2, x) = ident2 in
+                  begin
+                    match sigr |> SigRecord.find_val x with
+                    | None    -> raise_error (UnboundVariable(rng2, x))
+                    | Some(v) -> v
+                  end
+            end
+
+        | FrozenFun((rng0, x)) ->
+            begin
+              match pre.tyenv |> Typeenv.find_val x with
+              | None ->
+                  raise_error (UnboundVariable(rng0, x))
+
+              | Some((_, ptymain), name) ->
+                  begin
+                    match name with
+                    | OutputIdentifier.Global(gname) -> ((rng0, ptymain), gname)
+                    | _                              -> raise_error (CannotFreezeNonGlobalName(rng0, x))
+                  end
             end
       in
       let tyfun = TypeConv.instantiate pre.level ptyfun in
