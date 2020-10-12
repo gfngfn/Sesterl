@@ -1,16 +1,25 @@
 module TestFreeze = struct
 
   module Sub = struct
-    let show(x, y) =
-      print_debug(x + y)
+    let add(x, y) = x + y
   end
 
-  let impl() =
-    freeze Sub.show(42, 57)
+  let negate(n) = 0 - n
+
+  let impl() : list<frozen<int>> =
+    [
+      freeze Sub.add(42, 57),
+      freeze negate(100),
+    ]
 
   let main<$a> : fun($a) -> unit = external 1 ```
     main(_) ->
-        {M, F, Args} = impl(),
-        apply(M, F, Args).
+        List = impl(),
+        lists:foreach(
+            fun({M, F, Args}) ->
+                Result = apply(M, F, Args),
+                io:format("~p~n", [Result])
+            end,
+            List).
   ```
 end
