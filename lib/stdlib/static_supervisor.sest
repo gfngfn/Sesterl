@@ -1,0 +1,98 @@
+module StaticSupervisor = struct
+
+  type strategy =
+    | OneForAll
+    | OneForOne
+    | RestForOne
+
+  type sup_flags = {
+    strategy  : strategy,
+    intensity : int,
+    period    : int,
+  }
+
+  let make_sup_flags(
+    ?strategy  strategy  = OneForOne,
+    ?intensity intensity = 1,
+    ?period    period    = 5,
+  ) : sup_flags =
+    { strategy = strategy, intensity = intensity, period = period }
+
+  type child_proc =
+    | ChildProcDummy
+
+  let make_child_proc<$a> : fun(pid<$a>) -> child_proc = external 1 ```
+    make_child_proc(Pid) -> Pid.
+  ```
+
+  type restart =
+    | Permanent
+    | Transient
+    | Temporary
+
+  type shutdown =
+    | BrutalKill
+    | Timeout(int)
+    | Infinity
+
+  type worker =
+    | Worker
+    | Supervisor
+
+  type child_spec<$a> = {
+    id       : $a,
+    start    : fun() -> child_proc,  /* TODO: `mfargs()` */
+    restart  : restart,
+    shutdown : shutdown,
+    typ      : worker,
+  }
+
+  signature Behaviour = sig
+    type child_id :: o
+    type init_arg :: o
+    val init : fun(init_arg) -> option<(sup_flags, list<child_spec<child_id>>)>
+  end
+
+  module Make = fun(Callback : Behaviour) -> struct
+
+    let init_impl(args) =
+      Callback.init(args)
+
+    let init<$a> : $a = external 1 ```
+      init(Args) ->
+          case init_impl(Args) of
+              none ->
+                  ignore;
+
+              {some, {SupFlags, ChildSpecsImpl}} ->
+                  ChildSpecs =
+                      lists:map(
+                          fun(ChildSpec) ->
+                              #{
+                                  id       => ChildId,
+                                  start    => StartFunc,
+                                  restart  => Restart,
+                                  shutdown => ShutdownImpl,
+                                  typ      => Worker,
+                              } = ChildSpec,
+                              Shutdown =
+                                  case ShutdownImpl of
+                                      brutal_kill  -> brutal_kill;
+                                      {timeout, N} -> max(N, 0);
+                                      infinity     -> infinity
+                                  end,
+                              #{
+                                  id       => ChildId,
+                                  start    => StartFunc,  %TODO
+                                  restart  => Restart,
+                                  shutdown => Shutdown,
+                                  modules  => [?MODULE]
+                              }
+                          end,
+                          ChildSpecsImpl),
+                  {ok, {SupFlags, ChildSpecs}}
+          end.
+    ```
+  end
+
+end
