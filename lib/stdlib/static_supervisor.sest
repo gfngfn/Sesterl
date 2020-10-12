@@ -22,7 +22,7 @@ module StaticSupervisor = struct
     | ChildProcDummy
 
   let make_child_proc<$a> : fun(pid<$a>) -> child_proc = external 1 ```
-    make_child_proc(Pid) -> Pid.
+    make_child_proc(Pid) -> {ok, Pid}.
   ```
 
   type restart =
@@ -41,11 +41,34 @@ module StaticSupervisor = struct
 
   type child_spec<$a> = {
     id       : $a,
-    start    : fun() -> child_proc,  /* TODO: `mfargs()` */
+    start    : frozen<child_proc>,
     restart  : restart,
     shutdown : shutdown,
     typ      : worker,
   }
+
+  let make_child_spec<$a>(
+    -id       id : $a,
+    -start    start,
+    ?restart  restart = Permanent,
+    ?shutdown shutdown_opt,
+    ?type     typ = Worker,
+  ) : child_spec<$a> =
+    let shutdown =
+      case (shutdown_opt, typ) of
+      | (Some(shutdown), _) -> shutdown
+      | (None, Worker)      -> Timeout(5000)
+      | (None, Supervisor)  -> Infinity
+      end
+    in
+    {
+      id       = id,
+      start    = start,
+      restart  = restart,
+      shutdown = shutdown,
+      typ      = typ,
+    }
+
 
   signature Behaviour = sig
     type child_id :: o
@@ -54,6 +77,9 @@ module StaticSupervisor = struct
   end
 
   module Make = fun(Callback : Behaviour) -> struct
+
+    type proc =
+      | ProcDummy
 
     let init_impl(args) =
       Callback.init(args)
@@ -83,15 +109,27 @@ module StaticSupervisor = struct
                                   end,
                               #{
                                   id       => ChildId,
-                                  start    => StartFunc,  %TODO
+                                  start    => StartFunc,
                                   restart  => Restart,
                                   shutdown => Shutdown,
+                                  type     => Worker,
                                   modules  => [?MODULE]
                               }
                           end,
                           ChildSpecsImpl),
                   {ok, {SupFlags, ChildSpecs}}
           end.
+    ```
+
+    let start_link<$a> : fun(Callback.init_arg) -> option<proc> = external 1 ```
+      start_link(Args) ->
+          fun() ->
+              case supervisor:start_link(?MODULE, Args) of
+                  {ok, Pid} -> {some, Pid};
+                  _         -> none
+              end
+          end.
+            % thunk
     ```
   end
 
