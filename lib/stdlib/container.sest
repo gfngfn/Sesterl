@@ -16,17 +16,22 @@ module Stdlib :> sig
       type request :: o  /* temporary; should be a unary GADT */
       type response :: o  /* temporary; should be a unary GADT  */
       type cast_message :: o
+      type info :: o
       type state :: o
-      val init : fun(init_arg) -> state
+      val init : fun(init_arg) -> option<state>
       val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
       val handle_cast : fun(cast_message, state) -> state
+      val handle_info : fun(info, state) -> state
+      val terminate : fun(state) -> unit
     end
 
     module Make : fun(Callback : Behaviour) -> sig
       type proc :: o
       val call<$a> : fun(proc, Callback.request, ?timeout int) -> [$a]Callback.response
       val cast<$a> : fun(proc, Callback.cast_message) -> [$a]unit
-      val start_link<$a> : fun(Callback.init_arg) -> [$a]proc
+      val send_info<$a> : fun(proc, Callback.info) -> [$a]unit
+      val start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc>
+      val stop<$a> : fun(proc) -> [$a]unit
     end
   end
 
