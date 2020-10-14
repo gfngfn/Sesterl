@@ -1,6 +1,11 @@
 module SampleProject = struct
 
-  module Server = struct
+  module Server :> sig
+    type proc
+    val start_link<$a> : fun({ number : int, name : binary }) -> [$a]option<proc>
+    val set_number<$a> : fun(proc, int) -> [$a]unit
+    val get_number<$a> : fun(proc, ?timeout int) -> [$a]int
+  end = struct
 
     type request_impl =
       | GetNumber
@@ -23,9 +28,10 @@ module SampleProject = struct
 
       let init(state) =
         let _ = print_debug(("init", state)) in
-        state
+        Some(state)
 
       let handle_call(req, pid, state) =
+       let _ = print_debug(("handle_call", req)) in
         case req of
         | GetNumber -> (Number(state.number), state)
         | GetName   -> (Name(state.name), state)
@@ -59,21 +65,32 @@ module SampleProject = struct
 
   module Main = struct
 
+    let async_increment(pid) =
+      do n <- Server.get_number(pid) in
+      do Server.set_number(pid, n + 1) in
+      return(n + 1)
+
     letrec loop(t, pid) =
       if t <= 0 then
         return(())
       else
-        do n <- Server.get_number(pid) in
+        do n <- async_increment(pid) in
         let _ = print_debug((t, n)) in
         loop(t - 1, pid)
 
     let main() =
-      do pid <- Server.start_link({ number = 57, name = "Sample Store"}) in
-      do x <- Server.get_number(pid, ?timeout 1000) in
-      let _ = print_debug(("first get", x)) in
-      do Server.set_number(pid, 42) in
-      loop(10, pid)
+      do pid_opt <- Server.start_link({ number = 57, name = "Sample Store"}) in
+      case pid_opt of
+      | None ->
+          let _ = print_debug("failed to start a process") in
+          return(())
 
+      | Some(pid) ->
+          do x <- Server.get_number(pid, ?timeout 1000) in
+          let _ = print_debug(("first get", x)) in
+          do Server.set_number(pid, 42) in
+          loop(10, pid)
+      end
   end
 
 end

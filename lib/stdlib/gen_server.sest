@@ -6,7 +6,7 @@ module GenServer = struct
     type response :: o  /* temporary; should be a unary GADT  */
     type cast_message :: o
     type state :: o
-    val init : fun(init_arg) -> state
+    val init : fun(init_arg) -> option<state>
     val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
     val handle_cast : fun(cast_message, state) -> state
   end
@@ -23,8 +23,11 @@ module GenServer = struct
 
     let init<$a> : $a = external 1 ```
       init(Args) ->
-          State = ?MODULE:init_impl(Args),
-          {ok, State}.
+          Res = ?MODULE:init_impl(Args),
+          case Res of
+              {some, State} -> {ok, State};
+              none          -> ignore
+          end.
     ```
 
     let handle_call_impl<$a>(req : Callback.request, pid : pid<$a>, state : Callback.state) =
@@ -65,12 +68,12 @@ module GenServer = struct
             % thunk
     ```
 
-    let start_link<$a> : fun(Callback.init_arg) -> [$a]proc = external 1 ```
+    let start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
       start_link(Args) ->
           fun() ->
               case gen_server:start_link(?MODULE, Args, []) of
-                  {ok, Pid} -> Pid;
-                  Other     -> erlang:error({unsupported, Other})
+                  {ok, Pid} -> {some, Pid};
+                  _         -> none
               end
           end.
             % thunk
