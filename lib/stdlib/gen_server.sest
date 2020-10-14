@@ -5,10 +5,12 @@ module GenServer = struct
     type request :: o  /* temporary; should be a unary GADT */
     type response :: o  /* temporary; should be a unary GADT  */
     type cast_message :: o
+    type info :: o
     type state :: o
     val init : fun(init_arg) -> option<state>
     val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
     val handle_cast : fun(cast_message, state) -> state
+    val handle_info : fun(info, state) -> state
     val terminate : fun(state) -> unit
   end
 
@@ -16,8 +18,7 @@ module GenServer = struct
     type request = Callback.request
     type response = Callback.response
     type cast_message = Callback.cast_message
-    type gen_server = unit
-    type proc = pid<gen_server>
+    type proc = pid<Callback.info>
 
     let init_impl(arg : Callback.init_arg) =
       Callback.init(arg)
@@ -47,6 +48,15 @@ module GenServer = struct
     let handle_cast<$a> : $a = external 2 ```
       handle_cast(Msg, State0) ->
           State1 = ?MODULE:handle_cast_impl(Msg, State0),
+          {noreply, State1}.
+    ```
+
+    let handle_info_impl<$a>(info : Callback.info, state : Callback.state) =
+      Callback.handle_info(info, state)
+
+    let handle_info<$a> : $a = external 2 ```
+      handle_info(Info, State0) ->
+          State1 = handle_info_impl(Info, State0),
           {noreply, State1}.
     ```
 
@@ -95,6 +105,9 @@ module GenServer = struct
           end.
             % thunk
     ```
+
+    let send_info(pid : proc, info : Callback.info) =
+      send(pid, info)
 
   end
 

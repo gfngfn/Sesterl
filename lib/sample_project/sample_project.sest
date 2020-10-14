@@ -27,6 +27,9 @@ module SampleProject = struct
       type state = { number : int,  name : binary }
       type init_arg = state
 
+      type info =
+        | InfoDummy
+
       let init(state) =
         let _ = print_debug(("init", state)) in
         Some(state)
@@ -43,6 +46,9 @@ module SampleProject = struct
         case msg of
         | SetNumber(m) -> { number = m, name = state.name }
         end
+
+      let handle_info(info, state) =
+        state
 
       let terminate(state) =
         let _ = print_debug("terminate") in
