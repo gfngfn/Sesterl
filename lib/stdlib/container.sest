@@ -20,6 +20,7 @@ module Stdlib :> sig
       val init : fun(init_arg) -> option<state>
       val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
       val handle_cast : fun(cast_message, state) -> state
+      val terminate : fun(state) -> unit
     end
 
     module Make : fun(Callback : Behaviour) -> sig
@@ -27,6 +28,7 @@ module Stdlib :> sig
       val call<$a> : fun(proc, Callback.request, ?timeout int) -> [$a]Callback.response
       val cast<$a> : fun(proc, Callback.cast_message) -> [$a]unit
       val start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc>
+      val stop<$a> : fun(proc) -> [$a]unit
     end
   end
 

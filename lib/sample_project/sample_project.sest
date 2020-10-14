@@ -3,6 +3,7 @@ module SampleProject = struct
   module Server :> sig
     type proc
     val start_link<$a> : fun({ number : int, name : binary }) -> [$a]option<proc>
+    val stop<$a> : fun(proc) -> [$a]unit
     val set_number<$a> : fun(proc, int) -> [$a]unit
     val get_number<$a> : fun(proc, ?timeout int) -> [$a]int
   end = struct
@@ -37,11 +38,15 @@ module SampleProject = struct
         | GetName   -> (Name(state.name), state)
         end
 
-     let handle_cast(msg, state) =
-       let _ = print_debug(("handle_cast", msg)) in
-       case msg of
-       | SetNumber(m) -> { number = m, name = state.name }
-       end
+      let handle_cast(msg, state) =
+        let _ = print_debug(("handle_cast", msg)) in
+        case msg of
+        | SetNumber(m) -> { number = m, name = state.name }
+        end
+
+      let terminate(state) =
+        let _ = print_debug("terminate") in
+        ()
 
     end
 
@@ -72,7 +77,7 @@ module SampleProject = struct
 
     letrec loop(t, pid) =
       if t <= 0 then
-        return(())
+        Server.stop(pid)
       else
         do n <- async_increment(pid) in
         let _ = print_debug((t, n)) in
