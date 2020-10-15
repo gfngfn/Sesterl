@@ -44,7 +44,7 @@
 *)
 %}
 
-%token<Range.t> LET LETREC ANDREC IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE WHEN END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG EXTERNAL INCLUDE REQUIRE FREEZE
+%token<Range.t> LET LETREC ANDREC IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE WHEN END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE REQUIRE FREEZE
 %token<Range.t> LPAREN RPAREN LSQUARE RSQUARE LBRACE RBRACE
 %token<Range.t> DEFEQ COMMA ARROW REVARROW BAR UNDERSCORE CONS COLON COERCE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
@@ -357,7 +357,22 @@ sigexpr:
         let rng = make_range (Token(tokL)) (Ranged(utsig2)) in
         (rng, SigFunctor(sigident, utsig1, utsig2))
       }
+  | utsig=sigexprbot; WITH; TYPE; withtype=withtype; tyrowparams=typarams; DEFEQ; mty=ty {
+        let (typarams, _) = tyrowparams in
+        let (modidents, tyident) = withtype in
+        let rng = make_range (Ranged(utsig)) (Ranged(mty)) in
+        (rng, SigWith(utsig, modidents, tyident, typarams, mty))
+      }
   | utsig=sigexprbot { utsig }
+;
+withtype:
+  | modchain=modchainraw; tyident=DOTIDENT {
+        let (modident, modprojs) = modchain in
+        (modident :: modprojs, tyident)
+      }
+  | tyident=IDENT {
+        ([], tyident)
+      }
 ;
 sigexprbot:
   | sigident=CTOR {
