@@ -78,6 +78,7 @@ rule token = parse
           | "struct"    -> STRUCT(pos)
           | "signature" -> SIGNATURE(pos)
           | "sig"       -> SIG(pos)
+          | "with"      -> WITH(pos)
           | "external"  -> EXTERNAL(pos)
           | "include"   -> INCLUDE(pos)
           | "require"   -> REQUIRE(pos)

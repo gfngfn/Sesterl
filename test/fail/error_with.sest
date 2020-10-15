@@ -1,0 +1,11 @@
+module ErrorWith = struct
+
+  module Impl = struct
+    type t = int
+  end
+
+  module Api = Impl :> (sig
+    type t
+  end with type t = bool)
+
+end

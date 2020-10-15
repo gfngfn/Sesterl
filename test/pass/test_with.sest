@@ -1,0 +1,23 @@
+module TestWith = struct
+
+  module Impl1 = struct
+    type t = int
+  end
+
+  module Api1 = Impl1 :> (sig
+    type t
+  end with type t = int)
+
+  module Impl2 = struct
+    module M = struct
+      type t = int
+    end
+  end
+
+  module Api2 = Impl2 :> (sig
+    module M : sig
+      type t
+    end
+  end with type M.t = int)
+
+end
