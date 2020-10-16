@@ -3030,104 +3030,14 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       assert false
 
   | BindType((_ :: _) as tybinds) ->
-      let pre_init =
-        {
-          level                 = 0;
-          tyenv                 = tyenv;
-          local_type_parameters = TypeParameterMap.empty;
-          local_row_parameters  = RowParameterMap.empty;
-        }
+      let (tydefs, ctordefs) = bind_types tyenv tybinds in
+      let sigr = SigRecord.empty |> SigRecord.add_types tydefs in
+      let sigr =
+        ctordefs |> List.fold_left (fun sigr (vid, typarams, ctorbrmap) ->
+          sigr |> SigRecord.add_constructors vid typarams ctorbrmap
+        ) sigr
       in
-
-      (* First, add the arity of each type to be defined. *)
-      let (synacc, vntacc, vertices, graph, tyenv) =
-        tybinds |> List.fold_left (fun (synacc, vntacc, vertices, graph, tyenv) (tyident, tyvars, syn_or_vnt) ->
-          let (_, tynm) = tyident in
-          let pkd =
-            let bkddoms =
-              tyvars |> List.map (fun (_, kdannot) ->
-                match kdannot with
-                | None        -> UniversalKind
-                | Some(mnbkd) -> decode_manual_base_kind pre_init mnbkd
-              )
-            in
-            let kd = Kind(bkddoms, UniversalKind) in
-            TypeConv.lift_kind kd
-          in
-          match syn_or_vnt with
-          | BindSynonym(synbind) ->
-              let sid = TypeID.Synonym.fresh tynm in
-              let graph = graph |> DependencyGraph.add_vertex sid tyident in
-              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Synonym(sid)) pkd in
-              let synacc = Alist.extend synacc (tyident, tyvars, synbind, sid, pkd) in
-              (synacc, vntacc, vertices |> SynonymIDSet.add sid, graph, tyenv)
-
-          | BindVariant(vntbind) ->
-              let vid = TypeID.Variant.fresh tynm in
-              let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Variant(vid)) pkd in
-              let vntacc = Alist.extend vntacc (tyident, tyvars, vntbind, vid, pkd) in
-              (synacc, vntacc, vertices, graph, tyenv)
-        ) (Alist.empty, Alist.empty, SynonymIDSet.empty, DependencyGraph.empty, tyenv)
-      in
-      let pre = { pre_init with tyenv = tyenv } in
-
-      (* Second, traverse each definition of the synonym types.
-         Here, the dependency among synonym types are extracted. *)
-      let (graph, tydefacc) =
-        synacc |> Alist.to_list |> List.fold_left (fun (graph, tydefacc) syn ->
-          let ((_, tynm), tyvars, mtyreal, sid, pkd) = syn in
-          let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
-          let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
-          let (tyreal, dependencies) = decode_manual_type_and_get_dependency vertices pre mtyreal in
-          let ptyreal =
-            match TypeConv.generalize 0 tyreal with
-            | Ok(ptyreal) -> ptyreal
-            | Error(_)    -> assert false
-                (* Type parameters occurring in handwritten types cannot be cyclic. *)
-          in
-          let graph =
-            graph |> SynonymIDSet.fold (fun siddep graph ->
-              graph |> DependencyGraph.add_edge sid siddep
-            ) dependencies
-          in
-          TypeDefinitionStore.add_synonym_type sid typarams ptyreal;
-          let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Synonym(sid), pkd)) in
-          (graph, tydefacc)
-        ) (graph, Alist.empty)
-      in
-
-      (* Third, traverse each definition of the variant types. *)
-      let (tydefacc, ctordefacc) =
-        vntacc |> Alist.to_list |> List.fold_left (fun (tydefacc, ctordefacc) vnt ->
-          let ((_, tynm), tyvars, ctorbrs, vid, pkd) = vnt in
-          let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
-          let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
-          let ctorbrmap =
-            make_constructor_branch_map pre ctorbrs
-          in
-          TypeDefinitionStore.add_variant_type vid typarams ctorbrmap;
-          let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Variant(vid), pkd)) in
-          let ctordefacc = Alist.extend ctordefacc (vid, typarams, ctorbrmap) in
-          (tydefacc, ctordefacc)
-        ) (tydefacc, Alist.empty)
-      in
-
-      (* Finally, check that no cyclic dependency exists among synonym types
-         and make the signature to be returned from the type definitions. *)
-      begin
-        match DependencyGraph.find_cycle graph with
-        | Some(cycle) ->
-            raise_error (CyclicSynonymTypeDefinition(cycle))
-
-        | None ->
-            let sigr = SigRecord.empty |> SigRecord.add_types (tydefacc |> Alist.to_list) in
-            let sigr =
-              ctordefacc |> Alist.to_list |> List.fold_left (fun sigr (vid, typarams, ctorbrmap) ->
-                sigr |> SigRecord.add_constructors vid typarams ctorbrmap
-              ) sigr
-            in
-            ((OpaqueIDSet.empty, sigr), [])
-      end
+      ((OpaqueIDSet.empty, sigr), [])
 
   | BindModule(modident, utsigopt2, utmod1) ->
       let (rngm, m) = modident in
@@ -3169,6 +3079,96 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       let absmodsig = typecheck_signature tyenv sigbind in
       let sigr = SigRecord.empty |> SigRecord.add_signature signm absmodsig in
       ((OpaqueIDSet.empty, sigr), [])
+
+
+and bind_types (tyenv : Typeenv.t) (tybinds : (type_name ranged * type_variable_binder list * synonym_or_variant) list) : (type_name * type_opacity) list * (TypeID.Variant.t * BoundID.t list * constructor_branch_map) list =
+  let pre_init =
+    {
+      level                 = 0;
+      tyenv                 = tyenv;
+      local_type_parameters = TypeParameterMap.empty;
+      local_row_parameters  = RowParameterMap.empty;
+    }
+  in
+
+  (* First, add the arity of each type to be defined. *)
+  let (synacc, vntacc, vertices, graph, tyenv) =
+    tybinds |> List.fold_left (fun (synacc, vntacc, vertices, graph, tyenv) (tyident, tyvars, syn_or_vnt) ->
+      let (_, tynm) = tyident in
+      let pkd =
+        let bkddoms =
+          tyvars |> List.map (fun (_, kdannot) ->
+            match kdannot with
+            | None        -> UniversalKind
+            | Some(mnbkd) -> decode_manual_base_kind pre_init mnbkd
+          )
+        in
+        let kd = Kind(bkddoms, UniversalKind) in
+        TypeConv.lift_kind kd
+      in
+      match syn_or_vnt with
+      | BindSynonym(synbind) ->
+          let sid = TypeID.Synonym.fresh tynm in
+          let graph = graph |> DependencyGraph.add_vertex sid tyident in
+          let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Synonym(sid)) pkd in
+          let synacc = Alist.extend synacc (tyident, tyvars, synbind, sid, pkd) in
+          (synacc, vntacc, vertices |> SynonymIDSet.add sid, graph, tyenv)
+
+      | BindVariant(vntbind) ->
+          let vid = TypeID.Variant.fresh tynm in
+          let tyenv = tyenv |> Typeenv.add_type_for_recursion tynm (TypeID.Variant(vid)) pkd in
+          let vntacc = Alist.extend vntacc (tyident, tyvars, vntbind, vid, pkd) in
+          (synacc, vntacc, vertices, graph, tyenv)
+    ) (Alist.empty, Alist.empty, SynonymIDSet.empty, DependencyGraph.empty, tyenv)
+  in
+  let pre = { pre_init with tyenv = tyenv } in
+
+  (* Second, traverse each definition of the synonym types.
+     Here, the dependency among synonym types are extracted. *)
+  let (graph, tydefacc) =
+    synacc |> Alist.to_list |> List.fold_left (fun (graph, tydefacc) syn ->
+      let ((_, tynm), tyvars, mtyreal, sid, pkd) = syn in
+      let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
+      let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
+      let (tyreal, dependencies) = decode_manual_type_and_get_dependency vertices pre mtyreal in
+      let ptyreal =
+        match TypeConv.generalize 0 tyreal with
+        | Ok(ptyreal) -> ptyreal
+        | Error(_)    -> assert false
+            (* Type parameters occurring in handwritten types cannot be cyclic. *)
+      in
+      let graph =
+        graph |> SynonymIDSet.fold (fun siddep graph ->
+          graph |> DependencyGraph.add_edge sid siddep
+        ) dependencies
+      in
+      TypeDefinitionStore.add_synonym_type sid typarams ptyreal;
+      let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Synonym(sid), pkd)) in
+      (graph, tydefacc)
+    ) (graph, Alist.empty)
+  in
+
+  (* Third, traverse each definition of the variant types. *)
+  let (tydefacc, ctordefacc) =
+    vntacc |> Alist.to_list |> List.fold_left (fun (tydefacc, ctordefacc) vnt ->
+      let ((_, tynm), tyvars, ctorbrs, vid, pkd) = vnt in
+      let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
+      let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
+      let ctorbrmap =
+        make_constructor_branch_map pre ctorbrs
+      in
+      TypeDefinitionStore.add_variant_type vid typarams ctorbrmap;
+      let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Variant(vid), pkd)) in
+      let ctordefacc = Alist.extend ctordefacc (vid, typarams, ctorbrmap) in
+      (tydefacc, ctordefacc)
+    ) (tydefacc, Alist.empty)
+  in
+
+  (* Finally, check that no cyclic dependency exists among synonym types
+     and make the signature to be returned from the type definitions. *)
+  match DependencyGraph.find_cycle graph with
+  | Some(cycle) -> raise_error (CyclicSynonymTypeDefinition(cycle))
+  | None        -> (Alist.to_list tydefacc, Alist.to_list ctordefacc)
 
 
 and typecheck_module (tyenv : Typeenv.t) (utmod : untyped_module) : module_signature abstracted * binding list =
