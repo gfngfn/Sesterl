@@ -123,3 +123,5 @@ end
 val display_signature : int -> module_signature -> unit
 
 val display_structure : int -> SigRecord.t -> unit
+
+val display_top_structure : module_name ranged -> SigRecord.t -> unit

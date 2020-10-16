@@ -13,7 +13,7 @@ let check_single (is_verbose : bool) ~for_signature:(tyenv_for_sig : Typeenv.t) 
   let absmodsigopt = utsigopt |> Option.map (Typechecker.typecheck_signature tyenv_for_sig) in
   let (tyenv, abssigr, sname, binds) = Typechecker.main tyenv_for_mod modident absmodsigopt utmod in
   let (_, sigr) = abssigr in
-  if is_verbose then display_structure 0 sigr;
+  if is_verbose then display_top_structure modident sigr;
   let out = (sname, binds) in
   (tyenv, abssigr, out)
 
