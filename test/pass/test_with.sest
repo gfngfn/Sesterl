@@ -20,4 +20,18 @@ module TestWith = struct
     end
   end with M type t = int)
 
+  module Impl3 = struct
+    type t =
+      | Foo(int)
+      | Bar(binary)
+  end
+
+  module Api3 = Impl3 :> (sig
+    type t :: o
+  end with
+    type t =
+      | Foo(int)
+      | Bar(binary)
+  )
+
 end
