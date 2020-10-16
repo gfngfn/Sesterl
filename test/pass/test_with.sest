@@ -18,6 +18,6 @@ module TestWith = struct
     module M : sig
       type t
     end
-  end with type M.t = int)
+  end with M type t = int)
 
 end
