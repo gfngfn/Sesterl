@@ -35,7 +35,57 @@ module Stdlib :> sig
     end
   end
 
+  module Supervisor : sig
+    module Static : sig
+      type strategy :: o /* =
+        | OneForAll
+        | OneForOne
+        | RestForOne */
+      type sup_flags :: o
+      val make_sup_flags :
+        fun(
+          ?strategy  strategy,
+          ?intensity int,
+          ?period    int,
+        ) -> sup_flags
+      type child_proc :: o
+      val make_child_proc<$a> : fun(pid<$a>) -> child_proc
+      type restart :: o /* =
+        | Permanent
+        | Transient
+        | Temporary */
+      type shutdown :: o /* =
+        | BrutalKill
+        | Timeout(int)
+        | Infinity */
+      type worker :: o /* =
+        | Worker
+        | Supervisor */
+      type child_spec :: (o) -> o
+      val make_child_spec<$a> :
+        fun(
+          -id       $a,
+          -start    frozen<child_proc>,
+          ?restart  restart,
+          ?shutdown shutdown,
+          ?type     worker,
+        ) -> child_spec<$a>
+
+      signature Behaviour = sig
+        type child_id :: o
+        type init_arg :: o
+        val init : fun(init_arg) -> option<(sup_flags, list<child_spec<child_id>>)>
+      end
+
+      module Make : fun(Callback : Behaviour) -> sig
+        type proc :: o
+        val start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc>
+      end
+    end
+  end
+
 end = struct
   module List = List
   module GenServer = GenServer
+  module Supervisor = Supervisor
 end

@@ -530,3 +530,10 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
         Format.printf "%sconstructor %s\n" indent ctornm
       )
       ()
+
+
+let display_top_structure ((_, modnm) : module_name ranged) (sigr : SigRecord.t) =
+  Format.printf "  --------------------------------\n";
+  Format.printf "  module %s =\n" modnm;
+  display_structure 2 sigr;
+  Format.printf "  --------------------------------\n"
