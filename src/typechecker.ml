@@ -2251,6 +2251,9 @@ and lookup_type_opacity (tynm : type_name) (tyopac1 : type_opacity) (tyopac2 : t
   else
     match (tyid1, tyid2) with
     | (_, TypeID.Opaque(oid2)) ->
+(*
+        Format.printf "lookup_type_opacity> %a <= %a\n" TypeID.pp tyid1 TypeID.pp tyid2;  (* for debug *)
+*)
         Some(WitnessMap.empty |> WitnessMap.add_opaque oid2 tyid1)
 
     | (TypeID.Variant(vid1), TypeID.Variant(vid2)) ->
@@ -3309,8 +3312,8 @@ and typecheck_binding_list (tyenv : Typeenv.t) (utbinds : untyped_binding list) 
 
 
 and coerce_signature (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
-  let wtmap = subtype_signature rng modsig1 absmodsig2 in
-  let ((oidset2, modsig2), _) = absmodsig2 |> substitute_abstract wtmap in
+  let _wtmap = subtype_signature rng modsig1 absmodsig2 in
+  let (oidset2, modsig2) = absmodsig2 in
   (oidset2, copy_closure modsig1 modsig2)
 
 
