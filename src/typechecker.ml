@@ -2883,71 +2883,70 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
       let (rng0, _) = utsig0 in
       let absmodsig0 = typecheck_signature tyenv utsig0 in
       let (oidset0, modsig0) = absmodsig0 in
-      let (rnglast, modsiglast) =
-        modidents |> List.fold_left (fun (rngpre, modsig) (rng, modnm) ->
-          match modsig with
-          | ConcFunctor(_) ->
-              raise_error (NotAStructureSignature(rngpre, modsig))
-
-          | ConcStructure(sigr) ->
-              begin
-                match sigr |> SigRecord.find_module modnm with
-                | None            -> raise_error (UnboundModuleName(rng, modnm))
-                | Some(modsig, _) -> (rng, modsig)
-              end
-        ) (rng0, modsig0)
-      in
       let (rng1, tynm1) = tyident1 in
-      begin
+      let sigrlast =
+        let (rnglast, modsiglast) =
+          modidents |> List.fold_left (fun (rngpre, modsig) (rng, modnm) ->
+            match modsig with
+            | ConcFunctor(_) ->
+                raise_error (NotAStructureSignature(rngpre, modsig))
+
+            | ConcStructure(sigr) ->
+                begin
+                  match sigr |> SigRecord.find_module modnm with
+                  | None            -> raise_error (UnboundModuleName(rng, modnm))
+                  | Some(modsig, _) -> (rng, modsig)
+                end
+          ) (rng0, modsig0)
+        in
         match modsiglast with
-        | ConcFunctor(_) ->
-            raise_error (NotAStructureSignature(rnglast, modsiglast))
+        | ConcFunctor(_)          -> raise_error (NotAStructureSignature(rnglast, modsiglast))
+        | ConcStructure(sigrlast) -> sigrlast
+      in
+      let (oid, pkd) =
+        match sigrlast |> SigRecord.find_type tynm1 with
+        | None ->
+            raise_error (UndefinedTypeName(rng1, tynm1))
 
-        | ConcStructure(sigrlast) ->
-            begin
-              match sigrlast |> SigRecord.find_type tynm1 with
-              | None ->
-                  raise_error (UndefinedTypeName(rng1, tynm1))
+        | Some(TypeID.Opaque(oid), pkd) ->
+            assert (oidset0 |> OpaqueIDSet.mem oid);
+            (oid, pkd)
 
-              | Some(TypeID.Opaque(oid), pkd) ->
-                  assert (oidset0 |> OpaqueIDSet.mem oid);
-                  let pre_init =
-                    {
-                      level                 = 0;
-                      tyenv                 = tyenv;
-                      local_type_parameters = TypeParameterMap.empty;
-                      local_row_parameters  = RowParameterMap.empty;
-                    }
-                  in
-                  let (pre, typaramassoc) = make_type_parameter_assoc pre_init tyvars in
-                  let pty =
-                    let ty = decode_manual_type pre mty in
-                    match TypeConv.generalize 0 ty with
-                    | Ok(pty)  -> pty
-                    | Error(_) -> assert false
-                        (* Type parameters occurring in handwritten types cannot be cyclic. *)
-                  in
-                  let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
-                  let arity_expected = TypeConv.arity_of_kind pkd in
-                  let arity_actual = List.length typarams in
-                  if arity_actual = arity_expected then
-                    let modsigret =
-                      let sid = TypeID.Synonym.fresh tynm1 in
-                      TypeDefinitionStore.add_synonym_type sid typarams pty;
-                      let wtmap =
-                        WitnessMap.empty |> WitnessMap.add_opaque oid (TypeID.Synonym(sid))
-                      in
-                      let (modsigret, _) = substitute_concrete wtmap modsig0 in
-                      modsigret
-                    in
-                    (oidset0 |> OpaqueIDSet.remove oid, modsigret)
-                  else
-                    raise_error (InvalidNumberOfTypeArguments(rng1, tynm1, arity_expected, arity_actual))
-
-              | Some(tyopac) ->
-                  raise_error (CannotRestrictTransparentType(rng1, tyopac))
-            end
-      end
+        | Some(tyopac) ->
+            raise_error (CannotRestrictTransparentType(rng1, tyopac))
+      in
+      let pre_init =
+        {
+          level                 = 0;
+          tyenv                 = tyenv;
+          local_type_parameters = TypeParameterMap.empty;
+          local_row_parameters  = RowParameterMap.empty;
+        }
+      in
+      let (pre, typaramassoc) = make_type_parameter_assoc pre_init tyvars in
+      let pty =
+        let ty = decode_manual_type pre mty in
+        match TypeConv.generalize 0 ty with
+        | Ok(pty)  -> pty
+        | Error(_) -> assert false
+            (* Type parameters occurring in handwritten types cannot be cyclic. *)
+      in
+      let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
+      let arity_expected = TypeConv.arity_of_kind pkd in
+      let arity_actual = List.length typarams in
+      if arity_actual = arity_expected then
+        let modsigret =
+          let sid = TypeID.Synonym.fresh tynm1 in
+          TypeDefinitionStore.add_synonym_type sid typarams pty;
+          let wtmap =
+            WitnessMap.empty |> WitnessMap.add_opaque oid (TypeID.Synonym(sid))
+          in
+          let (modsigret, _) = substitute_concrete wtmap modsig0 in
+          modsigret
+        in
+        (oidset0 |> OpaqueIDSet.remove oid, modsigret)
+      else
+        raise_error (InvalidNumberOfTypeArguments(rng1, tynm1, arity_expected, arity_actual))
 
 
 and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding list =
