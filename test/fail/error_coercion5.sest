@@ -1,0 +1,14 @@
+module ErrorCoercion5 = struct
+  module Impl = struct
+    type t = int
+    let make(x) = x
+  end
+
+  module Sub = Impl :> sig
+    type t :: o
+    val make : fun(int) -> t
+  end
+
+  let main() =
+    Sub.make(5) + 1
+end
