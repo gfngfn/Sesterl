@@ -357,22 +357,15 @@ sigexpr:
         let rng = make_range (Token(tokL)) (Ranged(utsig2)) in
         (rng, SigFunctor(sigident, utsig1, utsig2))
       }
-  | utsig=sigexprbot; WITH; TYPE; withtype=withtype; tyrowparams=typarams; DEFEQ; mty=ty {
-        let (typarams, _) = tyrowparams in
-        let (modidents, tyident) = withtype in
-        let rng = make_range (Ranged(utsig)) (Ranged(mty)) in
-        (rng, SigWith(utsig, modidents, tyident, typarams, mty))
+  | utsig=sigexprbot; WITH; modidents=withproj; TYPE; tybind=bindtypesingle; tybinds=list(bindtypesub) {
+        let rng = Range.dummy "sigexpr" in  (* TODO: give appropriate code ranges *)
+        (rng, SigWith(utsig, modidents, tybind :: tybinds))
       }
   | utsig=sigexprbot { utsig }
 ;
-withtype:
-  | modchain=modchainraw; tyident=DOTIDENT {
-        let (modident, modprojs) = modchain in
-        (modident :: modprojs, tyident)
-      }
-  | tyident=IDENT {
-        ([], tyident)
-      }
+withproj:
+  |                                        { [] }
+  | modident=CTOR; modidents=list(DOTCTOR) { modident :: modidents }
 ;
 sigexprbot:
   | sigident=CTOR {

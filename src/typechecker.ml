@@ -2120,6 +2120,9 @@ and poly_row_equal (prow1 : poly_row) (prow2 : poly_row) : bool =
 
 
 and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
+
+  let aux_label_assoc = poly_label_assoc_equal in
+
   let rec aux (pty1 : poly_type) (pty2 : poly_type) : bool =
     let (_, ptymain1) = pty1 in
     let (_, ptymain2) = pty2 in
@@ -2193,19 +2196,21 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
     | _ ->
         false
 
-  and aux_label_assoc plabmap1 plabmap2 =
-    let merged =
-      LabelAssoc.merge (fun _ ptyopt1 ptyopt2 ->
-        match (ptyopt1, ptyopt2) with
-        | (None, None)             -> None
-        | (None, Some(_))          -> Some(false)
-        | (Some(_), None)          -> Some(false)
-        | (Some(pty1), Some(pty2)) -> Some(aux pty1 pty2)
-      ) plabmap1 plabmap2
-    in
-    merged |> LabelAssoc.for_all (fun _ b -> b)
   in
   aux pty1 pty2
+
+
+and poly_label_assoc_equal plabmap1 plabmap2 =
+  let merged =
+    LabelAssoc.merge (fun _ ptyopt1 ptyopt2 ->
+      match (ptyopt1, ptyopt2) with
+      | (None, None)             -> None
+      | (None, Some(_))          -> Some(false)
+      | (Some(_), None)          -> Some(false)
+      | (Some(pty1), Some(pty2)) -> Some(poly_type_equal pty1 pty2)
+    ) plabmap1 plabmap2
+  in
+  merged |> LabelAssoc.for_all (fun _ b -> b)
 
 
 and subtype_type_abstraction (wtmap : WitnessMap.t) (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : bool =
@@ -2879,11 +2884,10 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
             raise_error (SupportOnlyFirstOrderFunctor(rng))
       end
 
-  | SigWith(utsig0, modidents, tyident1, tyvars, mty) ->
+  | SigWith(utsig0, modidents, tybinds) ->
       let (rng0, _) = utsig0 in
       let absmodsig0 = typecheck_signature tyenv utsig0 in
       let (oidset0, modsig0) = absmodsig0 in
-      let (rng1, tynm1) = tyident1 in
       let sigrlast =
         let (rnglast, modsiglast) =
           modidents |> List.fold_left (fun (rngpre, modsig) (rng, modnm) ->
@@ -2903,50 +2907,55 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
         | ConcFunctor(_)          -> raise_error (NotAStructureSignature(rnglast, modsiglast))
         | ConcStructure(sigrlast) -> sigrlast
       in
-      let (oid, pkd) =
-        match sigrlast |> SigRecord.find_type tynm1 with
-        | None ->
-            raise_error (UndefinedTypeName(rng1, tynm1))
+      let (tydefs, ctordefs) = bind_types tyenv tybinds in
+      let (wtmap, oidset) =
+        tydefs |> List.fold_left (fun (wtmap, oidset) (tyident1, (tyid, pkd_actual)) ->
+          let (rng1, tynm1) = tyident1 in
+          let (oid, pkd_expected) =
+            match sigrlast |> SigRecord.find_type tynm1 with
+            | None ->
+                raise_error (UndefinedTypeName(rng1, tynm1))
 
-        | Some(TypeID.Opaque(oid), pkd) ->
-            assert (oidset0 |> OpaqueIDSet.mem oid);
-            (oid, pkd)
+            | Some(TypeID.Opaque(oid), pkd) ->
+                assert (oidset0 |> OpaqueIDSet.mem oid);
+                  (oid, pkd)
 
-        | Some(tyopac) ->
-            raise_error (CannotRestrictTransparentType(rng1, tyopac))
-      in
-      let pre_init =
-        {
-          level                 = 0;
-          tyenv                 = tyenv;
-          local_type_parameters = TypeParameterMap.empty;
-          local_row_parameters  = RowParameterMap.empty;
-        }
-      in
-      let (pre, typaramassoc) = make_type_parameter_assoc pre_init tyvars in
-      let pty =
-        let ty = decode_manual_type pre mty in
-        match TypeConv.generalize 0 ty with
-        | Ok(pty)  -> pty
-        | Error(_) -> assert false
-            (* Type parameters occurring in handwritten types cannot be cyclic. *)
-      in
-      let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
-      let arity_expected = TypeConv.arity_of_kind pkd in
-      let arity_actual = List.length typarams in
-      if arity_actual = arity_expected then
-        let modsigret =
-          let sid = TypeID.Synonym.fresh tynm1 in
-          TypeDefinitionStore.add_synonym_type sid typarams pty;
-          let wtmap =
-            WitnessMap.empty |> WitnessMap.add_opaque oid (TypeID.Synonym(sid))
+            | Some(tyopac) ->
+                raise_error (CannotRestrictTransparentType(rng1, tyopac))
           in
-          let (modsigret, _) = substitute_concrete wtmap modsig0 in
-          modsigret
-        in
-        (oidset0 |> OpaqueIDSet.remove oid, modsigret)
+          unify_kind rng1 tynm1 ~actual:pkd_actual ~expected:pkd_expected;
+          let wtmap = wtmap |> WitnessMap.add_opaque oid tyid in
+          let oidset = oidset |> OpaqueIDSet.remove oid in
+          (wtmap, oidset)
+
+        ) (WitnessMap.empty, oidset0)
+      in
+      let (modsigret, _) = substitute_concrete wtmap modsig0 in
+      (oidset, modsigret)
+
+
+and unify_kind (rng : Range.t) (tynm : type_name) ~actual:(pkd1 : poly_kind) ~expected:(pkd2 : poly_kind) : unit =
+  let Kind(bkdsdom1, bkdcod1) = pkd1 in
+  let Kind(bkdsdom2, bkdcod2) = pkd2 in
+  match List.combine bkdsdom1 bkdsdom2 with
+  | exception Invalid_argument(_) ->
+      let arity_actual = List.length bkdsdom1 in
+      let arity_expected = List.length bkdsdom2 in
+      raise_error (InvalidNumberOfTypeArguments(rng, tynm, arity_expected, arity_actual))
+
+  | bkddomzips ->
+      let bdom = bkddomzips |> List.for_all (fun (bkd1, bkd2) -> base_kind_equal bkd1 bkd2) in
+      if bdom && base_kind_equal bkdcod1 bkdcod2 then
+        ()
       else
-        raise_error (InvalidNumberOfTypeArguments(rng1, tynm1, arity_expected, arity_actual))
+        raise_error (KindContradiction(rng, tynm, pkd1, pkd2))
+
+
+and base_kind_equal (bkd1 : poly_base_kind) (bkd2 : poly_base_kind) =
+  match (bkd1, bkd2) with
+  | (UniversalKind, UniversalKind)               -> true
+  | (RecordKind(plabmap1), RecordKind(plabmap2)) -> poly_label_assoc_equal plabmap1 plabmap2
+  | _                                            -> false
 
 
 and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * binding list =
@@ -3031,6 +3040,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
 
   | BindType((_ :: _) as tybinds) ->
       let (tydefs, ctordefs) = bind_types tyenv tybinds in
+      let tydefs = tydefs |> List.map (fun ((_, tynm), tyopac) -> (tynm, tyopac)) in
       let sigr = SigRecord.empty |> SigRecord.add_types tydefs in
       let sigr =
         ctordefs |> List.fold_left (fun sigr (vid, typarams, ctorbrmap) ->
@@ -3081,7 +3091,7 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       ((OpaqueIDSet.empty, sigr), [])
 
 
-and bind_types (tyenv : Typeenv.t) (tybinds : (type_name ranged * type_variable_binder list * synonym_or_variant) list) : (type_name * type_opacity) list * (TypeID.Variant.t * BoundID.t list * constructor_branch_map) list =
+and bind_types (tyenv : Typeenv.t) (tybinds : type_binding list) : (type_name ranged * type_opacity) list * (TypeID.Variant.t * BoundID.t list * constructor_branch_map) list =
   let pre_init =
     {
       level                 = 0;
@@ -3127,7 +3137,7 @@ and bind_types (tyenv : Typeenv.t) (tybinds : (type_name ranged * type_variable_
      Here, the dependency among synonym types are extracted. *)
   let (graph, tydefacc) =
     synacc |> Alist.to_list |> List.fold_left (fun (graph, tydefacc) syn ->
-      let ((_, tynm), tyvars, mtyreal, sid, pkd) = syn in
+      let (tyident, tyvars, mtyreal, sid, pkd) = syn in
       let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
       let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
       let (tyreal, dependencies) = decode_manual_type_and_get_dependency vertices pre mtyreal in
@@ -3143,7 +3153,7 @@ and bind_types (tyenv : Typeenv.t) (tybinds : (type_name ranged * type_variable_
         ) dependencies
       in
       TypeDefinitionStore.add_synonym_type sid typarams ptyreal;
-      let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Synonym(sid), pkd)) in
+      let tydefacc = Alist.extend tydefacc (tyident, (TypeID.Synonym(sid), pkd)) in
       (graph, tydefacc)
     ) (graph, Alist.empty)
   in
@@ -3151,14 +3161,14 @@ and bind_types (tyenv : Typeenv.t) (tybinds : (type_name ranged * type_variable_
   (* Third, traverse each definition of the variant types. *)
   let (tydefacc, ctordefacc) =
     vntacc |> Alist.to_list |> List.fold_left (fun (tydefacc, ctordefacc) vnt ->
-      let ((_, tynm), tyvars, ctorbrs, vid, pkd) = vnt in
+      let (tyident, tyvars, ctorbrs, vid, pkd) = vnt in
       let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
       let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
       let ctorbrmap =
         make_constructor_branch_map pre ctorbrs
       in
       TypeDefinitionStore.add_variant_type vid typarams ctorbrmap;
-      let tydefacc = Alist.extend tydefacc (tynm, (TypeID.Variant(vid), pkd)) in
+      let tydefacc = Alist.extend tydefacc (tyident, (TypeID.Variant(vid), pkd)) in
       let ctordefacc = Alist.extend ctordefacc (vid, typarams, ctorbrmap) in
       (tydefacc, ctordefacc)
     ) (tydefacc, Alist.empty)

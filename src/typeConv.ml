@@ -831,7 +831,10 @@ let show_poly_kind (pkd : poly_kind) : string list * string list * string =
       let smain =
         let sdoms = pbkddoms |> List.map (show_poly_base_kind_sub hts) in
         let scod = show_poly_base_kind_sub hts pbkdcod in
-        Printf.sprintf "(%s) -> %s" (String.concat ", " sdoms) scod
+        if List.length sdoms > 0 then
+          Printf.sprintf "(%s) -> %s" (String.concat ", " sdoms) scod
+        else
+          scod
       in
       let sbids = show_bound_type_ids hts in
       let sbrids = show_bound_row_ids hts in
