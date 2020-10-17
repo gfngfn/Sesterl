@@ -78,8 +78,6 @@ and record_signature_entry =
   | SRModule   of module_name * (module_signature * space_name)
   | SRSig      of signature_name * module_signature abstracted
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRSig>")]
-  | SRCtor     of constructor_name * constructor_entry
-      [@printer (fun ppf _ -> Format.fprintf ppf "<SRCtor>")]
 [@@deriving show { with_path = false }]
 
 
@@ -259,24 +257,28 @@ module SigRecord = struct
     Alist.extend sigr (SRRecTypes(tydefs))
 
 
-  let add_constructors (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorbrs : constructor_branch_map) (sigr : t) : t =
-    ConstructorMap.fold (fun ctornm (ctorid, ptys) sigr ->
-      let ctorentry =
-        {
-          belongs         = vid;
-          constructor_id  = ctorid;
-          type_variables  = typarams;
-          parameter_types = ptys;
-        }
-      in
-      Alist.extend sigr (SRCtor(ctornm, ctorentry))
-    ) ctorbrs sigr
-
-
-  let find_constructor (ctornm0 : constructor_name) (sigr : t) : constructor_entry option =
+  let find_constructor (ctornm : constructor_name) (sigr : t) : constructor_entry option =
     sigr |> Alist.to_rev_list |> List.find_map (function
-    | SRCtor(ctornm, entry) -> if String.equal ctornm ctornm0 then Some(entry) else None
-    | _                     -> None
+    | SRRecTypes(tydefs) ->
+        tydefs |> List.find_map (fun (tynm, (tyid, pkd)) ->
+          match tyid with
+          | TypeID.Variant(vid) ->
+              let (bids, ctorbrs) = TypeDefinitionStore.find_variant_type vid in
+              ctorbrs |> ConstructorMap.find_opt ctornm |> Option.map (fun (ctorid, ptyparams) ->
+                {
+                  belongs         = vid;
+                  constructor_id  = ctorid;
+                  type_variables  = bids;
+                  parameter_types = ptyparams;
+                }
+              )
+
+          | _ ->
+              None
+        )
+
+    | _ ->
+        None
     )
 
 
@@ -323,7 +325,6 @@ module SigRecord = struct
       ~t:(ft : (type_name * type_opacity) list -> a -> a)
       ~m:(fm : module_name -> module_signature * space_name -> a -> a)
       ~s:(fs : signature_name -> module_signature abstracted -> a -> a)
-      ~c:(fc : constructor_name -> constructor_entry -> a -> a)
       (init : a) (sigr : t) : a =
     sigr |> Alist.to_list |> List.fold_left (fun acc entry ->
       match entry with
@@ -331,7 +332,6 @@ module SigRecord = struct
       | SRRecTypes(tydefs)      -> ft tydefs acc
       | SRModule(modnm, mentry) -> fm modnm mentry acc
       | SRSig(signm, absmodsig) -> fs signm absmodsig acc
-      | SRCtor(ctor, ctorentry) -> fc ctor ctorentry acc
     ) init
 
 
@@ -340,7 +340,6 @@ module SigRecord = struct
       ~t:(ft : (type_name * type_opacity) list -> a -> type_opacity list * a)
       ~m:(fm : module_name -> module_signature * space_name -> a -> (module_signature * space_name) * a)
       ~s:(fs : signature_name -> module_signature abstracted -> a -> module_signature abstracted * a)
-      ~c:(fc : constructor_name -> constructor_entry -> a -> constructor_entry * a)
       (init : a) (sigr : t) : t * a =
       sigr |> Alist.to_list |> List.fold_left (fun (sigracc, acc) entry ->
         match entry with
@@ -361,9 +360,6 @@ module SigRecord = struct
             let (absmodsig, acc) = fs signm absmodsig acc in
             (Alist.extend sigracc (SRSig(signm, absmodsig)), acc)
 
-        | SRCtor(ctornm, ctorentry) ->
-            let (ctorentry, acc) = fc ctornm ctorentry acc in
-            (Alist.extend sigracc (SRCtor(ctornm, ctorentry)), acc)
       ) (Alist.empty, init)
 
 
@@ -372,7 +368,6 @@ module SigRecord = struct
       ~t:(ft : (type_name * type_opacity) list -> type_opacity list)
       ~m:(fm : module_name -> module_signature * space_name -> module_signature * space_name)
       ~s:(fs : signature_name -> module_signature abstracted -> module_signature abstracted)
-      ~c:(fc : constructor_name -> constructor_entry -> constructor_entry)
       (sigr : t) : t =
     let (sigr, ()) =
       sigr |> map_and_fold
@@ -380,7 +375,6 @@ module SigRecord = struct
           ~t:(fun tydefs () -> (ft tydefs, ()))
           ~m:(fun modnm mentry () -> (fm modnm mentry, ()))
           ~s:(fun signm sentry () -> (fs signm sentry, ()))
-          ~c:(fun ctornm centry () -> (fc ctornm centry, ()))
           ()
     in
     sigr
@@ -414,7 +408,6 @@ module SigRecord = struct
             | SRRecTypes(tydefs) -> tydefs |> List.iter (fun (tynm, _) -> check_none tynm (find_type tynm sigr1))
             | SRModule(modnm, _) -> check_none modnm (find_module modnm sigr1)
             | SRSig(signm, _)    -> check_none signm (find_signature signm sigr1)
-            | SRCtor(ctor, _)    -> check_none ctor (find_constructor ctor sigr1)
           in
           Alist.extend sigracc entry
         ) sigr1
@@ -462,6 +455,16 @@ let display_poly_type pty =
   (ssub, sty)
 
 
+let display_poly_type_params (ptys : poly_type list) =
+  match ptys with
+  | [] ->
+      ""
+
+  | _ :: _ ->
+      let ss = ptys |> List.map display_poly_type |> List.map (fun (_, sty) -> sty) in
+      Printf.sprintf "(%s)" (String.concat ", " ss)
+
+
 let rec display_signature (depth : int) (modsig : module_signature) : unit =
   let indent = String.make (depth * 2) ' ' in
   match modsig with
@@ -502,11 +505,18 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
                 sty
 
           | TypeID.Variant(vid) ->
-              let (typarams, _ctorbrs) = TypeDefinitionStore.find_variant_type vid in
-              Format.printf "%stype %a%a = (variant)\n"
+              let (typarams, ctorbrs) = TypeDefinitionStore.find_variant_type vid in
+              Format.printf "%stype %a%a =\n"
                 indent
                 TypeID.Variant.pp vid
-                pp_type_parameters typarams
+                pp_type_parameters typarams;
+              ctorbrs |> ConstructorMap.iter (fun ctor (ctorid, ptyparams) ->
+                let sparam = display_poly_type_params ptyparams in
+                Format.printf "%s  | %s%s\n"
+                  indent
+                  ctor
+                  sparam
+              )
 
           | TypeID.Opaque(oid) ->
               let (_, _, skd) = TypeConv.show_poly_kind pkd in
@@ -525,9 +535,6 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
         Format.printf "%ssignature %s =\n" indent signm;
         Format.printf "%s  (exists%s)\n" indent sx;
         display_signature (depth + 2) modsig
-      )
-      ~c:(fun ctornm _ () ->
-        Format.printf "%sconstructor %s\n" indent ctornm
       )
       ()
 

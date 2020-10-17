@@ -241,18 +241,25 @@ let add_variant_types vntdefs (tyenv, gmap) =
       let (tynm, vid, bids, ctordefs) = vntdef in
       let pkd = TypeConv.kind_of_arity (List.length bids) in
       let tyenv = tyenv |> Typeenv.add_variant_type tynm vid pkd in
-      ctordefs |> List.fold_left (fun tyenv ctordef ->
-        let (ctor, paramtys) = ctordef in
-        let ctorentry =
-          {
-            belongs         = vid;
-            constructor_id  = make_constructor_id ctor;
-            type_variables  = bids;
-            parameter_types = paramtys;
-          }
-        in
-        tyenv |> Typeenv.add_constructor ctor ctorentry
-      ) tyenv
+      let (tyenv, ctorbrs) =
+        ctordefs |> List.fold_left (fun (tyenv, ctorbrs) ctordef ->
+          let (ctor, paramtys) = ctordef in
+          let ctorid = make_constructor_id ctor in
+          let ctorentry =
+            {
+              belongs         = vid;
+              constructor_id  = ctorid;
+              type_variables  = bids;
+              parameter_types = paramtys;
+            }
+          in
+          let tyenv = tyenv |> Typeenv.add_constructor ctor ctorentry in
+          let ctorbrs = ctorbrs |> ConstructorMap.add ctor (ctorid, paramtys) in
+          (tyenv, ctorbrs)
+        ) (tyenv, ConstructorMap.empty)
+      in
+      TypeDefinitionStore.add_variant_type vid bids ctorbrs;
+      tyenv
     ) tyenv
   in
   (tyenv, gmap)
