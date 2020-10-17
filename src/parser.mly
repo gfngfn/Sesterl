@@ -169,7 +169,7 @@ coercion:
   | COERCE; utsig=sigexpr { utsig }
 ;
 bindtypesingle:
-  | ident=IDENT; tyrowparams=typarams; DEFEQ; ctorbrs=nonempty_list(ctorbranch) {
+  | ident=IDENT; tyrowparams=typarams; DEFEQ; ctorbrs=ctorbranches {
         let (typarams, _) = tyrowparams in
           (* TODO: restrict that the second entry is `[]` *)
         (ident, typarams, BindVariant(ctorbrs))
@@ -266,11 +266,18 @@ bindvalsingle:
         }
       }
 ;
-ctorbranch:
-  | BAR; ctor=CTOR; {
+ctorbranches:
+  | ctorbr=ctorbranchtop; ctorbrs=list(ctorbranchsub) { ctorbr :: ctorbrs }
+  | ctorbrs=nonempty_list(ctorbranchsub)              { ctorbrs }
+;
+ctorbranchsub:
+  | BAR; ctorbr=ctorbranchtop { ctorbr }
+;
+ctorbranchtop:
+  | ctor=CTOR; {
         ConstructorBranch(ctor, [])
       }
-  | BAR; ctor=CTOR; LPAREN; paramtys=tys; RPAREN {
+  | ctor=CTOR; LPAREN; paramtys=tys; RPAREN {
         ConstructorBranch(ctor, paramtys)
       }
 ;
