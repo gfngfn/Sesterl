@@ -492,9 +492,19 @@ exprapp:
         (rng, Constructor(ctornm, ordargs))
           (* TODO: emit errors when `optargs` is not nil *)
       }
+  | modident=CTOR; ctor=DOTCTOR; LPAREN; args=args; tokR=RPAREN {
+        let (ordargs, optargs) = args in
+        let rng = make_range (Ranged(modident)) (Token(tokR)) in
+        (rng, ModProjCtor(modident, ctor, ordargs))
+          (* TODO: emit errors when `optargs` is not nil *)
+      }
   | ctor=CTOR {
         let (rng, ctornm) = ctor in
         (rng, Constructor(ctornm, []))
+      }
+  | modident=CTOR; ctor=DOTCTOR {
+        let rng = make_range (Ranged(modident)) (Ranged(ctor)) in
+        (rng, ModProjCtor(modident, ctor, []))
       }
   | modident=CTOR; ident=DOTIDENT {
         let rng = make_range (Ranged(modident)) (Ranged(ident)) in
