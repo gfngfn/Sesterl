@@ -1,9 +1,6 @@
 module StaticSupervisor = struct
 
-  type strategy =
-    | OneForAll
-    | OneForOne
-    | RestForOne
+  type strategy = OneForAll | OneForOne | RestForOne
 
   type sup_flags = {
     strategy  : strategy,
@@ -18,26 +15,17 @@ module StaticSupervisor = struct
   ) : sup_flags =
     { strategy = strategy, intensity = intensity, period = period }
 
-  type child_proc =
-    | ChildProcDummy
+  type child_proc = ChildProcDummy
 
   let make_child_proc<$a> : fun(pid<$a>) -> child_proc = external 1 ```
     make_child_proc(Pid) -> {ok, Pid}.
   ```
 
-  type restart =
-    | Permanent
-    | Transient
-    | Temporary
+  type restart = Permanent | Transient | Temporary
 
-  type shutdown =
-    | BrutalKill
-    | Timeout(int)
-    | Infinity
+  type shutdown = BrutalKill | Timeout(int) | Infinity
 
-  type worker =
-    | Worker
-    | Supervisor
+  type worker = Worker | Supervisor
 
   type child_spec<$a> = {
     id       : $a,
@@ -78,8 +66,7 @@ module StaticSupervisor = struct
 
   module Make = fun(Callback : Behaviour) -> struct
 
-    type proc =
-      | ProcDummy
+    type proc = ProcDummy
 
     let init_impl(args) =
       Callback.init(args)
