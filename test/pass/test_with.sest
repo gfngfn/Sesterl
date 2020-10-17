@@ -34,6 +34,12 @@ module TestWith = struct
       | Bar(binary)
   )
 
+  module Api4 = Impl3 :> sig
+    type t =
+      | Foo(int)
+      | Bar(binary)
+  end
+
   let main(arg) =
     let res = Api3.Foo(1) in
     print_debug(res)
