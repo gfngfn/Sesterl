@@ -1,4 +1,8 @@
+require SupervisorCommon
+
 module StaticSupervisor = struct
+
+  include SupervisorCommon
 
   type strategy = OneForAll | OneForOne | RestForOne
 
@@ -14,49 +18,6 @@ module StaticSupervisor = struct
     ?period    period    = 5,
   ) : sup_flags =
     { strategy = strategy, intensity = intensity, period = period }
-
-  type child_proc = ChildProcDummy
-
-  let make_child_proc<$a> : fun(pid<$a>) -> child_proc = external 1 ```
-    make_child_proc(Pid) -> {ok, Pid}.
-  ```
-
-  type restart = Permanent | Transient | Temporary
-
-  type shutdown = BrutalKill | Timeout(int) | Infinity
-
-  type worker = Worker | Supervisor
-
-  type child_spec<$a> = {
-    id       : $a,
-    start    : frozen<child_proc>,
-    restart  : restart,
-    shutdown : shutdown,
-    typ      : worker,
-  }
-
-  let make_child_spec<$a>(
-    -id       id : $a,
-    -start    start,
-    ?restart  restart = Permanent,
-    ?shutdown shutdown_opt,
-    ?type     typ = Worker,
-  ) : child_spec<$a> =
-    let shutdown =
-      case (shutdown_opt, typ) of
-      | (Some(shutdown), _) -> shutdown
-      | (None, Worker)      -> Timeout(5000)
-      | (None, Supervisor)  -> Infinity
-      end
-    in
-    {
-      id       = id,
-      start    = start,
-      restart  = restart,
-      shutdown = shutdown,
-      typ      = typ,
-    }
-
 
   signature Behaviour = sig
     type child_id :: o
@@ -80,14 +41,14 @@ module StaticSupervisor = struct
               {some, {SupFlags, ChildSpecsImpl}} ->
                   ChildSpecs =
                       lists:map(
-                          fun(ChildSpec) ->
+                          fun(ChildSpecImpl) ->
                               #{
                                   id       => ChildId,
                                   start    => StartFunc,
                                   restart  => Restart,
                                   shutdown => ShutdownImpl,
                                   typ      => Worker
-                              } = ChildSpec,
+                              } = ChildSpecImpl,
                               Shutdown =
                                   case ShutdownImpl of
                                       brutal_kill  -> brutal_kill;
@@ -99,8 +60,7 @@ module StaticSupervisor = struct
                                   start    => StartFunc,
                                   restart  => Restart,
                                   shutdown => Shutdown,
-                                  type     => Worker,
-                                  modules  => [?MODULE]
+                                  type     => Worker
                               }
                           end,
                           ChildSpecsImpl),

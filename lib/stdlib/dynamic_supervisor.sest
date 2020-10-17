@@ -1,0 +1,70 @@
+require SupervisorCommon
+
+module DynamicSupervisor = struct
+
+  include SupervisorCommon
+
+  type sup_flags = {
+    intensity : int,
+    period    : int,
+  }
+
+  let make_sup_flags(?intensity intensity = 1, ?period period = 5) : sup_flags =
+    { intensity = intensity, period = period }
+
+  signature Behaviour = sig
+    type child_id :: o
+    val init : fun() -> option<(sup_flags, child_spec<child_id>)>
+  end
+
+  module Make = fun(Callback : Behaviour) -> struct
+
+    type proc = ProcDummy
+
+    let init_impl() =
+      Callback.init()
+
+    let init<$a> : $a = external 1 ```
+      init([]) ->
+          case init_impl() of
+              none ->
+                  ignore;
+
+              {some, {SupFlags, ChildSpecImpl}} ->
+                  #{
+                      id       => ChildId,
+                      start    => StartFunc,
+                      restart  => Restart,
+                      shutdown => Shutdown,
+                      typ      => Workder,
+                  } = ChildSpecImpl,
+                  Shutdown =
+                      case ShutdownImpl of
+                          brutal_kill  -> brutal_kill;
+                          {timeout, N} -> max(N, 0);
+                          infinity     -> infinity
+                      end,
+                  ChildSpec = #{
+                      id       => ChildId,
+                      start    => StartFunc,
+                      restart  => Restart,
+                      shutdown => Shutdown,
+                      type     => Worker
+                  },
+                  {ok, {SupFlags, [ChildSpec]}}
+          end.
+    ```
+
+    let start_link<$a> : fun(unit) -> [$a]option<proc> = external 1 ```
+      start_link(_) ->
+          fun() ->
+              case supervisor:start_link(?MODULE, []) of
+                  {ok, Pid} when is_pid(Pid) -> {some, Pid};
+                  _                          -> none
+              end
+          end.
+            % thunk
+    ```
+  end
+
+end

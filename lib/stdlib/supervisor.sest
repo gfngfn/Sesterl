@@ -1,10 +1,9 @@
 require StaticSupervisor
-/*
 require DynamicSupervisor
-*/
+require SupervisorCommon
+
 module Supervisor = struct
+  include SupervisorCommon
   module Static = StaticSupervisor
-/*
   module Dynamic = DynamicSupervisor
-*/
 end
