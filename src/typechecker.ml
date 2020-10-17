@@ -1901,9 +1901,10 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
 (*
   let (sbt1, sbr1, sty1) = TypeConv.show_poly_type pty1 in
   let (sbt2, sbr2, sty2) = TypeConv.show_poly_type pty2 in
-  Format.printf "subtype_poly_type_scheme > aux: %s <?= %s\n" sty1 sty2;  (* for debug *)
+  Format.printf "subtype_poly_type_scheme> aux: %s <?= %s\n" sty1 sty2;  (* for debug *)
   Format.printf "%a\n" (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf ",@ ") Format.pp_print_string) (List.concat [sbt1; sbr1; sbt2; sbr2]);
 *)
+
     let (_, ptymain1) = pty1 in
     let (_, ptymain2) = pty2 in
     match (ptymain1, ptymain2) with
@@ -2314,9 +2315,19 @@ and lookup_type_opacity (tynm : type_name) (tyopac1 : type_opacity) (tyopac2 : t
         Some(WitnessMap.empty |> WitnessMap.add_opaque oid2 tyid1)
 
     | (TypeID.Variant(vid1), TypeID.Variant(vid2)) ->
+(*
+        Format.printf "lookup_type_opacity> %a --> %a\n"
+          TypeID.Variant.pp vid1
+          TypeID.Variant.pp vid2;  (* for debug *)
+*)
         Some(WitnessMap.empty |> WitnessMap.add_variant vid2 vid1)
 
     | (TypeID.Synonym(sid1), TypeID.Synonym(sid2)) ->
+(*
+        Format.printf "lookup_type_opacity> %a --> %a\n"
+          TypeID.Synonym.pp sid1
+          TypeID.Synonym.pp sid2;  (* for debug *)
+*)
         Some(WitnessMap.empty |> WitnessMap.add_synonym sid2 sid1)
 
     | _ ->
@@ -2432,6 +2443,8 @@ and subtype_abstract_with_abstract (rng : Range.t) (absmodsig1 : module_signatur
   ()
 
 
+(* `subtype_concrete_with_concrete rng wtmap modsig1 modsig2` asserts that
+   `modsig1 <= [wtmap]modsig2` holds (where `[-]-` is the application of a substitution). *)
 and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsig1 : module_signature) (modsig2 : module_signature) : unit =
   match (modsig1, modsig2) with
   | (ConcFunctor(sigftor1), ConcFunctor(sigftor2)) ->
@@ -2446,9 +2459,6 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
       subtype_abstract_with_abstract rng absmodsigcod1 absmodsigcod2
 
   | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
-      (* First traverse the structure signature and extract
-         a mapping from opaque types to types and one from variant types to variant types.
-      *)
       sigr2 |> SigRecord.fold
           ~v:(fun x2 (pty2, _) () ->
             match sigr1 |> SigRecord.find_val x2 with
@@ -2576,22 +2586,43 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
         )
         ~t:(fun tydefs_from wtmap ->
 
-          (* Generate new type IDs that will be used after substitution *)
+          (* Apply the substitution `wtmap` or else
+             generate new type IDs that will be used after substitution. *)
           let wtmap =
             tydefs_from |> List.fold_left (fun wtmap (_, (tyid_from, arity)) ->
               match tyid_from with
               | TypeID.Synonym(sid_from) ->
                   let sid_to =
-                    let s = TypeID.Synonym.name sid_from in
-                    TypeID.Synonym.fresh s
+                    match wtmap |> WitnessMap.find_synonym sid_from with
+                    | Some(sid_to) ->
+                        sid_to
+
+                    | None ->
+                        let s = TypeID.Synonym.name sid_from in
+                        TypeID.Synonym.fresh s
                   in
+(*
+                  Format.printf "substitute_structure> %a --> %a\n"
+                    TypeID.Synonym.pp sid_from
+                    TypeID.Synonym.pp sid_to;  (* for debug *)
+*)
                   wtmap |> WitnessMap.add_synonym sid_from sid_to
 
               | TypeID.Variant(vid_from) ->
                   let vid_to =
-                    let s = TypeID.Variant.name vid_from in
-                    TypeID.Variant.fresh s
+                    match wtmap |> WitnessMap.find_variant vid_from with
+                    | Some(vid_from) ->
+                        vid_from
+
+                    | None ->
+                        let s = TypeID.Variant.name vid_from in
+                        TypeID.Variant.fresh s
                   in
+(*
+                  Format.printf "substitute_structure> %a --> %a\n"
+                    TypeID.Variant.pp vid_from
+                    TypeID.Variant.pp vid_to;  (* for debug *)
+*)
                   wtmap |> WitnessMap.add_variant vid_from vid_to
 
               | TypeID.Opaque(_) ->
@@ -2691,7 +2722,8 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
           begin
             match wtmap |> WitnessMap.find_synonym sid_from with
             | None         -> DataType(TypeID.Synonym(sid_from), ptyargs |> List.map aux)
-                (* TODO: DOUBTFUL; maybe we must traverse the definition of type synonyms beforehand. *)
+                (* TODO: DOUBTFUL; maybe we must traverse the definition of type synonyms beforehand.
+                   → The replacement probably has been properly done by `substitute_structure`. *)
             | Some(sid_to) -> DataType(TypeID.Synonym(sid_to), ptyargs |> List.map aux)
           end
 
@@ -2699,7 +2731,8 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
           begin
             match wtmap |> WitnessMap.find_variant vid_from with
             | None         -> DataType(TypeID.Variant(vid_from), ptyargs |> List.map aux)
-                (* TODO: DOUBTFUL; maybe we must traverse the definition of variant types beforehand. *)
+                (* TODO: DOUBTFUL; maybe we must traverse the definition of variant types beforehand.
+                   → The replacement probably has been properly done by `substitute_structure`. *)
             | Some(vid_to) -> DataType(TypeID.Variant(vid_to), ptyargs |> List.map aux)
           end
     in
@@ -2953,7 +2986,12 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
 
             | Some(TypeID.Opaque(oid), pkd) ->
                 assert (oidset0 |> OpaqueIDSet.mem oid);
-                  (oid, pkd)
+(*
+                Format.printf "SigWith> %a --> %a\n"
+                  TypeID.Opaque.pp oid
+                  TypeID.pp tyid;  (* for debug *)
+*)
+                (oid, pkd)
 
             | Some(tyopac) ->
                 raise_error (CannotRestrictTransparentType(rng1, tyopac))
@@ -2969,6 +3007,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
       (oidset, modsigret)
 
 
+(* Checks that `pkd1` and `pkd2` is the same kind. *)
 and unify_kind (rng : Range.t) (tynm : type_name) ~actual:(pkd1 : poly_kind) ~expected:(pkd2 : poly_kind) : unit =
   let Kind(bkdsdom1, bkdcod1) = pkd1 in
   let Kind(bkdsdom2, bkdcod2) = pkd2 in
