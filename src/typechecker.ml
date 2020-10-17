@@ -184,9 +184,26 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
     ~t:(fun tydefs tyenv ->
       tydefs |> List.fold_left (fun tyenv (tynm, tyopac) ->
         match tyopac with
-        | (TypeID.Synonym(sid), arity) -> tyenv |> Typeenv.add_synonym_type tynm sid arity
-        | (TypeID.Variant(vid), arity) -> tyenv |> Typeenv.add_variant_type tynm vid arity
-        | (TypeID.Opaque(oid), arity)  -> tyenv |> Typeenv.add_opaque_type tynm oid arity
+        | (TypeID.Synonym(sid), arity) ->
+            tyenv |> Typeenv.add_synonym_type tynm sid arity
+
+        | (TypeID.Variant(vid), arity) ->
+            let tyenv = tyenv |> Typeenv.add_variant_type tynm vid arity in
+            let (bids, ctorbrs) = TypeDefinitionStore.find_variant_type vid in
+            tyenv |> ConstructorMap.fold (fun ctornm (ctorid, ptyparams) tyenv ->
+              let ctorentry =
+                {
+                  belongs         = vid;
+                  constructor_id  = ctorid;
+                  type_variables  = bids;
+                  parameter_types = ptyparams;
+                }
+              in
+              tyenv |> Typeenv.add_constructor ctornm ctorentry
+            ) ctorbrs
+
+        | (TypeID.Opaque(oid), arity) ->
+            tyenv |> Typeenv.add_opaque_type tynm oid arity
       ) tyenv
     )
     ~m:(fun modnm (modsig, sname) tyenv ->
@@ -195,9 +212,6 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
     )
     ~s:(fun signm absmodsig ->
       Typeenv.add_signature signm absmodsig
-    )
-    ~c:(fun ctornm ctorentry ->
-      Typeenv.add_constructor ctornm ctorentry
     )
     tyenv
 
@@ -486,7 +500,10 @@ and opaque_occurs_in_type_id (oidset : OpaqueIDSet.t) (tyid : TypeID.t) : bool =
       oidset |> OpaqueIDSet.mem oid
 
   | TypeID.Variant(vid) ->
-      false
+      let (_bids, ctorbrs) = TypeDefinitionStore.find_variant_type vid in
+      ConstructorMap.fold (fun _ctor (_ctorid, ptyparams) b ->
+        b || ptyparams |> List.exists (opaque_occurs_in_poly_type oidset)
+      ) ctorbrs false
 
   | TypeID.Synonym(sid) ->
       let (_, pty) = TypeDefinitionStore.find_synonym_type sid in
@@ -519,9 +536,6 @@ and opaque_occurs_in_structure (oidset : OpaqueIDSet.t) (sigr : SigRecord.t) : b
       )
       ~s:(fun _ (_oidset, modsig) b ->
         b || opaque_occurs oidset modsig
-      )
-      ~c:(fun _ ctorentry b ->
-        b || ctorentry.parameter_types |> List.exists (opaque_occurs_in_poly_type oidset)
       )
       false
 
@@ -2312,9 +2326,6 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
             ~s:(fun _ _ wtmapacc ->
               wtmapacc
             )
-            ~c:(fun _ _ wtmapacc ->
-              wtmapacc
-            )
             WitnessMap.empty
 
     | _ ->
@@ -2433,10 +2444,6 @@ and subtype_concrete_with_concrete (rng : Range.t) (wtmap : WitnessMap.t) (modsi
                 subtype_abstract_with_abstract rng absmodsig2 absmodsig1;
                 ()
           )
-          ~c:(fun ctornm2 ctorentry2 () ->
-            ()
-              (* Checking for constructors is performed by `check_well_formedness_of_witness_map`. *)
-          )
           ()
 
   | _ ->
@@ -2512,7 +2519,6 @@ and copy_closure_in_structure (sigr1 : SigRecord.t) (sigr2 : SigRecord.t) : SigR
     )
     ~t:(fun tydefs -> tydefs |> List.map (fun (_, tyopac) -> tyopac))
     ~s:(fun _ sentry -> sentry)
-    ~c:(fun _ centry -> centry)
     ~m:(fun modnm (modsig2, _) ->
       match sigr1 |> SigRecord.find_module modnm with
       | None ->
@@ -2609,11 +2615,6 @@ and substitute_structure (wtmap : WitnessMap.t) (sigr : SigRecord.t) : SigRecord
         ~s:(fun _ absmodsig wtmap ->
           let (absmodsig, wtmap) = substitute_abstract wtmap absmodsig in
           (absmodsig, wtmap)
-        )
-        ~c:(fun _ ctorentry wtmap ->
-          let ptys = ctorentry.parameter_types |> List.map (substitute_poly_type wtmap) in
-          let ctorentry = { ctorentry with parameter_types = ptys } in
-          (ctorentry, wtmap)
         )
         wtmap
 
@@ -2907,7 +2908,7 @@ and typecheck_signature (tyenv : Typeenv.t) (utsig : untyped_signature) : module
         | ConcFunctor(_)          -> raise_error (NotAStructureSignature(rnglast, modsiglast))
         | ConcStructure(sigrlast) -> sigrlast
       in
-      let (tydefs, ctordefs) = bind_types tyenv tybinds in
+      let (tydefs, _ctordefs) = bind_types tyenv tybinds in
       let (wtmap, oidset) =
         tydefs |> List.fold_left (fun (wtmap, oidset) (tyident1, (tyid, pkd_actual)) ->
           let (rng1, tynm1) = tyident1 in
@@ -3039,14 +3040,9 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
       assert false
 
   | BindType((_ :: _) as tybinds) ->
-      let (tydefs, ctordefs) = bind_types tyenv tybinds in
+      let (tydefs, _ctordefs) = bind_types tyenv tybinds in
       let tydefs = tydefs |> List.map (fun ((_, tynm), tyopac) -> (tynm, tyopac)) in
       let sigr = SigRecord.empty |> SigRecord.add_types tydefs in
-      let sigr =
-        ctordefs |> List.fold_left (fun sigr (vid, typarams, ctorbrmap) ->
-          sigr |> SigRecord.add_constructors vid typarams ctorbrmap
-        ) sigr
-      in
       ((OpaqueIDSet.empty, sigr), [])
 
   | BindModule(modident, utsigopt2, utmod1) ->

@@ -26,5 +26,7 @@ let add_variant_type (vid : TypeID.Variant.t) (typarams : BoundID.t list) (ctorb
 
 let find_variant_type (vid : TypeID.Variant.t) : BoundID.t list * constructor_branch_map =
   match VariantIDHashTable.find_opt variant_table vid with
-  | None    -> assert false
+  | None    ->
+      Format.printf "find_variant_type> NOT FOUND: %a\n" TypeID.Variant.pp vid;
+      assert false
   | Some(v) -> v
