@@ -42,6 +42,28 @@
     in
     (rng, ModProjMod((Range.dummy "appB", ModBinds(utbinds)), modidentA))
 *)
+
+  let base_kind_o =
+    (Range.dummy "base_kind_o", MKindName("o"))
+      (* TODO: fix such an ad-hoc insertion of kinds *)
+
+
+  let decl_type_transparent tokL tybinds : untyped_declaration =
+    let rng = Range.dummy "decl_type_transparent" in  (* TODO: give appropriate code ranges *)
+    let dr = Range.dummy "decl_type_transparent" in
+    let decls : untyped_declaration list =
+      tybinds |> List.map (fun (tyident, tyvars, syn_or_vnt) ->
+        let mnbkddoms =
+          tyvars |> List.map (function
+          | (_, None)        -> base_kind_o
+          | (_, Some(mnbkd)) -> mnbkd
+          )
+        in
+        let mnkd = (dr, MKind(mnbkddoms, base_kind_o)) in
+        (dr, DeclTypeOpaque(tyident, Some(mnkd)))
+      )
+    in
+    (rng, DeclInclude((dr, SigWith((dr, SigDecls(decls)), [], tybinds))))
 %}
 
 %token<Range.t> LET LETREC ANDREC IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE WHEN END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE REQUIRE FREEZE
@@ -283,6 +305,9 @@ decl:
   | tokL=TYPE; tyident=IDENT {
         let rng = make_range (Token(tokL)) (Ranged(tyident)) in
         (rng, DeclTypeOpaque(tyident, None))
+      }
+  | tokL=TYPE; tybind=bindtypesingle; tybinds=list(bindtypesub) {
+        decl_type_transparent tokL (tybind :: tybinds)
       }
   | tokL=MODULE; modident=CTOR; COLON; utsig=sigexpr {
         let rng = make_range (Token(tokL)) (Ranged(utsig)) in

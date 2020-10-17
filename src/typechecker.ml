@@ -2746,10 +2746,6 @@ and typecheck_declaration (tyenv : Typeenv.t) (utdecl : untyped_declaration) : S
       let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
       (OpaqueIDSet.empty, sigr)
 
-  | DeclTypeTrans(_tyident, _mty) ->
-      failwith "TODO: DeclTypeTrans"
-        (* -- maybe should handle mutually recursive types -- *)
-
   | DeclTypeOpaque(tyident, kdannot) ->
       let (_, tynm) = tyident in
       let pre_init =

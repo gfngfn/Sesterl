@@ -274,7 +274,6 @@ and untyped_declaration =
 
 and untyped_declaration_main =
   | DeclVal        of identifier ranged * type_variable_binder list * (row_variable_name ranged * (label ranged * manual_type) list) list * manual_type
-  | DeclTypeTrans  of type_name ranged * manual_type
   | DeclTypeOpaque of type_name ranged * manual_kind option
   | DeclModule     of module_name ranged * untyped_signature
   | DeclSig        of signature_name ranged * untyped_signature
