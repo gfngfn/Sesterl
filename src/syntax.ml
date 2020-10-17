@@ -250,10 +250,13 @@ and untyped_binding =
 
 and untyped_binding_main =
   | BindVal     of internal_or_external
-  | BindType    of (type_name ranged * type_variable_binder list * synonym_or_variant) list
+  | BindType    of type_binding list
   | BindModule  of module_name ranged * untyped_signature option * untyped_module
   | BindSig     of signature_name ranged * untyped_signature
   | BindInclude of untyped_module
+
+and type_binding =
+  type_name ranged * type_variable_binder list * synonym_or_variant
 
 and untyped_signature =
   untyped_signature_main ranged
@@ -263,7 +266,7 @@ and untyped_signature_main =
   | SigPath    of untyped_module * signature_name ranged
   | SigDecls   of untyped_declaration list
   | SigFunctor of module_name ranged * untyped_signature * untyped_signature
-  | SigWith    of untyped_signature * (module_name ranged) list * type_name ranged * type_variable_binder list * manual_type
+  | SigWith    of untyped_signature * (module_name ranged) list * type_binding list
 
 and untyped_declaration =
   untyped_declaration_main ranged

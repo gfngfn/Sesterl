@@ -189,6 +189,15 @@ let report_type_error (e : type_error) : unit =
         len_expected
         len_actual
 
+  | KindContradiction(rng, tynm, pkd_expected, pkd_actual) ->
+      let (_, _, skd_actual) = TypeConv.show_poly_kind pkd_actual in
+      let (_, _, skd_expected) = TypeConv.show_poly_kind pkd_expected in
+      Format.printf "%a: type constructor '%s' has kind %s, but is expected of kind %s\n"
+        Range.pp rng
+        tynm
+        skd_actual
+        skd_expected
+
   | TypeParameterBoundMoreThanOnce(rng, tyvar) ->
       Format.printf "%a: type variable '%s' is bound more than once\n"
         Range.pp rng
