@@ -1523,37 +1523,75 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       (ty1, IRecordUpdate(e1, label, e2))
 
   | ModProjVal(modident1, (rng2, x2)) ->
-      let (modsig1, _) = find_module pre.tyenv modident1 in
+      let sigr1 = get_structure_signature pre.tyenv modident1 in
 (*
       let (oidset1, modsig1) = absmodsig1 in
 *)
       begin
-        match modsig1 with
-        | ConcFunctor(_) ->
-            let (rng1, _) = modident1 in
-            raise_error (NotOfStructureType(rng1, modsig1))
+        match sigr1 |> SigRecord.find_val x2 with
+        | None ->
+            raise_error (UnboundVariable(rng2, x2))
 
-        | ConcStructure(sigr1) ->
-            begin
-              match sigr1 |> SigRecord.find_val x2 with
-              | None ->
-                  raise_error (UnboundVariable(rng2, x2))
-
-              | Some((_, ptymain2), gname2) ->
-                  let pty2 = (rng, ptymain2) in
+        | Some((_, ptymain2), gname2) ->
+            let pty2 = (rng, ptymain2) in
 (*
-                  if opaque_occurs_in_poly_type oidset1 pty2 then
-                  (* Combining (E-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
-                     in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
-                     we must assert that opaque type variables do not extrude their scope.
-                  *)
-                    raise_error (OpaqueIDExtrudesScopeViaValue(rng, pty2))
-                  else
+            if opaque_occurs_in_poly_type oidset1 pty2 then
+            (* Combining (E-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
+               in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
+               we must assert that opaque type variables do not extrude their scope.
+            *)
+              raise_error (OpaqueIDExtrudesScopeViaValue(rng, pty2))
+            else
 *)
-                    let ty = TypeConv.instantiate pre.level pty2 in
-                    (ty, IVar(OutputIdentifier.Global(gname2)))
+              let ty = TypeConv.instantiate pre.level pty2 in
+              (ty, IVar(OutputIdentifier.Global(gname2)))
+      end
+
+  | ModProjCtor(modident1, (rng2, ctornm2), utasts) ->
+      let sigr1 = get_structure_signature pre.tyenv modident1 in
+      begin
+        match sigr1 |> SigRecord.find_constructor ctornm2 with
+        | None ->
+            raise_error (UndefinedConstructor(rng2, ctornm2))
+
+        | Some(ctorentry) ->
+            let vid = ctorentry.belongs in
+            let ctorid = ctorentry.constructor_id in
+            let bids = ctorentry.type_variables in
+            let ptys = ctorentry.parameter_types in
+            let (tyargs, tys_expected) = TypeConv.instantiate_type_arguments pre.level bids ptys in
+            begin
+              match List.combine utasts tys_expected with
+              | exception Invalid_argument(_) ->
+                  let len_expected = List.length tys_expected in
+                  let len_actual = List.length utasts in
+                  raise_error (InvalidNumberOfConstructorArguments(rng2, ctornm2, len_expected, len_actual))
+
+              | zipped ->
+                  let eacc =
+                    zipped |> List.fold_left (fun eacc (utast, ty_expected) ->
+                      let (ty, e) = typecheck pre utast in
+                      unify ty ty_expected;
+                      Alist.extend eacc e
+                    ) Alist.empty
+                  in
+                  let ty = (rng, DataType(TypeID.Variant(vid), tyargs)) in
+                  let e = IConstructor(ctorid, Alist.to_list eacc) in
+                  (ty, e)
             end
       end
+
+
+and get_structure_signature (tyenv : Typeenv.t) (modident : module_name ranged) : SigRecord.t =
+  let (modsig, _) = find_module tyenv modident in
+  match modsig with
+  | ConcFunctor(_) ->
+      let (rng, _) = modident in
+      raise_error (NotOfStructureType(rng, modsig))
+
+  | ConcStructure(sigr) ->
+      sigr
+
 
 and typecheck_application (pre : pre) (rng : Range.t) utastargs mndutastargs optutastargs (tyfun : mono_type) =
   let tyeargs = List.map (typecheck pre) utastargs in
@@ -1599,8 +1637,8 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name
   | None ->
       raise_error (UndefinedConstructor(rng, ctornm))
 
-  | Some(tyid, ctorid, typarams, ptys) ->
-      let (tyargs, tys_expected) = TypeConv.instantiate_type_arguments pre.level typarams ptys in
+  | Some(tyid, ctorid, bids, ptys) ->
+      let (tyargs, tys_expected) = TypeConv.instantiate_type_arguments pre.level bids ptys in
       (tyid, ctorid, tyargs, tys_expected)
 
 
