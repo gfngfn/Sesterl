@@ -34,4 +34,8 @@ module TestWith = struct
       | Bar(binary)
   )
 
+  let main(arg) =
+    let res = Api3.Foo(1) in
+    print_debug(res)
+
 end
