@@ -512,7 +512,7 @@ and display_structure (depth : int) (sigr : SigRecord.t) : unit =
                 pp_type_parameters typarams;
               ctorbrs |> ConstructorMap.iter (fun ctor (ctorid, ptyparams) ->
                 let sparam = display_poly_type_params ptyparams in
-                Format.printf "%s  | %s%s"
+                Format.printf "%s  | %s%s\n"
                   indent
                   ctor
                   sparam
