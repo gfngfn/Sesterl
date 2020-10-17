@@ -37,10 +37,10 @@ module Stdlib :> sig
 
   module Supervisor : sig
     module Static : sig
-      type strategy :: o /* =
+      type strategy =
         | OneForAll
         | OneForOne
-        | RestForOne */
+        | RestForOne
       type sup_flags :: o
       val make_sup_flags :
         fun(
@@ -50,17 +50,17 @@ module Stdlib :> sig
         ) -> sup_flags
       type child_proc :: o
       val make_child_proc<$a> : fun(pid<$a>) -> child_proc
-      type restart :: o /* =
+      type restart =
         | Permanent
         | Transient
-        | Temporary */
-      type shutdown :: o /* =
+        | Temporary
+      type shutdown =
         | BrutalKill
         | Timeout(int)
-        | Infinity */
-      type worker :: o /* =
+        | Infinity
+      type worker =
         | Worker
-        | Supervisor */
+        | Supervisor
       type child_spec :: (o) -> o
       val make_child_spec<$a> :
         fun(
