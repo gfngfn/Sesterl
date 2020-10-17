@@ -1522,8 +1522,8 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       unify ty1 tyF;
       (ty1, IRecordUpdate(e1, label, e2))
 
-  | ModProjVal(modident1, (rng2, x2)) ->
-      let sigr1 = get_structure_signature pre.tyenv modident1 in
+  | ModProjVal(modidents1, (rng2, x2)) ->
+      let sigr1 = get_structure_signature pre.tyenv modidents1 in
 (*
       let (oidset1, modsig1) = absmodsig1 in
 *)
@@ -1547,8 +1547,8 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
               (ty, IVar(OutputIdentifier.Global(gname2)))
       end
 
-  | ModProjCtor(modident1, (rng2, ctornm2), utasts) ->
-      let sigr1 = get_structure_signature pre.tyenv modident1 in
+  | ModProjCtor(modidents1, (rng2, ctornm2), utasts) ->
+      let sigr1 = get_structure_signature pre.tyenv modidents1 in
       begin
         match sigr1 |> SigRecord.find_constructor ctornm2 with
         | None ->
@@ -1582,15 +1582,34 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       end
 
 
-and get_structure_signature (tyenv : Typeenv.t) (modident : module_name ranged) : SigRecord.t =
-  let (modsig, _) = find_module tyenv modident in
-  match modsig with
-  | ConcFunctor(_) ->
-      let (rng, _) = modident in
-      raise_error (NotOfStructureType(rng, modsig))
+and get_structure_signature (tyenv : Typeenv.t) (modidents : (module_name ranged) list) : SigRecord.t =
+  match modidents with
+  | [] ->
+      assert false
 
-  | ConcStructure(sigr) ->
-      sigr
+  | modident :: projs ->
+      let (rnginit, _) = modident in
+      let (modsig, _) = find_module tyenv modident in
+      let (modsig, rnglast) =
+        projs |> List.fold_left (fun (modsig, rnglast) proj ->
+          match modsig with
+          | ConcFunctor(_) ->
+              raise_error (NotOfStructureType(rnglast, modsig))
+
+          | ConcStructure(sigr) ->
+              let (rng, modnm) = proj in
+              begin
+                match sigr |> SigRecord.find_module modnm with
+                | None              -> raise_error (UnboundModuleName(rng, modnm))
+                | Some((modsig, _)) -> (modsig, rng)
+              end
+        ) (modsig, rnginit)
+      in
+      begin
+        match modsig with
+        | ConcFunctor(_)      -> raise_error (NotOfStructureType(rnglast, modsig))
+        | ConcStructure(sigr) -> sigr
+      end
 
 
 and typecheck_application (pre : pre) (rng : Range.t) utastargs mndutastargs optutastargs (tyfun : mono_type) =

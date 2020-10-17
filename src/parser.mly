@@ -17,6 +17,29 @@
       Range.unite rng1 rng2
 
 
+  let chop_last modchain =
+    let (uident, uidents) = modchain in
+    let (tokL, _) = uident in
+    let (modidents, ctor) =
+      match List.rev (uident :: uidents) with
+      | []                   -> assert false
+      | ctor :: revmodidents -> (List.rev revmodidents, ctor)
+    in
+    (tokL, modidents, ctor)
+
+
+  let fold_module_chain modchainraw =
+    let (modident, projs) = modchainraw in
+    let utmod =
+      let (rng, modnm) = modident in
+      (rng, ModVar(modnm))
+    in
+    projs |> List.fold_left (fun utmod proj ->
+      let rng = make_range (Ranged(utmod)) (Ranged(proj)) in
+      (rng, ModProjMod(utmod, proj))
+    ) utmod
+
+
   let binary e1 op e2 =
     let rng = make_range (Ranged(e1)) (Ranged(e2)) in
     let (rngop, vop) = op in
@@ -338,6 +361,10 @@ modapp:
   | utmod=modexprbot { utmod }
 ;
 modexprbot:
+  | utmod=modexprunit { utmod }
+  | utmod=modchain    { utmod }
+;
+modexprunit:
   | tokL=STRUCT; utbinds=list(bindtop); tokR=END {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, ModBinds(utbinds))
@@ -347,41 +374,21 @@ modexprbot:
         let (_, utmodmain) = utmod in
         (rng, utmodmain)
       }
-  | utmod=modchain { utmod }
 ;
 modchain:
-  | modchainraw=modchainraw {
-        let (modident, projs) = modchainraw in
-        let utmod =
-          let (rng, modnm) = modident in
-          (rng, ModVar(modnm))
-        in
-        projs |> List.fold_left (fun utmod proj ->
-          let rng = make_range (Ranged(utmod)) (Ranged(proj)) in
-          (rng, ModProjMod(utmod, proj))
-        ) utmod
-      }
+  | modchainraw=modchainraw { fold_module_chain modchainraw }
 ;
 modchainraw:
-  | modchainacc=modchainacc {
-        let (modident, projacc) = modchainacc in
-        (modident, Alist.to_list projacc)
-      }
-;
-modchainacc:
-  | former=modchainacc; proj=DOTCTOR {
-        let (modident, projacc) = former in
-        (modident, Alist.extend projacc proj)
-      }
-  | modident=CTOR {
-        (modident, Alist.empty)
-      }
+  | modident=CTOR; projs=list(DOTCTOR) { (modident, projs) }
 ;
 sigexpr:
   | tokL=LAMBDA; LPAREN; sigident=CTOR; COLON; utsig1=sigexpr; RPAREN; ARROW; utsig2=sigexpr {
         let rng = make_range (Token(tokL)) (Ranged(utsig2)) in
         (rng, SigFunctor(sigident, utsig1, utsig2))
       }
+  | utsig=sigexprwith { utsig }
+;
+sigexprwith:
   | utsig=sigexprbot; WITH; modidents=withproj; TYPE; tybind=bindtypesingle; tybinds=list(bindtypesub) {
         let rng = Range.dummy "sigexpr" in  (* TODO: give appropriate code ranges *)
         (rng, SigWith(utsig, modidents, tybind :: tybinds))
@@ -393,13 +400,21 @@ withproj:
   | modident=CTOR; modidents=list(DOTCTOR) { modident :: modidents }
 ;
 sigexprbot:
-  | sigident=CTOR {
-        let (rng, signm) = sigident in
-        (rng, SigVar(signm))
-      }
-  | LPAREN; utmod=modexprbot; sigident=DOTCTOR; RPAREN {
+  | utmod=modexprunit; sigident=DOTCTOR {
         let rng = make_range (Ranged(utmod)) (Ranged(sigident)) in
         (rng, SigPath(utmod, sigident))
+      }
+  | modchain=modchainraw {
+        let (tokL, modidents, sigident) = chop_last modchain in
+        let rng = make_range (Token(tokL)) (Ranged(sigident)) in
+        match modidents with
+        | [] ->
+            let (_, signm) = sigident in
+            (rng, SigVar(signm))
+
+        | modident :: projs ->
+            let utmod = fold_module_chain (modident, projs) in
+            (rng, SigPath(utmod, sigident))
       }
   | tokL=SIG; utdecls=list(decl); tokR=END {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
@@ -510,30 +525,26 @@ exprapp:
         let rng = make_range (Token(tokL)) (Token(tokR)) in
         (rng, Freeze(rngapp, FrozenFun(ident), ordargs, mndargs, optargs))
       }
-  | ctor=CTOR; LPAREN; args=args; tokR=RPAREN {
+  | modchain=modchainraw; LPAREN; args=args; tokR=RPAREN {
+        let (tokL, modidents, ctor) = chop_last modchain in
         let (ordargs, optargs) = args in
-        let (tokL, ctornm) = ctor in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, Constructor(ctornm, ordargs))
+        match modidents with
+        | []     -> let (_, ctornm) = ctor in (rng, Constructor(ctornm, ordargs))
+        | _ :: _ -> (rng, ModProjCtor(modidents, ctor, ordargs))
           (* TODO: emit errors when `optargs` is not nil *)
       }
-  | modident=CTOR; ctor=DOTCTOR; LPAREN; args=args; tokR=RPAREN {
-        let (ordargs, optargs) = args in
-        let rng = make_range (Ranged(modident)) (Token(tokR)) in
-        (rng, ModProjCtor(modident, ctor, ordargs))
-          (* TODO: emit errors when `optargs` is not nil *)
+  | modchain=modchainraw {
+        let (tokL, modidents, ctor) = chop_last modchain in
+        let rng = make_range (Token(tokL)) (Ranged(ctor)) in
+        match modidents with
+        | []     -> let (_, ctornm) = ctor in (rng, Constructor(ctornm, []))
+        | _ :: _ -> (rng, ModProjCtor(modidents, ctor, []))
       }
-  | ctor=CTOR {
-        let (rng, ctornm) = ctor in
-        (rng, Constructor(ctornm, []))
-      }
-  | modident=CTOR; ctor=DOTCTOR {
-        let rng = make_range (Ranged(modident)) (Ranged(ctor)) in
-        (rng, ModProjCtor(modident, ctor, []))
-      }
-  | modident=CTOR; ident=DOTIDENT {
+  | modchain=modchainraw; ident=DOTIDENT {
+        let (modident, modidents) = modchain in
         let rng = make_range (Ranged(modident)) (Ranged(ident)) in
-        (rng, ModProjVal(modident, ident))
+        (rng, ModProjVal(modident :: modidents, ident))
       }
   | e=exprbot { e }
 ;

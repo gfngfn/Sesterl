@@ -175,8 +175,8 @@ and untyped_ast_main =
   | RecordAccess of untyped_ast * label ranged
   | RecordUpdate of untyped_ast * label ranged * untyped_ast
   | Freeze       of Range.t * frozen_fun * untyped_ast list * labeled_untyped_ast list * labeled_untyped_ast list
-  | ModProjVal   of module_name ranged * identifier ranged
-  | ModProjCtor  of module_name ranged * constructor_name ranged * untyped_ast list
+  | ModProjVal   of (module_name ranged) list * identifier ranged
+  | ModProjCtor  of (module_name ranged) list * constructor_name ranged * untyped_ast list
 
 and frozen_fun =
   | FrozenModFun of module_name_chain * identifier ranged
