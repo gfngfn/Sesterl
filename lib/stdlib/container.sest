@@ -36,24 +36,25 @@ module Stdlib :> sig
   end
 
   module Supervisor : sig
+    type child_proc :: o
+    val make_child_proc<$a> : fun(pid<$a>) -> child_proc
+    type restart = Permanent | Transient | Temporary
+    type shutdown = BrutalKill | Timeout(int) | Infinity
+    type worker = Worker | Supervisor
+    type child_spec :: (o) -> o
+    val make_child_spec<$a> :
+      fun(
+        -id       $a,
+        -start    frozen<child_proc>,
+        ?restart  restart,
+        ?shutdown shutdown,
+        ?type     worker,
+      ) -> child_spec<$a>
+
     module Static : sig
       type strategy = OneForAll | OneForOne | RestForOne
       type sup_flags :: o
-      val make_sup_flags : fun(?strategy  strategy, ?intensity int, ?period int) -> sup_flags
-      type child_proc :: o
-      val make_child_proc<$a> : fun(pid<$a>) -> child_proc
-      type restart = Permanent | Transient | Temporary
-      type shutdown = BrutalKill | Timeout(int) | Infinity
-      type worker = Worker | Supervisor
-      type child_spec :: (o) -> o
-      val make_child_spec<$a> :
-        fun(
-          -id       $a,
-          -start    frozen<child_proc>,
-          ?restart  restart,
-          ?shutdown shutdown,
-          ?type     worker,
-        ) -> child_spec<$a>
+      val make_sup_flags : fun(?strategy strategy, ?intensity int, ?period int) -> sup_flags
 
       signature Behaviour = sig
         type child_id :: o
@@ -64,6 +65,21 @@ module Stdlib :> sig
       module Make : fun(Callback : Behaviour) -> sig
         type proc :: o
         val start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc>
+      end
+    end
+
+    module Dynamic : sig
+      type sup_flags :: o
+      val make_sup_flags : fun(?intensity int, ?period int) -> sup_flags
+
+      signature Behaviour = sig
+        type child_id :: o
+        val init : fun() -> option<(sup_flags, child_spec<child_id>)>
+      end
+
+      module Make : fun(Callback : Behaviour) -> sig
+        type proc :: o
+        val start_link<$a> : fun(unit) -> [$a]option<proc>
       end
     end
   end

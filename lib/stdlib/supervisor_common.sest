@@ -1,0 +1,45 @@
+module SupervisorCommon = struct
+
+  type restart = Permanent | Transient | Temporary
+
+  type shutdown = BrutalKill | Timeout(int) | Infinity
+
+  type worker = Worker | Supervisor
+
+  type child_proc = ChildProcDummy
+
+  let make_child_proc<$a> : fun(pid<$a>) -> child_proc = external 1 ```
+    make_child_proc(Pid) -> {ok, Pid}.
+  ```
+
+  type child_spec<$a> = {
+    id       : $a,
+    start    : frozen<child_proc>,
+    restart  : restart,
+    shutdown : shutdown,
+    typ      : worker,
+  }
+
+  let make_child_spec<$a>(
+    -id       id : $a,
+    -start    start,
+    ?restart  restart = Permanent,
+    ?shutdown shutdown_opt,
+    ?type     typ = Worker,
+  ) : child_spec<$a> =
+    let shutdown =
+      case (shutdown_opt, typ) of
+      | (Some(shutdown), _) -> shutdown
+      | (None, Worker)      -> Timeout(5000)
+      | (None, Supervisor)  -> Infinity
+      end
+    in
+    {
+      id       = id,
+      start    = start,
+      restart  = restart,
+      shutdown = shutdown,
+      typ      = typ,
+    }
+
+end
