@@ -57,6 +57,52 @@ $ make
 ```
 
 
+## How to use
+
+### Building a single source file
+
+Invoke:
+
+```console
+$ sesterl <source-file> -o <output-dir>
+```
+
+where `<source-file>` is the path to the source file you want to build (e.g. `trial/hello_world.sest`), and `<output-dir>` is the directory where Erlang source files will be generated (e.g. `trial/_generated`).
+
+
+### Building a package (and its dependencies)
+
+Invoke:
+
+```console
+$ sesterl <package-dir> -o <output-dir>
+```
+
+Here, `<package-dir>` is the directory where the configuration file (named `package.yaml`) of the package you want to build is put.
+
+An example use case is the following:
+
+```console
+$ tree .
+.
+├── outer
+│   ├── foo
+│   │   ├── package.yaml
+│   │   └── src
+│   │       ├── foo.sest
+│   │       ├── sub.sest
+│   │       └── util.sest
+│   └── bar
+│       ├── ...
+│       ...
+└── _generated
+
+$ sesterl outer/foo -o _generated
+```
+
+After executing the command above, resulting Erlang source files will be found in `_generated`.
+
+
 ## Example code
 
 Example usages can be seen in the following directories:
