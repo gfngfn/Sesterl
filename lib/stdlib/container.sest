@@ -56,7 +56,7 @@ module Stdlib :> sig
 
   module Supervisor : sig
     type child_proc :: o
-    val make_child_proc<$a> : fun(pid<$a>) -> child_proc
+    val make_child_proc<$a, $b> : fun([$b]option<pid<$a>>) -> child_proc
     type restart = Permanent | Transient | Temporary
     type shutdown = BrutalKill | Timeout(int) | Infinity
     type worker = Worker | Supervisor
@@ -87,6 +87,7 @@ module Stdlib :> sig
 
       module Make : fun(Callback : Behaviour) -> sig
         type proc :: o
+        val as_pid : fun(proc) -> pid<Callback.info>
         val start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc>
       end
     end
@@ -106,6 +107,7 @@ module Stdlib :> sig
 
       module Make : fun(Callback : Behaviour) -> sig
         type proc :: o
+        val as_pid : fun(proc) -> pid<Callback.info>
         val start_link<$a> : fun(unit) -> [$a]option<proc>
       end
     end

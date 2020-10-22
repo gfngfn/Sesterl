@@ -65,6 +65,10 @@ module DynamicSupervisor = struct
           end.
     ```
 
+    let as_pid : fun(proc) -> pid<Callback.info> = external 1 ```
+      as_pid(Pid) -> Pid.
+    ```
+
     let start_link<$a> : fun(unit) -> [$a]option<proc> = external 1 ```
       start_link(_) ->
           fun() ->
