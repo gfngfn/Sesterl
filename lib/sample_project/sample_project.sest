@@ -37,8 +37,8 @@ module SampleProject = struct
       let handle_call(req, pid, state) =
        let _ = print_debug(("handle_call", req)) in
         case req of
-        | GetNumber -> (Number(state.number), state)
-        | GetName   -> (Name(state.name), state)
+        | GetNumber -> Stdlib.GenServer.reply(Number(state.number), state)
+        | GetName   -> Stdlib.GenServer.reply(Name(state.name), state)
         end
 
       let handle_cast(msg, state) =

@@ -11,6 +11,15 @@ module Stdlib :> sig
   end
 
   module GenServer : sig
+
+    type reply :: (o, o, o) -> o
+
+    val reply<$msg, $response, $state> :
+      fun($response, $state) -> [$msg]reply<$msg, $response, $state>
+
+    val reply_fast<$msg, $response, $state> :
+      fun($response, -rest [$msg]$state) -> [$msg]reply<$msg, $response, $state>
+
     signature Behaviour = sig
       type init_arg :: o
       type request :: o  /* temporary; should be a unary GADT */
@@ -19,7 +28,7 @@ module Stdlib :> sig
       type info :: o
       type state :: o
       val init : fun(init_arg) -> option<state>
-      val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
+      val handle_call<$a> : fun(request, pid<$a>, state) -> [info]reply<info, response, state>
       val handle_cast : fun(cast_message, state) -> state
       val handle_info : fun(info, state) -> state
       val terminate : fun(state) -> unit

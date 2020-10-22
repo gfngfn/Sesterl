@@ -1,5 +1,14 @@
 module GenServer = struct
 
+  type reply<$msg, $response, $state> =
+    | ReplyImpl($response, [$msg]$state)
+
+  let reply<$msg, $response, $state>(response, state) : [$msg]reply<$msg, $response, $state> =
+    return(ReplyImpl(response, return(state)))
+
+  let reply_fast<$msg, $response, $state>(response, -rest comp) : [$msg]reply<$msg, $response, $state> =
+    return(ReplyImpl(response, comp))
+
   signature Behaviour = sig
     type init_arg :: o
     type request :: o  /* temporary; should be a unary GADT */
@@ -8,7 +17,7 @@ module GenServer = struct
     type info :: o
     type state :: o
     val init : fun(init_arg) -> option<state>
-    val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
+    val handle_call<$a> : fun(request, pid<$a>, state) -> [info]reply<info, response, state>
     val handle_cast : fun(cast_message, state) -> state
     val handle_info : fun(info, state) -> state
     val terminate : fun(state) -> unit
@@ -38,8 +47,12 @@ module GenServer = struct
     let handle_call<$a> : $a = external 3 ```
       handle_call(Msg, From, State0) ->
           {Pid, _} = From,
-          {Response, State1} = ?MODULE:handle_call_impl(Msg, Pid, State0),
-          {reply, Response, State1}.
+          CallF = ?MODULE:handle_call_impl(Msg, Pid, State0),
+          case CallF() of
+              {reply_impl, Response, StateF} ->
+                  State1 = StateF(),
+                  {reply, Response, State1}
+          end.
     ```
 
     let handle_cast_impl(msg : Callback.cast_message, state : Callback.state) =
