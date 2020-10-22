@@ -8,8 +8,12 @@ module SupervisorCommon = struct
 
   type child_proc = ChildProcDummy
 
-  let make_child_proc<$a> : fun(pid<$a>) -> child_proc = external 1 ```
-    make_child_proc(Pid) -> {ok, Pid}.
+  let make_child_proc<$a, $b> : fun([$b]option<pid<$a>>) -> child_proc = external 1 ```
+    make_child_proc(PidOptF) ->
+        case PidOptF of
+            {some, Pid} -> {ok, Pid};
+            none        -> error
+        end.
   ```
 
   type child_spec<$a> = {
