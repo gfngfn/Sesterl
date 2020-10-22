@@ -48,11 +48,11 @@ module SampleProject = struct
         end
 
       let handle_info(info, state) =
-        state
+        Stdlib.GenServer.no_reply(state)
 
       let terminate(state) =
         let _ = print_debug("terminate") in
-        ()
+        return(())
 
     end
 

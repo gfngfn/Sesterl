@@ -34,8 +34,8 @@ module Stdlib :> sig
       val init : fun(init_arg) -> option<state>
       val handle_call<$a> : fun(request, pid<$a>, state) -> [info]reply<info, response, state>
       val handle_cast : fun(cast_message, state) -> [info]no_reply<state>
-      val handle_info : fun(info, state) -> state
-      val terminate : fun(state) -> unit
+      val handle_info : fun(info, state) -> [info]no_reply<state>
+      val terminate : fun(state) -> [info]unit
     end
 
     module Make : fun(Callback : Behaviour) -> sig
