@@ -12,6 +12,12 @@ module Stdlib :> sig
 
   module GenServer : sig
 
+    type initialized :: (o) -> o
+
+    val init_ok<$msg, $state> : fun($state) -> [$msg]initialized<$state>
+
+    val init_fail<$msg, $state> : fun() -> [$msg]initialized<$state>
+
     type reply :: (o, o, o) -> o
 
     val reply<$msg, $response, $state> :
@@ -31,7 +37,7 @@ module Stdlib :> sig
       type cast_message :: o
       type info :: o
       type state :: o
-      val init : fun(init_arg) -> option<state>
+      val init : fun(init_arg) -> [info]initialized<state>
       val handle_call<$a> : fun(request, pid<$a>, state) -> [info]reply<info, response, state>
       val handle_cast : fun(cast_message, state) -> [info]no_reply<state>
       val handle_info : fun(info, state) -> [info]no_reply<state>

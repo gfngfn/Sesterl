@@ -1,5 +1,13 @@
 module GenServer = struct
 
+  type initialized<$state> = option<$state>
+
+  let init_ok(state) =
+    return(Some(state))
+
+  let init_fail() =
+    return(None)
+
   type reply<$msg, $response, $state> =
     | ReplyImpl($response, [$msg]$state)
 
@@ -22,7 +30,7 @@ module GenServer = struct
     type cast_message :: o
     type info :: o
     type state :: o
-    val init : fun(init_arg) -> option<state>
+    val init : fun(init_arg) -> [info]initialized<state>
     val handle_call<$a> : fun(request, pid<$a>, state) -> [info]reply<info, response, state>
     val handle_cast : fun(cast_message, state) -> [info]no_reply<state>
     val handle_info : fun(info, state) -> [info]no_reply<state>
@@ -40,8 +48,8 @@ module GenServer = struct
 
     let init<$a> : $a = external 1 ```
       init(Args) ->
-          Res = ?MODULE:init_impl(Args),
-          case Res of
+          StateF = ?MODULE:init_impl(Args),
+          case StateF() of
               {some, State} -> {ok, State};
               none          -> ignore
           end.

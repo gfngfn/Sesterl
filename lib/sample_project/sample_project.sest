@@ -32,7 +32,7 @@ module SampleProject = struct
 
       let init(state) =
         let _ = print_debug(("init", state)) in
-        Some(state)
+        Stdlib.GenServer.init_ok(state)
 
       let handle_call(req, pid, state) =
        let _ = print_debug(("handle_call", req)) in
