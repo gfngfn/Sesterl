@@ -20,6 +20,10 @@ module Stdlib :> sig
     val reply_fast<$msg, $response, $state> :
       fun($response, -rest [$msg]$state) -> [$msg]reply<$msg, $response, $state>
 
+    type no_reply :: (o) -> o
+
+    val no_reply<$msg, $state> : fun($state) -> [$msg]no_reply<$state>
+
     signature Behaviour = sig
       type init_arg :: o
       type request :: o  /* temporary; should be a unary GADT */
@@ -29,7 +33,7 @@ module Stdlib :> sig
       type state :: o
       val init : fun(init_arg) -> option<state>
       val handle_call<$a> : fun(request, pid<$a>, state) -> [info]reply<info, response, state>
-      val handle_cast : fun(cast_message, state) -> state
+      val handle_cast : fun(cast_message, state) -> [info]no_reply<state>
       val handle_info : fun(info, state) -> state
       val terminate : fun(state) -> unit
     end

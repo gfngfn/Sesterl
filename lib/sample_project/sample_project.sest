@@ -44,7 +44,7 @@ module SampleProject = struct
       let handle_cast(msg, state) =
         let _ = print_debug(("handle_cast", msg)) in
         case msg of
-        | SetNumber(m) -> { number = m, name = state.name }
+        | SetNumber(m) -> Stdlib.GenServer.no_reply({ number = m, name = state.name })
         end
 
       let handle_info(info, state) =
