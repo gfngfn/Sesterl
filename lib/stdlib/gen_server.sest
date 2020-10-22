@@ -1,5 +1,28 @@
 module GenServer = struct
 
+  type initialized<$state> = option<$state>
+
+  let init_ok(state) =
+    return(Some(state))
+
+  let init_fail() =
+    return(None)
+
+  type reply<$msg, $response, $state> =
+    | ReplyImpl($response, [$msg]$state)
+
+  let reply<$msg, $response, $state>(response, state) : [$msg]reply<$msg, $response, $state> =
+    return(ReplyImpl(response, return(state)))
+
+  let reply_fast<$msg, $response, $state>(response, -rest comp) : [$msg]reply<$msg, $response, $state> =
+    return(ReplyImpl(response, comp))
+
+  type no_reply<$state> =
+    | NoReplyImpl($state)
+
+  let no_reply<$msg, $state>(state) : [$msg]no_reply<$state> =
+    return(NoReplyImpl(state))
+
   signature Behaviour = sig
     type init_arg :: o
     type request :: o  /* temporary; should be a unary GADT */
@@ -7,11 +30,11 @@ module GenServer = struct
     type cast_message :: o
     type info :: o
     type state :: o
-    val init : fun(init_arg) -> option<state>
-    val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
-    val handle_cast : fun(cast_message, state) -> state
-    val handle_info : fun(info, state) -> state
-    val terminate : fun(state) -> unit
+    val init : fun(init_arg) -> [info]initialized<state>
+    val handle_call<$a> : fun(request, pid<$a>, state) -> [info]reply<info, response, state>
+    val handle_cast : fun(cast_message, state) -> [info]no_reply<state>
+    val handle_info : fun(info, state) -> [info]no_reply<state>
+    val terminate : fun(state) -> [info]unit
   end
 
   module Make = fun(Callback : Behaviour) -> struct
@@ -25,8 +48,8 @@ module GenServer = struct
 
     let init<$a> : $a = external 1 ```
       init(Args) ->
-          Res = ?MODULE:init_impl(Args),
-          case Res of
+          StateF = ?MODULE:init_impl(Args),
+          case StateF() of
               {some, State} -> {ok, State};
               none          -> ignore
           end.
@@ -38,8 +61,12 @@ module GenServer = struct
     let handle_call<$a> : $a = external 3 ```
       handle_call(Msg, From, State0) ->
           {Pid, _} = From,
-          {Response, State1} = ?MODULE:handle_call_impl(Msg, Pid, State0),
-          {reply, Response, State1}.
+          CallF = ?MODULE:handle_call_impl(Msg, Pid, State0),
+          case CallF() of
+              {reply_impl, Response, StateF} ->
+                  State1 = StateF(),
+                  {reply, Response, State1}
+          end.
     ```
 
     let handle_cast_impl(msg : Callback.cast_message, state : Callback.state) =
@@ -47,8 +74,11 @@ module GenServer = struct
 
     let handle_cast<$a> : $a = external 2 ```
       handle_cast(Msg, State0) ->
-          State1 = ?MODULE:handle_cast_impl(Msg, State0),
-          {noreply, State1}.
+          CastF = ?MODULE:handle_cast_impl(Msg, State0),
+          case CastF() of
+              {no_reply_impl, State1} ->
+                  {noreply, State1}
+          end.
     ```
 
     let handle_info_impl<$a>(info : Callback.info, state : Callback.state) =
@@ -56,8 +86,11 @@ module GenServer = struct
 
     let handle_info<$a> : $a = external 2 ```
       handle_info(Info, State0) ->
-          State1 = handle_info_impl(Info, State0),
-          {noreply, State1}.
+          StateF = handle_info_impl(Info, State0),
+          case StateF() of
+              {no_reply_impl, State1} ->
+                  {noreply, State1}
+          end.
     ```
 
     let terminate_impl(state : Callback.state) =
@@ -65,7 +98,8 @@ module GenServer = struct
 
     let terminate<$a> : $a = external 2 ```
       terminate(_Reason, State) ->
-          terminate_impl(State).
+          F = terminate_impl(State),
+          F().
     ```
 
     let call<$a> : fun(proc, request, ?timeout int) -> [$a]response = external 2+ ```

@@ -11,6 +11,25 @@ module Stdlib :> sig
   end
 
   module GenServer : sig
+
+    type initialized :: (o) -> o
+
+    val init_ok<$msg, $state> : fun($state) -> [$msg]initialized<$state>
+
+    val init_fail<$msg, $state> : fun() -> [$msg]initialized<$state>
+
+    type reply :: (o, o, o) -> o
+
+    val reply<$msg, $response, $state> :
+      fun($response, $state) -> [$msg]reply<$msg, $response, $state>
+
+    val reply_fast<$msg, $response, $state> :
+      fun($response, -rest [$msg]$state) -> [$msg]reply<$msg, $response, $state>
+
+    type no_reply :: (o) -> o
+
+    val no_reply<$msg, $state> : fun($state) -> [$msg]no_reply<$state>
+
     signature Behaviour = sig
       type init_arg :: o
       type request :: o  /* temporary; should be a unary GADT */
@@ -18,11 +37,11 @@ module Stdlib :> sig
       type cast_message :: o
       type info :: o
       type state :: o
-      val init : fun(init_arg) -> option<state>
-      val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
-      val handle_cast : fun(cast_message, state) -> state
-      val handle_info : fun(info, state) -> state
-      val terminate : fun(state) -> unit
+      val init : fun(init_arg) -> [info]initialized<state>
+      val handle_call<$a> : fun(request, pid<$a>, state) -> [info]reply<info, response, state>
+      val handle_cast : fun(cast_message, state) -> [info]no_reply<state>
+      val handle_info : fun(info, state) -> [info]no_reply<state>
+      val terminate : fun(state) -> [info]unit
     end
 
     module Make : fun(Callback : Behaviour) -> sig
@@ -55,11 +74,15 @@ module Stdlib :> sig
       type strategy = OneForAll | OneForOne | RestForOne
       type sup_flags :: o
       val make_sup_flags : fun(?strategy strategy, ?intensity int, ?period int) -> sup_flags
+      type initialized :: (o) -> o
+      val init_ok<$msg, $c> : fun(sup_flags, list<child_spec<$c>>) -> [$msg]initialized<$c>
+      val init_fail<$msg, $c> : fun() -> [$msg]initialized<$c>
 
       signature Behaviour = sig
         type child_id :: o
         type init_arg :: o
-        val init : fun(init_arg) -> option<(sup_flags, list<child_spec<child_id>>)>
+        type info :: o
+        val init : fun(init_arg) -> [info]initialized<child_id>
       end
 
       module Make : fun(Callback : Behaviour) -> sig
@@ -71,10 +94,14 @@ module Stdlib :> sig
     module Dynamic : sig
       type sup_flags :: o
       val make_sup_flags : fun(?intensity int, ?period int) -> sup_flags
+      type initialized :: (o) -> o
+      val init_ok<$msg, $c> : fun(sup_flags, child_spec<$c>) -> [$msg]initialized<$c>
+      val init_fail<$msg, $c> : fun() -> [$msg]initialized<$c>
 
       signature Behaviour = sig
         type child_id :: o
-        val init : fun() -> option<(sup_flags, child_spec<child_id>)>
+        type info :: o
+        val init : fun() -> [info]initialized<child_id>
       end
 
       module Make : fun(Callback : Behaviour) -> sig

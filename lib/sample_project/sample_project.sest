@@ -32,27 +32,27 @@ module SampleProject = struct
 
       let init(state) =
         let _ = print_debug(("init", state)) in
-        Some(state)
+        Stdlib.GenServer.init_ok(state)
 
       let handle_call(req, pid, state) =
        let _ = print_debug(("handle_call", req)) in
         case req of
-        | GetNumber -> (Number(state.number), state)
-        | GetName   -> (Name(state.name), state)
+        | GetNumber -> Stdlib.GenServer.reply(Number(state.number), state)
+        | GetName   -> Stdlib.GenServer.reply(Name(state.name), state)
         end
 
       let handle_cast(msg, state) =
         let _ = print_debug(("handle_cast", msg)) in
         case msg of
-        | SetNumber(m) -> { number = m, name = state.name }
+        | SetNumber(m) -> Stdlib.GenServer.no_reply({ number = m, name = state.name })
         end
 
       let handle_info(info, state) =
-        state
+        Stdlib.GenServer.no_reply(state)
 
       let terminate(state) =
         let _ = print_debug("terminate") in
-        ()
+        return(())
 
     end
 
