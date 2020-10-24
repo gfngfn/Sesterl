@@ -7,7 +7,7 @@ module ModSeq = struct
 
   signature Decomposable = sig
     type s :: (o) -> o
-    val decompose<$a> : fun(s<$a>) -> option<($a, s<$a>)>
+    val decompose<$a> : fun(s<$a>) -> option<{$a, s<$a>}>
   end
 
   module Seq = fun(D : Decomposable) ->
@@ -17,7 +17,7 @@ module ModSeq = struct
         letrec aux(acc : list<$a>, xs : t<$a>) =
           case D.decompose(xs) of
           | None            -> acc
-          | Some((x, tail)) -> aux(x :: acc, tail)
+          | Some({x, tail}) -> aux(x :: acc, tail)
           end
         in
         aux([], xs)
@@ -28,7 +28,7 @@ module ModSeq = struct
     let decompose(xs) =
       case xs of
       | []        -> None
-      | x :: tail -> Some((x, tail))
+      | x :: tail -> Some({x, tail})
       end
   end
 

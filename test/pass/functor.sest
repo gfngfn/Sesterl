@@ -11,7 +11,7 @@ module Functor = struct
     let f(x : X.t) : X.t = x
     let g(y : Y.t) : Y.t = y
     let m() = n()
-    let zeroes() = (X.zero(), Y.zero())
+    let zeroes() = {X.zero(), Y.zero()}
   end
 
   module Int = struct

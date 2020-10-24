@@ -38,14 +38,14 @@ module Send = struct
           wait_all(r, n - 1)
       end
 
-  letrec spawn_all<$m>(acc, n : int) : [(pid<$m>, bintree<int>)]list<pid<$m>> =
+  letrec spawn_all<$m>(acc, n : int) : [{pid<$m>, bintree<int>}]list<pid<$m>> =
     if n <= 0 then
       return(reverse_list(acc))
     else
       do parent <- self in
       do pid : pid<$m> <- spawn(
         do me <- self in
-        send(parent, (me, bintree_of_int(n)))
+        send(parent, {me, bintree_of_int(n)})
       ) in
       spawn_all(pid :: acc, n - 1)
 
@@ -53,7 +53,7 @@ module Send = struct
     let m = 10 in
     do pids <- spawn_all([], m) in
     let _ = print_debug(pids) in
-    wait_all((), m)
+    wait_all({}, m)
 
   let main<$a> : $a = external 1 ```
 main(_) ->

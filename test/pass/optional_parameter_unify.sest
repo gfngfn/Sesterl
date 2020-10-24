@@ -9,10 +9,10 @@ module OptionalParameterUnify = struct
 
   let main(args) =
     let h(?foo nopt, ?bar binopt) =
-      case (nopt, binopt) of
-      | (None, _)          -> false
-      | (Some(n), None)    -> n > 0
-      | (Some(n), Some(b)) -> n > 0 && b
+      case {nopt, binopt} of
+      | {None, _}          -> false
+      | {Some(n), None}    -> n > 0
+      | {Some(n), Some(b)} -> n > 0 && b
       end
     in
     let res = f(true, h) in

@@ -12,10 +12,10 @@ module ModStack = struct
 
     let empty() = []
 
-    let pop<$a>(s : t<$a>) : option<($a, t<$a>)> =
+    let pop<$a>(s : t<$a>) : option<{$a, t<$a>}> =
       case s of
       | []          -> None
-      | top :: rest -> Some((top, rest))
+      | top :: rest -> Some({top, rest})
       end
 
     let push(s, x) = x :: s

@@ -1,5 +1,5 @@
 require ErrorCyclicBar
 
 module ErrorCyclicFoo = struct
-  let main() = ()
+  let main() = {}
 end

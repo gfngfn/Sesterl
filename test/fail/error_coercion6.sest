@@ -1,5 +1,5 @@
 module ErrorCoercion6 = struct
-  module Sub : sig
+  module Sub :> sig
     type t :: o
     val make : fun(int) -> t
   end = struct

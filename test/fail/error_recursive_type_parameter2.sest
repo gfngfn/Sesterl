@@ -1,5 +1,5 @@
 module ErrorRecursiveTypeParameter2 = struct
 
-  let f(x, y) = ({ x | foo = y }, { y | bar = x })
+  let f(x, y) = {{ x | foo = y }, { y | bar = x }}
 
 end
