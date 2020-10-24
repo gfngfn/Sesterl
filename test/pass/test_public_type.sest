@@ -1,0 +1,18 @@
+module TestPublicType = struct
+/*
+  signature S = sig
+    type t
+    type u = t
+  end
+*/
+  signature T = sig
+    type u
+    type t = u
+  end
+/*
+  module F = fun(X : S) -> X :> T
+*/
+end
+/* This test case was given by @elpinal.
+   See: https://twitter.com/elpin1al/status/1317752613052452864?s=20
+*/
