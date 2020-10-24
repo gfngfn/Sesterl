@@ -260,7 +260,10 @@ let iletrecin_single (_, _, name_outer, name_inner, e1) (e2 : ast) : ast =
       assert false
 
 
-let iletrecin_multiple (binds : (identifier * poly_type * local_name * local_name * ast) TupleList.t) (e2 : ast) : ast =
+let iletrecin_multiple (binds : (identifier * poly_type * local_name * local_name * ast) List2.t) (e2 : ast) : ast =
+  let (bind1, bind2, bindrest) = List2.decompose binds in
+  let binds = TupleList.make bind1 (bind2 :: bindrest) in
+
   let ipat_inner_tuple =
     IPTuple(binds |> TupleList.map (fun (_, _, _, name_inner, _) -> IPVar(name_inner)))
   in
@@ -291,7 +294,7 @@ let iletrecin (binds : (identifier * poly_type * local_name * local_name * ast) 
   match binds with
   | []                     -> assert false
   | [bind]                 -> iletrecin_single bind e2
-  | bind1 :: bind2 :: rest -> iletrecin_multiple (TupleList.make bind1 bind2 rest) e2
+  | bind1 :: bind2 :: rest -> iletrecin_multiple (List2.make bind1 bind2 rest) e2
 
 
 let occurs (fid : FreeID.t) (ty : mono_type) : bool =
@@ -920,9 +923,8 @@ let type_of_base_constant (lev : int) (rng : Range.t) (bc : base_constant) =
   | FormatString(fmtelems) ->
       let tyarg =
         match types_of_format lev fmtelems with
-        | []                -> raise_error (NullaryFormatString(rng))
-        | [ ty ]            -> ty
-        | ty1 :: ty2 :: tys -> (Range.dummy "format", ProductType(TupleList.make ty1 ty2 tys))
+        | []         -> (Range.dummy "format", BaseType(UnitType))
+        | ty1 :: tys -> (Range.dummy "format", ProductType(TupleList.make ty1 tys))
       in
       Primitives.format_type rng tyarg
 

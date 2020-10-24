@@ -68,7 +68,7 @@ let topological_sort (graph : t) : (absolute_path list, absolute_path cycle) res
           match vertices with
           | []                -> assert false
           | [ _ ]             -> None
-          | v1 :: v2 :: vrest -> Some(Cycle(TupleList.make v1 v2 vrest |> TupleList.map GraphImpl.V.label))
+          | v1 :: v2 :: vrest -> Some(Cycle(List2.make v1 v2 vrest |> List2.map GraphImpl.V.label))
         )
       with
       | Some(cycle) ->

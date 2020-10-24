@@ -51,7 +51,7 @@ end = struct
       match vertices with
       | []                -> assert false
       | [ _ ]             -> None
-      | v1 :: v2 :: vrest -> Some(Cycle(TupleList.make v1 v2 vrest))
+      | v1 :: v2 :: vrest -> Some(Cycle(List2.make v1 v2 vrest))
     )
 
 

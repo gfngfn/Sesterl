@@ -597,14 +597,14 @@ exprs:
 exprbot:
   | rng=TRUE                  { (rng, BaseConst(Bool(true))) }
   | rng=FALSE                 { (rng, BaseConst(Bool(false))) }
-  | tokL=LPAREN; tokR=RPAREN  { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, BaseConst(Unit)) }
+  | tokL=LBRACE; tokR=RBRACE  { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, BaseConst(Unit)) }
   | c=INT                     { let (rng, n) = c in (rng, BaseConst(Int(n))) }
   | c=FLOAT                   { let (rng, r) = c in (rng, BaseConst(Float(r))) }
   | ident=ident               { let (rng, x) = ident in (rng, Var(x)) }
   | LPAREN; e=exprlet; RPAREN { e }
-  | tokL=LPAREN; e1=exprlet; COMMA; e2=exprlet; es=list(tuplesub); tokR=RPAREN {
+  | tokL=LBRACE; e1=exprlet; es=list(tuplesub); tokR=RBRACE {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, Tuple(TupleList.make e1 e2 es))
+        (rng, Tuple(TupleList.make e1 es))
       }
   | tokL=LSQUARE; es=exprs; tokR=RSQUARE {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
@@ -686,9 +686,9 @@ patbot:
   | ident=ident              { let (rng, x) = ident in (rng, PVar(x)) }
   | rng=UNDERSCORE           { (rng, PWildCard) }
   | tokL=LSQUARE; tokR=RSQUARE { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, PListNil) }
-  | tokL=LPAREN; p1=patcons; COMMA; p2=patcons; pats=list(pattuplesub); tokR=RPAREN {
+  | tokL=LBRACE; p1=patcons; pats=list(pattuplesub); tokR=RBRACE {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, PTuple(TupleList.make p1 p2 pats))
+        (rng, PTuple(TupleList.make p1 pats))
       }
   | ctor=CTOR {
         let (rng, ctornm) = ctor in
@@ -801,9 +801,9 @@ tybot:
         let rng = make_range (Token(tokL)) (Ranged(mtycod)) in
         (rng, MFuncType(ordmtydoms, mndmtydoms, optmtydoms, mtycod))
       }
-  | tokL=LPAREN; mty1=ty; COMMA; mty2=ty; mtys=list(tytuplesub) tokR=RPAREN {
+  | tokL=LBRACE; mty1=ty; mtys=list(tytuplesub) tokR=RBRACE {
         let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, MProductType(TupleList.make mty1 mty2 mtys))
+        (rng, MProductType(TupleList.make mty1 mtys))
       }
   | tokL=LSQUARE; mty1=ty; RSQUARE; mty2=ty {
         let rng = make_range (Token(tokL)) (Ranged(mty2)) in

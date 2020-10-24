@@ -72,6 +72,6 @@ let find_cycle (graph : t) : ((TypeID.Synonym.t * type_name ranged) cycle) optio
             None
 
         | v1 :: v2 :: vrest ->
-            let vs = TupleList.make v1 v2 vrest in
-            Some(Cycle(vs |> TupleList.map (extract_vertex_info graph)))
+            let vs = List2.make v1 v2 vrest in
+            Some(Cycle(vs |> List2.map (extract_vertex_info graph)))
       )
