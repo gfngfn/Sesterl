@@ -617,7 +617,7 @@ fun showtv showrv ty ->
 
     | ProductType(tys) ->
         let ss = tys |> TupleList.to_list |> List.map aux in
-        Printf.sprintf "(%s)" (String.concat ", " ss)
+        Printf.sprintf "{%s}" (String.concat ", " ss)
 
     | RecordType(labmap) ->
         begin
