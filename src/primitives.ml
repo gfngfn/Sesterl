@@ -174,7 +174,7 @@ let primitive_definitions = [
     target = {
       target_name = "format";
       parameters  = ["{Fmt, Arity}"; "Arg"];
-      code        = "Args = case Arity of 1 -> [Arg]; _ -> tuple_to_list(Arg) end, lists:flatten(io_lib:format(Fmt, Args))"
+      code        = "Args = tuple_to_list(Arg), lists:flatten(io_lib:format(Fmt, Args))"
     };
   };
   {

@@ -7,7 +7,7 @@ module Functor2 = struct
 
   module F = fun(X : S) -> struct
     let f(x : X.t) : X.t = x
-    let zeroes() = (X.zero(), X.zero())
+    let zeroes() = {X.zero(), X.zero()}
   end
 
   module Int = struct

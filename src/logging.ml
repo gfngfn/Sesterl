@@ -82,7 +82,7 @@ let report_config_error (e : config_error) : unit =
 
         | Cycle(abspaths) ->
             Format.printf "cyclic file dependency found among:\n";
-            abspaths |> TupleList.to_list |> List.iter (fun abspath ->
+            abspaths |> List2.to_list |> List.iter (fun abspath ->
               Format.printf "  - '%s'\n" abspath
             )
       end
@@ -216,7 +216,7 @@ let report_type_error (e : type_error) : unit =
       let tyidents =
         match cycle with
         | Loop((_, tyident)) -> [ tyident ]
-        | Cycle(vs)          -> vs |> TupleList.to_list |> List.map (fun (_, tyident) -> tyident)
+        | Cycle(vs)          -> vs |> List2.to_list |> List.map (fun (_, tyident) -> tyident)
       in
       Format.printf "cyclic type definitions:\n";
       tyidents |> List.iter (fun (rng, tynm) ->
@@ -227,7 +227,7 @@ let report_type_error (e : type_error) : unit =
       let bbids =
         match cycle with
         | Loop(bbid)   -> [ bbid ]
-        | Cycle(bbids) -> bbids |> TupleList.to_list
+        | Cycle(bbids) -> bbids |> List2.to_list
       in
       Format.printf "%a: cyclic type variables:\n"
         Range.pp rng;

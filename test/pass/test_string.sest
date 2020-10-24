@@ -6,7 +6,7 @@ module TestString = struct
   let chop_first(s) =
     case s of
     | []         -> None
-    | ch :: tail -> Some((ch, tail))
+    | ch :: tail -> Some({ch, tail})
     end
 
   let starts_with_h(s) =
@@ -20,6 +20,6 @@ module TestString = struct
     let ans1 = chop_first(s) in
     let ans2 = $'F' :: 'oo' in
     let ans3 = starts_with_h(s) in
-    print_debug((s, ans1, ans2, ans3))
+    print_debug({s, ans1, ans2, ans3})
 
 end

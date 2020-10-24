@@ -31,6 +31,7 @@ fun f acc0 (x1, x2, xs) ->
 let to_list (x1, x2, xs) =
   x1 :: x2 :: xs
 
+let decompose (v : 'a t) = v
 
 let pp (type a) (ppa : Format.formatter -> a -> unit) (ppf : Format.formatter) ((x1, x2, xs) : a t) =
   Format.fprintf ppf "%a@ %a@ %a"

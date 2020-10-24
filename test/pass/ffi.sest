@@ -5,7 +5,7 @@ module Ffi = struct
     | None
     | Some($a)
 
-  let assoc<$a> : fun(int, list<(int, $a)>) -> option<($a, list<(int, $a)>)>
+  let assoc<$a> : fun(int, list<{int, $a}>) -> option<{$a, list<{int, $a}>}>
     = external 2
   ```
     assoc(Key, Xs) ->
@@ -18,11 +18,11 @@ module Ffi = struct
   let main(args) =
     let ans =
       assoc(1, [
-        (3, "Komaba"),
-        (1, "Hongo"),
-        (4, "Yayoi"),
-        (1, "Asano"),
-        (5, "Kashiwa")
+        {3, "Komaba"},
+        {1, "Hongo"},
+        {4, "Yayoi"},
+        {1, "Asano"},
+        {5, "Kashiwa"},
       ])
     in
     print_debug(ans)

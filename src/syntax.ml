@@ -1,12 +1,13 @@
 
 open MyUtil
 
+module TupleList = List1
 
 type package_name = string
 
 type 'a cycle =
   | Loop  of 'a
-  | Cycle of 'a TupleList.t
+  | Cycle of 'a List2.t
 
 type 'a ranged = Range.t * 'a
 

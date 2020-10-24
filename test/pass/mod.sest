@@ -13,13 +13,13 @@ module Mod = struct
   module Map = fun(Elem : Ord) ->
     struct
       type elem = Elem.s
-      type t<$a> = list<(elem, $a)>
+      type t<$a> = list<{elem, $a}>
       letrec find<$b>(x : elem, assoc : t<$b>) : option<$b> =
         case assoc of
         | [] ->
             None
 
-        | (k, v) :: tail ->
+        | {k, v} :: tail ->
             if Elem.compare(k, x) == 0 then
               Some(v)
             else

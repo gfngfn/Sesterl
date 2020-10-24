@@ -51,7 +51,7 @@ end = struct
       match vertices with
       | []                -> assert false
       | [ _ ]             -> None
-      | v1 :: v2 :: vrest -> Some(Cycle(TupleList.make v1 v2 vrest))
+      | v1 :: v2 :: vrest -> Some(Cycle(List2.make v1 v2 vrest))
     )
 
 
@@ -617,7 +617,7 @@ fun showtv showrv ty ->
 
     | ProductType(tys) ->
         let ss = tys |> TupleList.to_list |> List.map aux in
-        Printf.sprintf "(%s)" (String.concat ", " ss)
+        Printf.sprintf "{%s}" (String.concat ", " ss)
 
     | RecordType(labmap) ->
         begin

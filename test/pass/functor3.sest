@@ -15,7 +15,7 @@ module Functor3 = struct
     module Q = X.N
     let f(x : P.t,) : P.t = x  /* inserting a comma is a temporary dirty hack for parsing */
     let g(y : Q.t,) : Q.t = y
-    let zeroes() = (P.zero(), Q.zero())
+    let zeroes() = {P.zero(), Q.zero()}
   end
 
   module Int = struct
