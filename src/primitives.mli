@@ -32,6 +32,6 @@ val list_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ
 
 val format_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ
 
-val frozen_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ
+val frozen_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ -> ('a, 'b) typ
 
 val initial_environment : Typeenv.t * global_name_map

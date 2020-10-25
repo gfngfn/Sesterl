@@ -323,26 +323,15 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
             assert false
       end
 
-  | IFreeze(gname, mrow, ordastargs, mndargmap, optargmap) ->
-      let (sargs, soptmap, can_take_optional, no_mandatory_argument) =
-        stringify_arguments gmap mrow ordastargs mndargmap optargmap
-      in
+  | IFreeze(gname, astargs) ->
+      let sargs = List.map iter astargs in
       let r = OutputIdentifier.output_global gname in
       let smod = get_module_string gmap gname in
       let sfun = r.function_name in
-      let sopts =
-        if LabelAssoc.cardinal optargmap = 0 then
-          ""
-        else if no_mandatory_argument then
-          Printf.sprintf "#{%s}" soptmap
-        else
-          Printf.sprintf ", #{%s}" soptmap
-      in
-      Printf.sprintf "{%s, %s, [%s%s]}"
+      Printf.sprintf "{%s, %s, [%s]}"
         smod
         sfun
         (String.concat ", " sargs)
-        sopts
 
   | IRecord(emap) ->
       let s = mapify_label_assoc gmap emap in

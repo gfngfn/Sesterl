@@ -1296,7 +1296,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       in
       (tyret, iapply efun optrow eargs mndargmap optargmap)
 
-  | Freeze(rngapp, frozenfun, utastargs, mndutastargs, optutastargs) ->
+  | Freeze(rngapp, frozenfun, utastargs, restrngs) ->
       let (ptyfun, gname) =
         match frozenfun with
         | FrozenModFun(modidentchain1, ident2) ->
@@ -1331,10 +1331,24 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             end
       in
       let tyfun = TypeConv.instantiate pre.level ptyfun in
-      let (tyret, optrow, eargs, mndargmap, optargmap) =
-        typecheck_application pre rngapp utastargs mndutastargs optutastargs tyfun
+      let tyeargs = List.map (typecheck pre) utastargs in
+      let tyargs = List.map fst tyeargs in
+      let eargs = List.map snd tyeargs in
+      let tyrests =
+        restrngs |> List.map (fun restrng ->
+          fresh_type_variable ~name:"Freeze, rest" pre.level UniversalKind restrng
+        )
       in
-      (Primitives.frozen_type rng tyret, IFreeze(gname, optrow, eargs, mndargmap, optargmap))
+      let tyargsall = List.append tyargs tyrests in
+      let tyret = fresh_type_variable ~name:"Freeze, ret" pre.level UniversalKind rng in
+      unify tyfun (Range.dummy "Freeze1", FuncType(tyargsall, LabelAssoc.empty, FixedRow(LabelAssoc.empty), tyret));
+      let tyrest =
+        let dr = Range.dummy "Freeze2" in
+        match tyrests with
+        | []        -> (dr, BaseType(UnitType))
+        | ty :: tys -> (dr, ProductType(TupleList.make ty tys))
+      in
+      (Primitives.frozen_type rng tyrest tyret, IFreeze(gname, eargs))
 
   | If(utast0, utast1, utast2) ->
       let (ty0, e0) = typecheck pre utast0 in

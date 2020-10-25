@@ -519,18 +519,18 @@ exprapp:
         let rng = make_range (Ranged(efun)) (Token(tokR)) in
         (rng, Apply(efun, ordargs, mndargs, optargs))
       }
-  | tokL=FREEZE; modchain=modchainraw; ident=DOTIDENT; LPAREN; args=args; tokR=RPAREN {
-        let (ordargs, (mndargs, optargs)) = args in
+  | tokL=FREEZE; modchain=modchainraw; ident=DOTIDENT; LPAREN; args=freezeargs; tokR=RPAREN {
+        let (ordargs, rngs) = args in
         let ((rng1, _), _) = modchain in
         let rngapp = make_range (Token(rng1)) (Token(tokR)) in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, Freeze(rngapp, FrozenModFun(modchain, ident), ordargs, mndargs, optargs))
+        (rng, Freeze(rngapp, FrozenModFun(modchain, ident), ordargs, rngs))
       }
-  | tokL=FREEZE; ident=IDENT; LPAREN; args=args; tokR=RPAREN {
-        let (ordargs, (mndargs, optargs)) = args in
+  | tokL=FREEZE; ident=IDENT; LPAREN; args=freezeargs; tokR=RPAREN {
+        let (ordargs, rngs) = args in
         let rngapp = make_range (Ranged(ident)) (Token(tokR)) in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, Freeze(rngapp, FrozenFun(ident), ordargs, mndargs, optargs))
+        (rng, Freeze(rngapp, FrozenFun(ident), ordargs, rngs))
       }
   | modchain=modchainraw; LPAREN; args=args; tokR=RPAREN {
         let (tokL, modidents, ctor) = chop_last modchain in
@@ -583,6 +583,23 @@ optargs:
   |                                                 { [] }
   | rlabel=OPTLABEL; e=exprlet                      { [ (rlabel, e) ] }
   | rlabel=OPTLABEL; e=exprlet; COMMA; tail=optargs { (rlabel, e) :: tail }
+;
+freezeargs:
+  | rngs=holeargs {
+        ([], rngs)
+      }
+  | e=exprlet {
+        ([e], [])
+      }
+  | e=exprlet; COMMA; tail=freezeargs {
+        let (ordargs, rngs) = tail in
+        (e :: ordargs, rngs)
+      }
+;
+holeargs:
+  |                                      { [] }
+  | tok=UNDERSCORE                       { [tok] }
+  | tok=UNDERSCORE; COMMA; tail=holeargs { tok :: tail }
 ;
 record:
   |                                                    { [] }
