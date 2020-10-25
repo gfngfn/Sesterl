@@ -9,6 +9,10 @@ module TestFreeze = struct
   let partial(x) : frozen<{int}, int> =
     freeze Sub.add(x, _)
 
+  let full(y) : frozen<unit, int> =
+    let p = partial(42) in
+    freeze (p) with (y)
+
   let impl() : list<frozen<unit, int>> =
     [
       freeze Sub.add(42, 57),
