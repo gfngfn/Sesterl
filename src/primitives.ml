@@ -43,6 +43,18 @@ let frozen_type (rng : Range.t) (tyrest : ('a, 'b) typ) (tycod : ('a, 'b) typ) :
   (rng, DataType(TypeID.Variant(vid_frozen), [tyrest; tycod]))
 
 
+let check_frozen_type ty =
+  match TypeConv.canonicalize_root ty with
+  | (_, DataType(TypeID.Variant(vid), [tyrest; tyret])) ->
+      if TypeID.Variant.equal vid_frozen vid then
+        Some((tyrest, tyret))
+      else
+        None
+
+  | _ ->
+      None
+
+
 let fresh_bound () =
   let bid = BoundID.fresh () in
   KindStore.register_bound_id bid UniversalKind;

@@ -333,6 +333,22 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
         sfun
         (String.concat ", " sargs)
 
+  | IFreezeUpdate(ast0, astargs) ->
+      let s0 = iter ast0 in
+      let sargs = List.map iter astargs in
+      let varM = fresh_local_symbol () in
+      let varF = fresh_local_symbol () in
+      let varArgs = fresh_local_symbol () in
+      Printf.sprintf "begin {%s, %s, %s} = %s, {%s, %s, %s ++ [%s]} end"
+        varM
+        varF
+        varArgs
+        s0
+        varM
+        varF
+        varArgs
+        (String.concat ", " sargs)
+
   | IRecord(emap) ->
       let s = mapify_label_assoc gmap emap in
       Printf.sprintf "#{%s}" s

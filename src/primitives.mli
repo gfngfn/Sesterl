@@ -34,4 +34,6 @@ val format_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ
 
 val frozen_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ -> ('a, 'b) typ
 
+val check_frozen_type : mono_type -> (mono_type * mono_type) option
+
 val initial_environment : Typeenv.t * global_name_map

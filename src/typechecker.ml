@@ -543,27 +543,6 @@ and opaque_occurs_in_structure (oidset : OpaqueIDSet.t) (sigr : SigRecord.t) : b
       false
 
 
-let get_real_type_scheme : 'a 'b. ((('a, 'b) typ) BoundIDMap.t -> poly_type -> ('a, 'b) typ) -> TypeID.Synonym.t -> (('a, 'b) typ) list -> ('a, 'b) typ =
-fun substf sid tyargs ->
-  let (typarams, ptyreal) = TypeDefinitionStore.find_synonym_type sid in
-  try
-    let substmap =
-      List.fold_left2 (fun substmap typaram tyarg ->
-        substmap |> BoundIDMap.add typaram tyarg
-      ) BoundIDMap.empty typarams tyargs
-    in
-    substf substmap ptyreal
-  with
-  | Invalid_argument(_) -> assert false
-
-
-let get_real_mono_type : TypeID.Synonym.t -> mono_type list -> mono_type =
-  get_real_type_scheme TypeConv.substitute_mono_type
-
-let get_real_poly_type : TypeID.Synonym.t -> poly_type list -> poly_type =
-  get_real_type_scheme TypeConv.substitute_poly_type
-
-
 let label_assoc_union =
   LabelAssoc.union (fun _ _ ty2 -> Some(ty2))
 
@@ -586,14 +565,14 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
         if MustBeBoundID.equal mbbid1 mbbid2 then Consistent else Contradiction
 
     | (DataType(TypeID.Synonym(sid1), tyargs1), _) ->
-        let ty1real = get_real_mono_type sid1 tyargs1 in
+        let ty1real = TypeConv.get_real_mono_type sid1 tyargs1 in
 (*
         Format.printf "UNIFY-SYN %a => %a =?= %a\n" TypeID.Synonym.pp sid1 pp_mono_type ty1real pp_mono_type ty2;  (* for debug *)
 *)
         aux ty1real ty2
 
     | (_, DataType(TypeID.Synonym(sid2), tyargs2)) ->
-        let ty2real = get_real_mono_type sid2 tyargs2 in
+        let ty2real = TypeConv.get_real_mono_type sid2 tyargs2 in
 (*
         Format.printf "UNIFY-SYN %a =?= %a <= %a\n" pp_mono_type ty1 pp_mono_type ty2real TypeID.Synonym.pp sid2;  (* for debug *)
 *)
@@ -1350,6 +1329,52 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       in
       (Primitives.frozen_type rng tyrest tyret, IFreeze(gname, eargs))
 
+  | FreezeUpdate(utast0, utastargs, numrest) ->
+      let (ty0, e0) = typecheck pre utast0 in
+      let (typarams, tyret) =
+        match Primitives.check_frozen_type ty0 with
+        | Some(tyrest, tyret) ->
+            begin
+              match TypeConv.canonicalize_root tyrest with
+              | (_, ProductType(typarams)) ->
+                  (typarams |> List1.to_list, tyret)
+
+              | (_, BaseType(UnitType)) ->
+                  failwith "TODO: FreezeUpdate, error 1"
+
+              | _ ->
+                  assert false
+            end
+
+        | None ->
+            failwith "TODO: FreezeUpdate, error 3"
+      in
+      let len_expected = List.length typarams in
+      let len_actual = List.length utastargs + numrest in
+      if len_expected <> len_actual then
+        failwith "TODO: FreezeUpdate, error 4"
+      else
+        let (typarams, eacc) =
+          utastargs |> List.fold_left (fun (typarams, eacc) utastarg ->
+            match typarams with
+            | [] ->
+                failwith "TODO: FreezeUpdate, error 5"
+
+            | ty_expected :: tytail ->
+                let (ty_actual, earg) = typecheck pre utastarg in
+                unify ty_actual ty_expected;
+                (tytail, Alist.extend eacc earg)
+          ) (typarams, Alist.empty)
+        in
+        let tyrest =
+          let dr = Range.dummy "FreezeUpdate" in
+          match typarams with
+          | []        -> (dr, BaseType(UnitType))
+          | ty :: tys -> (dr, ProductType(TupleList.make ty tys))
+        in
+        (Primitives.frozen_type rng tyrest tyret, IFreezeUpdate(e0, eacc |> Alist.to_list))
+
+
   | If(utast0, utast1, utast2) ->
       let (ty0, e0) = typecheck pre utast0 in
       unify ty0 (Range.dummy "If", BaseType(BoolType));
@@ -1949,11 +1974,11 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
           (* Monomorphic type variables cannot occur at level 0, according to type generalization. *)
 
     | (DataType(TypeID.Synonym(sid1), ptyargs1), _) ->
-        let pty1real = get_real_poly_type sid1 ptyargs1 in
+        let pty1real = TypeConv.get_real_poly_type sid1 ptyargs1 in
         aux pty1real pty2
 
     | (_, DataType(TypeID.Synonym(sid2), ptyargs2)) ->
-        let pty2real = get_real_poly_type sid2 ptyargs2 in
+        let pty2real = TypeConv.get_real_poly_type sid2 ptyargs2 in
         aux pty1 pty2real
 
     | (BaseType(bt1), BaseType(bt2)) ->
@@ -2032,7 +2057,7 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
               end
 
           | Some(TypeID.Synonym(sid)) ->
-              let pty2real = get_real_poly_type sid ptyargs2 in
+              let pty2real = TypeConv.get_real_poly_type sid ptyargs2 in
               aux pty1 pty2real
 
           | Some(TypeID.Variant(vid)) ->
@@ -2216,11 +2241,11 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
     let (_, ptymain2) = pty2 in
     match (ptymain1, ptymain2) with
     | (DataType(TypeID.Synonym(sid1), ptyargs1), _) ->
-        let pty1real = get_real_poly_type sid1 ptyargs1 in
+        let pty1real = TypeConv.get_real_poly_type sid1 ptyargs1 in
         aux pty1real pty2
 
     | (_, DataType(TypeID.Synonym(sid2), ptyargs2)) ->
-        let pty2real = get_real_poly_type sid2 ptyargs2 in
+        let pty2real = TypeConv.get_real_poly_type sid2 ptyargs2 in
         aux pty1 pty2real
 
     | (DataType(TypeID.Opaque(oid1), ptyargs1), DataType(TypeID.Opaque(oid2), ptyargs2)) ->

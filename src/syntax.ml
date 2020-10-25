@@ -176,6 +176,7 @@ and untyped_ast_main =
   | RecordAccess of untyped_ast * label ranged
   | RecordUpdate of untyped_ast * label ranged * untyped_ast
   | Freeze       of Range.t * frozen_fun * untyped_ast list * Range.t list
+  | FreezeUpdate of untyped_ast * untyped_ast list * int
   | ModProjVal   of (module_name ranged) list * identifier ranged
   | ModProjCtor  of (module_name ranged) list * constructor_name ranged * untyped_ast list
 
@@ -526,6 +527,7 @@ and ast =
   | IThunk       of ast
   | IForce       of ast
   | IFreeze       of global_name * ast list
+  | IFreezeUpdate of ast * ast list
 
 and branch =
   | IBranch of pattern * ast option * ast
