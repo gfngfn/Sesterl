@@ -6,6 +6,9 @@ module TestFreeze = struct
 
   let negate(n) = 0 - n
 
+  let partial(x) : frozen<{int}, int> =
+    freeze Sub.add(x, _)
+
   let impl() : list<frozen<unit, int>> =
     [
       freeze Sub.add(42, 57),
