@@ -535,7 +535,7 @@ exprapp:
   | tokL=FREEZE; LPAREN; e=exprlet; RPAREN; WITH; LPAREN; args=freezeargs; tokR=RPAREN {
         let (ordargs, rngs) = args in
         let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, FreezeUpdate(e, ordargs, List.length rngs))
+        (rng, FreezeUpdate(e, ordargs, rngs))
       }
   | modchain=modchainraw; LPAREN; args=args; tokR=RPAREN {
         let (tokL, modidents, ctor) = chop_last modchain in

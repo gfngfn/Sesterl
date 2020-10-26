@@ -1329,50 +1329,36 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       in
       (Primitives.frozen_type rng tyrest tyret, IFreeze(gname, eargs))
 
-  | FreezeUpdate(utast0, utastargs, numrest) ->
+  | FreezeUpdate(utast0, utastargs, restrngs) ->
       let (ty0, e0) = typecheck pre utast0 in
-      let (typarams, tyret) =
-        match Primitives.check_frozen_type ty0 with
-        | Some(tyrest, tyret) ->
-            begin
-              match TypeConv.canonicalize_root tyrest with
-              | (_, ProductType(typarams)) ->
-                  (typarams |> List1.to_list, tyret)
-
-              | (_, BaseType(UnitType)) ->
-                  failwith "TODO: FreezeUpdate, error 1"
-
-              | _ ->
-                  assert false
-            end
-
-        | None ->
-            failwith "TODO: FreezeUpdate, error 3"
+      let tyeargs = List.map (typecheck pre) utastargs in
+      let tyargs = List.map fst tyeargs in
+      let eargs = List.map snd tyeargs in
+      let tyholes =
+        restrngs |> List.map (fun restrng ->
+          fresh_type_variable ~name:"FreezeUpdate, rest1" pre.level UniversalKind restrng
+        )
       in
-      let len_expected = List.length typarams in
-      let len_actual = List.length utastargs + numrest in
-      if len_expected <> len_actual then
-        failwith "TODO: FreezeUpdate, error 4"
-      else
-        let (typarams, eacc) =
-          utastargs |> List.fold_left (fun (typarams, eacc) utastarg ->
-            match typarams with
-            | [] ->
-                failwith "TODO: FreezeUpdate, error 5"
-
-            | ty_expected :: tytail ->
-                let (ty_actual, earg) = typecheck pre utastarg in
-                unify ty_actual ty_expected;
-                (tytail, Alist.extend eacc earg)
-          ) (typarams, Alist.empty)
-        in
-        let tyrest =
-          let dr = Range.dummy "FreezeUpdate" in
-          match typarams with
+      let tyret =
+        fresh_type_variable ~name:"FreezeUpdate, ret" pre.level UniversalKind (Range.dummy "FreezeUpdate, ret")
+      in
+      let ty_expected =
+        let tyrest_expected =
+          let dr = Range.dummy "FreezeUpdate, rest2" in
+          match List.append tyargs tyholes with
           | []        -> (dr, BaseType(UnitType))
           | ty :: tys -> (dr, ProductType(TupleList.make ty tys))
         in
-        (Primitives.frozen_type rng tyrest tyret, IFreezeUpdate(e0, eacc |> Alist.to_list))
+        Primitives.frozen_type (Range.dummy "FreezeUpdate") tyrest_expected tyret
+      in
+      unify ty0 ty_expected;
+      let tyrest =
+        let dr = Range.dummy "FreezeUpdate, rest3" in
+        match tyholes with
+        | []        -> (dr, BaseType(UnitType))
+        | ty :: tys -> (dr, ProductType(TupleList.make ty tys))
+      in
+      (Primitives.frozen_type rng tyrest tyret, IFreezeUpdate(e0, eargs))
 
 
   | If(utast0, utast1, utast2) ->
