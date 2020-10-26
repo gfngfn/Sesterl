@@ -2,14 +2,33 @@ module TestFreeze = struct
 
   module Sub = struct
     let add(x, y) = x + y
+    letrec foldl(f, i, l) =
+      case l of
+      | []      -> i
+      | x :: xs -> foldl(f, f(i, x), xs)
+      end
   end
 
   let negate(n) = 0 - n
 
-  let impl() : list<frozen<int>> =
+  let partial(x) : frozen<{int}, int> =
+    freeze Sub.add(x, _)
+
+  let full(y) : frozen<unit, int> =
+    let p = partial(42) in
+    freeze (p) with (y)
+
+  let partial1() : frozen<{int, list<int>}, int> =
+    freeze Sub.foldl(Sub.add, _, _)
+
+  let partial2() : frozen<{list<int>}, int> =
+    freeze (partial1()) with (0, _)
+
+  let impl() : list<frozen<unit, int>> =
     [
       freeze Sub.add(42, 57),
       freeze negate(100),
+      freeze (partial2()) with ([3, 1, 4, 5, 9, 2]),
     ]
 
   let main<$a> : fun($a) -> unit = external 1 ```
