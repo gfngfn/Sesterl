@@ -64,7 +64,7 @@ module Stdlib :> sig
     val make_child_spec<$id, $arg> :
       fun(
         -id       $id,
-        -start    frozen<$arg, child_proc>,
+        -start    frozen<{$arg}, child_proc>,
         ?restart  restart,
         ?shutdown shutdown,
         ?type     worker,

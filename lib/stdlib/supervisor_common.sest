@@ -18,7 +18,7 @@ module SupervisorCommon = struct
 
   type child_spec<$id, $arg> = {
     id       : $id,
-    start    : frozen<$arg, child_proc>,
+    start    : frozen<{$arg}, child_proc>,
     restart  : restart,
     shutdown : shutdown,
     typ      : worker,
