@@ -19,10 +19,10 @@ module StaticSupervisor = struct
   ) : sup_flags =
     { strategy = strategy, intensity = intensity, period = period }
 
-  type initialized<$c> = option<(sup_flags, list<child_spec<$c>>)>
+  type initialized<$id> = option<{sup_flags, list<child_spec<$id, unit>>}>
 
-  let init_ok<$msg, $c>(sup_flags : sup_flags, child_specs : list<child_spec<$c>>) : [$msg]initialized<$c> =
-    return(Some((sup_flags, child_specs)))
+  let init_ok<$msg, $id>(sup_flags : sup_flags, child_specs : list<child_spec<$id, unit>>) : [$msg]initialized<$id> =
+    return(Some({sup_flags, child_specs}))
 
   let init_fail() =
     return(None)

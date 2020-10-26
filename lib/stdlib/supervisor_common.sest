@@ -16,26 +16,26 @@ module SupervisorCommon = struct
         end.
   ```
 
-  type child_spec<$a> = {
-    id       : $a,
-    start    : frozen<child_proc>,
+  type child_spec<$id, $arg> = {
+    id       : $id,
+    start    : frozen<$arg, child_proc>,
     restart  : restart,
     shutdown : shutdown,
     typ      : worker,
   }
 
-  let make_child_spec<$a>(
-    -id       id : $a,
+  let make_child_spec<$id, $arg>(
+    -id       id : $id,
     -start    start,
     ?restart  restart = Permanent,
     ?shutdown shutdown_opt,
     ?type     typ = Worker,
-  ) : child_spec<$a> =
+  ) : child_spec<$id, $arg> =
     let shutdown =
-      case (shutdown_opt, typ) of
-      | (Some(shutdown), _) -> shutdown
-      | (None, Worker)      -> Timeout(5000)
-      | (None, Supervisor)  -> Infinity
+      case {shutdown_opt, typ} of
+      | {Some(shutdown), _} -> shutdown
+      | {None, Worker}      -> Timeout(5000)
+      | {None, Supervisor}  -> Infinity
       end
     in
     {

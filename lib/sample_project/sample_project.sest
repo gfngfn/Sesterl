@@ -31,18 +31,18 @@ module SampleProject = struct
         | InfoDummy
 
       let init(state) =
-        let _ = print_debug(("init", state)) in
+        let _ = print_debug({"init", state}) in
         Stdlib.GenServer.init_ok(state)
 
       let handle_call(req, pid, state) =
-       let _ = print_debug(("handle_call", req)) in
+       let _ = print_debug({"handle_call", req}) in
         case req of
         | GetNumber -> Stdlib.GenServer.reply(Number(state.number), state)
         | GetName   -> Stdlib.GenServer.reply(Name(state.name), state)
         end
 
       let handle_cast(msg, state) =
-        let _ = print_debug(("handle_cast", msg)) in
+        let _ = print_debug({"handle_cast", msg}) in
         case msg of
         | SetNumber(m) -> Stdlib.GenServer.no_reply({ number = m, name = state.name })
         end
@@ -52,7 +52,7 @@ module SampleProject = struct
 
       let terminate(state) =
         let _ = print_debug("terminate") in
-        return(())
+        return({})
 
     end
 
@@ -86,7 +86,7 @@ module SampleProject = struct
         Server.stop(pid)
       else
         do n <- async_increment(pid) in
-        let _ = print_debug((t, n)) in
+        let _ = print_debug({t, n}) in
         loop(t - 1, pid)
 
     let main() =
@@ -94,11 +94,11 @@ module SampleProject = struct
       case pid_opt of
       | None ->
           let _ = print_debug("failed to start a process") in
-          return(())
+          return({})
 
       | Some(pid) ->
           do x <- Server.get_number(pid, ?timeout 1000) in
-          let _ = print_debug(("first get", x)) in
+          let _ = print_debug({"first get", x}) in
           do Server.set_number(pid, 42) in
           loop(10, pid)
       end

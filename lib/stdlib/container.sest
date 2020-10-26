@@ -60,23 +60,23 @@ module Stdlib :> sig
     type restart = Permanent | Transient | Temporary
     type shutdown = BrutalKill | Timeout(int) | Infinity
     type worker = Worker | Supervisor
-    type child_spec :: (o) -> o
-    val make_child_spec<$a> :
+    type child_spec :: (o, o) -> o
+    val make_child_spec<$id, $arg> :
       fun(
-        -id       $a,
-        -start    frozen<child_proc>,
+        -id       $id,
+        -start    frozen<$arg, child_proc>,
         ?restart  restart,
         ?shutdown shutdown,
         ?type     worker,
-      ) -> child_spec<$a>
+      ) -> child_spec<$id, $arg>
 
     module Static : sig
       type strategy = OneForAll | OneForOne | RestForOne
       type sup_flags :: o
       val make_sup_flags : fun(?strategy strategy, ?intensity int, ?period int) -> sup_flags
       type initialized :: (o) -> o
-      val init_ok<$msg, $c> : fun(sup_flags, list<child_spec<$c>>) -> [$msg]initialized<$c>
-      val init_fail<$msg, $c> : fun() -> [$msg]initialized<$c>
+      val init_ok<$msg, $id> : fun(sup_flags, list<child_spec<$id, unit>>) -> [$msg]initialized<$id>
+      val init_fail<$msg, $id> : fun() -> [$msg]initialized<$id>
 
       signature Behaviour = sig
         type child_id :: o
@@ -95,20 +95,21 @@ module Stdlib :> sig
     module Dynamic : sig
       type sup_flags :: o
       val make_sup_flags : fun(?intensity int, ?period int) -> sup_flags
-      type initialized :: (o) -> o
-      val init_ok<$msg, $c> : fun(sup_flags, child_spec<$c>) -> [$msg]initialized<$c>
-      val init_fail<$msg, $c> : fun() -> [$msg]initialized<$c>
+      type initialized :: (o, o) -> o
+      val init_ok<$msg, $id, $arg> : fun(sup_flags, child_spec<$id, $arg>) -> [$msg]initialized<$id, $arg>
+      val init_fail<$msg, $id, $arg> : fun() -> [$msg]initialized<$id, $arg>
 
       signature Behaviour = sig
         type child_id :: o
+        type start_arg :: o
         type info :: o
-        val init : fun() -> [info]initialized<child_id>
+        val init : fun() -> [info]initialized<child_id, start_arg>
       end
 
       module Make : fun(Callback : Behaviour) -> sig
         type proc :: o
         val as_pid : fun(proc) -> pid<Callback.info>
-        val start_link<$a> : fun(unit) -> [$a]option<proc>
+        val start_link<$a> : fun(Callback.start_arg) -> [$a]option<proc>
       end
     end
   end
