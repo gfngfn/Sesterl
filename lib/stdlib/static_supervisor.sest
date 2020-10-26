@@ -4,6 +4,36 @@ module StaticSupervisor = struct
 
   include SupervisorCommon
 
+  type child_spec<$id> = {
+    id       : $id,
+    start    : frozen<unit, child_proc>,
+    restart  : restart,
+    shutdown : shutdown,
+    typ      : worker,
+  }
+
+  let make_child_spec<$id>(
+    -id       id : $id,
+    -start    start,
+    ?restart  restart = Permanent,
+    ?shutdown shutdown_opt,
+    ?type     typ = Worker,
+  ) : child_spec<$id> =
+    let shutdown =
+      case {shutdown_opt, typ} of
+      | {Some(shutdown), _} -> shutdown
+      | {None, Worker}      -> Timeout(5000)
+      | {None, Supervisor}  -> Infinity
+      end
+    in
+    {
+      id       = id,
+      start    = start,
+      restart  = restart,
+      shutdown = shutdown,
+      typ      = typ,
+    }
+
   type strategy = OneForAll | OneForOne | RestForOne
 
   type sup_flags = {
@@ -19,9 +49,9 @@ module StaticSupervisor = struct
   ) : sup_flags =
     { strategy = strategy, intensity = intensity, period = period }
 
-  type initialized<$id> = option<{sup_flags, list<child_spec<$id, unit>>}>
+  type initialized<$id> = option<{sup_flags, list<child_spec<$id>>}>
 
-  let init_ok<$msg, $id>(sup_flags : sup_flags, child_specs : list<child_spec<$id, unit>>) : [$msg]initialized<$id> =
+  let init_ok<$msg, $id>(sup_flags : sup_flags, child_specs : list<child_spec<$id>>) : [$msg]initialized<$id> =
     return(Some({sup_flags, child_specs}))
 
   let init_fail() =

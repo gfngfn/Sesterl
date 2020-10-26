@@ -4,6 +4,33 @@ module DynamicSupervisor = struct
 
   include SupervisorCommon
 
+  type child_spec<$arg> = {
+    start    : frozen<{$arg}, child_proc>,
+    restart  : restart,
+    shutdown : shutdown,
+    typ      : worker,
+  }
+
+  let make_child_spec<$arg>(
+    -start    start,
+    ?restart  restart = Permanent,
+    ?shutdown shutdown_opt,
+    ?type     typ = Worker,
+  ) : child_spec<$arg> =
+    let shutdown =
+      case {shutdown_opt, typ} of
+      | {Some(shutdown), _} -> shutdown
+      | {None, Worker}      -> Timeout(5000)
+      | {None, Supervisor}  -> Infinity
+      end
+    in
+    {
+      start    = start,
+      restart  = restart,
+      shutdown = shutdown,
+      typ      = typ,
+    }
+
   type sup_flags = {
     intensity : int,
     period    : int,
@@ -12,7 +39,7 @@ module DynamicSupervisor = struct
   let make_sup_flags(?intensity intensity = 1, ?period period = 5) : sup_flags =
     { intensity = intensity, period = period }
 
-  type initialized<$id, $arg> = option<{sup_flags, child_spec<$id, $arg>}>
+  type initialized<$arg> = option<{sup_flags, child_spec<$arg>}>
 
   let init_ok(sup_flags, child_spec) =
     return(Some({sup_flags, child_spec}))
@@ -21,33 +48,32 @@ module DynamicSupervisor = struct
     return(None)
 
   signature Behaviour = sig
-    type child_id :: o
     type info :: o
+    type init_arg :: o
     type start_arg :: o
-    val init : fun() -> [info]initialized<child_id, start_arg>
+    val init : fun(init_arg) -> [info]initialized<start_arg>
   end
 
   module Make = fun(Callback : Behaviour) -> struct
 
     type proc = ProcDummy
 
-    let init_impl() =
-      Callback.init()
+    let init_impl(init_arg) =
+      Callback.init(init_arg)
 
     let init<$a> : $a = external 1 ```
-      init([]) ->
-          InitF = init_impl(),
+      init(InitArg) ->
+          InitF = init_impl(InitArg),
           case InitF() of
               none ->
                   ignore;
 
               {some, {SupFlags, ChildSpecImpl}} ->
                   #{
-                      id       => ChildId,
                       start    => StartFunc,
                       restart  => Restart,
                       shutdown => Shutdown,
-                      typ      => Workder,
+                      typ      => Workder
                   } = ChildSpecImpl,
                   Shutdown =
                       case ShutdownImpl of
@@ -56,7 +82,7 @@ module DynamicSupervisor = struct
                           infinity     -> infinity
                       end,
                   ChildSpec = #{
-                      id       => ChildId,
+                      id       => ?MODULE,
                       start    => StartFunc,
                       restart  => Restart,
                       shutdown => Shutdown,
@@ -70,12 +96,23 @@ module DynamicSupervisor = struct
       as_pid(Pid) -> Pid.
     ```
 
-    let start_link<$a> : fun(Callback.start_arg) -> [$a]option<proc> = external 1 ```
-      start_link(StartArg) ->
+    let start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
+      start_link(InitArg) ->
           fun() ->
-              case supervisor:start_link(?MODULE, [StartArg]) of
-                  {ok, Pid} when is_pid(Pid) -> {some, Pid};
-                  _                          -> none
+              case supervisor:start_link(?MODULE, InitArg) of
+                  {ok, SupPid} when is_pid(SupPid) -> {some, SupPid};
+                  _                                -> none
+              end
+          end.
+            % thunk
+    ```
+
+    let start_child<$a> : fun(proc, Callback.start_arg) -> [$a]option<child_proc> = external 2 ```
+      start_child(SupPid, StartArg) ->
+          fun() ->
+              case supervisor:start_child(SupPid, [StartArg]) of
+                  {ok, ChildPid} when is_pid(Pid) -> {some, ChildPid};
+                  _                               -> none
               end
           end.
             % thunk

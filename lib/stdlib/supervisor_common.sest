@@ -16,34 +16,4 @@ module SupervisorCommon = struct
         end.
   ```
 
-  type child_spec<$id, $arg> = {
-    id       : $id,
-    start    : frozen<{$arg}, child_proc>,
-    restart  : restart,
-    shutdown : shutdown,
-    typ      : worker,
-  }
-
-  let make_child_spec<$id, $arg>(
-    -id       id : $id,
-    -start    start,
-    ?restart  restart = Permanent,
-    ?shutdown shutdown_opt,
-    ?type     typ = Worker,
-  ) : child_spec<$id, $arg> =
-    let shutdown =
-      case {shutdown_opt, typ} of
-      | {Some(shutdown), _} -> shutdown
-      | {None, Worker}      -> Timeout(5000)
-      | {None, Supervisor}  -> Infinity
-      end
-    in
-    {
-      id       = id,
-      start    = start,
-      restart  = restart,
-      shutdown = shutdown,
-      typ      = typ,
-    }
-
 end
