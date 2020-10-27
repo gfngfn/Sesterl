@@ -117,7 +117,7 @@ module DynamicSupervisor = struct
                   {global, Bin} -> {global, erlang:binary_to_atom(Bin)}
               end,
           fun() ->
-              case supervisor:start_link(?MODULE, InitArg) of
+              case supervisor:start_link(Name, ?MODULE, InitArg) of
                   {ok, SupPid} when is_pid(SupPid) -> {some, SupPid};
                   _                                -> none
               end
