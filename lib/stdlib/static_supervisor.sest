@@ -115,7 +115,8 @@ module StaticSupervisor = struct
     let start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
       start_link(Args) ->
           fun() ->
-              case supervisor:start_link(?MODULE, Args) of
+              StartRet = supervisor:start_link(?MODULE, Args),
+              case StartRet of
                   {ok, Pid} -> {some, Pid};
                   _         -> none
               end
