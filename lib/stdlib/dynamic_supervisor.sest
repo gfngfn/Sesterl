@@ -4,19 +4,19 @@ module DynamicSupervisor = struct
 
   include SupervisorCommon
 
-  type child_spec<$arg> = {
-    start    : frozen<{$arg}, child_proc>,
+  type child_spec<$msg, $arg, $child> = {
+    start    : frozen<{$arg}, [$msg]option<$child>>,
     restart  : restart,
     shutdown : shutdown,
     typ      : worker,
   }
 
-  let make_child_spec<$arg>(
-    -start    start,
+  let make_child_spec<$msg, $arg, $child>(
+    -start    start : frozen<{$arg}, [$msg]option<$child>>,
     ?restart  restart = Permanent,
     ?shutdown shutdown_opt,
     ?type     typ = Worker,
-  ) : child_spec<$arg> =
+  ) : child_spec<$msg, $arg, $child> =
     let shutdown =
       case {shutdown_opt, typ} of
       | {Some(shutdown), _} -> shutdown
@@ -39,7 +39,7 @@ module DynamicSupervisor = struct
   let make_sup_flags(?intensity intensity = 1, ?period period = 5) : sup_flags =
     { intensity = intensity, period = period }
 
-  type initialized<$arg> = option<{sup_flags, child_spec<$arg>}>
+  type initialized<$msg, $arg, $child> = option<{sup_flags, child_spec<$msg, $arg, $child>}>
 
   let init_ok(sup_flags, child_spec) =
     return(Some({sup_flags, child_spec}))
@@ -51,7 +51,8 @@ module DynamicSupervisor = struct
     type info :: o
     type init_arg :: o
     type start_arg :: o
-    val init : fun(init_arg) -> [info]initialized<start_arg>
+    type child :: o
+    val init : fun(init_arg) -> [info]initialized<info, start_arg, child>
   end
 
   module Make = fun(Callback : Behaviour) -> struct
@@ -107,7 +108,7 @@ module DynamicSupervisor = struct
             % thunk
     ```
 
-    let start_child<$a> : fun(proc, Callback.start_arg) -> [$a]option<child_proc> = external 2 ```
+    let start_child<$a> : fun(proc, Callback.start_arg) -> [$a]option<Callback.child> = external 2 ```
       start_child(SupPid, StartArg) ->
           fun() ->
               case supervisor:start_child(SupPid, [StartArg]) of
