@@ -74,6 +74,7 @@ module StaticSupervisor = struct
     let init<$a> : $a = external 1 ```
       init(Args) ->
           InitF = init_impl(Args),
+          Ret =
           case InitF() of
               none ->
                   ignore;
@@ -105,7 +106,9 @@ module StaticSupervisor = struct
                           end,
                           ChildSpecsImpl),
                   {ok, {SupFlags, ChildSpecs}}
-          end.
+          end,
+          io:format("debug L('o' )J (~p) St init:~n  ~p~n", [?MODULE, Ret]),
+          Ret.
     ```
 
     let as_pid : fun(proc) -> pid<Callback.info> = external 1 ```
@@ -115,10 +118,15 @@ module StaticSupervisor = struct
     let start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
       start_link(Args) ->
           fun() ->
-              case supervisor:start_link(?MODULE, Args) of
+              io:format("debug L('o' )J (~p) start_link (arg):~n  ~p~n", [?MODULE, Args]),
+              StartRet = supervisor:start_link(?MODULE, Args),
+              Ret =
+              case StartRet of
                   {ok, Pid} -> {some, Pid};
                   _         -> none
-              end
+              end,
+              io:format("debug L('o' )J (~p) start_link (ret):~n  ~p~n", [?MODULE, StartRet]),
+              Ret
           end.
             % thunk
     ```
