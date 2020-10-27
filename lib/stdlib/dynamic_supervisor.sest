@@ -101,9 +101,7 @@ module DynamicSupervisor = struct
                       type     => Worker
                   },
                   {ok, {SupFlags, [ChildSpec]}}
-          end,
-          io:format("debug L('o' )J (~p) Dy init:~n  ~p~n", [?MODULE, Ret]),
-          Ret.
+          end.
     ```
 
     let as_pid : fun(proc) -> pid<Callback.info> = external 1 ```
@@ -129,16 +127,12 @@ module DynamicSupervisor = struct
                   {global, Bin} -> {global, erlang:binary_to_atom(Bin, utf8)}
               end,
           fun() ->
-              io:format("debug L('o' )J (~p) start_link_name (arg):~n  ~p~n", [?MODULE, InitArg]),
               StartRet = supervisor:start_link(Name, ?MODULE, InitArg),
-              Ret =
               case StartRet of
                   {ok, SupPid} when is_pid(SupPid)   -> {some, {true, SupPid}};
                   {error, {already_started, SupPid}} -> {some, {false, SupPid}};
                   _                                  -> none
-              end,
-              io:format("debug L('o' )J (~p) start_link_name (ret):~n  ~p~n", [?MODULE, StartRet]),
-              Ret
+              end
           end.
             % thunk
     ```
