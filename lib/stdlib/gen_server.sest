@@ -1,3 +1,5 @@
+require ServerUtil
+
 module GenServer = struct
 
   type initialized<$state> = option<$state>
@@ -121,12 +123,32 @@ module GenServer = struct
             % thunk
     ```
 
+    let as_pid(proc : proc) =
+      proc
+
     let start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
       start_link(Args) ->
           fun() ->
               case gen_server:start_link(?MODULE, Args, []) of
                   {ok, Pid} -> {some, Pid};
                   _         -> none
+              end
+          end.
+            % thunk
+    ```
+
+    let start_link_name<$a> : fun(Callback.init_arg, -name ServerUtil.name) -> [$a]option<{bool, proc}> = external 2 ```
+      start_link_name(Args, NameImpl) ->
+          Name =
+              case NameImpl of
+                  {local, Bin}  -> {local, erlang:binary_to_atom(Bin)};
+                  {global, Bin} -> {global, erlang:binary_to_atom(Bin)}
+              end,
+          fun() ->
+              case gen_server:start_link(Name, ?MODULE, Args, []) of
+                  {ok, Pid}                       -> {some, {true, Pid}};
+                  {error, {already_started, Pid}} -> {some, {false, Pid}};
+                  _                               -> none
               end
           end.
             % thunk

@@ -83,11 +83,11 @@ module StaticSupervisor = struct
                       lists:map(
                           fun(ChildSpecImpl) ->
                               #{
-                                  id       => ChildId,
-                                  start    => StartFunc,
-                                  restart  => Restart,
-                                  shutdown => ShutdownImpl,
-                                  typ      => Worker
+                                  id       := ChildId,
+                                  start    := StartFunc,
+                                  restart  := Restart,
+                                  shutdown := ShutdownImpl,
+                                  typ      := Worker
                               } = ChildSpecImpl,
                               Shutdown =
                                   case ShutdownImpl of
