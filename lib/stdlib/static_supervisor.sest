@@ -128,11 +128,11 @@ module StaticSupervisor = struct
 
     let start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
       start_link(InitArg) ->
-          io:format("debug L('o' )J (~p) St start_link (set):~n  ~p~n", [?MODULE, InitArg]),
+          % io:format("debug L('o' )J (~p) St start_link (pre):~n  ~p~n", [?MODULE, InitArg]),
           fun() ->
-              io:format("debug L('o' )J (~p) St start_link (arg):~n  ~p~n", [?MODULE, InitArg]),
+              % io:format("debug L('o' )J (~p) St start_link (arg):~n  ~p~n", [?MODULE, InitArg]),
               StartRet = supervisor:start_link(?MODULE, InitArg),
-              io:format("debug L('o' )J (~p) St start_link (ret):~n  ~p~n", [?MODULE, StartRet]),
+              % io:format("debug L('o' )J (~p) St start_link (ret):~n  ~p~n", [?MODULE, StartRet]),
               case StartRet of
                   {ok, Pid} -> {some, Pid};
                   _         -> none
@@ -143,14 +143,14 @@ module StaticSupervisor = struct
 
     let start_link_name<$a> : fun(Callback.init_arg, -name ServerUtil.name) -> [$a]option<{bool, proc}> = external 2 ```
       start_link_name(InitArg, NameImpl) ->
-          io:format("debug L('o' )J (~p) St start_link_name (set):~n  ~p~n", [?MODULE, InitArg]),
+          % io:format("debug L('o' )J (~p) St start_link_name (pre):~n  ~p~n", [?MODULE, InitArg]),
           Name =
               case NameImpl of
                   {local, Bin}  -> {local, erlang:binary_to_atom(Bin, utf8)};
                   {global, Bin} -> {global, erlang:binary_to_atom(Bin, utf8)}
               end,
           fun() ->
-              io:format("debug L('o' )J (~p) St start_link_name (arg):~n  ~p~n", [?MODULE, InitArg]),
+              % io:format("debug L('o' )J (~p) St start_link_name (arg):~n  ~p~n", [?MODULE, InitArg]),
               StartRet = supervisor:start_link(Name, ?MODULE, InitArg),
               Ret =
               case StartRet of
@@ -158,7 +158,7 @@ module StaticSupervisor = struct
                   {error, {already_started, SupPid}} -> {some, {false, SupPid}};
                   _                                  -> none
               end,
-              io:format("debug L('o' )J (~p) St start_link_name (ret):~n  ~p~n", [?MODULE, StartRet]),
+              % io:format("debug L('o' )J (~p) St start_link_name (ret):~n  ~p~n", [?MODULE, StartRet]),
               Ret
           end.
             % thunk

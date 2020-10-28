@@ -135,16 +135,16 @@ module DynamicSupervisor = struct
 
     let start_link_name<$a> : fun(Callback.init_arg, -name ServerUtil.name) -> [$a]option<{bool, proc}> = external 2 ```
       start_link_name(InitArg, NameImpl) ->
-          io:format("debug L('o' )J (~p) start_link_name (set):~n  ~p~n", [?MODULE, InitArg]),
+          % io:format("debug L('o' )J (~p) start_link_name (pre):~n  ~p~n", [?MODULE, InitArg]),
           Name =
               case NameImpl of
                   {local, Bin}  -> {local, erlang:binary_to_atom(Bin, utf8)};
                   {global, Bin} -> {global, erlang:binary_to_atom(Bin, utf8)}
               end,
           fun() ->
-              io:format("debug L('o' )J (~p) start_link_name (arg):~n  ~p~n", [?MODULE, InitArg]),
+              % io:format("debug L('o' )J (~p) start_link_name (arg):~n  ~p~n", [?MODULE, InitArg]),
               StartRet = supervisor:start_link(Name, ?MODULE, InitArg),
-              io:format("debug L('o' )J (~p) start_link_name (ret):~n  ~p~n", [?MODULE, StartRet]),
+              % io:format("debug L('o' )J (~p) start_link_name (ret):~n  ~p~n", [?MODULE, StartRet]),
               case StartRet of
                   {ok, SupPid} when is_pid(SupPid)   -> {some, {true, SupPid}};
                   {error, {already_started, SupPid}} -> {some, {false, SupPid}};
@@ -168,11 +168,11 @@ module DynamicSupervisor = struct
 
     let start_child<$a> : fun(proc, Callback.start_arg) -> [$a]option<pid<Callback.child_info>> = external 2 ```
       start_child(SupPid, StartArg) ->
-          io:format("debug L('o' )J (~p) start_child (set):~n  ~p~n", [?MODULE, StartArg]),
+          % io:format("debug L('o' )J (~p) start_child (pre):~n  ~p~n", [?MODULE, StartArg]),
           fun() ->
-              io:format("debug L('o' )J (~p) start_child (arg):~n  ~p~n", [?MODULE, StartArg]),
+              % io:format("debug L('o' )J (~p) start_child (arg):~n  ~p~n", [?MODULE, StartArg]),
               StartRet = supervisor:start_child(SupPid, [StartArg]),
-              io:format("debug L('o' )J (~p) start_child (ret):~n  ~p~n", [?MODULE, StartRet]),
+              % io:format("debug L('o' )J (~p) start_child (ret):~n  ~p~n", [?MODULE, StartRet]),
               case StartRet of
                   {ok, ChildPid} when is_pid(ChildPid) -> {some, ChildPid};
                   _                                    -> none
