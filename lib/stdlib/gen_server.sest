@@ -126,6 +126,9 @@ module GenServer = struct
     let as_pid(proc : proc) =
       proc
 
+    let from_pid(pid : proc) =
+      pid
+
     let start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
       start_link(Args) ->
           fun() ->
@@ -139,16 +142,32 @@ module GenServer = struct
 
     let start_link_name<$a> : fun(Callback.init_arg, -name ServerUtil.name) -> [$a]option<{bool, proc}> = external 2 ```
       start_link_name(Args, NameImpl) ->
+          % io:format("debug L('o' )J (~p) GS start_link_name (pre):~n  ~p~n", [?MODULE, Args]),
           Name =
               case NameImpl of
-                  {local, Bin}  -> {local, erlang:binary_to_atom(Bin)};
-                  {global, Bin} -> {global, erlang:binary_to_atom(Bin)}
+                  {local, Bin}  -> {local, erlang:binary_to_atom(Bin, utf8)};
+                  {global, Bin} -> {global, erlang:binary_to_atom(Bin, utf8)}
               end,
           fun() ->
-              case gen_server:start_link(Name, ?MODULE, Args, []) of
+              % io:format("debug L('o' )J (~p) GS start_link_name (arg):~n  ~p~n", [?MODULE, Args]),
+              StartRet = gen_server:start_link(Name, ?MODULE, Args, []),
+              % io:format("debug L('o' )J (~p) GS start_link_name (ret):~n  ~p~n", [?MODULE, StartRet]),
+              case StartRet of
                   {ok, Pid}                       -> {some, {true, Pid}};
                   {error, {already_started, Pid}} -> {some, {false, Pid}};
                   _                               -> none
+              end
+          end.
+            % thunk
+    ```
+
+    let where_is<$a> : fun(binary) -> [$a]option<proc> = external 1 ```
+      where_is(NameBin) ->
+          NameAtom = erlang:binary_to_atom(NameBin, utf8),
+          fun() ->
+              case erlang:whereis(NameAtom) of
+                  Pid when is_pid(Pid) -> {some, Pid};
+                  _                    -> none
               end
           end.
             % thunk

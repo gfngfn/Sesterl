@@ -5,19 +5,29 @@ module DynamicSupervisor = struct
 
   include SupervisorCommon
 
-  type child_spec<$msg, $arg, $child> = {
-    start    : frozen<{$arg}, [$msg]option<$child>>,
+  type child_proc<$child_msg> = ChildProcDummy
+
+  let make_child_proc<$b, $child_msg> : fun([$b]option<pid<$child_msg>>) -> child_proc<$child_msg> = external 1 ```
+    make_child_proc(PidOptF) ->
+        case PidOptF() of
+            {some, Pid} -> {ok, Pid};
+            none        -> error
+        end.
+  ```
+
+  type child_spec<$msg, $arg, $child_msg> = {
+    start    : frozen<{$arg}, child_proc<$child_msg>>,
     restart  : restart,
     shutdown : shutdown,
     typ      : worker,
   }
 
-  let make_child_spec<$msg, $arg, $child>(
-    -start    start : frozen<{$arg}, [$msg]option<$child>>,
+  let make_child_spec<$msg, $arg, $child_msg>(
+    -start    start : frozen<{$arg}, child_proc<$child_msg>>,
     ?restart  restart = Permanent,
     ?shutdown shutdown_opt,
     ?type     typ = Worker,
-  ) : child_spec<$msg, $arg, $child> =
+  ) : child_spec<$msg, $arg, $child_msg> =
     let shutdown =
       case {shutdown_opt, typ} of
       | {Some(shutdown), _} -> shutdown
@@ -40,7 +50,7 @@ module DynamicSupervisor = struct
   let make_sup_flags(?intensity intensity = 1, ?period period = 5) : sup_flags =
     { intensity = intensity, period = period }
 
-  type initialized<$msg, $arg, $child> = option<{sup_flags, child_spec<$msg, $arg, $child>}>
+  type initialized<$msg, $arg, $child_msg> = option<{sup_flags, child_spec<$msg, $arg, $child_msg>}>
 
   let init_ok(sup_flags, child_spec) =
     return(Some({sup_flags, child_spec}))
@@ -52,8 +62,8 @@ module DynamicSupervisor = struct
     type info :: o
     type init_arg :: o
     type start_arg :: o
-    type child :: o
-    val init : fun(init_arg) -> [info]initialized<info, start_arg, child>
+    type child_info :: o
+    val init : fun(init_arg) -> [info]initialized<info, start_arg, child_info>
   end
 
   module Make = fun(Callback : Behaviour) -> struct
@@ -108,6 +118,10 @@ module DynamicSupervisor = struct
       as_pid(Pid) -> Pid.
     ```
 
+    let from_pid : fun(pid<Callback.info>) -> proc = external 1 ```
+      from_pid(Pid) -> Pid.
+    ```
+
     let start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
       start_link(InitArg) ->
           fun() ->
@@ -121,13 +135,16 @@ module DynamicSupervisor = struct
 
     let start_link_name<$a> : fun(Callback.init_arg, -name ServerUtil.name) -> [$a]option<{bool, proc}> = external 2 ```
       start_link_name(InitArg, NameImpl) ->
+          % io:format("debug L('o' )J (~p) start_link_name (pre):~n  ~p~n", [?MODULE, InitArg]),
           Name =
               case NameImpl of
                   {local, Bin}  -> {local, erlang:binary_to_atom(Bin, utf8)};
                   {global, Bin} -> {global, erlang:binary_to_atom(Bin, utf8)}
               end,
           fun() ->
+              % io:format("debug L('o' )J (~p) start_link_name (arg):~n  ~p~n", [?MODULE, InitArg]),
               StartRet = supervisor:start_link(Name, ?MODULE, InitArg),
+              % io:format("debug L('o' )J (~p) start_link_name (ret):~n  ~p~n", [?MODULE, StartRet]),
               case StartRet of
                   {ok, SupPid} when is_pid(SupPid)   -> {some, {true, SupPid}};
                   {error, {already_started, SupPid}} -> {some, {false, SupPid}};
@@ -149,17 +166,21 @@ module DynamicSupervisor = struct
             % thunk
     ```
 
-
-    let start_child<$a> : fun(proc, Callback.start_arg) -> [$a]option<Callback.child> = external 2 ```
+    let start_child<$a> : fun(proc, Callback.start_arg) -> [$a]option<pid<Callback.child_info>> = external 2 ```
       start_child(SupPid, StartArg) ->
+          % io:format("debug L('o' )J (~p) start_child (pre):~n  ~p~n", [?MODULE, StartArg]),
           fun() ->
-              case supervisor:start_child(SupPid, [StartArg]) of
+              % io:format("debug L('o' )J (~p) start_child (arg):~n  ~p~n", [?MODULE, StartArg]),
+              StartRet = supervisor:start_child(SupPid, [StartArg]),
+              % io:format("debug L('o' )J (~p) start_child (ret):~n  ~p~n", [?MODULE, StartRet]),
+              case StartRet of
                   {ok, ChildPid} when is_pid(ChildPid) -> {some, ChildPid};
                   _                                    -> none
               end
           end.
             % thunk
     ```
+
   end
 
 end

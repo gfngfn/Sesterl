@@ -1,8 +1,8 @@
 module List = struct
 
   let map<$a, $b> : fun(fun($a) -> $b, list<$a>) -> list<$b> = external 2 ```
-    map(f, xs) ->
-        lists:map(f, xs).
+    map(F, Xs) ->
+        lists:map(F, Xs).
   ```
 
   let foldl<$a, $b> : fun(fun($b, $a) -> $b, $b, list<$a>) -> $b = external 3 ```
