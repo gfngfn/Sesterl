@@ -1,5 +1,9 @@
 module Stdlib :> sig
 
+  type name =
+    | Local(binary)
+    | Global(binary)
+
   module List : sig
     val map<$a, $b> : fun(fun($a) -> $b, list<$a>) -> list<$b>
     val foldl<$a, $b> : fun(fun($b, $a) -> $b, $b, list<$a>) -> $b
@@ -46,22 +50,26 @@ module Stdlib :> sig
 
     module Make : fun(Callback : Behaviour) -> sig
       type proc :: o
+      val as_pid : fun(proc) -> pid<Callback.info>
+      val from_pid : fun(pid<Callback.info>) -> proc
       val call<$a> : fun(proc, Callback.request, ?timeout int) -> [$a]Callback.response
       val cast<$a> : fun(proc, Callback.cast_message) -> [$a]unit
       val send_info<$a> : fun(proc, Callback.info) -> [$a]unit
       val start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc>
+      val start_link_name<$a> : fun(Callback.init_arg, -name name) -> [$a]option<{bool, proc}>
+      val where_is<$a> : fun(binary) -> [$a]option<proc>
       val stop<$a> : fun(proc) -> [$a]unit
     end
   end
 
   module Supervisor : sig
-    type child_proc :: o
-    val make_child_proc<$a, $b> : fun([$b]option<pid<$a>>) -> child_proc
     type restart = Permanent | Transient | Temporary
     type shutdown = BrutalKill | Timeout(int) | Infinity
     type worker = Worker | Supervisor
 
     module Static : sig
+      type child_proc :: o
+      val make_child_proc<$a, $b> : fun([$b]option<pid<$a>>) -> child_proc
       type child_spec :: (o) -> o
       val make_child_spec<$id> :
         fun(
@@ -88,43 +96,53 @@ module Stdlib :> sig
       module Make : fun(Callback : Behaviour) -> sig
         type proc :: o
         val as_pid : fun(proc) -> pid<Callback.info>
+        val from_pid : fun(pid<Callback.info>) -> proc
         val start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc>
+        val start_link_name<$a> : fun(Callback.init_arg, -name name) -> [$a]option<{bool, proc}>
+        val where_is<$a> : fun(binary) -> [$a]option<proc>
       end
     end
 
     module Dynamic : sig
-      type child_spec :: (o) -> o
-      val make_child_spec<$arg> :
+      type child_proc :: (o) -> o
+      val make_child_proc<$b, $child_msg> : fun([$b]option<pid<$child_msg>>) -> child_proc<$child_msg>
+      type child_spec :: (o, o, o) -> o
+      val make_child_spec<$msg, $arg, $child_msg> :
         fun(
-          -start    frozen<{$arg}, child_proc>,
+          -start    frozen<{$arg}, child_proc<$child_msg>>,
           ?restart  restart,
           ?shutdown shutdown,
           ?type     worker,
-        ) -> child_spec<$arg>
+        ) -> child_spec<$msg, $arg, $child_msg>
       type sup_flags :: o
       val make_sup_flags : fun(?intensity int, ?period int) -> sup_flags
-      type initialized :: (o) -> o
-      val init_ok<$msg, $arg> : fun(sup_flags, child_spec<$arg>) -> [$msg]initialized<$arg>
-      val init_fail<$msg, $arg> : fun() -> [$msg]initialized<$arg>
+      type initialized :: (o, o, o) -> o
+      val init_ok<$msg, $arg, $child_msg> : fun(sup_flags, child_spec<$msg, $arg, $child_msg>) -> [$msg]initialized<$msg, $arg, $child_msg>
+      val init_fail<$msg, $arg, $child_msg> : fun() -> [$msg]initialized<$msg, $arg, $child_msg>
 
       signature Behaviour = sig
         type init_arg :: o
         type start_arg :: o
         type info :: o
-        val init : fun(init_arg) -> [info]initialized<start_arg>
+        type child_info :: o
+        val init : fun(init_arg) -> [info]initialized<info, start_arg, child_info>
       end
 
       module Make : fun(Callback : Behaviour) -> sig
         type proc :: o
         val as_pid : fun(proc) -> pid<Callback.info>
+        val from_pid : fun(pid<Callback.info>) -> proc
         val start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc>
-        val start_child<$a> : fun(proc, Callback.start_arg) -> [$a]option<child_proc>
+        val start_link_name<$a> : fun(Callback.init_arg, -name name) -> [$a]option<{bool, proc}>
+        val where_is<$a> : fun(binary) -> [$a]option<proc>
+        val start_child<$a> : fun(proc, Callback.start_arg) -> [$a]option<pid<Callback.child_info>>
       end
     end
   end
 
 end = struct
   module List = List
+  include ServerUtil
   module GenServer = GenServer
   module Supervisor = Supervisor
 end
