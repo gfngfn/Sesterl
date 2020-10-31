@@ -11,11 +11,7 @@ type loaded_module = {
   module_identifier : module_name ranged;
   signature         : untyped_signature option;
   module_content    : untyped_module;
-}
-
-type bare_loaded_module = {
-  bare_dependencies : (module_name ranged) list;
-  bare_module         : loaded_module;
+  dependencies      : (module_name ranged) list;
 }
 
 type loaded_package = {
@@ -35,7 +31,7 @@ let listup_sources_in_directory (dir : absolute_dir) : absolute_path list =
   )
 
 
-let read_source (abspath_in : absolute_path) : (bare_loaded_module, syntax_error) result =
+let read_source (abspath_in : absolute_path) : (loaded_module, syntax_error) result =
   Logging.begin_to_parse abspath_in;
   let inc = open_in abspath_in in
   let lexbuf = Lexing.from_channel inc in
@@ -44,30 +40,28 @@ let read_source (abspath_in : absolute_path) : (bare_loaded_module, syntax_error
     let open ResultMonad in
     ParserInterface.process ~fname:fname lexbuf >>= fun (deps, modident, utsigopt, utmod) ->
     return {
-      bare_dependencies = deps;
-      bare_module = {
-        source_path       = abspath_in;
-        module_identifier = modident;
-        signature         = utsigopt;
-        module_content    = utmod;
-      };
+      source_path       = abspath_in;
+      module_identifier = modident;
+      signature         = utsigopt;
+      module_content    = utmod;
+      dependencies      = deps;
     }
   in
   close_in inc;
   res
 
 
-let resolve_dependency (baremods : bare_loaded_module list) : loaded_module list =
+let resolve_dependency (baremods : loaded_module list) : loaded_module list =
 
   (* First, add vertices to the graph for solving dependency. *)
   let (graph, nmmap) =
     baremods |> List.fold_left (fun (graph, nmmap) baremod ->
-      let (_, modnm) = baremod.bare_module.module_identifier in
-      let abspath = baremod.bare_module.source_path in
+      let (_, modnm) = baremod.module_identifier in
+      let abspath = baremod.source_path in
       begin
         match nmmap |> ModuleNameMap.find_opt modnm with
         | Some((_, baremod0)) ->
-            let abspath0 = baremod0.bare_module.source_path in
+            let abspath0 = baremod0.source_path in
             raise (ConfigError(MultipleModuleOfTheSameName(modnm, abspath0, abspath)))
 
         | None ->
@@ -81,7 +75,7 @@ let resolve_dependency (baremods : bare_loaded_module list) : loaded_module list
   (* Second, add dependency edges to the graph. *)
   let graph =
     graph |> ModuleNameMap.fold (fun modnm (vertex, baremod) graph ->
-      let deps = baremod.bare_dependencies in
+      let deps = baremod.dependencies in
       deps |> List.fold_left (fun graph (rng, modnm_dep) ->
         match nmmap |> ModuleNameMap.find_opt modnm_dep with
         | None ->
@@ -101,11 +95,8 @@ let resolve_dependency (baremods : bare_loaded_module list) : loaded_module list
   | Ok(sorted_paths) ->
       sorted_paths |> List.map (fun modnm ->
         match nmmap |> ModuleNameMap.find_opt modnm with
-        | None ->
-            assert false
-
-        | Some((_, baremod)) ->
-            baremod.bare_module
+        | None               -> assert false
+        | Some((_, baremod)) -> baremod
       )
 
 
@@ -116,11 +107,11 @@ let single (abspath_in : absolute_path) : loaded_module =
       raise (SyntaxError(e))
 
   | Ok(baremod) ->
-      let deps = baremod.bare_dependencies in
+      let deps = baremod.dependencies in
       if List.length deps > 0 then
         raise (ConfigError(CannotSpecifyDependency))
       else
-        baremod.bare_module
+        baremod
 
 
 let main (config : ConfigLoader.config) : loaded_package =
@@ -136,7 +127,7 @@ let main (config : ConfigLoader.config) : loaded_package =
   in
   let (baremains, baresubs) =
     baremods |> List.partition (fun baremod ->
-      let (_, modnm) = baremod.bare_module.module_identifier in
+      let (_, modnm) = baremod.module_identifier in
       String.equal modnm main_module_name
     )
   in
@@ -150,7 +141,7 @@ let main (config : ConfigLoader.config) : loaded_package =
         assert false
 
     | [ baremain ] ->
-        baremain.bare_module
+        baremain
   in
   let subs = resolve_dependency baresubs in
   let spkgname =
