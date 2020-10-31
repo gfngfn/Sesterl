@@ -11,6 +11,8 @@ type config_error =
   | InvalidPackageName          of string
   | CannotSpecifyDependency
   | MainModuleNotFound          of package_name * module_name
+  | UnrecognizableExtension     of string
+  | ConfigFileNotFound          of absolute_dir
 
 exception ConfigError of config_error
 

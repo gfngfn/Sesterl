@@ -107,6 +107,14 @@ let report_config_error (e : config_error) : unit =
       Format.printf "main module '%s' not found in package '%s'\n"
         modnm pkgname
 
+  | UnrecognizableExtension(ext) ->
+      Format.printf "unrecognizable extension '%s' for a source file\n"
+        ext
+
+  | ConfigFileNotFound(abspath) ->
+      Format.printf "config file '%s' not found\n"
+        abspath
+
 
 let report_package_error (e : package_error) : unit =
   Format.printf "! [Build error] ";

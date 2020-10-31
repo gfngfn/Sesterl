@@ -10,7 +10,7 @@ exception PackageError of package_error
 let load_config absdir_in =
   let abspath_in = Filename.concat absdir_in "package.yaml" in
   match ConfigLoader.load abspath_in with
-  | Error(e)   -> raise (ConfigError(ConfigFileError(e)))
+  | Error(e)   -> raise (ConfigError(e))
   | Ok(config) -> config
 
 

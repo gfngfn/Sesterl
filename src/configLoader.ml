@@ -1,5 +1,6 @@
 
 open MyUtil
+open Errors
 open Syntax
 
 
@@ -66,9 +67,13 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.decoder =
   succeed config
 
 
-let load (confpath : absolute_path) : (config, YamlDecoder.error) result =
+let load (confpath : absolute_path) : (config, config_error) result =
   let open ResultMonad in
-  let fin = open_in confpath in
+  begin
+    try return (open_in confpath) with
+    | Sys_error(_) -> err (ConfigFileNotFound(confpath))
+  end >>= fun fin ->
   let confdir = Filename.dirname confpath in
   let s = Core.In_channel.input_all fin in
-  YamlDecoder.run (config_decoder confdir) s
+  close_in fin;
+  YamlDecoder.run (config_decoder confdir) s |> map_err (fun e -> ConfigFileError(e))

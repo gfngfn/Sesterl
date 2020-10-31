@@ -35,6 +35,7 @@ end
 module ResultMonad : sig
   val return : 'a -> ('a, 'e) result
   val err : 'e -> ('a, 'e) result
+  val map_err : ('e1 -> 'e2) -> ('a, 'e1) result -> ('a, 'e2) result
   val ( >>= ) : ('a, 'e) result -> ('a -> ('b, 'e) result) -> ('b, 'e) result
 end = struct
 
@@ -48,6 +49,11 @@ end = struct
     match v with
     | Ok(x)    -> f x
     | Error(e) -> Error(e)
+
+  let map_err f v =
+    match v with
+    | Ok(x)    -> Ok(x)
+    | Error(e) -> Error(f e)
 
 end
 

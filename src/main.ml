@@ -19,18 +19,17 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
             [ (None, [], source) ]
 
         | Some(ext) ->
-            failwith (Printf.sprintf "TODO: unrecognizable extensions '%s'" ext)
+            raise (ConfigError(UnrecognizableExtension(ext)))
 
         | _ ->
-            if is_existing_directory abspath_in then
-              let absdir_in = abspath_in in
-              let pkgconfigs = PackageLoader.main absdir_in in
-              pkgconfigs |> List.map (fun (_, config) ->
-                let pkg = SourceLoader.main config in
-                (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.submodules, pkg.SourceLoader.main_module)
-              )
-            else
-              failwith "TODO: non-existent directory"
+            assert (is_existing_directory abspath_in);
+              (* The existence of given directories has been checked by 'cmdliner'. *)
+            let absdir_in = abspath_in in
+            let pkgconfigs = PackageLoader.main absdir_in in
+            pkgconfigs |> List.map (fun (_, config) ->
+              let pkg = SourceLoader.main config in
+              (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.submodules, pkg.SourceLoader.main_module)
+            )
     in
 
     (* Typecheck each package. *)
