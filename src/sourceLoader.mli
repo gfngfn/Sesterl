@@ -20,15 +20,17 @@ type loaded_package = {
 }
 
 val single : absolute_path -> loaded_module
+(** Receiving an absolute path [p] to a source file,
+    [single p]
+*)
 
 val main : ConfigLoader.config -> loaded_package
-(** Receiving a (possibly-relative) path [p] to a package configuration file (or a single source file),
-    [main p] loads all the source files constituting the package into modules,
+(** Receiving a package configuration value [config],
+    [main config] loads all the source files constituting the package into modules,
     and returns [pkg] where:
     {ul
-      {- [pkg.space_name] is [Some(s)] where [s] is the space name corresponding to the name of the package
-         (or [None] if [p] is a path to a single source file);}
-      {- [pkg.modules] is the list of loaded modules
-         in a topological order that reflects the dependency between modules; and}
-      {- [pkg.dependencies] is the list of packages on which the loaded package depends.}
+      {- [pkg.space_name] is the space name corresponding to the name of the package;}
+      {- [pkg.submodules] is the list of loaded submodules
+         sorted by a topological order that reflects the dependency between modules; and}
+      {- [pkg.main_module] is the main module of the package.}
     } *)
