@@ -10,6 +10,7 @@ type loaded_module = {
   module_identifier : module_name ranged;
   signature         : untyped_signature option;
   module_content    : untyped_module;
+  dependencies      : (module_name ranged) list;
 }
 
 type loaded_package = {
