@@ -4,31 +4,53 @@ open Syntax
 open Env
 
 
-let check_single (is_verbose : bool) ~for_signature:(tyenv_for_sig : Typeenv.t) ~for_module:(tyenv_for_mod : Typeenv.t) (source : SourceLoader.loaded_module) : Typeenv.t * SigRecord.t abstracted * (space_name * binding list) =
-  let abspath = source.SourceLoader.source_path in
+module SigRecordMap = Map.Make(String)
+
+type sig_record_map = (SigRecord.t abstracted * space_name) SigRecordMap.t
+
+
+let check_single (is_verbose : bool) ~check_public_signature:(check_public_signature : bool) (sigrmap : sig_record_map) (tyenv_before : Typeenv.t) (source : SourceLoader.loaded_module) : SigRecord.t abstracted * (space_name * binding list) =
+  let abspath  = source.SourceLoader.source_path in
   let modident = source.SourceLoader.module_identifier in
   let utsigopt = source.SourceLoader.signature in
-  let utmod = source.SourceLoader.module_content in
+  let utmod    = source.SourceLoader.module_content in
+  let deps     = source.SourceLoader.dependencies in
   Logging.begin_to_typecheck abspath;
-  let absmodsigopt = utsigopt |> Option.map (Typechecker.typecheck_signature tyenv_for_sig) in
-  let (tyenv, abssigr, sname, binds) = Typechecker.main tyenv_for_mod modident absmodsigopt utmod in
+
+  let tyenv_for_mod =
+    deps |> List.fold_left (fun tyenv (_, depmodnm) ->
+      match sigrmap |> SigRecordMap.find_opt depmodnm with
+      | None                     -> assert false
+      | Some(((_, sigr), sname)) -> tyenv |> Typeenv.add_module depmodnm (ConcStructure(sigr)) sname
+    ) tyenv_before
+  in
+  let absmodsigopt =
+    let tyenv_for_sig = if check_public_signature then tyenv_before else tyenv_for_mod in
+    utsigopt |> Option.map (Typechecker.typecheck_signature tyenv_for_sig)
+  in
+  let (_, abssigr, sname, binds) = Typechecker.main tyenv_for_mod modident absmodsigopt utmod in
   let (_, sigr) = abssigr in
   if is_verbose then display_top_structure modident sigr;
   let out = (sname, binds) in
-  (tyenv, abssigr, out)
+  (abssigr, out)
 
 
 let main (is_verbose : bool) (tyenv_before : Typeenv.t) (submods : SourceLoader.loaded_module list) (mainmod : SourceLoader.loaded_module) =
-  let (tyenv_after_sub, suboutacc) =
-    submods |> List.fold_left (fun (tyenv, suboutacc) source ->
-      let (tyenv, _, out) = check_single is_verbose ~for_signature:tyenv ~for_module:tyenv source in
+  let (sigrmap, suboutacc) =
+    submods |> List.fold_left (fun (sigrmap, suboutacc) source ->
+      let (abssigr, out) = check_single is_verbose ~check_public_signature:false sigrmap tyenv_before source in
+      let (sname, _) = out in
+      let sigrmap =
+        let (_, modnm) = source.SourceLoader.module_identifier in
+        sigrmap |> SigRecordMap.add modnm (abssigr, sname)
+      in
       let suboutacc = Alist.extend suboutacc out in
-      (tyenv, suboutacc)
-    ) (tyenv_before, Alist.empty)
+      (sigrmap, suboutacc)
+    ) (SigRecordMap.empty, Alist.empty)
   in
 
-  let (_, (_, mainsigr), mainout) =
-    check_single is_verbose ~for_signature:tyenv_before ~for_module:tyenv_after_sub mainmod
+  let ((_, mainsigr), mainout) =
+    check_single is_verbose ~check_public_signature:true sigrmap tyenv_before mainmod
   in
   let tyenv =
     let (_, mainmod) = mainmod.SourceLoader.module_identifier in
