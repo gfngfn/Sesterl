@@ -76,7 +76,6 @@ module DynamicSupervisor = struct
     let init<$a> : $a = external 1 ```
       init(InitArg) ->
           InitF = init_impl(InitArg),
-          Ret =
           case InitF() of
               none ->
                   ignore;
