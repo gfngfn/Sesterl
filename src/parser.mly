@@ -449,9 +449,9 @@ exprlet:
   | e=exprfun { e }
 ;
 exprfun:
-  | tokL=LAMBDA; LPAREN; params=params; RPAREN; ARROW; e=exprlet {
+  | tokL=LAMBDA; LPAREN; params=params; RPAREN; ARROW; e=exprlet; tokR=END {
       let (ordparams, (mndparams, optparams)) = params in
-      let rng = make_range (Token(tokL)) (Ranged(e)) in
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
       (rng, Lambda(ordparams, mndparams, optparams, e))
     }
   | tokL=RECEIVE; branches=nonempty_list(branch); tokR=END {
