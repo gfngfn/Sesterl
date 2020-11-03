@@ -20,8 +20,9 @@ type loaded_package = {
 }
 
 val single : absolute_path -> loaded_module
-(** Receiving an absolute path [p] to a source file,
-    [single p]
+(** Receiving an absolute path [p] to a single source file,
+    [single p] loads the source file.
+    May raise [ConfigError(_)] or [SyntaxError(_)].
 *)
 
 val main : ConfigLoader.config -> loaded_package
@@ -32,5 +33,5 @@ val main : ConfigLoader.config -> loaded_package
       {- [pkg.space_name] is the space name corresponding to the name of the package;}
       {- [pkg.submodules] is the list of loaded submodules
          sorted by a topological order that reflects the dependency between modules; and}
-      {- [pkg.main_module] is the main module of the package.}
-    } *)
+      {- [pkg.main_module] is the main module of the package.}}
+    May raise [ConfigError(_)] or [SyntaxError(_)]. *)
