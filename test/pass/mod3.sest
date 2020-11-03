@@ -13,7 +13,7 @@ module Mod3 = struct
       end
 
     val reverse<$c>(xs : list<$c>) : list<$c> =
-      foldl(fun(acc, x) -> x :: acc, [], xs)
+      foldl(fun(acc, x) -> x :: acc end, [], xs)
   end
 
   signature Eq = sig

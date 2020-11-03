@@ -19,12 +19,12 @@ module OptionalParameter2 = struct
         | None    -> n * 2
         | Some(t) -> n * t
         end
-      )
+      end)
     in
     let ans2 =
       f2(fun(n, ?foo t = 2) ->
         n * t
-      )
+      end)
     in
     print_debug({ans1, ans2})
 

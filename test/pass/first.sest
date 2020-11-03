@@ -5,7 +5,7 @@ module First = struct
       foldn(f, i - 1, f(i, c))
 
   val main(args) =
-    let ans = foldn(fun(i, c) -> i + c, 10, 0) in
+    let ans = foldn(fun(i, c) -> i + c end, 10, 0) in
     print_debug(ans)
 
 end

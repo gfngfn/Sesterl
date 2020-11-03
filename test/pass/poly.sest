@@ -7,7 +7,7 @@ module Poly = struct
     end
 
   val sum(ns) =
-    foldl(fun(m, n) -> m + n, 0, ns)
+    foldl(fun(m, n) -> m + n end, 0, ns)
 
   val main(args) =
     let ans =

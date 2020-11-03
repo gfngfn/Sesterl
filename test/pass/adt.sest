@@ -7,10 +7,10 @@ module Adt = struct
     end
 
   val reverse_map(f, xs) =
-    foldl(fun(acc, x) -> f(x) :: acc, [], xs)
+    foldl(fun(acc, x) -> f(x) :: acc end, [], xs)
 
   val sum(ns) =
-    foldl(fun(m, n) -> m + n, 0, ns)
+    foldl(fun(m, n) -> m + n end, 0, ns)
 
   type tree<$a> =
     | Node($a, list<tree<$a>>)
