@@ -1,25 +1,24 @@
-
 module Adt = struct
 
-  letrec foldl(f, i, l) =
+  val rec foldl(f, i, l) =
     case l of
     | []      -> i
     | x :: xs -> foldl(f, f(i, x), xs)
     end
 
-  let reverse_map(f, xs) =
+  val reverse_map(f, xs) =
     foldl(fun(acc, x) -> f(x) :: acc, [], xs)
 
-  let sum(ns) =
+  val sum(ns) =
     foldl(fun(m, n) -> m + n, 0, ns)
 
   type tree<$a> =
     | Node($a, list<tree<$a>>)
 
-  let leaf(x) =
+  val leaf(x) =
     Node(x, [])
 
-  letrec tree_size(tr) =
+  val rec tree_size(tr) =
     let Node(_, children) = tr in
     case children of
     | []     -> 1
@@ -28,11 +27,12 @@ module Adt = struct
 
   type oddlist<$a> =
     | OddCons($a, evenlist<$a>)
-  andrec evenlist<$b> =
+
+  and evenlist<$b> =
     | Nil
     | EvenCons($b, oddlist<$b>)
 
-  let main(args) =
+  val main(args) =
     let tr =
       Node(3, [
         Node(1, [

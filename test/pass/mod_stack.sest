@@ -1,24 +1,22 @@
-
 module ModStack = struct
 
   type option<$a> =
     | None
     | Some($a)
 
-
   module Stack = struct
 
     type t<$a> = list<$a>
 
-    let empty() = []
+    val empty() = []
 
-    let pop<$a>(s : t<$a>) : option<{$a, t<$a>}> =
+    val pop<$a>(s : t<$a>) : option<{$a, t<$a>}> =
       case s of
       | []          -> None
       | top :: rest -> Some({top, rest})
       end
 
-    let push(s, x) = x :: s
+    val push(s, x) = x :: s
 
   end
 

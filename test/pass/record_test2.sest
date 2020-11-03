@@ -1,10 +1,9 @@
-
 module RecordTest2 = struct
 
   module Impl = struct
-    let record() = { foo = 42, bar = true }
-    let get_foo(x) = x.foo
-    let get_foo2(x) = get_foo(x)
+    val record() = { foo = 42, bar = true }
+    val get_foo(x) = x.foo
+    val get_foo2(x) = get_foo(x)
   end
 
   module Api = Impl :> sig

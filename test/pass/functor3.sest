@@ -13,19 +13,19 @@ module Functor3 = struct
   module F = fun(X : T) -> struct
     module P = X.M
     module Q = X.N
-    let f(x : P.t,) : P.t = x  /* inserting a comma is a temporary dirty hack for parsing */
-    let g(y : Q.t,) : Q.t = y
-    let zeroes() = {P.zero(), Q.zero()}
+    val f(x : P.t,) : P.t = x  /* inserting a comma is a temporary dirty hack for parsing */
+    val g(y : Q.t,) : Q.t = y
+    val zeroes() = {P.zero(), Q.zero()}
   end
 
   module Int = struct
     type t = int
-    let zero() = 0
+    val zero() = 0
   end
 
   module Bool = struct
     type t = bool
-    let zero() = false
+    val zero() = false
   end
 
   module Pair = struct

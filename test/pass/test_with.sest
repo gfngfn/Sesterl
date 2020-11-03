@@ -40,7 +40,7 @@ module TestWith = struct
       | Bar(binary)
   end
 
-  let main(arg) =
+  val main(arg) =
     let res = Api3.Foo(1) in
     print_debug(res)
 

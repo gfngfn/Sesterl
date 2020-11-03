@@ -1,6 +1,6 @@
 module RequireDepended = struct
 
-  let hello() =
+  val hello() =
     "Hello"
 
 end

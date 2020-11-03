@@ -1,12 +1,12 @@
 module TestFormat = struct
 
-  let f1() = f'Hello, ~s!'
-  let f2() = f'~~ Hello, ~p and ~p! ~~'
-  let f3() = f'repeat: ~10c, bound: ~20s'
-  let f4() = f'\"Hello, ~10.3f!\"'
-  let f5() = f'Hello.'
+  val f1() = f'Hello, ~s!'
+  val f2() = f'~~ Hello, ~p and ~p! ~~'
+  val f3() = f'repeat: ~10c, bound: ~20s'
+  val f4() = f'\"Hello, ~10.3f!\"'
+  val f5() = f'Hello.'
 
-  let main(args) =
+  val main(args) =
     let res1 = format(f1(), {'World'}) in
     let res2 = format(f2(), {42, true}) in
     let res3 = format(f3(), {$'*', 'The quick brown fox jumps over the lazy dog.'}) in

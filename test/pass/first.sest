@@ -1,11 +1,10 @@
-
 module First = struct
 
-  letrec foldn(f, i, c) =
+  val rec foldn(f, i, c) =
     if i <= 0 then c else
       foldn(f, i - 1, f(i, c))
 
-  let main(args) =
+  val main(args) =
     let ans = foldn(fun(i, c) -> i + c, 10, 0) in
     print_debug(ans)
 

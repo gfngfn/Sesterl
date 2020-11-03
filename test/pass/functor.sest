@@ -1,6 +1,6 @@
 module Functor = struct
 
-  let n() = 42
+  val n() = 42
 
   signature S = sig
     type t :: o
@@ -8,21 +8,21 @@ module Functor = struct
   end
 
   module F = fun(X : S) -> fun(Y : S) -> struct
-    let f(x : X.t) : X.t = x
-    let g(y : Y.t) : Y.t = y
-    let m() = n()
-    let zeroes() = {X.zero(), Y.zero()}
+    val f(x : X.t) : X.t = x
+    val g(y : Y.t) : Y.t = y
+    val m() = n()
+    val zeroes() = {X.zero(), Y.zero()}
   end
 
   module Int = struct
     type t = int
-    let zero() = 0
+    val zero() = 0
   end
 
   module Sub = struct
     module Bool = struct
       type t = bool
-      let zero() = false
+      val zero() = false
     end
   end
 
@@ -30,7 +30,7 @@ module Functor = struct
   module B = Sub.Bool
   module M = G(B)
 
-  let main(args) =
+  val main(args) =
     print_debug(M.zeroes())
 
 end

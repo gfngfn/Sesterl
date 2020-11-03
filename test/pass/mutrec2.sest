@@ -1,18 +1,17 @@
-
 module Mutrec2 = struct
 
-  letrec odd(n) =
+  val rec odd(n) =
     let _ = print_debug(n) in
     even(n - 1)
 
-  andrec even(n) =
+  and even(n) =
     let _ = print_debug(n) in
     if n <= 0 then
       {}
     else
       odd(n - 1)
 
-  let main(args) =
+  val main(args) =
     even(10)
 
 end

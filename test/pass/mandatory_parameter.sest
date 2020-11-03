@@ -1,8 +1,7 @@
-
 module MandatoryParameter = struct
 
   module Impl = struct
-    letrec foldl(-f f, -init init, -list xs) =
+    val rec foldl(-f f, -init init, -list xs) =
       case xs of
       | []      -> init
       | y :: ys -> foldl(-init f(init, y), -list ys, -f f)
@@ -18,7 +17,7 @@ module MandatoryParameter = struct
       ) -> $a
   end
 
-  let main(args) =
+  val main(args) =
     let res =
       foldl(
         -f    fun(x, y) -> x + y,

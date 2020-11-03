@@ -1,23 +1,23 @@
 module OptionalParameter = struct
 
-  let pure_succ(n) = n + 1
+  val pure_succ(n) = n + 1
 
-  let succ(n : int, ?diff dopt : option<int>) =
+  val succ(n : int, ?diff dopt : option<int>) =
     case dopt of
     | None    -> pure_succ(n)
     | Some(d) -> n + d
     end
 
-  let succ_concise(n : int, ?diff d : int = 1) =
+  val succ_concise(n : int, ?diff d : int = 1) =
     n + d
 
-  let make_pair<$a>(x : $a, ?other y : $a = x) =
+  val make_pair<$a>(x : $a, ?other y : $a = x) =
     {x, y}
 
-  let f(g) =
+  val f(g) =
     {g(36), g(36, ?diff 64)}
 
-  let main(args) =
+  val main(args) =
     let ans1 = {succ(42), succ(42, ?diff 15), f(succ)} in
     let ans2 = {succ_concise(42), succ_concise(42, ?diff 15), f(succ_concise)} in
     let ans3 = {make_pair("first"), make_pair("first", ?other "second")} in

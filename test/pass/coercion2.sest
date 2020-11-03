@@ -2,8 +2,8 @@ module Coercion2 :> sig
   val apply<$a, $b> : fun(fun($a) -> $b, $a) -> $b
   val apply2 : fun(fun(int) -> bool, int) -> bool
 end = struct
-  let apply(f, x) = f(x)
-  let apply2(f, x) = apply(f, x)
-  let succ(n) = n + 1
-  let main(args) = print_debug(apply(succ, 42))
+  val apply(f, x) = f(x)
+  val apply2(f, x) = apply(f, x)
+  val succ(n) = n + 1
+  val main(args) = print_debug(apply(succ, 42))
 end

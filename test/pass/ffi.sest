@@ -1,11 +1,10 @@
-
 module Ffi = struct
 
   type option<$a> =
     | None
     | Some($a)
 
-  let assoc<$a> : fun(int, list<{int, $a}>) -> option<{$a, list<{int, $a}>}>
+  val assoc<$a> : fun(int, list<{int, $a}>) -> option<{$a, list<{int, $a}>}>
     = external 2
   ```
     assoc(Key, Xs) ->
@@ -15,7 +14,7 @@ module Ffi = struct
         end.
   ```
 
-  let main(args) =
+  val main(args) =
     let ans =
       assoc(1, [
         {3, "Komaba"},

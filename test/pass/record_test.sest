@@ -1,18 +1,18 @@
 module RecordTest = struct
 
-  let get_foo(x) = x.foo
+  val get_foo(x) = x.foo
 
-  let update_bar(x) = { x | bar = false }
+  val update_bar(x) = { x | bar = false }
 
-  let add_foo_and_bar(x) =
+  val add_foo_and_bar(x) =
     x.foo + (if x.bar then 1 else 0)
 
-  let record() = { foo = 42, bar = true }
+  val record() = { foo = 42, bar = true }
 
-  let default(b, x) =
+  val default(b, x) =
     if b then record() else x
 
-  let main(args) =
+  val main(args) =
     let r = record() in
     print_debug({
       original   = r,

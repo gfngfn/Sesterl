@@ -1,9 +1,9 @@
 module OptionalParameter2 = struct
 
   module Impl = struct
-    let f1(g) = {g(42), g(42, ?foo 57)}
-    let f2(g) = f1(g)
-    let f3(g) = f1(g)
+    val f1(g) = {g(42), g(42, ?foo 57)}
+    val f2(g) = f1(g)
+    val f3(g) = f1(g)
   end
 
   include Impl :> sig
@@ -12,7 +12,7 @@ module OptionalParameter2 = struct
     val f3<$a> : fun(fun(int, ?foo int, ?baz bool) -> $a) -> {$a, $a}
   end
 
-  let main(args) =
+  val main(args) =
     let ans1 =
       f2(fun(n, ?foo topt) ->
         case topt of
