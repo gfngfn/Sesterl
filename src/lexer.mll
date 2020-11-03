@@ -52,6 +52,7 @@ let hole = ['c' 'f' 'e' 'g' 's' 'p' 'w']
 rule token = parse
   | space { token lexbuf }
   | break { Lexing.new_line lexbuf; token lexbuf }
+  | eof   { EOI }
 
   | identifier {
       let s = Lexing.lexeme lexbuf in
@@ -86,35 +87,20 @@ rule token = parse
         | "freeze"    -> FREEZE(pos)
         | _           -> LOWER(pos, s)
     }
-  | ("$" (identifier as s)) {
-      let pos = Range.from_lexbuf lexbuf in
-      TYPARAM(pos, s)
+
+  | "f\'" {
+      let posL = Range.from_lexbuf lexbuf in
+      let strbuf = Buffer.create 128 in
+      let (rng, fmtelemacc) = format_literal posL strbuf Alist.empty lexbuf in
+      FORMAT(rng, Alist.to_list fmtelemacc)
     }
-  | ("?$" (identifier as s)) {
-      let pos = Range.from_lexbuf lexbuf in
-      ROWPARAM(pos, s)
-    }
+
   | constructor {
       let s = Lexing.lexeme lexbuf in
       let pos = Range.from_lexbuf lexbuf in
       UPPER(pos, s)
     }
-  | ("." (constructor as s)) {
-      let pos = Range.from_lexbuf lexbuf in
-      DOTUPPER(pos, s)
-    }
-  | ("." (identifier as s)) {
-      let pos = Range.from_lexbuf lexbuf in
-      DOTLOWER(pos, s)
-    }
-  | ("-" (identifier as s)) {
-      let pos = Range.from_lexbuf lexbuf in
-      MNDLABEL(pos, s)
-    }
-  | ("?" (identifier as s)) {
-      let pos = Range.from_lexbuf lexbuf in
-      OPTLABEL(pos, s)
-    }
+
   | ("0" | nzdigit (digit*) | ("0x" | "0X") hex+) {
       let s = Lexing.lexeme lexbuf in
       let pos = Range.from_lexbuf lexbuf in
@@ -124,6 +110,37 @@ rule token = parse
       let s = Lexing.lexeme lexbuf in
       let pos = Range.from_lexbuf lexbuf in
       FLOAT(pos, float_of_string s)
+    }
+
+  | ("." (constructor as s)) {
+      let pos = Range.from_lexbuf lexbuf in
+      DOTUPPER(pos, s)
+    }
+  | ("." (identifier as s)) {
+      let pos = Range.from_lexbuf lexbuf in
+      DOTLOWER(pos, s)
+    }
+
+  | ("?" (identifier as s)) {
+      let pos = Range.from_lexbuf lexbuf in
+      OPTLABEL(pos, s)
+    }
+  | ("?$" (identifier as s)) {
+      let pos = Range.from_lexbuf lexbuf in
+      ROWPARAM(pos, s)
+    }
+
+  | ("$" (identifier as s)) {
+      let pos = Range.from_lexbuf lexbuf in
+      TYPARAM(pos, s)
+    }
+  | "$\'" {
+      let posL = Range.from_lexbuf lexbuf in
+      let strbuf = Buffer.create 16 in
+      let (rng, s) = string_literal posL strbuf lexbuf in
+      match MyUtil.Utf.uchar_of_utf8 s with
+      | [ uchar ] -> CHAR(rng, uchar)
+      | _         -> raise_error (NotASingleCodePoint(rng))
     }
 
   | "_" { UNDERSCORE(Range.from_lexbuf lexbuf) }
@@ -166,6 +183,10 @@ rule token = parse
 
   | "->"              { ARROW(Range.from_lexbuf lexbuf) }
   | ("-" (nssymbol*)) { BINOP_MINUS(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+  | ("-" (identifier as s)) {
+      let pos = Range.from_lexbuf lexbuf in
+      MNDLABEL(pos, s)
+    }
 
   | "\"" {
       let posL = Range.from_lexbuf lexbuf in
@@ -181,22 +202,6 @@ rule token = parse
       STRING(rng, s)
     }
 
-  | "f\'" {
-      let posL = Range.from_lexbuf lexbuf in
-      let strbuf = Buffer.create 128 in
-      let (rng, fmtelemacc) = format_literal posL strbuf Alist.empty lexbuf in
-      FORMAT(rng, Alist.to_list fmtelemacc)
-    }
-
-  | "$\'" {
-      let posL = Range.from_lexbuf lexbuf in
-      let strbuf = Buffer.create 16 in
-      let (rng, s) = string_literal posL strbuf lexbuf in
-      match MyUtil.Utf.uchar_of_utf8 s with
-      | [ uchar ] -> CHAR(rng, uchar)
-      | _         -> raise_error (NotASingleCodePoint(rng))
-    }
-
   | ("`" +) {
       let posL = Range.from_lexbuf lexbuf in
       let num_start = String.length (Lexing.lexeme lexbuf) in
@@ -204,7 +209,6 @@ rule token = parse
       string_block num_start posL strbuf lexbuf
     }
 
-  | eof { EOI }
   | _ as c { raise_error (UnidentifiedToken(Range.from_lexbuf lexbuf, String.make 1 c)) }
 
 and binary_literal posL strbuf = parse
