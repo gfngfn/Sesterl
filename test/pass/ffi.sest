@@ -4,14 +4,12 @@ module Ffi = struct
     | None
     | Some($a)
 
-  val assoc<$a> : fun(int, list<{int, $a}>) -> option<{$a, list<{int, $a}>}>
-    = external 2
-  ```
-    assoc(Key, Xs) ->
-        case lists:keytake(Key, 1, Xs) of
-            false                 -> none;
-            {value, {_, V}, Rest} -> {some, {V, Rest}}
-        end.
+  val assoc<$a> : fun(int, list<{int, $a}>) -> option<{$a, list<{int, $a}>}> = external 2 ```
+assoc(Key, Xs) ->
+    case lists:keytake(Key, 1, Xs) of
+        false                 -> none;
+        {value, {_, V}, Rest} -> {some, {V, Rest}}
+    end.
   ```
 
   val main(args) =
