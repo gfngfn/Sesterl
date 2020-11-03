@@ -1,6 +1,6 @@
-require StaticSupervisor
-require DynamicSupervisor
-require SupervisorCommon
+import StaticSupervisor
+import DynamicSupervisor
+import SupervisorCommon
 
 module Supervisor = struct
   include SupervisorCommon
