@@ -15,6 +15,7 @@
 
 - [How to install](#how-to-install)
 - [How to build source files for development](#how-to-build-source-files-for-development)
+- [How to use](#how-to-use)
 - [Example code](#example-code)
 - [Features](#features)
   - [Function definition](#function-definition)
@@ -113,44 +114,54 @@ Example usages can be seen in the following directories:
 
 ## Features
 
-Sesterl provides many ML-inspired features (i.e. basically resembles OCaml, Standard ML, F\#, Reason, etc.).
+Sesterl provides many ML-inspired features (i.e. basically resembles OCaml, Standard ML, F\#, ReScript, etc.).
 
 
 ### Function definition
 
-Function definition is performed by `let`-expressions:
+Top-level (resp. local) functions are defined by `val`-declarations (resp. `let`-expressions):
 
 ```
-let add(x, y) = x + y
+val add(x, y) = x + y
+
+val add_partial(x) =
+  let f(y) = x + y in f
 ```
 
-Unlike ML family, however, in order to realize seemless compilation to top-level function definitions in Erlang, functions have their own arity (i.e. not curried by nature) and thereby have types of the form `fun(τ_1, …, τ_n) -> τ`. The function `add` defined above, for instance, has type `fun(int, int) -> int`, which is **NOT** equivalent to `fun(int) -> (fun(int) -> int)`.
+Unlike ML family, however, in order to realize seemless compilation to top-level function definitions in Erlang, functions have their own arity (i.e. not curried by nature) and thereby have types of the form `fun(τ_1, …, τ_n) -> τ`. The function `add` defined above, for instance, has type `fun(int, int) -> int`, which is **NOT** equivalent to the type of `add_partial`, i.e., `fun(int) -> (fun(int) -> int)`.
+
+By using `fun`-expressions (i.e. *lambda abstractions*), `add_partial` can also be defined as follows:
+
+```
+val add_partial(x) =
+  fun(y) -> x + y
+```
 
 Incidentally, you do not have to annotate types of arguments or return values; they will be reconstructed by standard *Hindley–Milner type inference*. you can nonetheless add type annotations like the following:
 
 ```
-let add(x : int, y : int) : int = x + y
+val add(x : int, y : int) : int = x + y
 ```
 
 You can define higher-order functions, of course:
 
 ```
-let apply(f, x) = f(x)
+val apply(f, x) = f(x)
 ```
 
 As is the case in ML, `apply` has a polymorphic type. Features related to type polymorphism is explained later.
 
-Recursive or mutually recursive functions can be defined by using `letrec`-expressions, not only globally but also in a local scope:
+Recursive or mutually recursive functions can be defined by using `rec`/`and` keywords, not only globally but also in a local scope:
 
 ```
-letrec fact(n) =
+val rec fact(n) =
   if n <= 0 then 1 else n * fact(n - 1)
 
-let is_even_nat(n) =
-  letrec odd(n) =
+val is_even_nat(n) =
+  let rec odd(n) =
     if n == 0 then false else even(n - 1)
 
-  andrec even(n) =
+  and even(n) =
     if n == 0 then true else odd(n - 1)
   in
   if n < 0 then false else even(n)
@@ -161,16 +172,16 @@ Note that, unlike Erlang, function names are all lowercased regardless of whethe
 
 ### Polymorphism
 
-Values defined by `let` or `letrec` can be polymorphic. For instance, the function `proj1` defined as follows has type `<$a, $b> fun($a, $b) -> $a` (where `<$a, $b>` stands for universal quantification):
+Values defined by `val`, `val rec`, `let`, or `let rec` can be polymorphic. For instance, the function `proj1` defined as follows has type `<$a, $b> fun($a, $b) -> $a` (where `<$a, $b>` stands for universal quantification):
 
 ```
-let proj1(x, y) = x
+val proj1(x, y) = x
 ```
 
 Instead of relying upon type inference, you can also annotate polymorphic types and check that the defined function is indeed polymorphic:
 
 ```
-let proj1<$a, $b>(x : $a, y : $b) : $a = x
+val proj1<$a, $b>(x : $a, y : $b) : $a = x
 ```
 
 
@@ -181,7 +192,7 @@ You can define (non-generalized) algebraic data types and type synonyms in a sta
 ```
 type name = binary
 
-type with_number<$a> = ($a, int)
+type with_number<$a> = {$a, int}
 
 type option<$a> =
   | None
@@ -192,7 +203,7 @@ type bintree<$b> =
   | Empty
 ```
 
-Here, `($a, int)` is an example use of standard product types.
+Here, `{$a, int}` is an example use of standard product types.
 
 As can be seen from the example above, type names start with a lowercase letter, constructors do with an uppercase one, and type variables are denoted by using a preceding `$`.
 
@@ -203,11 +214,11 @@ List-generating constructors, `[]` (nil) and `::` (cons), are also supported by 
 
 ### Pattern matching
 
-You can decompose values of ADTs by using `case`-expression in an ordinary way like the following:
+You can decompose values of ADTs by using `case`-expressions in an ordinary way like the following:
 
 ```
-let reverse<$a>(xs : list<$a>) : list<$a> =
-  letrec aux(acc, xs) =
+val reverse<$a>(xs : list<$a>) : list<$a> =
+  let rec aux(acc, xs) =
     case xs of
     | []        -> acc
     | x :: tail -> aux(x :: acc, tail)
@@ -215,7 +226,7 @@ let reverse<$a>(xs : list<$a>) : list<$a> =
   in
   aux([], xs)
 
-letrec tree_size(t : bintree<$a>) =
+val rec tree_size(t : bintree<$a>) =
   case t of
   | Empty           -> 0
   | Node(_, t1, t2) -> 1 + tree_size(t1) + tree_size(t2)
@@ -233,61 +244,52 @@ As in Erlang, you can use primitives `self`, `send`, and `spawn` for message-pas
 
 This formalization is based on *λ\_\{act\}* \[Fowler 2019\].
 
-Intuitively, `[τ_0]τ_1` is the type for suspended concurrent computations that will be run on processes capable of receiving messages of type `τ_0` and that finally produce a value of type `τ_1`. The composition of such computations can be done by `do`-notation. Receiving messages can be done by using `receive`-expressions. See a small example below:
+Intuitively, `[τ_0]τ_1` is the type for suspended concurrent computations that will be run on processes capable of receiving messages of type `τ_0` and that finally produce a value of type `τ_1`. The composition of such computations can be done by `do`-notation. Messages can be received by using `receive`-expressions. See a small example below:
 
 ```
-let pickup(pid, pids) =
-  /* Implementation omitted.
-     Finds `pid` from `pids` and returns the rest wrapped by `Some(_)`.
-     Returns `None` if `pid` was not found. */
-
-letrec wait_all(acc, pids) =
-  case pids of
-  | [] ->
-      return(acc)
-
-  | _ :: _ ->
-      receive
-      | (from, msg) ->
-          case pickup(from, pids) of
-          | None       -> /* unexpected message has arrived */
-          | Some(rest) -> wait_all(msg :: acc, rest)
-          end
-      end
-  end
-
-letrec spawn_all(acc, n) =
+val rec wait_all(msgacc, n) =
   if n <= 0 then
-    return(acc)
+    return(msgacc)
+  else
+    receive
+    | {pid, msg} ->
+        let _ = print_debug(format(f'message ~p received from: ~p~n', {msg, pid})) in
+        wait_all(msg :: msgacc, n - 1)
+    end
+
+val rec spawn_all(pidacc, n) =
+  if n <= 0 then
+    return(pidacc)
   else
     do parent <- self in
     do pid <- spawn(
       do me <- self in
       let msg = some_heavy_calculation(n) in
-      send(parent, (me, msg))
+      send(parent, {me, msg})
     ) in
-    spawn_all(pid :: acc, n - 1)
+    spawn_all(pid :: pidacc, n - 1)
 
 let main() =
   let n = 10 in
   do pids <- spawn_all([], n) in
-  do msgs <- wait_all([], pids) in
+  let _ = print_debug(format(f'spawned: ~p~n', {pids})) in
+  do msgs <- wait_all([], n) in
   …
 ```
 
 Here, the primitive `return<$p, $a> : fun($a) -> [$p]$a` lifts a pure value to the computation that has no effect and simply returns the value.
 
-The function `spawn_all` takes an integer `n`, spawns `n` processes that perform some heavy calculation in parallel, and returns their PIDs. `wait_all`, on the other hand, waits all the messages sent from the processes spawned by `spawn_all` and makes a list from the messages. These functions are typed as follows, supposing `some_heavy_calculation` is of type `fun(int) -> answer`:
+The function `spawn_all` takes an integer `n`, spawns `n` processes that perform some heavy calculation in parallel, and returns their PIDs. `wait_all`, on the other hand, waits all the messages sent from the processes spawned by `spawn_all` and makes a list of the received messages. These functions are typed as follows, supposing `some_heavy_calculation` is of type `fun(int) -> answer`:
 
 * `spawn_all<$p, $q> : fun(list<pid<$q>>, int) -> [$p]list<pid<$q>>`
-* `wait_all<$q> : fun(list<answer>, list<pid<$q>>) -> [(pid<$q>, answer)]list<answer>`
+* `wait_all<$q> : fun(list<answer>, list<pid<$q>>) -> [{pid<$q>, answer}]list<answer>`
 
 As mentioned earlier, supporting session types is an important future work. One possible way of supporting session types would be adopting types of the form `[S]τ` where `S` is a session type by using theories like \[Orchard & Yoshida 2016\].
 
 
 ### Module system
 
-One of the largest features developed these days is the support for a subset of *F-ing modules* \[Rossberg, Russo & Dreyer 2014\], where kinds and functors are restricted to first-order (i.e., type constructors cannot take type constructors as arguments and functors cannot take functors as arguments). For example, Sesterl can type-check the following definition of modules and functors:
+One of the Sesterl’s largest features is the support for a subset of *F-ing modules* \[Rossberg, Russo & Dreyer 2014\], where kinds and functors are restricted to first-order (i.e., type constructors cannot take type constructors as arguments and functors cannot take functors as arguments). For example, Sesterl can type-check the following definition of modules and functors:
 
 ```
 /* mod.sest */
@@ -306,13 +308,13 @@ module Mod = struct
   module Map = fun(Elem : Ord) ->
     struct
       type elem = Elem.s
-      type t<$a> = list<(elem, $a)>
-      letrec find<$b>(x : elem, assoc : t<$b>) : option<$b> =
+      type t<$a> = list<{elem, $a}>
+      val rec find<$b>(x : elem, assoc : t<$b>) : option<$b> =
         case assoc of
         | [] ->
             None
 
-        | (k, v) :: tail ->
+        | {k, v} :: tail ->
             if Elem.compare(k, x) == 0 then
               Some(v)
             else
@@ -322,7 +324,7 @@ module Mod = struct
 
   module Int = struct
     type s = int
-    let compare(x : int, y : int) = y - x
+    val compare(x : int, y : int) = y - x
   end
 
   module IntMap = Map(Int)
@@ -367,23 +369,45 @@ One of the interesting use cases of the module system is to represent OTP librar
 
 ```
 module GenServer : sig
+
+  type initialized :: (o) -> o
+  val init_ok<$msg, $state> : fun($state) -> [$msg]initialized<$state>
+  val init_fail<$msg, $state> : fun() -> [$msg]initialized<$state>
+
+  type reply :: (o, o, o) -> o
+  val reply<$msg, $response, $state> : fun($response, $state) -> [$msg]reply<$msg, $response, $state>
+  val reply_fast<$msg, $response, $state> : fun($response, -rest [$msg]$state) -> [$msg]reply<$msg, $response, $state>
+
+  type no_reply :: (o) -> o
+  val no_reply<$msg, $state> : fun($state) -> [$msg]no_reply<$state>
+
   signature Behaviour = sig
     type init_arg :: o
     type request :: o
     type response :: o
     type cast_message :: o
+    type info :: o
     type state :: o
-    val init : fun(init_arg) -> state
-    val handle_call<$a> : fun(request, pid<$a>, state) -> (response, state)
-    val handle_cast : fun(cast_message, state) -> state
+    val init : fun(init_arg) -> [info]initialized<state>
+    val handle_call<$a> : fun(request, pid<$a>, state) -> [info]reply<info, response, state>
+    val handle_cast : fun(cast_message, state) -> [info]no_reply<state>
+    val handle_info : fun(info, state) -> [info]no_reply<state>
+    val terminate : fun(state) -> [info]unit
   end
 
   module Make : fun(Callback : Behaviour) -> sig
     type proc :: o
+    val as_pid : fun(proc) -> pid<Callback.info>
+    val from_pid : fun(pid<Callback.info>) -> proc
     val call<$a> : fun(proc, Callback.request, ?timeout int) -> [$a]Callback.response
     val cast<$a> : fun(proc, Callback.cast_message) -> [$a]unit
-    val start_link<$a> : fun(Callback.init_arg) -> [$a]proc
+    val send_info<$a> : fun(proc, Callback.info) -> [$a]unit
+    val start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc>
+    val start_link_name<$a> : fun(Callback.init_arg, -name name) -> [$a]option<{bool, proc}>
+    val where_is<$a> : fun(binary) -> [$a]option<proc>
+    val stop<$a> : fun(proc) -> [$a]unit
   end
+
 end
 ```
 
@@ -393,23 +417,21 @@ end
 Functions written in Erlang can be called from Sesterl via FFI (foreign function interface) as follows:
 
 ````
-module Ffi = struct
+module FfiExample = struct
 
   type option<$a> =
     | None
     | Some($a)
 
-  let assoc<$a> : fun(int, list<(int, $a)>) -> option<($a, list<(int, $a)>)>
-    = external 2
-  ```
-    assoc(Key, Xs) ->
-        case lists:keytake(Key, 1, Xs) of
-            false                 -> none;
-            {value, {_, V}, Rest} -> {some, {V, Rest}}
-        end.
+  val assoc<$a> : fun(int, list<(int, $a)>) -> option<($a, list<(int, $a)>)> = external 2 ```
+assoc(Key, Xs) ->
+    case lists:keytake(Key, 1, Xs) of
+        false                 -> none;
+        {value, {_, V}, Rest} -> {some, {V, Rest}}
+    end.
   ```
 
-  let main() =
+  val main() =
     assoc(1, [
       (3, "Komaba"),
       (1, "Hongo"),
@@ -424,7 +446,7 @@ end
 This program compiles to the following implementation:
 
 ```erlang
--module(ffi).
+-module(ffi_example).
 -export([assoc/2, main/0]).
 
 assoc(Key, Xs) ->
@@ -448,17 +470,17 @@ main() ->
 Functions can have labeled optional parameters:
 
 ```
-let succ(n : int, ?diff dopt : option<int>) =
+val succ(n : int, ?diff dopt : option<int>) =
   case dopt of
   | None    -> n + 1
   | Some(d) -> n + d
   end
 
-let f(g) =
-  (g(36), g(36, ?diff 64))
+val f(g) =
+  {g(36), g(36, ?diff 64)}
 
-let main() =
-  (succ(42), succ(42, ?diff 15), f(succ))
+val main() =
+  {succ(42), succ(42, ?diff 15), f(succ)}
     /* This evaluates to {43, 57, {37, 100}} in Erlang. */
 ```
 
@@ -481,7 +503,7 @@ Here, `?diff int` signifies that `succ` can take a `?diff`-labeled optional argu
 You can also use labeled mandatory parameters/arguments:
 
 ```
-letrec foldl(-f f, -init init, -list xs) =
+val rec foldl(-f f, -init init, -list xs) =
   case xs of
   | []      -> init
   | y :: ys -> foldl(-init f(init, y), -list ys, -f f)
@@ -538,7 +560,7 @@ r.foo  /* => 42 */
 In Sesterl, operations for records are made polymorphic by using the same type system as *SML\#* \[Ohori 1995\]. For example, consider the function definition below:
 
 ```
-let get_foo(x) = x.foo
+val get_foo(x) = x.foo
 ```
 
 The function `get_foo` is typed like the following:
@@ -550,14 +572,14 @@ val get_foo<$a, $b :: {foo : $a}> : fun($b) -> $a
 Here, `{foo : $a}` is a *kind* (i.e. “type of types”) for record types that contain at least `foo : int`. Thanks to the constraint expressed by the kind, `$b` can be instantiated by `{foo : int, bar : bool}`, `{foo : int, baz : binary}`, and so on, but not by `{bar : bool}` etc.  Then, for instance, the following program is well-typed:
 
 ```
-let main() =
+val main() =
   get_foo({foo = 42, bar = true})
 ```
 
 and the following is ill-typed on the other hand:
 
 ```
-let main() =
+val main() =
   get_foo({bar = true})
 ```
 
