@@ -1,6 +1,6 @@
 module ErrorFreeze = struct
 
-  let g() =
+  val g() =
     let f(x) = x in
     freeze f(42)
 

@@ -1,5 +1,5 @@
-require ErrorCyclicFoo
+import ErrorCyclicFoo
 
 module ErrorCyclicBar = struct
-  let main() = {}
+  val main() = {}
 end

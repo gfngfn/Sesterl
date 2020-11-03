@@ -2,7 +2,7 @@ module ErrorKind = struct
 
   module Impl = struct
     type t = binary
-    let v() = "Hello"
+    val v() = "Hello"
   end
 
   include Impl :> sig

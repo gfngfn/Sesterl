@@ -1,7 +1,7 @@
-require ErrorCyclicFoo
-require ErrorCyclicBar
+import ErrorCyclicFoo
+import ErrorCyclicBar
 
 module ErrorCyclic = struct
-  let main() =
+  val main() =
     {ErrorCyclicFoo.main(), ErrorCyclicBar.main()}
 end

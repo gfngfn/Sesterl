@@ -1,6 +1,6 @@
 module ErrorCoercion3 = struct
   module Impl = struct
-    let f(n) = n + 1
+    val f(n) = n + 1
   end
   module Api = Impl :> sig
     val f<$a> : fun($a) -> $a

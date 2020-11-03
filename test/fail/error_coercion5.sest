@@ -1,7 +1,7 @@
 module ErrorCoercion5 = struct
   module Impl = struct
     type t = int
-    let make(x) = x
+    val make(x) = x
   end
 
   module Sub = Impl :> sig
@@ -9,6 +9,6 @@ module ErrorCoercion5 = struct
     val make : fun(int) -> t
   end
 
-  let main() =
+  val main() =
     Sub.make(5) + 1
 end

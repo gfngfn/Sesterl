@@ -1,7 +1,7 @@
 module ErrorOptionalParameter = struct
 
   module Impl = struct
-    let f(g) =
+    val f(g) =
       {g(42), g(42, ?foo 57)}
   end
 

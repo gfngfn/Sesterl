@@ -1,13 +1,12 @@
-
 module ErrorMutrec = struct
 
   type foo =
     {int, bar}
 
-  andrec baz<$a> =
+  and baz<$a> =
     | Baz(foo, bar)
 
-  andrec bar =
+  and bar =
     {bool, baz<foo>}
 
 end

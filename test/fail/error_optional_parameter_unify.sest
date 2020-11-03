@@ -1,13 +1,12 @@
-
 module ErrorOptionalParameterUnify = struct
 
-  let f1(g) = g(?foo 42)
+  val f1(g) = g(?foo 42)
 
-  let f2(g) = g(?foo 42, ?bar true)
+  val f2(g) = g(?foo 42, ?bar true)
 
-  let f(flag, g) = if flag then f1(g) else f2(g)
+  val f(flag, g) = if flag then f1(g) else f2(g)
 
-  let main(args) =
+  val main(args) =
     let h(?foo nopt) =
       case nopt of
       | None    -> 0
