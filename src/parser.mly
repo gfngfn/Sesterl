@@ -126,9 +126,9 @@
 %%
 main:
   | deps=list(dep); bindmod=bindmod; EOI {
-        let (_, modident, utsigopt, utmod) = bindmod in
-        (deps, modident, utsigopt, utmod)
-      }
+      let (_, modident, utsigopt, utmod) = bindmod in
+      (deps, modident, utsigopt, utmod)
+    }
 ;
 dep:
   | REQUIRE; modident=UPPER { modident }
@@ -138,47 +138,47 @@ ident:
 ;
 bindtop:
   | TYPE; tybind=bindtypesingle; tybinds=list(bindtypesub) {
-        let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
-        (rng, BindType(tybind :: tybinds))
-      }
+      let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
+      (rng, BindType(tybind :: tybinds))
+    }
   | bindval=bindvaltop {
-        let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
-        let (_, valbinding) = bindval in
-        (rng, BindVal(valbinding))
-      }
+      let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
+      let (_, valbinding) = bindval in
+      (rng, BindVal(valbinding))
+    }
   | bindmod=bindmod {
-        let (rng, modident, utsigopt, utmod) = bindmod in
-        (rng, BindModule(modident, utsigopt, utmod))
-      }
+      let (rng, modident, utsigopt, utmod) = bindmod in
+      (rng, BindModule(modident, utsigopt, utmod))
+    }
   | tokL=SIGNATURE; sigident=UPPER; DEFEQ; utsig=sigexpr {
-        let rng = make_range (Token(tokL)) (Ranged(utsig)) in
-        (rng, BindSig(sigident, utsig))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(utsig)) in
+      (rng, BindSig(sigident, utsig))
+    }
   | tokL=INCLUDE; utmod=modexpr {
-        let rng = make_range (Token(tokL)) (Ranged(utmod)) in
-        (rng, BindInclude(utmod))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(utmod)) in
+      (rng, BindInclude(utmod))
+    }
 ;
 bindmod:
   | tokL=MODULE; modident=UPPER; utsigopt=option(coercion); DEFEQ; utmod=modexpr {
-        let rng = make_range (Token(tokL)) (Ranged(utmod)) in
-        (rng, modident, utsigopt, utmod)
-      }
+      let rng = make_range (Token(tokL)) (Ranged(utmod)) in
+      (rng, modident, utsigopt, utmod)
+    }
 ;
 coercion:
   | COERCE; utsig=sigexpr { utsig }
 ;
 bindtypesingle:
   | ident=LOWER; tyrowparams=typarams; DEFEQ; ctorbrs=ctorbranches {
-        let (typarams, _) = tyrowparams in
-          (* TODO: restrict that the second entry is `[]` *)
-        (ident, typarams, BindVariant(ctorbrs))
-      }
+      let (typarams, _) = tyrowparams in
+        (* TODO: restrict that the second entry is `[]` *)
+      (ident, typarams, BindVariant(ctorbrs))
+    }
   | ident=LOWER; tyrowparams=typarams; DEFEQ; mty=ty {
-        let (typarams, _) = tyrowparams in
-          (* TODO: restrict that the second entry is `[]` *)
-        (ident, typarams, BindSynonym(mty))
-      }
+      let (typarams, _) = tyrowparams in
+        (* TODO: restrict that the second entry is `[]` *)
+      (ident, typarams, BindSynonym(mty))
+    }
 ;
 bindtypesub:
   | ANDREC; tybind=bindtypesingle { tybind }
@@ -189,22 +189,22 @@ typarams:
 ;
 typaramssub:
   | rowparams=rowparams {
-        ([], rowparams)
-      }
+      ([], rowparams)
+    }
   | typaram=TYPARAM {
-        ([ (typaram, None) ], [])
-      }
+      ([ (typaram, None) ], [])
+    }
   | typaram=TYPARAM; CONS; mnbkd=bkd {
-        ([ (typaram, Some(mnbkd)) ], [])
-      }
+      ([ (typaram, Some(mnbkd)) ], [])
+    }
   | typaram=TYPARAM; COMMA; tail=typaramssub {
-        let (typarams, rowparams) = tail in
-        ((typaram, None) :: typarams, rowparams)
-      }
+      let (typarams, rowparams) = tail in
+      ((typaram, None) :: typarams, rowparams)
+    }
   | typaram=TYPARAM; CONS; mnbkd=bkd COMMA; tail=typaramssub {
-        let (typarams, rowparams) = tail in
-        ((typaram, Some(mnbkd)) :: typarams, rowparams)
-      }
+      let (typarams, rowparams) = tail in
+      ((typaram, Some(mnbkd)) :: typarams, rowparams)
+    }
 ;
 rowparams:
   |                                                                                        { [] }
@@ -212,36 +212,32 @@ rowparams:
   | rowparam=ROWPARAM; CONS; LPAREN; rowkind=opttydomsfixed; RPAREN; COMMA; tail=rowparams { (rowparam, rowkind) :: tail }
 ;
 bindvallocal:
-  | tok=LET; valbinding=bindvalsingle {
-        (tok, NonRec(valbinding))
-      }
-  | tok=LETREC; valbinding=bindvalsingle; tail=list(recbinds) {
-        (tok, Rec(valbinding :: tail))
-      }
+  | tok=LET; valbinding=bindvalsingle                         { (tok, NonRec(valbinding)) }
+  | tok=LETREC; valbinding=bindvalsingle; tail=list(recbinds) { (tok, Rec(valbinding :: tail)) }
 ;
 bindvaltop:
   | local=bindvallocal {
-        let (rng, rec_or_nonrec) = local in
-        (rng, Internal(rec_or_nonrec))
-      }
+      let (rng, rec_or_nonrec) = local in
+      (rng, Internal(rec_or_nonrec))
+    }
   | tokL=LET; ident=LOWER; tyrowparams=typarams; COLON; mty=ty; DEFEQ; EXTERNAL; inttok=INT; has_option=has_option; strblock=STRING_BLOCK {
-        let (typarams, rowparams) = tyrowparams in
-        let (tokR, erlang_bind) = strblock in
-        let (_, arity) = inttok in
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        let extbind =
-          {
-            ext_identifier  = ident;
-            ext_type_params = typarams;
-            ext_row_params  = rowparams;
-            ext_type_annot  = mty;
-            ext_arity       = arity;
-            ext_has_option  = has_option;
-            ext_code        = erlang_bind;
-          }
-        in
-        (rng, External(extbind))
-      }
+      let (typarams, rowparams) = tyrowparams in
+      let (tokR, erlang_bind) = strblock in
+      let (_, arity) = inttok in
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      let extbind =
+        {
+          ext_identifier  = ident;
+          ext_type_params = typarams;
+          ext_row_params  = rowparams;
+          ext_type_annot  = mty;
+          ext_arity       = arity;
+          ext_has_option  = has_option;
+          ext_code        = erlang_bind;
+        }
+      in
+      (rng, External(extbind))
+    }
 ;
 has_option:
   |            { false }
@@ -252,19 +248,19 @@ recbinds:
 ;
 bindvalsingle:
   | ident=LOWER; tyrowparams=typarams; LPAREN; params=params; RPAREN; tyannot=tyannot; DEFEQ; e0=exprlet {
-        let (typarams, rowparams) = tyrowparams in
-        let (ordparams, (mndparams, optparams)) = params in
-        {
-          vb_identifier  = ident;
-          vb_forall      = typarams;
-          vb_forall_row  = rowparams;
-          vb_parameters  = ordparams;
-          vb_mandatories = mndparams;
-          vb_optionals   = optparams;
-          vb_return_type = tyannot;
-          vb_body        = e0;
-        }
+      let (typarams, rowparams) = tyrowparams in
+      let (ordparams, (mndparams, optparams)) = params in
+      {
+        vb_identifier  = ident;
+        vb_forall      = typarams;
+        vb_forall_row  = rowparams;
+        vb_parameters  = ordparams;
+        vb_mandatories = mndparams;
+        vb_optionals   = optparams;
+        vb_return_type = tyannot;
+        vb_body        = e0;
       }
+    }
 ;
 ctorbranches:
   | ctorbr=ctorbranchtop; ctorbrs=list(ctorbranchsub) { ctorbr :: ctorbrs }
@@ -274,36 +270,32 @@ ctorbranchsub:
   | BAR; ctorbr=ctorbranchtop { ctorbr }
 ;
 ctorbranchtop:
-  | ctor=UPPER; {
-        ConstructorBranch(ctor, [])
-      }
-  | ctor=UPPER; LPAREN; paramtys=tys; RPAREN {
-        ConstructorBranch(ctor, paramtys)
-      }
+  | ctor=UPPER                               { ConstructorBranch(ctor, []) }
+  | ctor=UPPER; LPAREN; paramtys=tys; RPAREN { ConstructorBranch(ctor, paramtys) }
 ;
 params:
   | labparams=labparams {
       ([], labparams)
     }
   | ident=LOWER; tyannot=tyannot {
-        ([ (ident, tyannot) ], ([], []))
-      }
+      ([ (ident, tyannot) ], ([], []))
+    }
   | ident=LOWER; tyannot=tyannot; COMMA; tail=params {
-        let (ordparams, labparams) = tail in
-        ((ident, tyannot) :: ordparams, labparams)
-      }
+      let (ordparams, labparams) = tail in
+      ((ident, tyannot) :: ordparams, labparams)
+    }
 ;
 labparams:
   | optparams=optparams {
-        ([], optparams)
-      }
+      ([], optparams)
+    }
   | rlabel=MNDLABEL; ident=LOWER; tyannot=tyannot {
-        ([ (rlabel, (ident, tyannot)) ], [])
-      }
+      ([ (rlabel, (ident, tyannot)) ], [])
+    }
   | rlabel=MNDLABEL; ident=LOWER; tyannot=tyannot; COMMA; tail=labparams {
-        let (mndparams, optparams) = tail in
-        ((rlabel, (ident, tyannot)) :: mndparams, optparams)
-      }
+      let (mndparams, optparams) = tail in
+      ((rlabel, (ident, tyannot)) :: mndparams, optparams)
+    }
 ;
 optparams:
   |                                          { [] }
@@ -312,11 +304,11 @@ optparams:
 ;
 optparam:
   | rlabel=OPTLABEL; ident=LOWER; tyannot=tyannot {
-        ((rlabel, (ident, tyannot)), None)
-      }
+      ((rlabel, (ident, tyannot)), None)
+    }
   | rlabel=OPTLABEL; ident=LOWER; tyannot=tyannot; DEFEQ; utast=exprlet {
-        ((rlabel, (ident, tyannot)), Some(utast))
-      }
+      ((rlabel, (ident, tyannot)), Some(utast))
+    }
 ;
 tyannot:
   |               { None }
@@ -324,47 +316,47 @@ tyannot:
 ;
 decl:
   | tokL=VAL; ident=LOWER; tyrowparams=typarams; COLON; mty=ty {
-        let (typarams, rowparams) = tyrowparams in
-        let rng = make_range (Token(tokL)) (Ranged(mty)) in
-        (rng, DeclVal(ident, typarams, rowparams, mty))
-      }
+      let (typarams, rowparams) = tyrowparams in
+      let rng = make_range (Token(tokL)) (Ranged(mty)) in
+      (rng, DeclVal(ident, typarams, rowparams, mty))
+    }
   | tokL=TYPE; tyident=LOWER; CONS; kd=kd {
-        let rng = make_range (Token(tokL)) (Ranged(kd)) in
-        (rng, DeclTypeOpaque(tyident, Some(kd)))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(kd)) in
+      (rng, DeclTypeOpaque(tyident, Some(kd)))
+    }
   | tokL=TYPE; tyident=LOWER {
-        let rng = make_range (Token(tokL)) (Ranged(tyident)) in
-        (rng, DeclTypeOpaque(tyident, None))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(tyident)) in
+      (rng, DeclTypeOpaque(tyident, None))
+    }
   | tokL=TYPE; tybind=bindtypesingle; tybinds=list(bindtypesub) {
-        decl_type_transparent tokL (tybind :: tybinds)
-      }
+      decl_type_transparent tokL (tybind :: tybinds)
+    }
   | tokL=MODULE; modident=UPPER; COLON; utsig=sigexpr {
-        let rng = make_range (Token(tokL)) (Ranged(utsig)) in
-        (rng, DeclModule(modident, utsig))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(utsig)) in
+      (rng, DeclModule(modident, utsig))
+    }
   | tokL=SIGNATURE; sigident=UPPER; DEFEQ; utsig=sigexpr {
-        let rng = make_range (Token(tokL)) (Ranged(utsig)) in
-        (rng, DeclSig(sigident, utsig))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(utsig)) in
+      (rng, DeclSig(sigident, utsig))
+    }
 ;
 modexpr:
   | tokL=LAMBDA; LPAREN; modident=UPPER; COLON; utsig=sigexpr; RPAREN; ARROW; utmod=modexpr {
-        let rng = make_range (Token(tokL)) (Ranged(utmod)) in
-        (rng, ModFunctor(modident, utsig, utmod))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(utmod)) in
+      (rng, ModFunctor(modident, utsig, utmod))
+    }
   | modident=UPPER; COERCE; utsig=sigexprbot {
-        let rng = make_range (Ranged(modident)) (Ranged(utsig)) in
-        (rng, ModCoerce(modident, utsig))
-      }
+      let rng = make_range (Ranged(modident)) (Ranged(utsig)) in
+      (rng, ModCoerce(modident, utsig))
+    }
   | utmod=modapp { utmod }
 ;
 modapp:
   | modchain1=modchainraw; LPAREN; modchain2=modchainraw; tokR=RPAREN {
-        let (modident1, _) = modchain1 in
-        let rng = make_range (Ranged(modident1)) (Token(tokR)) in
-        (rng, ModApply(modchain1, modchain2))
-      }
+      let (modident1, _) = modchain1 in
+      let rng = make_range (Ranged(modident1)) (Token(tokR)) in
+      (rng, ModApply(modchain1, modchain2))
+    }
   | utmod=modexprbot { utmod }
 ;
 modexprbot:
@@ -373,14 +365,14 @@ modexprbot:
 ;
 modexprunit:
   | tokL=STRUCT; utbinds=list(bindtop); tokR=END {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, ModBinds(utbinds))
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, ModBinds(utbinds))
+    }
   | tokL=LPAREN; utmod=modexpr; tokR=RPAREN {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        let (_, utmodmain) = utmod in
-        (rng, utmodmain)
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      let (_, utmodmain) = utmod in
+      (rng, utmodmain)
+    }
 ;
 modchain:
   | modchainraw=modchainraw { fold_module_chain modchainraw }
@@ -390,16 +382,16 @@ modchainraw:
 ;
 sigexpr:
   | tokL=LAMBDA; LPAREN; sigident=UPPER; COLON; utsig1=sigexpr; RPAREN; ARROW; utsig2=sigexpr {
-        let rng = make_range (Token(tokL)) (Ranged(utsig2)) in
-        (rng, SigFunctor(sigident, utsig1, utsig2))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(utsig2)) in
+      (rng, SigFunctor(sigident, utsig1, utsig2))
+    }
   | utsig=sigexprwith { utsig }
 ;
 sigexprwith:
   | utsig=sigexprbot; WITH; modidents=withproj; TYPE; tybind=bindtypesingle; tybinds=list(bindtypesub) {
-        let rng = Range.dummy "sigexpr" in  (* TODO: give appropriate code ranges *)
-        (rng, SigWith(utsig, modidents, tybind :: tybinds))
-      }
+      let rng = Range.dummy "sigexpr" in  (* TODO: give appropriate code ranges *)
+      (rng, SigWith(utsig, modidents, tybind :: tybinds))
+    }
   | utsig=sigexprbot { utsig }
 ;
 withproj:
@@ -408,69 +400,69 @@ withproj:
 ;
 sigexprbot:
   | utmod=modexprunit; sigident=DOTUPPER {
-        let rng = make_range (Ranged(utmod)) (Ranged(sigident)) in
-        (rng, SigPath(utmod, sigident))
-      }
+      let rng = make_range (Ranged(utmod)) (Ranged(sigident)) in
+      (rng, SigPath(utmod, sigident))
+    }
   | modchain=modchainraw {
-        let (tokL, modidents, sigident) = chop_last modchain in
-        let rng = make_range (Token(tokL)) (Ranged(sigident)) in
-        match modidents with
-        | [] ->
-            let (_, signm) = sigident in
-            (rng, SigVar(signm))
+      let (tokL, modidents, sigident) = chop_last modchain in
+      let rng = make_range (Token(tokL)) (Ranged(sigident)) in
+      match modidents with
+      | [] ->
+          let (_, signm) = sigident in
+          (rng, SigVar(signm))
 
-        | modident :: projs ->
-            let utmod = fold_module_chain (modident, projs) in
-            (rng, SigPath(utmod, sigident))
-      }
+      | modident :: projs ->
+          let utmod = fold_module_chain (modident, projs) in
+          (rng, SigPath(utmod, sigident))
+    }
   | tokL=SIG; utdecls=list(decl); tokR=END {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, SigDecls(utdecls))
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, SigDecls(utdecls))
+    }
   | tokL=LPAREN; utsig=sigexpr; tokR=RPAREN {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        let (_, utsigmain) = utsig in
-        (rng, utsigmain)
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      let (_, utsigmain) = utsig in
+      (rng, utsigmain)
+    }
 ;
 exprlet:
   | bindval=bindvallocal; IN; e2=exprlet {
-        let (tokL, valbind) = bindval in
-        let rng = make_range (Token(tokL)) (Ranged(e2)) in
-        (rng, LetIn(valbind, e2))
-      }
+      let (tokL, valbind) = bindval in
+      let rng = make_range (Token(tokL)) (Ranged(e2)) in
+      (rng, LetIn(valbind, e2))
+    }
   | tokL=LET; pat=patcons; DEFEQ; e1=exprlet; IN; e2=exprlet {
-        let rng = make_range (Token(tokL)) (Ranged(e2)) in
-        (rng, LetPatIn(pat, e1, e2))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(e2)) in
+      (rng, LetPatIn(pat, e1, e2))
+    }
   | tokL=IF; e0=exprlet; THEN; e1=exprlet; ELSE; e2=exprlet {
-        let rng = make_range (Token(tokL)) (Ranged(e2)) in
-        (rng, If(e0, e1, e2))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(e2)) in
+      (rng, If(e0, e1, e2))
+    }
   | tokL=DO; ident=LOWER; tyannot=tyannot; REVARROW; e1=exprlet; IN; e2=exprlet {
-        let rng = make_range (Token(tokL)) (Ranged(e2)) in
-        (rng, Do(Some((ident, tyannot)), e1, e2))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(e2)) in
+      (rng, Do(Some((ident, tyannot)), e1, e2))
+    }
   | tokL=DO; e1=exprlet; IN; e2=exprlet {
-        let rng = make_range (Token(tokL)) (Ranged(e2)) in
-        (rng, Do(None, e1, e2))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(e2)) in
+      (rng, Do(None, e1, e2))
+    }
   | e=exprfun { e }
 ;
 exprfun:
   | tokL=LAMBDA; LPAREN; params=params; RPAREN; ARROW; e=exprlet {
-        let (ordparams, (mndparams, optparams)) = params in
-        let rng = make_range (Token(tokL)) (Ranged(e)) in
-        (rng, Lambda(ordparams, mndparams, optparams, e))
-      }
+      let (ordparams, (mndparams, optparams)) = params in
+      let rng = make_range (Token(tokL)) (Ranged(e)) in
+      (rng, Lambda(ordparams, mndparams, optparams, e))
+    }
   | tokL=RECEIVE; branches=nonempty_list(branch); tokR=END {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, Receive(branches))
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, Receive(branches))
+    }
   | tokL=CASE; e=exprlet; OF; branches=nonempty_list(branch); tokR=END {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, Case(e, branches))
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, Case(e, branches))
+    }
   | e=exprland { e }
 ;
 exprland:
@@ -498,9 +490,9 @@ opgt:
 ;
 exprcons:
   | e1=exprtimes; CONS; e2=exprcons {
-        let rng = make_range (Ranged(e1)) (Ranged(e2)) in
-        (rng, ListCons(e1, e2))
-      }
+      let rng = make_range (Ranged(e1)) (Ranged(e2)) in
+      (rng, ListCons(e1, e2))
+    }
   | e=exprtimes { e }
 ;
 exprtimes:
@@ -515,74 +507,60 @@ exprplus:
 ;
 exprapp:
   | efun=exprapp; LPAREN; args=args; tokR=RPAREN {
-        let (ordargs, (mndargs, optargs)) = args in
-        let rng = make_range (Ranged(efun)) (Token(tokR)) in
-        (rng, Apply(efun, ordargs, mndargs, optargs))
-      }
+      let (ordargs, (mndargs, optargs)) = args in
+      let rng = make_range (Ranged(efun)) (Token(tokR)) in
+      (rng, Apply(efun, ordargs, mndargs, optargs))
+    }
   | tokL=FREEZE; modchain=modchainraw; ident=DOTLOWER; LPAREN; args=freezeargs; tokR=RPAREN {
-        let (ordargs, rngs) = args in
-        let ((rng1, _), _) = modchain in
-        let rngapp = make_range (Token(rng1)) (Token(tokR)) in
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, Freeze(rngapp, FrozenModFun(modchain, ident), ordargs, rngs))
-      }
+      let (ordargs, rngs) = args in
+      let ((rng1, _), _) = modchain in
+      let rngapp = make_range (Token(rng1)) (Token(tokR)) in
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, Freeze(rngapp, FrozenModFun(modchain, ident), ordargs, rngs))
+    }
   | tokL=FREEZE; ident=LOWER; LPAREN; args=freezeargs; tokR=RPAREN {
-        let (ordargs, rngs) = args in
-        let rngapp = make_range (Ranged(ident)) (Token(tokR)) in
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, Freeze(rngapp, FrozenFun(ident), ordargs, rngs))
-      }
+      let (ordargs, rngs) = args in
+      let rngapp = make_range (Ranged(ident)) (Token(tokR)) in
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, Freeze(rngapp, FrozenFun(ident), ordargs, rngs))
+    }
   | tokL=FREEZE; LPAREN; e=exprlet; RPAREN; WITH; LPAREN; args=freezeargs; tokR=RPAREN {
-        let (ordargs, rngs) = args in
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, FreezeUpdate(e, ordargs, rngs))
-      }
+      let (ordargs, rngs) = args in
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, FreezeUpdate(e, ordargs, rngs))
+    }
   | modchain=modchainraw; LPAREN; args=args; tokR=RPAREN {
-        let (tokL, modidents, ctor) = chop_last modchain in
-        let (ordargs, optargs) = args in
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        match modidents with
-        | []     -> let (_, ctornm) = ctor in (rng, Constructor(ctornm, ordargs))
-        | _ :: _ -> (rng, ModProjCtor(modidents, ctor, ordargs))
-          (* TODO: emit errors when `optargs` is not nil *)
-      }
+      let (tokL, modidents, ctor) = chop_last modchain in
+      let (ordargs, optargs) = args in
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      match modidents with
+      | []     -> let (_, ctornm) = ctor in (rng, Constructor(ctornm, ordargs))
+      | _ :: _ -> (rng, ModProjCtor(modidents, ctor, ordargs))
+        (* TODO: emit errors when `optargs` is not nil *)
+    }
   | modchain=modchainraw {
-        let (tokL, modidents, ctor) = chop_last modchain in
-        let rng = make_range (Token(tokL)) (Ranged(ctor)) in
-        match modidents with
-        | []     -> let (_, ctornm) = ctor in (rng, Constructor(ctornm, []))
-        | _ :: _ -> (rng, ModProjCtor(modidents, ctor, []))
-      }
+      let (tokL, modidents, ctor) = chop_last modchain in
+      let rng = make_range (Token(tokL)) (Ranged(ctor)) in
+      match modidents with
+      | []     -> let (_, ctornm) = ctor in (rng, Constructor(ctornm, []))
+      | _ :: _ -> (rng, ModProjCtor(modidents, ctor, []))
+    }
   | modchain=modchainraw; ident=DOTLOWER {
-        let (modident, modidents) = modchain in
-        let rng = make_range (Ranged(modident)) (Ranged(ident)) in
-        (rng, ModProjVal(modident :: modidents, ident))
-      }
+      let (modident, modidents) = modchain in
+      let rng = make_range (Ranged(modident)) (Ranged(ident)) in
+      (rng, ModProjVal(modident :: modidents, ident))
+    }
   | e=exprbot { e }
 ;
 args:
-  | labargs=labargs {
-        ([], labargs)
-      }
-  | e=exprlet {
-        ([e], ([], []))
-      }
-  | e=exprlet; COMMA; tail=args {
-        let (ordargs, labargs) = tail in
-        (e :: ordargs, labargs)
-      }
+  | labargs=labargs             { ([], labargs) }
+  | e=exprlet                   { ([ e ], ([], [])) }
+  | e=exprlet; COMMA; tail=args { let (ordargs, labargs) = tail in (e :: ordargs, labargs) }
 ;
 labargs:
-  | optargs=optargs {
-        ([], optargs)
-      }
-  | rlabel=MNDLABEL; e=exprlet {
-        ([ (rlabel, e) ], [])
-      }
-  | rlabel=MNDLABEL; e=exprlet; COMMA; tail=labargs {
-        let (mndargs, optargs) = tail in
-        ((rlabel, e) :: mndargs, optargs)
-      }
+  | optargs=optargs                                 { ([], optargs) }
+  | rlabel=MNDLABEL; e=exprlet                      { ([ (rlabel, e) ], []) }
+  | rlabel=MNDLABEL; e=exprlet; COMMA; tail=labargs { let (mndargs, optargs) = tail in ((rlabel, e) :: mndargs, optargs) }
 ;
 optargs:
   |                                                 { [] }
@@ -590,20 +568,13 @@ optargs:
   | rlabel=OPTLABEL; e=exprlet; COMMA; tail=optargs { (rlabel, e) :: tail }
 ;
 freezeargs:
-  | rngs=holeargs {
-        ([], rngs)
-      }
-  | e=exprlet {
-        ([e], [])
-      }
-  | e=exprlet; COMMA; tail=freezeargs {
-        let (ordargs, rngs) = tail in
-        (e :: ordargs, rngs)
-      }
+  | rngs=holeargs                     { ([], rngs) }
+  | e=exprlet                         { ([ e ], []) }
+  | e=exprlet; COMMA; tail=freezeargs { let (ordargs, rngs) = tail in (e :: ordargs, rngs) }
 ;
 holeargs:
   |                                      { [] }
-  | tok=UNDERSCORE                       { [tok] }
+  | tok=UNDERSCORE                       { [ tok ] }
   | tok=UNDERSCORE; COMMA; tail=holeargs { tok :: tail }
 ;
 record:
@@ -624,55 +595,56 @@ exprbot:
   | c=FLOAT                   { let (rng, r) = c in (rng, BaseConst(Float(r))) }
   | ident=ident               { let (rng, x) = ident in (rng, Var(x)) }
   | LPAREN; e=exprlet; RPAREN { e }
+
   | tokL=LBRACE; e1=exprlet; es=list(tuplesub); tokR=RBRACE {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, Tuple(TupleList.make e1 es))
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, Tuple(TupleList.make e1 es))
+    }
   | tokL=LSQUARE; es=exprs; tokR=RSQUARE {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        let dr = Range.dummy "list" in
-        let (_, emain) =
-          List.fold_right (fun e tail -> (dr, ListCons(e, tail))) es (dr, ListNil)
-        in
-        (rng, emain)
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      let dr = Range.dummy "list" in
+      let (_, emain) =
+        List.fold_right (fun e tail -> (dr, ListCons(e, tail))) es (dr, ListNil)
+      in
+      (rng, emain)
+    }
   | tokL=LTLT; ns=bytes tokR=gtgt {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, BinaryByList(ns))
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, BinaryByList(ns))
+    }
   | strlit=BINARY {
-        let (rng, s) = strlit in
-        (rng, BaseConst(BinaryByString(s)))
-      }
+      let (rng, s) = strlit in
+      (rng, BaseConst(BinaryByString(s)))
+    }
   | strlit=STRING {
-        let (rng, s) = strlit in
-        (rng, BaseConst(String(s)))
-      }
+      let (rng, s) = strlit in
+      (rng, BaseConst(String(s)))
+    }
   | fmtlit=FORMAT {
-        let (rng, fmtelems) = fmtlit in
-        (rng, BaseConst(FormatString(fmtelems)))
-      }
+      let (rng, fmtelems) = fmtlit in
+      (rng, BaseConst(FormatString(fmtelems)))
+    }
   | charlit=CHAR {
-        let (rng, uchar) = charlit in
-        (rng, BaseConst(Char(uchar)))
-      }
+      let (rng, uchar) = charlit in
+      (rng, BaseConst(Char(uchar)))
+    }
   | tokL=LBRACE; les=record; tokR=RBRACE {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, Record(les))
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, Record(les))
+    }
   | tokL=LBRACE; e1=exprbot; BAR; les=record; tokR=RBRACE {
-        let (_, eaccmain) =
-          List.fold_left (fun eacc (rlabel, e2) ->
-            let rng = make_range (Token(tokL)) (Ranged(e2)) in
-            (rng, RecordUpdate(eacc, rlabel, e2))
-          ) e1 les
-        in
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, eaccmain)
-      }
+      let (_, eaccmain) =
+        List.fold_left (fun eacc (rlabel, e2) ->
+          let rng = make_range (Token(tokL)) (Ranged(e2)) in
+          (rng, RecordUpdate(eacc, rlabel, e2))
+        ) e1 les
+      in
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, eaccmain)
+    }
   | e=exprbot; rlabel=DOTLOWER {
-        let rng = make_range (Ranged(e)) (Ranged(rlabel)) in
-        (rng, RecordAccess(e, rlabel))
+      let rng = make_range (Ranged(e)) (Ranged(rlabel)) in
+      (rng, RecordAccess(e, rlabel))
     }
 ;
 bytes:
@@ -688,39 +660,36 @@ tuplesub:
   COMMA; e=exprlet { e }
 ;
 branch:
-  | BAR; pat=patcons; ARROW; e=exprlet {
-        Branch(pat, None, e)
-      }
-  | BAR; pat=patcons; WHEN; ew=exprlet; ARROW; e=exprlet {
-        Branch(pat, Some(ew), e)
-      }
+  | BAR; pat=patcons; ARROW; e=exprlet                   { Branch(pat, None, e) }
+  | BAR; pat=patcons; WHEN; ew=exprlet; ARROW; e=exprlet { Branch(pat, Some(ew), e) }
 ;
 patcons:
   | p1=patbot; CONS; p2=patcons { let rng = make_range (Ranged(p1)) (Ranged(p2)) in (rng, PListCons(p1, p2)) }
   | p=patbot                    { p }
 ;
 patbot:
-  | rng=TRUE                 { (rng, PBool(true)) }
-  | rng=FALSE                { (rng, PBool(true)) }
-  | tokL=LPAREN; tokR=RPAREN { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, PUnit) }
-  | c=INT                    { let (rng, n) = c in (rng, PInt(n)) }
-  | charlit=CHAR             { let (rng, uchar) = charlit in (rng, PChar(uchar)) }
-  | ident=ident              { let (rng, x) = ident in (rng, PVar(x)) }
-  | rng=UNDERSCORE           { (rng, PWildCard) }
+  | rng=TRUE                   { (rng, PBool(true)) }
+  | rng=FALSE                  { (rng, PBool(true)) }
+  | tokL=LPAREN; tokR=RPAREN   { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, PUnit) }
+  | c=INT                      { let (rng, n) = c in (rng, PInt(n)) }
+  | charlit=CHAR               { let (rng, uchar) = charlit in (rng, PChar(uchar)) }
+  | ident=ident                { let (rng, x) = ident in (rng, PVar(x)) }
+  | rng=UNDERSCORE             { (rng, PWildCard) }
   | tokL=LSQUARE; tokR=RSQUARE { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, PListNil) }
+
   | tokL=LBRACE; p1=patcons; pats=list(pattuplesub); tokR=RBRACE {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, PTuple(TupleList.make p1 pats))
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, PTuple(TupleList.make p1 pats))
+    }
   | ctor=UPPER {
-        let (rng, ctornm) = ctor in
-        (rng, PConstructor(ctornm, []))
-      }
+      let (rng, ctornm) = ctor in
+      (rng, PConstructor(ctornm, []))
+    }
   | ctor=UPPER; LPAREN; pats=pats; tokR=RPAREN {
-        let (tokL, ctornm) = ctor in
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, PConstructor(ctornm, pats))
-      }
+      let (tokL, ctornm) = ctor in
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, PConstructor(ctornm, pats))
+    }
 ;
 pats:
   |                               { [] }
@@ -736,28 +705,21 @@ tys:
   | mty=ty; COMMA; tail=tys { mty :: tail }
 ;
 tydoms:
-  | labmtydoms=labtydoms {
-        ([], labmtydoms)
-      }
-  | mty=ty {
-        ([ mty ], ([], MFixedRow([])))
-      }
-  | mty=ty; COMMA; tail=tydoms {
-        let (ordmtydoms, labmtydoms) = tail in
-        (mty :: ordmtydoms, labmtydoms)
-      }
+  | labmtydoms=labtydoms       { ([], labmtydoms) }
+  | mty=ty                     { ([ mty ], ([], MFixedRow([]))) }
+  | mty=ty; COMMA; tail=tydoms { let (ordmtydoms, labmtydoms) = tail in (mty :: ordmtydoms, labmtydoms) }
 ;
 labtydoms:
   | optmtydoms=opttydoms {
-        ([], optmtydoms)
-      }
+      ([], optmtydoms)
+    }
   | rlabel=MNDLABEL; mty=ty {
-        ([ (rlabel, mty) ], MFixedRow([]))
-      }
+      ([ (rlabel, mty) ], MFixedRow([]))
+    }
   | rlabel=MNDLABEL; mty=ty; COMMA; tail=labtydoms {
-        let (mndmtydoms, optmtydoms) = tail in
-        ((rlabel, mty) :: mndmtydoms, optmtydoms)
-      }
+      let (mndmtydoms, optmtydoms) = tail in
+      ((rlabel, mty) :: mndmtydoms, optmtydoms)
+    }
 ;
 opttydoms:
   | tok=ROWPARAM            { let (rng, rowparam) = tok in MRowVar(rng, rowparam) }
@@ -770,13 +732,13 @@ opttydomsfixed:
 ;
 kd:
   | tokL=LPAREN; bkddoms=bkds; RPAREN; ARROW; bkdcod=bkd {
-        let rng = make_range (Token(tokL)) (Ranged(bkdcod)) in
-        (rng, MKind(bkddoms, bkdcod))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(bkdcod)) in
+      (rng, MKind(bkddoms, bkdcod))
+    }
   | bkd=bkd {
-        let (rng, _) = bkd in
-        (rng, MKind([], bkd))
-      }
+      let (rng, _) = bkd in
+      (rng, MKind([], bkd))
+    }
 ;
 bkds:
   | bkd=bkd                   { [ bkd ] }
@@ -785,56 +747,56 @@ bkds:
 ;
 bkd:
   | ident=LOWER {
-        let (rng, kdnm) = ident in
-        (rng, MKindName(kdnm))
-      }
+      let (rng, kdnm) = ident in
+      (rng, MKindName(kdnm))
+    }
   | tokL=LBRACE; tyrecord=tyrecord; tokR=RBRACE {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, MRecordKind(tyrecord))
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, MRecordKind(tyrecord))
+    }
 ;
 ty:
   | utmod=modchain; tyident=DOTLOWER {
-        let rng = make_range (Ranged(utmod)) (Ranged(tyident)) in
-        (rng, MModProjType(utmod, tyident, []))
-      }
+      let rng = make_range (Ranged(utmod)) (Ranged(tyident)) in
+      (rng, MModProjType(utmod, tyident, []))
+    }
   | utmod=modchain; tyident=DOTLOWER; tylparen; mtyargs=tys; tokR=tyrparen {
-        let rng = make_range (Ranged(utmod)) (Token(tokR)) in
-        (rng, MModProjType(utmod, tyident, mtyargs))
-      }
+      let rng = make_range (Ranged(utmod)) (Token(tokR)) in
+      (rng, MModProjType(utmod, tyident, mtyargs))
+    }
   | mty=tybot { mty }
 ;
 tybot:
   | tok=TYPARAM {
-        let (rng, typaram) = tok in
-        (rng, MTypeVar(typaram))
-      }
+      let (rng, typaram) = tok in
+      (rng, MTypeVar(typaram))
+    }
   | ident=LOWER {
-        let (rng, tynm) = ident in
-        (rng, MTypeName(tynm, []))
-      }
+      let (rng, tynm) = ident in
+      (rng, MTypeName(tynm, []))
+    }
   | ident=LOWER; tylparen; mtyargs=tys; tokR=tyrparen {
-        let (tokL, tynm) = ident in
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, MTypeName(tynm, mtyargs))
-      }
+      let (tokL, tynm) = ident in
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, MTypeName(tynm, mtyargs))
+    }
   | tokL=LAMBDA; LPAREN; tydoms=tydoms; RPAREN; ARROW; mtycod=ty {
-        let (ordmtydoms, (mndmtydoms, optmtydoms)) = tydoms in
-        let rng = make_range (Token(tokL)) (Ranged(mtycod)) in
-        (rng, MFuncType(ordmtydoms, mndmtydoms, optmtydoms, mtycod))
-      }
+      let (ordmtydoms, (mndmtydoms, optmtydoms)) = tydoms in
+      let rng = make_range (Token(tokL)) (Ranged(mtycod)) in
+      (rng, MFuncType(ordmtydoms, mndmtydoms, optmtydoms, mtycod))
+    }
   | tokL=LBRACE; mty1=ty; mtys=list(tytuplesub) tokR=RBRACE {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, MProductType(TupleList.make mty1 mtys))
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, MProductType(TupleList.make mty1 mtys))
+    }
   | tokL=LSQUARE; mty1=ty; RSQUARE; mty2=ty {
-        let rng = make_range (Token(tokL)) (Ranged(mty2)) in
-        (rng, MEffType(mty1, mty2))
-      }
+      let rng = make_range (Token(tokL)) (Ranged(mty2)) in
+      (rng, MEffType(mty1, mty2))
+    }
   | tokL=LBRACE; tyrecord=tyrecord; tokR=RBRACE {
-        let rng = make_range (Token(tokL)) (Token(tokR)) in
-        (rng, MRecordType(tyrecord))
-      }
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, MRecordType(tyrecord))
+    }
 ;
 tyrecord:
   |                                                   { [] }
