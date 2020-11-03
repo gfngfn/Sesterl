@@ -1,16 +1,15 @@
-
 module Poly = struct
 
-  letrec foldl(f, i, l) =
+  val rec foldl(f, i, l) =
     case l of
     | []      -> i
     | x :: xs -> foldl(f, f(i, x), xs)
     end
 
-  let sum(ns) =
-    foldl(fun(m, n) -> m + n, 0, ns)
+  val sum(ns) =
+    foldl(fun(m, n) -> m + n end, 0, ns)
 
-  let main(args) =
+  val main(args) =
     let ans =
       sum(3 :: 1 :: 4 :: 1 :: 5 :: 9 :: 2 :: [])
     in

@@ -89,7 +89,7 @@
     (rng, DeclInclude((dr, SigWith((dr, SigDecls(decls)), [], tybinds))))
 %}
 
-%token<Range.t> LET LETREC ANDREC IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE WHEN END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE REQUIRE FREEZE
+%token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE WHEN END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE
 %token<Range.t> LPAREN RPAREN LSQUARE RSQUARE LBRACE RBRACE
 %token<Range.t> DEFEQ COMMA ARROW REVARROW BAR UNDERSCORE CONS COLON COERCE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
@@ -120,7 +120,7 @@
 %type<((Range.t * Syntax.row_variable_name) * Syntax.labeled_manual_type list) list> rowparams
 %type<Syntax.untyped_let_binding> bindvalsingle
 %type<Range.t * Syntax.internal_or_external> bindvaltop
-%type<Range.t * Syntax.rec_or_nonrec> bindvallocal
+%type<Syntax.rec_or_nonrec> bindvallocal
 %type<Syntax.untyped_module> modexprbot
 
 %%
@@ -131,7 +131,7 @@ main:
     }
 ;
 dep:
-  | REQUIRE; modident=UPPER { modident }
+  | IMPORT; modident=UPPER { modident }
 ;
 ident:
   | ident=LOWER { ident }
@@ -181,7 +181,7 @@ bindtypesingle:
     }
 ;
 bindtypesub:
-  | ANDREC; tybind=bindtypesingle { tybind }
+  | AND; tybind=bindtypesingle { tybind }
 ;
 typarams:
   |                                         { ([], []) }
@@ -212,15 +212,15 @@ rowparams:
   | rowparam=ROWPARAM; CONS; LPAREN; rowkind=opttydomsfixed; RPAREN; COMMA; tail=rowparams { (rowparam, rowkind) :: tail }
 ;
 bindvallocal:
-  | tok=LET; valbinding=bindvalsingle                         { (tok, NonRec(valbinding)) }
-  | tok=LETREC; valbinding=bindvalsingle; tail=list(recbinds) { (tok, Rec(valbinding :: tail)) }
+  | valbinding=bindvalsingle                           { NonRec(valbinding) }
+  | REC; valbinding=bindvalsingle; tail=list(recbinds) { Rec(valbinding :: tail) }
 ;
 bindvaltop:
-  | local=bindvallocal {
-      let (rng, rec_or_nonrec) = local in
-      (rng, Internal(rec_or_nonrec))
+  | tokL=VAL; rec_or_nonrec=bindvallocal {
+      (tokL, Internal(rec_or_nonrec))
+        (* TODO: give appropriate range *)
     }
-  | tokL=LET; ident=LOWER; tyrowparams=typarams; COLON; mty=ty; DEFEQ; EXTERNAL; inttok=INT; has_option=has_option; strblock=STRING_BLOCK {
+  | tokL=VAL; ident=LOWER; tyrowparams=typarams; COLON; mty=ty; DEFEQ; EXTERNAL; inttok=INT; has_option=has_option; strblock=STRING_BLOCK {
       let (typarams, rowparams) = tyrowparams in
       let (tokR, erlang_bind) = strblock in
       let (_, arity) = inttok in
@@ -244,7 +244,7 @@ has_option:
   | BINOP_PLUS { true }  (* TODO: fix this ad-hoc implementation *)
 ;
 recbinds:
-  | ANDREC; valbinding=bindvalsingle { valbinding }
+  | AND; valbinding=bindvalsingle { valbinding }
 ;
 bindvalsingle:
   | ident=LOWER; tyrowparams=typarams; LPAREN; params=params; RPAREN; tyannot=tyannot; DEFEQ; e0=exprlet {
@@ -426,10 +426,9 @@ sigexprbot:
     }
 ;
 exprlet:
-  | bindval=bindvallocal; IN; e2=exprlet {
-      let (tokL, valbind) = bindval in
+  | tokL=LET; rec_or_nonrec=bindvallocal; IN; e2=exprlet {
       let rng = make_range (Token(tokL)) (Ranged(e2)) in
-      (rng, LetIn(valbind, e2))
+      (rng, LetIn(rec_or_nonrec, e2))
     }
   | tokL=LET; pat=patcons; DEFEQ; e1=exprlet; IN; e2=exprlet {
       let rng = make_range (Token(tokL)) (Ranged(e2)) in
@@ -450,9 +449,9 @@ exprlet:
   | e=exprfun { e }
 ;
 exprfun:
-  | tokL=LAMBDA; LPAREN; params=params; RPAREN; ARROW; e=exprlet {
+  | tokL=LAMBDA; LPAREN; params=params; RPAREN; ARROW; e=exprlet; tokR=END {
       let (ordparams, (mndparams, optparams)) = params in
-      let rng = make_range (Token(tokL)) (Ranged(e)) in
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
       (rng, Lambda(ordparams, mndparams, optparams, e))
     }
   | tokL=RECEIVE; branches=nonempty_list(branch); tokR=END {

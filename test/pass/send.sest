@@ -1,25 +1,24 @@
-
 module Send = struct
 
   type bintree<$a> =
     | Node($a, bintree<$a>, bintree<$a>)
     | Empty
 
-  let bintree_of_int(n : int) : bintree<int> =
-    letrec aux(top, n) =
-    if n <= 0 then
-      Empty
-    else
-      let n1 = (n - 1) / 2 in
-      let n2 = (n - 1) - n1 in
-      let tr1 = aux(top + 1, n1) in
-      let tr2 = aux(top + n1 + 1, n2) in
-      Node(top, tr1, tr2)
+  val bintree_of_int(n : int) : bintree<int> =
+    let rec aux(top, n) =
+      if n <= 0 then
+        Empty
+      else
+        let n1 = (n - 1) / 2 in
+        let n2 = (n - 1) - n1 in
+        let tr1 = aux(top + 1, n1) in
+        let tr2 = aux(top + n1 + 1, n2) in
+        Node(top, tr1, tr2)
     in
     aux(1, n)
 
-  let reverse_list<$a>(xs : list<$a>) : list<$a> =
-    letrec aux(rev : list<$a>, xs : list<$a>) =
+  val reverse_list<$a>(xs : list<$a>) : list<$a> =
+    let rec aux(rev : list<$a>, xs : list<$a>) =
       case xs of
       | []        -> rev
       | x :: tail -> aux(x :: rev, tail)
@@ -27,7 +26,7 @@ module Send = struct
     in
     aux([], xs)
 
-  letrec wait_all<$b>(r : $b, n : int) =
+  val rec wait_all<$b>(r : $b, n : int) =
     if n <= 0 then
       let _ = print_debug("\"end!\"") in
       return(r)
@@ -38,7 +37,7 @@ module Send = struct
           wait_all(r, n - 1)
       end
 
-  letrec spawn_all<$m>(acc, n : int) : [{pid<$m>, bintree<int>}]list<pid<$m>> =
+  val rec spawn_all<$m>(acc, n : int) : [{pid<$m>, bintree<int>}]list<pid<$m>> =
     if n <= 0 then
       return(reverse_list(acc))
     else
@@ -49,13 +48,13 @@ module Send = struct
       ) in
       spawn_all(pid :: acc, n - 1)
 
-  let entrypoint() =
+  val entrypoint() =
     let m = 10 in
     do pids <- spawn_all([], m) in
     let _ = print_debug(pids) in
     wait_all({}, m)
 
-  let main<$a> : $a = external 1 ```
+  val main<$a> : $a = external 1 ```
 main(_) ->
     F = entrypoint(),
     F(). % forcing a thunk

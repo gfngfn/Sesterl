@@ -4,9 +4,9 @@ module ErrorCoercion6 = struct
     val make : fun(int) -> t
   end = struct
     type t = int
-    let make(x) = x
+    val make(x) = x
   end
 
-  let main() =
+  val main() =
     Sub.make(5) + 1
 end

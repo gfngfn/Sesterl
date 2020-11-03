@@ -1,5 +1,5 @@
-require ServerUtil
-require SupervisorCommon
+import ServerUtil
+import SupervisorCommon
 
 module DynamicSupervisor = struct
 
@@ -7,7 +7,7 @@ module DynamicSupervisor = struct
 
   type child_proc<$child_msg> = ChildProcDummy
 
-  let make_child_proc<$b, $child_msg> : fun([$b]option<pid<$child_msg>>) -> child_proc<$child_msg> = external 1 ```
+  val make_child_proc<$b, $child_msg> : fun([$b]option<pid<$child_msg>>) -> child_proc<$child_msg> = external 1 ```
     make_child_proc(PidOptF) ->
         case PidOptF() of
             {some, Pid} -> {ok, Pid};
@@ -22,7 +22,7 @@ module DynamicSupervisor = struct
     typ      : worker,
   }
 
-  let make_child_spec<$msg, $arg, $child_msg>(
+  val make_child_spec<$msg, $arg, $child_msg>(
     -start    start : frozen<{$arg}, child_proc<$child_msg>>,
     ?restart  restart = Permanent,
     ?shutdown shutdown_opt,
@@ -47,15 +47,15 @@ module DynamicSupervisor = struct
     period    : int,
   }
 
-  let make_sup_flags(?intensity intensity = 1, ?period period = 5) : sup_flags =
+  val make_sup_flags(?intensity intensity = 1, ?period period = 5) : sup_flags =
     { intensity = intensity, period = period }
 
   type initialized<$msg, $arg, $child_msg> = option<{sup_flags, child_spec<$msg, $arg, $child_msg>}>
 
-  let init_ok(sup_flags, child_spec) =
+  val init_ok(sup_flags, child_spec) =
     return(Some({sup_flags, child_spec}))
 
-  let init_fail() =
+  val init_fail() =
     return(None)
 
   signature Behaviour = sig
@@ -70,10 +70,10 @@ module DynamicSupervisor = struct
 
     type proc = ProcDummy
 
-    let init_impl(init_arg) =
+    val init_impl(init_arg) =
       Callback.init(init_arg)
 
-    let init<$a> : $a = external 1 ```
+    val init<$a> : $a = external 1 ```
       init(InitArg) ->
           InitF = init_impl(InitArg),
           case InitF() of
@@ -113,15 +113,15 @@ module DynamicSupervisor = struct
           end.
     ```
 
-    let as_pid : fun(proc) -> pid<Callback.info> = external 1 ```
+    val as_pid : fun(proc) -> pid<Callback.info> = external 1 ```
       as_pid(Pid) -> Pid.
     ```
 
-    let from_pid : fun(pid<Callback.info>) -> proc = external 1 ```
+    val from_pid : fun(pid<Callback.info>) -> proc = external 1 ```
       from_pid(Pid) -> Pid.
     ```
 
-    let start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
+    val start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
       start_link(InitArg) ->
           fun() ->
               case supervisor:start_link(?MODULE, InitArg) of
@@ -132,7 +132,7 @@ module DynamicSupervisor = struct
             % thunk
     ```
 
-    let start_link_name<$a> : fun(Callback.init_arg, -name ServerUtil.name) -> [$a]option<{bool, proc}> = external 2 ```
+    val start_link_name<$a> : fun(Callback.init_arg, -name ServerUtil.name) -> [$a]option<{bool, proc}> = external 2 ```
       start_link_name(InitArg, NameImpl) ->
           % io:format("debug L('o' )J (~p) start_link_name (pre):~n  ~p~n", [?MODULE, InitArg]),
           Name =
@@ -153,7 +153,7 @@ module DynamicSupervisor = struct
             % thunk
     ```
 
-    let where_is<$a> : fun(binary) -> [$a]option<proc> = external 1 ```
+    val where_is<$a> : fun(binary) -> [$a]option<proc> = external 1 ```
       where_is(NameBin) ->
           NameAtom = erlang:binary_to_atom(NameBin, utf8),
           fun() ->
@@ -165,7 +165,7 @@ module DynamicSupervisor = struct
             % thunk
     ```
 
-    let start_child<$a> : fun(proc, Callback.start_arg) -> [$a]option<pid<Callback.child_info>> = external 2 ```
+    val start_child<$a> : fun(proc, Callback.start_arg) -> [$a]option<pid<Callback.child_info>> = external 2 ```
       start_child(SupPid, StartArg) ->
           % io:format("debug L('o' )J (~p) start_child (pre):~n  ~p~n", [?MODULE, StartArg]),
           fun() ->

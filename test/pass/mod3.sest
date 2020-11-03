@@ -1,20 +1,19 @@
-
 module Mod3 = struct
 
   module List = struct
     type t<$a> = list<$a>
 
-    let empty<$b>() : t<$b> =
+    val empty<$b>() : t<$b> =
       []
 
-    letrec foldl(f, i, l) =
+    val rec foldl(f, i, l) =
       case l of
       | []      -> i
       | x :: xs -> foldl(f, f(i, x), xs)
       end
 
-    let reverse<$c>(xs : list<$c>) : list<$c> =
-      foldl(fun(acc, x) -> x :: acc, [], xs)
+    val reverse<$c>(xs : list<$c>) : list<$c> =
+      foldl(fun(acc, x) -> x :: acc end, [], xs)
   end
 
   signature Eq = sig

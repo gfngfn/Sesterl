@@ -59,8 +59,8 @@ rule token = parse
       let pos = Range.from_lexbuf lexbuf in
         match s with
         | "let"       -> LET(pos)
-        | "letrec"    -> LETREC(pos)
-        | "andrec"    -> ANDREC(pos)
+        | "rec"       -> REC(pos)
+        | "and"       -> AND(pos)
         | "in"        -> IN(pos)
         | "fun"       -> LAMBDA(pos)
         | "if"        -> IF(pos)
@@ -83,7 +83,7 @@ rule token = parse
         | "with"      -> WITH(pos)
         | "external"  -> EXTERNAL(pos)
         | "include"   -> INCLUDE(pos)
-        | "require"   -> REQUIRE(pos)
+        | "import"    -> IMPORT(pos)
         | "freeze"    -> FREEZE(pos)
         | _           -> LOWER(pos, s)
     }

@@ -1,10 +1,9 @@
-
 module ErrorOptionalParameterUnify2 = struct
 
-  let g1(?foo nopt) = {nopt, None}
+  val g1(?foo nopt) = {nopt, None}
 
-  let g2(?foo nopt, ?bar bopt) = {nopt, bopt}
+  val g2(?foo nopt, ?bar bopt) = {nopt, bopt}
 
-  let g(flag) = if flag then g1 else g2
+  val g(flag) = if flag then g1 else g2
 
 end

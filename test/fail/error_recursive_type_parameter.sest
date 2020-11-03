@@ -1,5 +1,5 @@
 module ErrorRecursiveTypeParameter = struct
 
-  let f(x) = { x | foo = x }
+  val f(x) = { x | foo = x }
 
 end

@@ -2,7 +2,7 @@ module Kind = struct
 
   module Impl = struct
     type t = {foo : int, bar : bool}
-    let v() = {foo = 42, bar = true}
+    val v() = {foo = 42, bar = true}
   end
 
   include Impl :> sig

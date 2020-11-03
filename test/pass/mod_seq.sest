@@ -1,4 +1,3 @@
-
 module ModSeq = struct
 
   type option<$a> =
@@ -13,8 +12,8 @@ module ModSeq = struct
   module Seq = fun(D : Decomposable) ->
     struct
       type t<$a> = D.s<$a>
-      let to_reversed_list<$a>(xs : t<$a>) : list<$a> =
-        letrec aux(acc : list<$a>, xs : t<$a>) =
+      val to_reversed_list<$a>(xs : t<$a>) : list<$a> =
+        let rec aux(acc : list<$a>, xs : t<$a>) =
           case D.decompose(xs) of
           | None            -> acc
           | Some({x, tail}) -> aux(x :: acc, tail)
@@ -25,7 +24,7 @@ module ModSeq = struct
 
   module ListD = struct
     type s<$a> = list<$a>
-    let decompose(xs) =
+    val decompose(xs) =
       case xs of
       | []        -> None
       | x :: tail -> Some({x, tail})
@@ -34,7 +33,7 @@ module ModSeq = struct
 
   module ListSeq = Seq(ListD)
 
-  let main(args) =
+  val main(args) =
     let ans = ListSeq.to_reversed_list([3, 1, 4]) in
     print_debug(ans)
 

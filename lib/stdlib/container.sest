@@ -1,7 +1,7 @@
-require List
-require ServerUtil
-require GenServer
-require Supervisor
+import List
+import ServerUtil
+import GenServer
+import Supervisor
 
 module Stdlib :> sig
 

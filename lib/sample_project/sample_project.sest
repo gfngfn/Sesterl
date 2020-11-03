@@ -30,27 +30,27 @@ module SampleProject = struct
       type info =
         | InfoDummy
 
-      let init(state) =
+      val init(state) =
         let _ = print_debug({"init", state}) in
         Stdlib.GenServer.init_ok(state)
 
-      let handle_call(req, pid, state) =
+      val handle_call(req, pid, state) =
        let _ = print_debug({"handle_call", req}) in
         case req of
         | GetNumber -> Stdlib.GenServer.reply(Number(state.number), state)
         | GetName   -> Stdlib.GenServer.reply(Name(state.name), state)
         end
 
-      let handle_cast(msg, state) =
+      val handle_cast(msg, state) =
         let _ = print_debug({"handle_cast", msg}) in
         case msg of
         | SetNumber(m) -> Stdlib.GenServer.no_reply({ number = m, name = state.name })
         end
 
-      let handle_info(info, state) =
+      val handle_info(info, state) =
         Stdlib.GenServer.no_reply(state)
 
-      let terminate(state) =
+      val terminate(state) =
         let _ = print_debug("terminate") in
         return({})
 
@@ -58,10 +58,10 @@ module SampleProject = struct
 
     include Stdlib.GenServer.Make(Callback)
 
-    let set_number<$a>(pid : proc, m : int) : [$a]unit =
+    val set_number<$a>(pid : proc, m : int) : [$a]unit =
       cast(pid, SetNumber(m))
 
-    let get_number<$a>(pid : proc, ?timeout t_opt) : [$a]int =
+    val get_number<$a>(pid : proc, ?timeout t_opt) : [$a]int =
       do res <-
         case t_opt of
         | None    -> call(pid, GetNumber)
@@ -76,12 +76,12 @@ module SampleProject = struct
 
   module Main = struct
 
-    let async_increment(pid) =
+    val async_increment(pid) =
       do n <- Server.get_number(pid) in
       do Server.set_number(pid, n + 1) in
       return(n + 1)
 
-    letrec loop(t, pid) =
+    val rec loop(t, pid) =
       if t <= 0 then
         Server.stop(pid)
       else
@@ -89,7 +89,7 @@ module SampleProject = struct
         let _ = print_debug({t, n}) in
         loop(t - 1, pid)
 
-    let main() =
+    val main() =
       do pid_opt <- Server.start_link({ number = 57, name = "Sample Store"}) in
       case pid_opt of
       | None ->

@@ -1,8 +1,8 @@
-require RequireDepended
+import RequireDepended
 
 module RequireDepending = struct
 
-  let main(args) =
+  val main(args) =
     print_debug(RequireDepended.hello())
 
 end

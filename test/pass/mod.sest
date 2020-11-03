@@ -1,4 +1,3 @@
-
 module Mod = struct
 
   type option<$a> =
@@ -14,7 +13,7 @@ module Mod = struct
     struct
       type elem = Elem.s
       type t<$a> = list<{elem, $a}>
-      letrec find<$b>(x : elem, assoc : t<$b>) : option<$b> =
+      val rec find<$b>(x : elem, assoc : t<$b>) : option<$b> =
         case assoc of
         | [] ->
             None
@@ -29,7 +28,7 @@ module Mod = struct
 
   module Int = struct
     type s = int
-    let compare(x : int, y : int) = y - x
+    val compare(x : int, y : int) = y - x
   end
 
   module IntMap = Map(Int)

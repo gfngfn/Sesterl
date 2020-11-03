@@ -1,14 +1,13 @@
-
 module Mod2 = struct
 
   module Counter = struct
     type t = int
-    let initial() : t = 0
-    let increment(c : t) : t =
+    val initial() : t = 0
+    val increment(c : t) : t =
       c + 1
   end
 
-  let main(args) =
+  val main(args) =
     let x = Counter.initial() in
     print_debug(Counter.increment(x) == 0)
 

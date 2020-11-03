@@ -1,5 +1,5 @@
 module Error01 = struct
-  let main() =
+  val main() =
     let x = /* here is /* a comment */  1 in
     x
 end

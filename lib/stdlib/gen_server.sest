@@ -1,28 +1,28 @@
-require ServerUtil
+import ServerUtil
 
 module GenServer = struct
 
   type initialized<$state> = option<$state>
 
-  let init_ok(state) =
+  val init_ok(state) =
     return(Some(state))
 
-  let init_fail() =
+  val init_fail() =
     return(None)
 
   type reply<$msg, $response, $state> =
     | ReplyImpl($response, [$msg]$state)
 
-  let reply<$msg, $response, $state>(response, state) : [$msg]reply<$msg, $response, $state> =
+  val reply<$msg, $response, $state>(response, state) : [$msg]reply<$msg, $response, $state> =
     return(ReplyImpl(response, return(state)))
 
-  let reply_fast<$msg, $response, $state>(response, -rest comp) : [$msg]reply<$msg, $response, $state> =
+  val reply_fast<$msg, $response, $state>(response, -rest comp) : [$msg]reply<$msg, $response, $state> =
     return(ReplyImpl(response, comp))
 
   type no_reply<$state> =
     | NoReplyImpl($state)
 
-  let no_reply<$msg, $state>(state) : [$msg]no_reply<$state> =
+  val no_reply<$msg, $state>(state) : [$msg]no_reply<$state> =
     return(NoReplyImpl(state))
 
   signature Behaviour = sig
@@ -45,10 +45,10 @@ module GenServer = struct
     type cast_message = Callback.cast_message
     type proc = pid<Callback.info>
 
-    let init_impl(arg : Callback.init_arg) =
+    val init_impl(arg : Callback.init_arg) =
       Callback.init(arg)
 
-    let init<$a> : $a = external 1 ```
+    val init<$a> : $a = external 1 ```
       init(Args) ->
           StateF = ?MODULE:init_impl(Args),
           case StateF() of
@@ -57,10 +57,10 @@ module GenServer = struct
           end.
     ```
 
-    let handle_call_impl<$a>(req : Callback.request, pid : pid<$a>, state : Callback.state) =
+    val handle_call_impl<$a>(req : Callback.request, pid : pid<$a>, state : Callback.state) =
       Callback.handle_call(req, pid, state)
 
-    let handle_call<$a> : $a = external 3 ```
+    val handle_call<$a> : $a = external 3 ```
       handle_call(Msg, From, State0) ->
           {Pid, _} = From,
           CallF = ?MODULE:handle_call_impl(Msg, Pid, State0),
@@ -71,10 +71,10 @@ module GenServer = struct
           end.
     ```
 
-    let handle_cast_impl(msg : Callback.cast_message, state : Callback.state) =
+    val handle_cast_impl(msg : Callback.cast_message, state : Callback.state) =
       Callback.handle_cast(msg, state)
 
-    let handle_cast<$a> : $a = external 2 ```
+    val handle_cast<$a> : $a = external 2 ```
       handle_cast(Msg, State0) ->
           CastF = ?MODULE:handle_cast_impl(Msg, State0),
           case CastF() of
@@ -83,10 +83,10 @@ module GenServer = struct
           end.
     ```
 
-    let handle_info_impl<$a>(info : Callback.info, state : Callback.state) =
+    val handle_info_impl<$a>(info : Callback.info, state : Callback.state) =
       Callback.handle_info(info, state)
 
-    let handle_info<$a> : $a = external 2 ```
+    val handle_info<$a> : $a = external 2 ```
       handle_info(Info, State0) ->
           StateF = handle_info_impl(Info, State0),
           case StateF() of
@@ -95,16 +95,16 @@ module GenServer = struct
           end.
     ```
 
-    let terminate_impl(state : Callback.state) =
+    val terminate_impl(state : Callback.state) =
       Callback.terminate(state)
 
-    let terminate<$a> : $a = external 2 ```
+    val terminate<$a> : $a = external 2 ```
       terminate(_Reason, State) ->
           F = terminate_impl(State),
           F().
     ```
 
-    let call<$a> : fun(proc, request, ?timeout int) -> [$a]response = external 2+ ```
+    val call<$a> : fun(proc, request, ?timeout int) -> [$a]response = external 2+ ```
       call(Pid, Msg) ->
           fun() -> gen_server:call(Pid, Msg) end.
             % thunk
@@ -117,19 +117,19 @@ module GenServer = struct
             % thunk
     ```
 
-    let cast<$a> : fun(proc, cast_message) -> [$a]unit = external 2 ```
+    val cast<$a> : fun(proc, cast_message) -> [$a]unit = external 2 ```
       cast(Pid, Msg) ->
           fun() -> gen_server:cast(Pid, Msg) end.
             % thunk
     ```
 
-    let as_pid(proc : proc) =
+    val as_pid(proc : proc) =
       proc
 
-    let from_pid(pid : proc) =
+    val from_pid(pid : proc) =
       pid
 
-    let start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
+    val start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
       start_link(Args) ->
           fun() ->
               case gen_server:start_link(?MODULE, Args, []) of
@@ -140,7 +140,7 @@ module GenServer = struct
             % thunk
     ```
 
-    let start_link_name<$a> : fun(Callback.init_arg, -name ServerUtil.name) -> [$a]option<{bool, proc}> = external 2 ```
+    val start_link_name<$a> : fun(Callback.init_arg, -name ServerUtil.name) -> [$a]option<{bool, proc}> = external 2 ```
       start_link_name(Args, NameImpl) ->
           % io:format("debug L('o' )J (~p) GS start_link_name (pre):~n  ~p~n", [?MODULE, Args]),
           Name =
@@ -161,7 +161,7 @@ module GenServer = struct
             % thunk
     ```
 
-    let where_is<$a> : fun(binary) -> [$a]option<proc> = external 1 ```
+    val where_is<$a> : fun(binary) -> [$a]option<proc> = external 1 ```
       where_is(NameBin) ->
           NameAtom = erlang:binary_to_atom(NameBin, utf8),
           fun() ->
@@ -173,7 +173,7 @@ module GenServer = struct
             % thunk
     ```
 
-    let stop<$a> : fun(proc) -> [$a]unit = external 1 ```
+    val stop<$a> : fun(proc) -> [$a]unit = external 1 ```
       stop(Pid) ->
           fun() ->
               gen_server:stop(Pid)
@@ -181,7 +181,7 @@ module GenServer = struct
             % thunk
     ```
 
-    let send_info(pid : proc, info : Callback.info) =
+    val send_info(pid : proc, info : Callback.info) =
       send(pid, info)
 
   end
