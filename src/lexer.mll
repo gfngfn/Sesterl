@@ -83,7 +83,7 @@ rule token = parse
           | "include"   -> INCLUDE(pos)
           | "require"   -> REQUIRE(pos)
           | "freeze"    -> FREEZE(pos)
-          | _           -> IDENT(pos, s)
+          | _           -> LOWER(pos, s)
       }
   | ("$" (identifier as s)) {
         let pos = Range.from_lexbuf lexbuf in
@@ -96,15 +96,15 @@ rule token = parse
   | constructor {
         let s = Lexing.lexeme lexbuf in
         let pos = Range.from_lexbuf lexbuf in
-        CTOR(pos, s)
+        UPPER(pos, s)
       }
   | ("." (constructor as s)) {
         let pos = Range.from_lexbuf lexbuf in
-        DOTCTOR(pos, s)
+        DOTUPPER(pos, s)
       }
   | ("." (identifier as s)) {
         let pos = Range.from_lexbuf lexbuf in
-        DOTIDENT(pos, s)
+        DOTLOWER(pos, s)
       }
   | ("-" (identifier as s)) {
         let pos = Range.from_lexbuf lexbuf in
