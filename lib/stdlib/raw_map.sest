@@ -1,0 +1,42 @@
+module RawMap = struct
+
+  type t<$k, $v> = Dummy
+
+  val new<$k, $v> : fun() -> t<$k, $v> = external 0 ```
+    new() ->
+        #{}.
+  ```
+
+  val put<$k, $v> : fun($k, $v, t<$k, $v>) -> t<$k, $v> = external 3 ```
+    put(Key, Value, Map) ->
+        maps:put(Key, Value, Map).
+  ```
+
+  val find<$k, $v> : fun($k, t<$k, $v>) -> option<$v> = external 2 ```
+    find(Key, Map) ->
+        case maps:find(Key, Map) of
+            {ok, Value} -> {some, Value};
+            error       -> none
+        end.
+  ```
+
+  val remove<$k, $v> : fun($k, t<$k, $v>) -> t<$k, $v> = external 2 ```
+    remove(Key, Map) ->
+        maps:remove(Key, Map).
+  ```
+
+  val to_list<$k, $v> : fun(t<$k, $v>) -> list<{$k, $v}> = external 1 ```
+    to_list(Map) ->
+        maps:to_list(Map).
+  ```
+
+  val merge<$k, $v> : fun(t<$k, $v>, t<$k, $v>) -> t<$k, $v> = external 2 ```
+    merge(Map1, Map2) ->
+        maps:merge(Map1, Map2).
+  ```
+
+  val map<$k, $v1, $v2> : fun(fun($v1) -> $v2, t<$k, $v1>) -> t<$k, $v2> = external 2 ```
+    map(Fun, Map) ->
+        maps:map(Fun, Map).
+  ```
+end
