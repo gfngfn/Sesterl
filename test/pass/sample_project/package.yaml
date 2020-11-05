@@ -6,6 +6,6 @@ dependencies:
   - name: "stdlib"
     source:
       type: "local"
-      directory: "../stdlib"
+      directory: "../../../lib/stdlib"
 
 main_module: "SampleProject"

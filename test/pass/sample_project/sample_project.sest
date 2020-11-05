@@ -104,4 +104,12 @@ module SampleProject = struct
       end
   end
 
+  val impl() =
+    Main.main()
+
+  val main<$a> : $a = external 1 ```
+    main(Args) ->
+        F = impl(),
+        F().
+  ```
 end
