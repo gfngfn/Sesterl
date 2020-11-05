@@ -1,4 +1,5 @@
 import List
+import RawMap
 import ServerUtil
 import GenServer
 import Supervisor
@@ -17,6 +18,17 @@ module Stdlib :> sig
     val any<$a> : fun(fun($a) -> bool, list<$a>) -> bool
     val append<$a> : fun(list<$a>, list<$a>) -> list<$a>
     val reverse<$a> : fun(list<$a>) -> list<$a>
+  end
+
+  module RawMap : sig
+    type t :: (o, o) -> o
+    val new<$k, $v> : fun() -> t<$k, $v>
+    val put<$k, $v> : fun($k, $v, t<$k, $v>) -> t<$k, $v>
+    val find<$k, $v> : fun($k, t<$k, $v>) -> option<$v>
+    val remove<$k, $v> : fun($k, t<$k, $v>) -> t<$k, $v>
+    val to_list<$k, $v> : fun(t<$k, $v>) -> list<{$k, $v}>
+    val merge<$k, $v> : fun(t<$k, $v>, t<$k, $v>) -> t<$k, $v>
+    val map<$k, $v1, $v2> : fun(fun($v1) -> $v2, t<$k, $v1>) -> t<$k, $v2>
   end
 
   module GenServer : sig
@@ -147,6 +159,7 @@ module Stdlib :> sig
 
 end = struct
   module List = List
+  module RawMap = RawMap
   include ServerUtil
   module GenServer = GenServer
   module Supervisor = Supervisor
