@@ -123,6 +123,10 @@ let report_package_error (e : package_error) : unit =
       Format.printf "multiple package have the same name '%s':\n  - %s\n  - %s\n"
         pkgname abspath1 abspath2
 
+  | PackageDirNotFound(absdir) ->
+      Format.printf "package directory '%s' not found\n"
+        absdir
+
 
 let report_type_error (e : type_error) : unit =
   Format.printf "! [Type error] ";

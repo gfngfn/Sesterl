@@ -42,7 +42,11 @@ let main (absdir : absolute_dir) : (absolute_path * ConfigLoader.config) list =
         config.ConfigLoader.dependencies |> List.fold_left (fun state dependency ->
           let graph = state.graph in
           let ConfigLoader.Local(absdir_sub) = dependency.ConfigLoader.dependency_source in
-          let absdir_sub = canonicalize_path absdir_sub in
+          let absdir_sub =
+            match canonicalize_path absdir_sub with
+            | None         -> raise (PackageError(PackageDirNotFound(absdir_sub)))
+            | Some(absdir) -> absdir
+          in
           match graph |> FileDependencyGraph.find_vertex absdir_sub with
           | Some(vertex_sub) ->
             (* If the depended source file has already been parsed *)

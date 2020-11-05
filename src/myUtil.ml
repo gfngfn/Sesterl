@@ -71,14 +71,17 @@ let make_absolute_path ?canonicalize:(canonicalize = false) (dir : absolute_dir)
     f fpath
 
 
-let canonicalize_path (abspath : absolute_path) : absolute_path =
-  Core.Filename.realpath abspath
+let canonicalize_path (abspath : absolute_path) : absolute_path option =
+  try
+    Some(Core.Filename.realpath abspath)
+  with
+  | Unix.Unix_error(_) -> None
 
 
 let is_existing_directory (abspath : absolute_path) : bool =
   let abspath0 = Filename.concat abspath Filename.current_dir_name in
   try
-    String.equal (canonicalize_path abspath) (canonicalize_path abspath0)
+    Option.equal String.equal (canonicalize_path abspath) (canonicalize_path abspath0)
   with
   | _ -> false
 
