@@ -1,0 +1,7 @@
+package: foo_rebar_test
+source_directories:
+  - "./src"
+
+dependencies: []
+
+main_module: "Foo"

@@ -1,0 +1,13 @@
+module Foo = struct
+
+  val fact(n) =
+    let rec aux(acc, n) =
+      if n <= 0 then acc else aux(n * acc, n - 1)
+    in
+    aux(1, n)
+
+  val main() =
+    let _ = print_debug(fact(10)) in
+    {}
+
+end

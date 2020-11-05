@@ -1,0 +1,8 @@
+{application, foo, [
+  {description, "foo for rebar3 plugin test"},
+  {vsn, "0.0.1"},
+  {applications, [
+    kernel,
+    stdlib
+  ]}
+]}.
