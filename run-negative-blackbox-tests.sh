@@ -10,7 +10,7 @@ NO_ERRORS=()
 
 for PKG_DIR in "$SOURCE_DIR"/*/; do
     echo "Compiling package '$PKG_DIR' ..."
-    "$BIN" "$PKG_DIR" -o "$TARGET_DIR"
+    "$BIN" build "$PKG_DIR" -o "$TARGET_DIR"
     STATUS=$?
     if [ $STATUS -eq 0 ]; then
         NO_ERRORS+=("$PKG_DIR")
@@ -19,7 +19,7 @@ done
 
 for SOURCE in "$SOURCE_DIR"/*.sest; do
     echo "Compiling standalone file '$SOURCE' ..."
-    "$BIN" "$SOURCE" -o "$TARGET_DIR"
+    "$BIN" build "$SOURCE" -o "$TARGET_DIR"
     STATUS=$?
     if [ $STATUS -eq 0 ]; then
         NO_ERRORS+=("$SOURCE")

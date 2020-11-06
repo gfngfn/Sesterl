@@ -5,7 +5,7 @@ open Errors
 open Env
 
 
-let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
+let build (fpath_in : string) (dir_out : string) (is_verbose : bool) =
   try
     let abspath_in =
       let dir = Sys.getcwd () in
@@ -98,18 +98,28 @@ let arg_in : string Cmdliner.Term.t =
   Arg.(required (pos 0 (some file) None (info [])))
 
 
-let command_term : unit Cmdliner.Term.t =
+let command_build =
   let open Cmdliner in
-  Term.(const main $ arg_in $ flag_output $ flag_verbose)
+  let term : unit Term.t =
+    Term.(const build $ arg_in $ flag_output $ flag_verbose)
+  in
+  let info : Term.info =
+    Term.info "build"
+  in
+  (term, info)
 
 
-let command_info : Cmdliner.Term.info =
+let command_main =
   let open Cmdliner in
-  Term.info
-    ~version: "0.0.1"
-    "sesterl"
+  let term : unit Term.t =
+    Term.(ret (const (`Error(true, "No subcommand specified."))))
+  in
+  let info : Term.info =
+    Term.info ~version:"0.0.1" "sesterl"
+  in
+  (term, info)
 
 
 let () =
   let open Cmdliner in
-  Term.(exit (eval (command_term, command_info)))
+  Term.(exit (eval_choice command_main [ command_build ]))
