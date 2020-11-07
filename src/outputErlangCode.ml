@@ -546,7 +546,7 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
 
 
 let write_file (dir_out : string) (smod : string) (lines : string list) : unit =
-  let fpath_out = Filename.concat dir_out (Printf.sprintf "%s.erl" smod) in
+  let fpath_out = Core.Filename.concat dir_out (Printf.sprintf "%s.erl" smod) in
   let fout = open_out fpath_out in
   lines |> List.iter (fun line ->
     output_string fout (line ^ "\n")

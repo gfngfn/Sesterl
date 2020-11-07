@@ -22,25 +22,25 @@ let pp_error (ppf : Format.formatter) =
   | OtherMessage(msg)    -> p ppf "%s" msg
 
 
-type 'a decoder = Yaml.value -> ('a, error) result
+type 'a t = Yaml.value -> ('a, error) result
 
 
-let run (d : 'a decoder) (s : string) : ('a, error) result =
+let run (d : 'a t) (s : string) : ('a, error) result =
   let open ResultMonad in
   match Yaml.of_string s with
   | Ok(yval)       -> d yval
   | Error(`Msg(s)) -> err (OtherMessage(s))
 
 
-let succeed (a : 'a) : 'a decoder =
+let succeed (a : 'a) : 'a t =
   fun _ -> Ok(a)
 
 
-let failure (msg : string) : 'a decoder =
+let failure (msg : string) : 'a t =
   fun _ -> Error(OtherMessage(msg))
 
 
-let get_scheme (field : string) (d : 'a decoder) (k : unit -> ('a, error) result) : 'a decoder =
+let get_scheme (field : string) (d : 'a t) (k : unit -> ('a, error) result) : 'a t =
   let open ResultMonad in
   function
   | `O(keyvals) ->
@@ -56,38 +56,41 @@ let get_scheme (field : string) (d : 'a decoder) (k : unit -> ('a, error) result
       err NotAnObject
 
 
-let get (field : string) (d : 'a decoder) : 'a decoder =
+let get (field : string) (d : 'a t) : 'a t =
   let open ResultMonad in
   get_scheme field d (fun () -> err (FieldNotFound(field)))
 
 
-let get_or_else (field : string) (d : 'a decoder) (default : 'a) : 'a decoder =
+let get_or_else (field : string) (d : 'a t) (default : 'a) : 'a t =
   let open ResultMonad in
   get_scheme field d (fun () -> return default)
 
 
-let bind (d : 'a decoder) (df : 'a -> 'b decoder) : 'b decoder =
+let bind (d : 'a t) (df : 'a -> 'b t) : 'b t =
 fun yval ->
   match d yval with
   | Ok(a)         -> df a yval
   | Error(_) as e -> e
 
 
-let number : float decoder =
+let ( >>= ) = bind
+
+
+let number : float t =
   let open ResultMonad in
   function
   | `Float(x) -> return x
   | _         -> err NotAFloat
 
 
-let string : string decoder =
+let string : string t =
   let open ResultMonad in
   function
   | `String(x) -> return x
   | _          -> err NotAString
 
 
-let list (d : 'a decoder) : ('a list) decoder =
+let list (d : 'a t) : ('a list) t =
   let open ResultMonad in
   function
   | `A(yvals) ->
@@ -102,14 +105,31 @@ let list (d : 'a decoder) : ('a list) decoder =
       err NotAnArray
 
 
-let map (f : 'a -> 'b) (d : 'a decoder) : 'b decoder =
+type 'a branch = string * 'a t
+
+
+let branch (field : string) (branches : ('a branch) list) ~on_error:(errorf : string -> string) : 'a t =
+  get field string >>= fun tag_gotten ->
+  match
+    branches |> List.find_map (fun (tag_candidate, d) ->
+      if String.equal tag_gotten tag_candidate then Some(d) else None
+    )
+  with
+  | None    -> failure (errorf tag_gotten)
+  | Some(d) -> d
+
+
+let ( ==> ) (label : string) (d : 'a t) : 'a branch = (label, d)
+
+
+let map (f : 'a -> 'b) (d : 'a t) : 'b t =
   let open ResultMonad in
   fun yval ->
     d yval >>= fun a ->
     return (f a)
 
 
-let map2 (f : 'a1 -> 'a2 -> 'b) (d1 : 'a1 decoder) (d2 : 'a2 decoder) : 'b decoder =
+let map2 (f : 'a1 -> 'a2 -> 'b) (d1 : 'a1 t) (d2 : 'a2 t) : 'b t =
   let open ResultMonad in
   fun yval ->
     d1 yval >>= fun a1 ->
@@ -117,7 +137,7 @@ let map2 (f : 'a1 -> 'a2 -> 'b) (d1 : 'a1 decoder) (d2 : 'a2 decoder) : 'b decod
     return (f a1 a2)
 
 
-let map3 (f : 'a1 -> 'a2 -> 'a3 -> 'b) (d1 : 'a1 decoder) (d2 : 'a2 decoder) (d3 : 'a3 decoder) : 'b decoder =
+let map3 (f : 'a1 -> 'a2 -> 'a3 -> 'b) (d1 : 'a1 t) (d2 : 'a2 t) (d3 : 'a3 t) : 'b t =
   let open ResultMonad in
   fun yval ->
     d1 yval >>= fun a1 ->

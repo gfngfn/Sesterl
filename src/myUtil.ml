@@ -62,6 +62,10 @@ type absolute_path = string
 
 type absolute_dir = string
 
+type relative_path = RelativePath of string
+
+type relative_dir = RelativeDir of string
+
 
 let make_absolute_path ?canonicalize:(canonicalize = false) (dir : absolute_dir) (fpath : string) : absolute_path =
   let f = if canonicalize then Core.Filename.realpath else (fun s -> s) in
@@ -79,7 +83,7 @@ let canonicalize_path (abspath : absolute_path) : absolute_path option =
 
 
 let is_existing_directory (abspath : absolute_path) : bool =
-  let abspath0 = Filename.concat abspath Filename.current_dir_name in
+  let abspath0 = Core.Filename.concat abspath Filename.current_dir_name in
   try
     Option.equal String.equal (canonicalize_path abspath) (canonicalize_path abspath0)
   with

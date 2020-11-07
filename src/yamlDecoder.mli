@@ -3,28 +3,36 @@ type error
 
 val pp_error : Format.formatter -> error -> unit
 
-type 'a decoder
+type 'a t
 
-val run : 'a decoder -> string -> ('a, error) result
+val run : 'a t -> string -> ('a, error) result
 
-val succeed : 'a -> 'a decoder
+val succeed : 'a -> 'a t
 
-val failure : string -> 'a decoder
+val failure : string -> 'a t
 
-val bind : 'a decoder -> ('a -> 'b decoder) -> 'b decoder
+val bind : 'a t -> ('a -> 'b t) -> 'b t
 
-val get : string -> 'a decoder -> 'a decoder
+val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
 
-val get_or_else : string -> 'a decoder -> 'a -> 'a decoder
+val get : string -> 'a t -> 'a t
 
-val number : float decoder
+val get_or_else : string -> 'a t -> 'a -> 'a t
 
-val string : string decoder
+val number : float t
 
-val list : 'a decoder -> ('a list) decoder
+val string : string t
 
-val map : ('a -> 'b) -> 'a decoder -> 'b decoder
+val list : 'a t -> ('a list) t
 
-val map2 : ('a1 -> 'a2 -> 'b) -> 'a1 decoder -> 'a2 decoder -> 'b decoder
+type 'a branch
 
-val map3 : ('a1 -> 'a2 -> 'a3 -> 'b) -> 'a1 decoder -> 'a2 decoder -> 'a3 decoder -> 'b decoder
+val branch : string -> ('a branch) list -> on_error:(string -> string) -> 'a t
+
+val ( ==> ) : string -> 'a t -> 'a branch
+
+val map : ('a -> 'b) -> 'a t -> 'b t
+
+val map2 : ('a1 -> 'a2 -> 'b) -> 'a1 t -> 'a2 t -> 'b t
+
+val map3 : ('a1 -> 'a2 -> 'a3 -> 'b) -> 'a1 t -> 'a2 t -> 'a3 t -> 'b t

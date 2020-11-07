@@ -25,7 +25,7 @@ let listup_sources_in_directory (dir : absolute_dir) : absolute_path list =
   let filenames = Core.Sys.ls_dir dir in
   filenames |> List.filter_map (fun filename ->
     if Core.String.is_suffix filename ~suffix:".sest" then
-      Some(Filename.concat dir filename)
+      Some(Core.Filename.concat dir filename)
     else
       None
   )
@@ -115,9 +115,14 @@ let single (abspath_in : absolute_path) : loaded_module =
 
 
 let main (config : ConfigLoader.config) : loaded_package =
-  let srcdirs = config.ConfigLoader.source_directories in
+  let srcdirs =
+    let srcreldirs = config.ConfigLoader.source_directories in
+    let confdir = config.ConfigLoader.config_directory in
+    srcreldirs |> List.map (function RelativeDir(reldir) -> Core.Filename.concat confdir reldir)
+  in
   let main_module_name = config.ConfigLoader.main_module_name in
-  let abspaths = srcdirs |> List.map listup_sources_in_directory |> List.concat in
+  let abspaths =
+    srcdirs |> List.map listup_sources_in_directory |> List.concat in
   let baremods =
     abspaths |> List.map (fun abspath ->
       match read_source abspath with

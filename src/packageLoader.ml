@@ -8,7 +8,7 @@ exception PackageError of package_error
 
 
 let load_config absdir_in =
-  let abspath_in = Filename.concat absdir_in "package.yaml" in
+  let abspath_in = Core.Filename.concat absdir_in Constants.config_file_name in
   match ConfigLoader.load abspath_in with
   | Error(e)   -> raise (ConfigError(e))
   | Ok(config) -> config
@@ -24,10 +24,7 @@ type reading_state = {
 }
 
 
-(* `main abspath` lists up all the packages
-   on which the package at `abspath` depends either directly or indirectly,
-   and sorts them in a topological order according to the dependency among them. *)
-let main (absdir : absolute_dir) : (absolute_path * ConfigLoader.config) list =
+let main (absdir : absolute_dir) : (absolute_dir * ConfigLoader.config) list =
   let rec aux (state : reading_state) (vertex : FileDependencyGraph.vertex) (absdir : absolute_dir) : reading_state =
     let config = load_config absdir in
     let pkgname = config.ConfigLoader.package_name in

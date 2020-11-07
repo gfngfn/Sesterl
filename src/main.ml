@@ -5,8 +5,41 @@ open Errors
 open Env
 
 
-let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
+let catch_error (k : unit -> unit) =
   try
+    k ()
+  with
+  | Sys_error(msg) ->
+      Logging.report_system_error msg;
+      exit 1
+
+  | Failure(msg) ->
+      Logging.report_unsupported_feature msg;
+      exit 1
+
+  | PackageLoader.PackageError(e) ->
+      Logging.report_package_error e;
+      exit 1
+
+  | SourceLoader.SyntaxError(LexerError(e)) ->
+      Logging.report_lexer_error e;
+      exit 1
+
+  | SourceLoader.SyntaxError(ParseError(rng)) ->
+      Logging.report_parser_error rng;
+      exit 1
+
+  | ConfigError(e) ->
+      Logging.report_config_error e;
+      exit 1
+
+  | Typechecker.Error(e) ->
+      Logging.report_type_error e;
+      exit 1
+
+
+let build (fpath_in : string) (dir_out : string) (is_verbose : bool) =
+  catch_error (fun () ->
     let abspath_in =
       let dir = Sys.getcwd () in
       make_absolute_path dir fpath_in
@@ -51,34 +84,19 @@ let main (fpath_in : string) (dir_out : string) (is_verbose : bool) =
       ) gmap
     ) gmap |> ignore;
     OutputErlangCode.write_primitive_module dir_out
-  with
-  | Sys_error(msg) ->
-      Logging.report_system_error msg;
-      exit 1
+  )
 
-  | Failure(msg) ->
-      Logging.report_unsupported_feature msg;
-      exit 1
 
-  | PackageLoader.PackageError(e) ->
-      Logging.report_package_error e;
-      exit 1
-
-  | SourceLoader.SyntaxError(LexerError(e)) ->
-      Logging.report_lexer_error e;
-      exit 1
-
-  | SourceLoader.SyntaxError(ParseError(rng)) ->
-      Logging.report_parser_error rng;
-      exit 1
-
-  | ConfigError(e) ->
-      Logging.report_config_error e;
-      exit 1
-
-  | Typechecker.Error(e) ->
-      Logging.report_type_error e;
-      exit 1
+let config (fpath_in : string) =
+  catch_error (fun () ->
+    let absdir_in =
+      let dir = Sys.getcwd () in
+      make_absolute_path dir fpath_in
+    in
+    let absdir_out = absdir_in in
+    let config = PackageLoader.load_config absdir_in in
+    OutputRebarConfig.main absdir_out config
+  )
 
 
 let flag_output : string Cmdliner.Term.t =
@@ -98,18 +116,45 @@ let arg_in : string Cmdliner.Term.t =
   Arg.(required (pos 0 (some file) None (info [])))
 
 
-let command_term : unit Cmdliner.Term.t =
+let command_build =
   let open Cmdliner in
-  Term.(const main $ arg_in $ flag_output $ flag_verbose)
+  let term : unit Term.t =
+    Term.(const build $ arg_in $ flag_output $ flag_verbose)
+  in
+  let info : Term.info =
+    Term.info "build"
+  in
+  (term, info)
 
 
-let command_info : Cmdliner.Term.info =
+let command_config =
   let open Cmdliner in
-  Term.info
-    ~version: "0.0.1"
-    "sesterl"
+  let term : unit Term.t =
+    Term.(const config $ arg_in)
+  in
+  let info : Term.info =
+    Term.info "config"
+  in
+  (term, info)
+
+
+let command_main =
+  let open Cmdliner in
+  let term : unit Term.t =
+    Term.(ret (const (`Error(true, "No subcommand specified."))))
+  in
+  let info : Term.info =
+    Term.info ~version:"0.0.1" "sesterl"
+  in
+  (term, info)
 
 
 let () =
   let open Cmdliner in
-  Term.(exit (eval (command_term, command_info)))
+  let subcommands =
+    [
+      command_build;
+      command_config;
+    ]
+  in
+  Term.(exit (eval_choice command_main subcommands))
