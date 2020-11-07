@@ -48,7 +48,7 @@ type config = {
 }
 
 
-let source_decoder (confdir : absolute_dir) : dependency_source YamlDecoder.decoder =
+let source_decoder (confdir : absolute_dir) : dependency_source YamlDecoder.t =
   let open YamlDecoder in
   get "type" string >>= function
   | "local" ->
@@ -59,7 +59,7 @@ let source_decoder (confdir : absolute_dir) : dependency_source YamlDecoder.deco
       failure (Printf.sprintf "unsupported type '%s' for specifying dependency sources" other)
 
 
-let dependency_decoder (confdir : absolute_dir) : dependency YamlDecoder.decoder =
+let dependency_decoder (confdir : absolute_dir) : dependency YamlDecoder.t =
   let open YamlDecoder in
   get "name" string >>= fun name ->
   get "source" (source_decoder confdir) >>= fun source ->
@@ -69,7 +69,7 @@ let dependency_decoder (confdir : absolute_dir) : dependency YamlDecoder.decoder
   }
 
 
-let git_spec_decoder : git_spec YamlDecoder.decoder =
+let git_spec_decoder : git_spec YamlDecoder.t =
   let open YamlDecoder in
   get "type" string >>= function
   | "tag" ->
@@ -88,7 +88,7 @@ let git_spec_decoder : git_spec YamlDecoder.decoder =
       failure (Printf.sprintf "unsupported type '%s' for specifying sources from Git" other)
 
 
-let erlang_library_decoder : erlang_library_source YamlDecoder.decoder =
+let erlang_library_decoder : erlang_library_source YamlDecoder.t =
   let open YamlDecoder in
   get "type" string >>= function
   | "hex" ->
@@ -104,7 +104,7 @@ let erlang_library_decoder : erlang_library_source YamlDecoder.decoder =
       failure (Printf.sprintf "unsupported type '%s' for specifying dependency sources" other)
 
 
-let erlang_dependency_decoder : erlang_library YamlDecoder.decoder =
+let erlang_dependency_decoder : erlang_library YamlDecoder.t =
   let open YamlDecoder in
   get "name" string >>= fun name ->
   get "source" erlang_library_decoder >>= fun erlsrc ->
@@ -114,7 +114,7 @@ let erlang_dependency_decoder : erlang_library YamlDecoder.decoder =
   }
 
 
-let erlang_config_decoder (confdir : absolute_dir) : erlang_config YamlDecoder.decoder =
+let erlang_config_decoder (confdir : absolute_dir) : erlang_config YamlDecoder.t =
   let open YamlDecoder in
   get_or_else "output_directory" string "_generated" >>= fun dir_out ->
   get_or_else "erlang_dependencies" (list erlang_dependency_decoder) [] >>= fun erldeps ->
@@ -124,7 +124,7 @@ let erlang_config_decoder (confdir : absolute_dir) : erlang_config YamlDecoder.d
   }
 
 
-let config_decoder (confdir : absolute_dir) : config YamlDecoder.decoder =
+let config_decoder (confdir : absolute_dir) : config YamlDecoder.t =
   let open YamlDecoder in
   get "package" string >>= fun package_name ->
   get "source_directories" (list string) >>= fun srcdirs ->
