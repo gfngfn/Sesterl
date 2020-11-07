@@ -105,13 +105,19 @@ let list (d : 'a t) : ('a list) t =
       err NotAnArray
 
 
-let branch (field : string) (branches : (string * 'a t) list) ~on_error:(errorf : string -> string) : 'a t =
+type 'a branch = string * 'a t
+
+
+let branch (field : string) (branches : ('a branch) list) ~on_error:(errorf : string -> string) : 'a t =
   get field string >>= fun tag ->
   match
     branches |> List.find_map (fun (tag, d) -> if String.equal field tag then Some(d) else None)
   with
   | None    -> failure (errorf tag)
   | Some(d) -> d
+
+
+let ( ==> ) (label : string) (d : 'a t) : 'a branch = (label, d)
 
 
 let map (f : 'a -> 'b) (d : 'a t) : 'b t =

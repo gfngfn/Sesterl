@@ -25,7 +25,11 @@ val string : string t
 
 val list : 'a t -> ('a list) t
 
-val branch : string -> (string * 'a t) list -> on_error:(string -> string) -> 'a t
+type 'a branch
+
+val branch : string -> ('a branch) list -> on_error:(string -> string) -> 'a t
+
+val ( ==> ) : string -> 'a t -> 'a branch
 
 val map : ('a -> 'b) -> 'a t -> 'b t
 

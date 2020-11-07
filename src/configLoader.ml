@@ -50,13 +50,15 @@ type config = {
 
 let source_decoder (confdir : absolute_dir) : dependency_source YamlDecoder.t =
   let open YamlDecoder in
-  get "type" string >>= function
-  | "local" ->
+  branch "type" [
+    "local" ==> begin
       get "directory" string >>= fun dirstr ->
       succeed (Local(make_absolute_path confdir dirstr))
-
-  | other ->
-      failure (Printf.sprintf "unsupported type '%s' for specifying dependency sources" other)
+    end;
+  ]
+  ~on_error:(fun other ->
+    Printf.sprintf "unsupported type '%s' for specifying dependency sources" other
+  )
 
 
 let dependency_decoder (confdir : absolute_dir) : dependency YamlDecoder.t =
@@ -71,37 +73,44 @@ let dependency_decoder (confdir : absolute_dir) : dependency YamlDecoder.t =
 
 let git_spec_decoder : git_spec YamlDecoder.t =
   let open YamlDecoder in
-  get "type" string >>= function
-  | "tag" ->
+  branch "type" [
+    "tag" ==> begin
       get "value" string >>= fun tag ->
       succeed (Tag(tag))
+    end;
 
-  | "ref" ->
+    "ref" ==> begin
       get "value" string >>= fun hash ->
       succeed (Ref(hash))
+    end;
 
-  | "branch" ->
+    "branch" ==> begin
       get "value" string >>= fun branch ->
       succeed (Branch(branch))
-
-  | other ->
-      failure (Printf.sprintf "unsupported type '%s' for specifying sources from Git" other)
+    end;
+  ]
+  ~on_error:(fun other ->
+    Printf.sprintf "unsupported type '%s' for specifying sources from Git" other
+  )
 
 
 let erlang_library_decoder : erlang_library_source YamlDecoder.t =
   let open YamlDecoder in
-  get "type" string >>= function
-  | "hex" ->
+  branch "type" [
+    "hex" ==> begin
       get "version" string >>= fun version ->
       succeed (ErlangLibFromHex{ version = version })
+    end;
 
-  | "git" ->
+    "git" ==> begin
       get "repository" string >>= fun repository ->
       get "spec" git_spec_decoder >>= fun git_spec ->
-    succeed (ErlangLibFromGit{ repository = repository; git_spec = git_spec })
-
-  | other ->
-      failure (Printf.sprintf "unsupported type '%s' for specifying dependency sources" other)
+      succeed (ErlangLibFromGit{ repository = repository; git_spec = git_spec })
+    end;
+  ]
+  ~on_error:(fun other ->
+    Printf.sprintf "unsupported type '%s' for specifying dependency sources" other
+  )
 
 
 let erlang_dependency_decoder : erlang_library YamlDecoder.t =
