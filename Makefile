@@ -24,4 +24,4 @@ clean:
 
 .PHONY: clean-test
 clean-test:
-	rm test/_generated/*
+	rm -f test/_generated/*
