@@ -5,3 +5,7 @@ source_directories:
 dependencies: []
 
 main_module: "Foo"
+
+erlang:
+  output_directory: "_gen"
+  erlang_dependencies: []
