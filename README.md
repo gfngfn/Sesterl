@@ -76,7 +76,7 @@ where `<source-file>` is the path to the source file you want to build (e.g. `tr
 Invoke:
 
 ```console
-$ sesterl <package-dir> -o <output-dir>
+$ sesterl build <package-dir> -o <output-dir>
 ```
 
 Here, `<package-dir>` is the directory where the configuration file (named `package.yaml`) of the package you want to build is put.
@@ -102,6 +102,25 @@ $ sesterl outer/foo -o _generated
 ```
 
 After executing the command above, resulting Erlang source files will be found in `_generated`.
+
+
+### Building with rebar3
+
+[*rebar3*]((https://github.com/erlang/rebar3)) is a popular build system for Erlang programs. Sesterl can collaborate with rebar3.
+
+Based on a configuration file (i.e., `package.yaml`), the following command will generate `rebar.config`:
+
+```console
+$ sesterl config .
+```
+
+Then you can invoke the following command to compile Sesterl programs before rebar3 compiles Erlang code:
+
+```console
+$ rebar3 sesterl compile
+```
+
+Here, `sesterl` is a name space of rebar3 commands for compiling Sesterl programs, and is introduced by a plugin [`rebar_sesterl`](https://github.com/gfngfn/rebar_sesterl_plugin).
 
 
 ## Example code
@@ -134,7 +153,7 @@ By using `fun`-expressions (i.e. *lambda abstractions*), `add_partial` can also 
 
 ```
 val add_partial(x) =
-  fun(y) -> x + y
+  fun(y) -> x + y end
 ```
 
 Incidentally, you do not have to annotate types of arguments or return values; they will be reconstructed by standard *Hindley–Milner type inference*. you can nonetheless add type annotations like the following:
@@ -611,10 +630,6 @@ Major differences between the features of Sesterl and those of the languages abo
   - abstraction by using signatures, and
   - functors and their elimination at compilation time (called the *static interpretation* \[Elsman, Henriksen, Annenkov & Oancea 2018\]);
 * a kind of monadic types for distinguishing pure calculations from concurrent computations.
-
-On the other hand, the following are currently possible weak points:
-
-* No seamless connection with build systems such as [*rebar3*]((https://github.com/erlang/rebar3)).
 
 Also, though not supporting them currently, we want to add features like the following (see “[Future work](#future-work)” for detail):
 
