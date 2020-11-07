@@ -109,11 +109,13 @@ type 'a branch = string * 'a t
 
 
 let branch (field : string) (branches : ('a branch) list) ~on_error:(errorf : string -> string) : 'a t =
-  get field string >>= fun tag ->
+  get field string >>= fun tag_gotten ->
   match
-    branches |> List.find_map (fun (tag, d) -> if String.equal field tag then Some(d) else None)
+    branches |> List.find_map (fun (tag_candidate, d) ->
+      if String.equal tag_gotten tag_candidate then Some(d) else None
+    )
   with
-  | None    -> failure (errorf tag)
+  | None    -> failure (errorf tag_gotten)
   | Some(d) -> d
 
 
