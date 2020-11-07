@@ -83,7 +83,7 @@ let canonicalize_path (abspath : absolute_path) : absolute_path option =
 
 
 let is_existing_directory (abspath : absolute_path) : bool =
-  let abspath0 = Filename.concat abspath Filename.current_dir_name in
+  let abspath0 = Core.Filename.concat abspath Filename.current_dir_name in
   try
     Option.equal String.equal (canonicalize_path abspath) (canonicalize_path abspath0)
   with

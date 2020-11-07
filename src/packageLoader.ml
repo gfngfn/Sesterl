@@ -8,7 +8,7 @@ exception PackageError of package_error
 
 
 let load_config absdir_in =
-  let abspath_in = Filename.concat absdir_in Constants.config_file_name in
+  let abspath_in = Core.Filename.concat absdir_in Constants.config_file_name in
   match ConfigLoader.load abspath_in with
   | Error(e)   -> raise (ConfigError(e))
   | Ok(config) -> config
