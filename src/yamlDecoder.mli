@@ -13,6 +13,8 @@ val failure : string -> 'a decoder
 
 val bind : 'a decoder -> ('a -> 'b decoder) -> 'b decoder
 
+val ( >>= ) : 'a decoder -> ('a -> 'b decoder) -> 'b decoder
+
 val get : string -> 'a decoder -> 'a decoder
 
 val get_or_else : string -> 'a decoder -> 'a -> 'a decoder

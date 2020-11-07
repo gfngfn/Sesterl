@@ -50,7 +50,6 @@ type config = {
 
 let source_decoder (confdir : absolute_dir) : dependency_source YamlDecoder.decoder =
   let open YamlDecoder in
-  let ( >>= ) = bind in
   get "type" string >>= function
   | "local" ->
       get "directory" string >>= fun dirstr ->
@@ -62,7 +61,6 @@ let source_decoder (confdir : absolute_dir) : dependency_source YamlDecoder.deco
 
 let dependency_decoder (confdir : absolute_dir) : dependency YamlDecoder.decoder =
   let open YamlDecoder in
-  let ( >>= ) = bind in
   get "name" string >>= fun name ->
   get "source" (source_decoder confdir) >>= fun source ->
   succeed {
@@ -73,7 +71,6 @@ let dependency_decoder (confdir : absolute_dir) : dependency YamlDecoder.decoder
 
 let git_spec_decoder : git_spec YamlDecoder.decoder =
   let open YamlDecoder in
-  let ( >>= ) = bind in
   get "type" string >>= function
   | "tag" ->
       get "value" string >>= fun tag ->
@@ -93,7 +90,6 @@ let git_spec_decoder : git_spec YamlDecoder.decoder =
 
 let erlang_library_decoder : erlang_library_source YamlDecoder.decoder =
   let open YamlDecoder in
-  let ( >>= ) = bind in
   get "type" string >>= function
   | "hex" ->
       get "version" string >>= fun version ->
@@ -110,7 +106,6 @@ let erlang_library_decoder : erlang_library_source YamlDecoder.decoder =
 
 let erlang_dependency_decoder : erlang_library YamlDecoder.decoder =
   let open YamlDecoder in
-  let ( >>= ) = bind in
   get "name" string >>= fun name ->
   get "source" erlang_library_decoder >>= fun erlsrc ->
   succeed {
@@ -121,7 +116,6 @@ let erlang_dependency_decoder : erlang_library YamlDecoder.decoder =
 
 let erlang_config_decoder (confdir : absolute_dir) : erlang_config YamlDecoder.decoder =
   let open YamlDecoder in
-  let ( >>= ) = bind in
   get_or_else "output_directory" string "_generated" >>= fun dir_out ->
   get_or_else "erlang_dependencies" (list erlang_dependency_decoder) [] >>= fun erldeps ->
   succeed {
@@ -132,7 +126,6 @@ let erlang_config_decoder (confdir : absolute_dir) : erlang_config YamlDecoder.d
 
 let config_decoder (confdir : absolute_dir) : config YamlDecoder.decoder =
   let open YamlDecoder in
-  let ( >>= ) = bind in
   get "package" string >>= fun package_name ->
   get "source_directories" (list string) >>= fun srcdirs ->
   get "main_module" string >>= fun main_module_name ->

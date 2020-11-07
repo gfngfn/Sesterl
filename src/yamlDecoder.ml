@@ -73,6 +73,9 @@ fun yval ->
   | Error(_) as e -> e
 
 
+let ( >>= ) = bind
+
+
 let number : float decoder =
   let open ResultMonad in
   function
