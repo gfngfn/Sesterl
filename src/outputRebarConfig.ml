@@ -76,8 +76,8 @@ let main (absdir_out : absolute_dir) (config : ConfigLoader.config) =
   let top_assoc = make config in
   let s =
     top_assoc |> List.map (fun (key, v) ->
-      Printf.sprintf "{%s, %s}." key (stringify_value v)
-    ) |> String.concat "\n"
+      Printf.sprintf "{%s, %s}.\n" key (stringify_value v)
+    ) |> String.concat ""
   in
   let fpath_out = Filename.concat absdir_out "rebar.config" in
   let fout = open_out fpath_out in
