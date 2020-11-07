@@ -89,20 +89,13 @@ let build (fpath_in : string) (dir_out : string) (is_verbose : bool) =
 
 let config (fpath_in : string) =
   catch_error (fun () ->
-    let abspath_in =
+    let absdir_in =
       let dir = Sys.getcwd () in
       make_absolute_path dir fpath_in
     in
-    let (_, extopt) = Core.Filename.split_extension abspath_in in
-    match extopt with
-    | Some(_) ->
-        failwith "TODO: error for extension"
-
-    | None ->
-        let absdir_in = abspath_in in
-        let absdir_out = absdir_in in
-        let config = PackageLoader.load_config absdir_in in
-        OutputRebarConfig.main absdir_out config
+    let absdir_out = absdir_in in
+    let config = PackageLoader.load_config absdir_in in
+    OutputRebarConfig.main absdir_out config
   )
 
 
