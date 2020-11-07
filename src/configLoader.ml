@@ -34,7 +34,7 @@ type erlang_config = {
 
 let default_erlang_config : erlang_config =
   {
-    output_directory    = RelativeDir("_generated");
+    output_directory    = RelativeDir(Constants.default_output_directory);
     erlang_dependencies = [];
   }
 
@@ -126,7 +126,7 @@ let erlang_dependency_decoder : erlang_library YamlDecoder.t =
 
 let erlang_config_decoder : erlang_config YamlDecoder.t =
   let open YamlDecoder in
-  get_or_else "output_directory" string "_generated" >>= fun reldir_out ->
+  get_or_else "output_directory" string Constants.default_output_directory >>= fun reldir_out ->
   get_or_else "erlang_dependencies" (list erlang_dependency_decoder) [] >>= fun erldeps ->
   succeed {
     output_directory    = RelativeDir(reldir_out);

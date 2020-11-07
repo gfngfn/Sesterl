@@ -48,11 +48,9 @@ let relative_dir_to_string (RelativeDir(s) : relative_dir) : value =
 
 let make (config : ConfigLoader.config) : assoc =
   let entry_plugins =
-    let plugin_name = "rebar_sesterl" in
-    let url = "https://github.com/gfngfn/rebar_sesterl_plugin.git" in
     let git_spec = keyed "branch" [ String "master" ] in
     "plugins" ==> Assoc[
-      plugin_name ==> keyed "git" [ String(url); git_spec ]
+      Constants.plugin_name ==> keyed "git" [ String(Constants.plugin_url); git_spec ]
     ]
   in
   let reldir_out = config.erlang_config.output_directory in
