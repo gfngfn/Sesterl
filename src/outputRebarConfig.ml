@@ -48,15 +48,38 @@ let relative_dir_to_string (RelativeDir(s) : relative_dir) : value =
 
 let make (config : ConfigLoader.config) : assoc =
   let entry_plugins =
-    let git_spec = keyed "branch" [ String "master" ] in
+    let v_git_spec = keyed "branch" [ String "master" ] in
     "plugins" ==> Assoc[
-      Constants.plugin_name ==> keyed "git" [ String(Constants.plugin_url); git_spec ]
+      Constants.plugin_name ==> keyed "git" [ String(Constants.plugin_url); v_git_spec ]
     ]
   in
   let reldir_out = config.erlang_config.output_directory in
   let entry_src_dirs =
     let reldirs = (reldir_out :: config.source_directories) in
     "src_dirs" ==> List(reldirs |> List.map relative_dir_to_string)
+  in
+  let entry_deps =
+    let deps =
+      config.erlang_config.erlang_dependencies |> List.map (fun erldep ->
+        let name = erldep.ConfigLoader.erlang_library_name in
+        let v_dep =
+          match erldep.ConfigLoader.erlang_library_source with
+          | ErlangLibFromHex{ version = version } ->
+              String(version)
+
+          | ErlangLibFromGit{ repository = uri; git_spec = git_spec } ->
+              let v_git_spec =
+                match git_spec with
+                | Tag(s)    -> keyed "tag" [ String(s) ]
+                | Ref(s)    -> keyed "ref" [ String(s) ]
+                | Branch(s) -> keyed "branch" [ String(s) ]
+              in
+              keyed "git" [ String(uri); v_git_spec ]
+        in
+        (name, v_dep)
+      )
+    in
+    "deps" ==> Assoc(deps)
   in
   let entry_sesterl_opts =
     "sesterl_opts" ==> Assoc[
@@ -66,6 +89,7 @@ let make (config : ConfigLoader.config) : assoc =
   [
     entry_plugins;
     entry_src_dirs;
+    entry_deps;
     entry_sesterl_opts;
   ]
 
