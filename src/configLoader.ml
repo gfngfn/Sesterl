@@ -27,22 +27,23 @@ type erlang_library = {
 }
 
 type erlang_config = {
-  output_directory    : absolute_dir;
+  output_directory    : relative_dir;
   erlang_dependencies : erlang_library list;
 }
 
 
-let default_erlang_config (confdir : absolute_dir) : erlang_config =
+let default_erlang_config : erlang_config =
   {
-    output_directory    = Core.Filename.concat confdir "_generated";
+    output_directory    = RelativeDir("_generated");
     erlang_dependencies = [];
   }
 
 
 type config = {
+  config_directory   : absolute_dir;
   package_name       : package_name;
   main_module_name   : module_name;
-  source_directories : absolute_dir list;
+  source_directories : relative_dir list;
   dependencies       : dependency list;
   erlang_config      : erlang_config;
 }
@@ -123,12 +124,12 @@ let erlang_dependency_decoder : erlang_library YamlDecoder.t =
   }
 
 
-let erlang_config_decoder (confdir : absolute_dir) : erlang_config YamlDecoder.t =
+let erlang_config_decoder : erlang_config YamlDecoder.t =
   let open YamlDecoder in
-  get_or_else "output_directory" string "_generated" >>= fun dir_out ->
+  get_or_else "output_directory" string "_generated" >>= fun reldir_out ->
   get_or_else "erlang_dependencies" (list erlang_dependency_decoder) [] >>= fun erldeps ->
   succeed {
-    output_directory    = dir_out;
+    output_directory    = RelativeDir(reldir_out);
     erlang_dependencies = erldeps;
   }
 
@@ -139,12 +140,13 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.t =
   get "source_directories" (list string) >>= fun srcdirs ->
   get "main_module" string >>= fun main_module_name ->
   get_or_else "dependencies" (list (dependency_decoder confdir)) [] >>= fun dependencies ->
-  get_or_else "erlang" (erlang_config_decoder confdir) (default_erlang_config confdir) >>= fun erlang_config ->
+  get_or_else "erlang" erlang_config_decoder default_erlang_config >>= fun erlang_config ->
   let config =
     {
+      config_directory   = confdir;
       package_name       = package_name;
       main_module_name   = main_module_name;
-      source_directories = List.map (make_absolute_path confdir) srcdirs;
+      source_directories = List.map (fun srcdir -> RelativeDir(srcdir)) srcdirs;
       dependencies       = dependencies;
       erlang_config      = erlang_config;
     }

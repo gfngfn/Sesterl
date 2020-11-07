@@ -62,6 +62,10 @@ type absolute_path = string
 
 type absolute_dir = string
 
+type relative_path = RelativePath of string
+
+type relative_dir = RelativeDir of string
+
 
 let make_absolute_path ?canonicalize:(canonicalize = false) (dir : absolute_dir) (fpath : string) : absolute_path =
   let f = if canonicalize then Core.Filename.realpath else (fun s -> s) in
