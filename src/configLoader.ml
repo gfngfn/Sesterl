@@ -12,11 +12,39 @@ type dependency = {
   dependency_source : dependency_source;
 }
 
+type git_spec =
+  | Tag    of string
+  | Ref    of string
+  | Branch of string
+
+type erlang_library_source =
+  | ErlangLibFromHex of { version : string }
+  | ErlangLibFromGit of { repository : string; git_spec : git_spec }
+
+type erlang_library = {
+  erlang_library_name   : string;
+  erlang_library_source : erlang_library_source;
+}
+
+type erlang_config = {
+  output_directory    : absolute_dir;
+  erlang_dependencies : erlang_library list;
+}
+
+
+let default_erlang_config (confdir : absolute_dir) : erlang_config =
+  {
+    output_directory    = Core.Filename.concat confdir "_generated";
+    erlang_dependencies = [];
+  }
+
+
 type config = {
   package_name       : package_name;
   main_module_name   : module_name;
   source_directories : absolute_dir list;
   dependencies       : dependency list;
+  erlang_config      : erlang_config;
 }
 
 
@@ -43,6 +71,65 @@ let dependency_decoder (confdir : absolute_dir) : dependency YamlDecoder.decoder
   }
 
 
+let git_spec_decoder : git_spec YamlDecoder.decoder =
+  let open YamlDecoder in
+  let ( >>= ) = bind in
+  get "type" string >>= function
+  | "tag" ->
+      get "value" string >>= fun tag ->
+      succeed (Tag(tag))
+
+  | "ref" ->
+      get "value" string >>= fun hash ->
+      succeed (Ref(hash))
+
+  | "branch" ->
+      get "value" string >>= fun branch ->
+      succeed (Branch(branch))
+
+  | other ->
+      failure (Printf.sprintf "unsupported type '%s' for specifying sources from Git" other)
+
+
+let erlang_library_decoder : erlang_library_source YamlDecoder.decoder =
+  let open YamlDecoder in
+  let ( >>= ) = bind in
+  get "type" string >>= function
+  | "hex" ->
+      get "version" string >>= fun version ->
+      succeed (ErlangLibFromHex{ version = version })
+
+  | "git" ->
+      get "repository" string >>= fun repository ->
+      get "spec" git_spec_decoder >>= fun git_spec ->
+    succeed (ErlangLibFromGit{ repository = repository; git_spec = git_spec })
+
+  | other ->
+      failure (Printf.sprintf "unsupported type '%s' for specifying dependency sources" other)
+
+
+let erlang_dependency_decoder : erlang_library YamlDecoder.decoder =
+  let open YamlDecoder in
+  let ( >>= ) = bind in
+  get "name" string >>= fun name ->
+  get "source" erlang_library_decoder >>= fun erlsrc ->
+  succeed {
+    erlang_library_name   = name;
+    erlang_library_source = erlsrc;
+  }
+
+
+let erlang_config_decoder (confdir : absolute_dir) : erlang_config YamlDecoder.decoder =
+  let open YamlDecoder in
+  let ( >>= ) = bind in
+  get_or_else "output_directory" string "_generated" >>= fun dir_out ->
+  get_or_else "erlang_dependencies" (list erlang_dependency_decoder) [] >>= fun erldeps ->
+  succeed {
+    output_directory    = dir_out;
+    erlang_dependencies = erldeps;
+  }
+
+
 let config_decoder (confdir : absolute_dir) : config YamlDecoder.decoder =
   let open YamlDecoder in
   let ( >>= ) = bind in
@@ -50,12 +137,14 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.decoder =
   get "source_directories" (list string) >>= fun srcdirs ->
   get "main_module" string >>= fun main_module_name ->
   get_or_else "dependencies" (list (dependency_decoder confdir)) [] >>= fun dependencies ->
+  get_or_else "erlang" (erlang_config_decoder confdir) (default_erlang_config confdir) >>= fun erlang_config ->
   let config =
     {
       package_name       = package_name;
       main_module_name   = main_module_name;
       source_directories = List.map (make_absolute_path confdir) srcdirs;
       dependencies       = dependencies;
+      erlang_config      = erlang_config;
     }
   in
 (*
