@@ -1,4 +1,4 @@
-package: foo_rebar_test
+package: "foo_rebar_test"
 source_directories:
   - "./src"
 
@@ -8,4 +8,11 @@ main_module: "Foo"
 
 erlang:
   output_directory: "_gen"
-  erlang_dependencies: []
+  erlang_dependencies:
+    - name: "jsone"
+      source:
+        type: "git"
+        repository: "https://github.com/sile/jsone.git"
+        spec:
+          type: "branch"
+          value: "master"
