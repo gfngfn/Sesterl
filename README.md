@@ -106,7 +106,7 @@ After executing the command above, resulting Erlang source files will be found i
 
 ### Building with rebar3
 
-[*rebar3*]((https://github.com/erlang/rebar3)) is a popular build system for Erlang programs. Sesterl can collaborate with rebar3.
+[*rebar3*](https://github.com/erlang/rebar3) is a popular build system for Erlang programs. Sesterl can collaborate with rebar3.
 
 Based on a configuration file (i.e., `package.yaml`), the following command will generate `rebar.config`:
 
