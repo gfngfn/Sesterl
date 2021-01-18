@@ -56,8 +56,8 @@ let i = (dr, BaseType(IntType))
 let f = (dr, BaseType(FloatType))
 let c = (dr, BaseType(CharType))
 let ( @-> ) tydoms tycod = (dr, FuncType(tydoms, LabelAssoc.empty, FixedRow(LabelAssoc.empty), tycod))
-let eff tyrcv ty0 = (dr, EffType(Effect(tyrcv), ty0))
-let pid tyrcv = (dr, PidType(Pid(tyrcv)))
+let eff sesmap ty0 = (dr, EffType(Effect(sesmap), ty0))
+let pid sesmap = (dr, PidType(Pid(sesmap)))
 
 let tylogic : poly_type = [b; b] @-> b
 let tycomp  : poly_type = [i; i] @-> b
@@ -65,23 +65,23 @@ let tyarith : poly_type = [i; i] @-> i
 let tyarith_float : poly_type = [f; f] @-> f
 
 let tyspawn : poly_type =
-  let tyrecv = fresh_bound () in
-  let tyrecvnew = fresh_bound () in
-  [eff tyrecvnew u] @-> eff tyrecv (pid tyrecvnew)
-
+  let sesmap = failwith "Primitives, tyspawn" in
+  let sesmapnew = failwith "Primitives, tyspawn" in
+  [eff sesmapnew u] @-> eff sesmap (pid sesmapnew)
+(*
 let tysend : poly_type =
   let tyrecv = fresh_bound () in
   let tyrecvremote = fresh_bound () in
   [pid tyrecvremote; tyrecvremote] @-> eff tyrecv u
-
+*)
 let tyreturn : poly_type =
-  let tyrecv = fresh_bound () in
+  let sesmap = failwith "Primitives, tyreturn" in
   let tyres = fresh_bound () in
-  [tyres] @-> eff tyrecv tyres
+  [tyres] @-> eff sesmap tyres
 
 let tyself : poly_type =
-  let tyrecv = fresh_bound () in
-  eff tyrecv (pid tyrecv)
+  let sesmap = failwith "Primitives, tyself" in
+  eff sesmap (pid sesmap)
 
 let typrintdebug : poly_type =
   let typaram = fresh_bound () in
@@ -122,6 +122,7 @@ let primitive_definitions = [
       code        = "fun() -> erlang:spawn(F) end";
     };
   };
+(*
   {
     source = Some{
       identifier = "send";
@@ -133,6 +134,7 @@ let primitive_definitions = [
       code        = "fun() -> X ! Y, ok end";
     };
   };
+*)
   {
     source = Some{
       identifier = "return";

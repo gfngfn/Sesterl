@@ -162,6 +162,9 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let pty = (rngf rng, PidType(ppidty)) in
         (bbidset, pty)
 
+    | ChannelType(ses) ->
+        failwith "TypeConv.lift_scheme, ChannelType"
+
     | ProductType(tys) ->
         let (bbidset, ptys) =
           tys |> TupleList.map_and_fold (fun bbidsetacc ty ->
@@ -191,13 +194,34 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
     in
     (bbidsetacc, Alist.to_list ptyacc)
 
-  and aux_effect (Effect(ty)) =
-    let (bbidset, pty) = aux ty in
-    (bbidset, Effect(pty))
+  and aux_effect (Effect(sesmap)) =
+    let (bbidset, psesmap) = aux_session_map sesmap in
+    (bbidset, Effect(psesmap))
 
-  and aux_pid_type (Pid(ty)) =
-    let (bbidset, pty) = aux ty in
-    (bbidset, Pid(pty))
+  and aux_pid_type (Pid(sesmap)) =
+    let (bbidset, psesmap) = aux_session_map sesmap in
+    (bbidset, Pid(psesmap))
+
+  and aux_session_map (sesmap : (mono_type * mono_session) TagAssoc.t) : BoundBothIDSet.t * (poly_type * poly_session) TagAssoc.t =
+    TagAssoc.fold (fun tag (ty, ses) (bbidsetacc, psesmap) ->
+      let (bbidset1, pty) = aux ty in
+      let (bbidset2, pses) = aux_session ses in
+      let bbidsetacc = bbidsetacc |> BoundBothIDSet.union bbidset1 |> BoundBothIDSet.union bbidset2 in
+      let psesmap = psesmap |> TagAssoc.add tag (pty, pses) in
+      (bbidsetacc, psesmap)
+    ) sesmap (BoundBothIDSet.empty, TagAssoc.empty)
+
+  and aux_session = function
+    | In(tagmap) ->
+        let (bbidset, ptagmap) = aux_session_map tagmap in
+        (bbidset, In(ptagmap))
+
+    | Out(tagmap) ->
+        let (bbidset, ptagmap) = aux_session_map tagmap in
+        (bbidset, Out(ptagmap))
+
+    | Finish ->
+        (BoundBothIDSet.empty, Finish)
 
   and aux_option_row : mono_row -> BoundBothIDSet.t * poly_row = function
     | FixedRow(labmap) ->
@@ -294,6 +318,10 @@ fun intern intern_row pty ->
         let pidty = aux_pid_type ppidty in
         (rng, PidType(pidty))
 
+    | ChannelType(pses) ->
+        let ses = aux_session pses in
+        (rng, ChannelType(ses))
+
     | ProductType(ptys) ->
         let tys = ptys |> TupleList.map aux in
         (rng, ProductType(tys))
@@ -305,13 +333,21 @@ fun intern intern_row pty ->
     | DataType(tyid, ptyargs) ->
         (rng, DataType(tyid, ptyargs |> List.map aux))
 
-  and aux_effect (Effect(pty)) =
-    let ty = aux pty in
-    Effect(ty)
+  and aux_effect (Effect(psesmap)) =
+    let sesmap = aux_session_map psesmap in
+    Effect(sesmap)
 
-  and aux_pid_type (Pid(pty)) =
-    let ty = aux pty in
-    Pid(ty)
+  and aux_pid_type (Pid(psesmap)) =
+    let sesmap = aux_session_map psesmap in
+    Pid(sesmap)
+
+  and aux_session_map tagmap =
+    tagmap |> TagAssoc.map (fun (pty, pses) -> (aux pty, aux_session pses))
+
+  and aux_session = function
+    | In(ptagmap)  -> In(aux_session_map ptagmap)
+    | Out(ptagmap) -> Out(aux_session_map ptagmap)
+    | Finish       -> Finish
   in
   aux pty
 
@@ -646,6 +682,10 @@ fun showtv showrv ty ->
         let spid = aux_pid_type pidty in
         "pid<" ^ spid ^ ">"
 
+    | ChannelType(ses) ->
+        let sses = aux_session ses in
+        Printf.sprintf "chan<%s>" sses
+
     | TypeVar(tv) ->
         showtv tv
 
@@ -671,12 +711,29 @@ fun showtv showrv ty ->
               Format.asprintf "%a<%s>" TypeID.pp tyid (String.concat ", " ss)
         end
 
-  and aux_effect (Effect(ty)) =
-    let s = aux ty in
+  and aux_effect (Effect(sesmap)) =
+    let s = aux_session_map ~prefix:"" sesmap in
     "[" ^ s ^ "]"
 
-  and aux_pid_type (Pid(ty)) =
-    aux ty
+  and aux_pid_type (Pid(sesmap)) =
+    aux_session_map "" sesmap
+
+  and aux_session_map ~prefix tagmap =
+    let acc =
+      TagAssoc.fold (fun tag (ty, ses) acc ->
+        let sty = aux ty in
+        let sses = aux_session ses in
+        Alist.extend acc (tag, sty, sses)
+      ) tagmap Alist.empty
+    in
+    acc |> Alist.to_list |> List.map (fun (tag, sty, sses) ->
+      Printf.sprintf "%s%s(%s). %s" prefix tag sty sses
+    ) |> String.concat ", "
+
+  and aux_session = function
+    | In(tagmap)  -> Printf.sprintf "&(%s)" (aux_session_map ~prefix:"?" tagmap)
+    | Out(tagmap) -> Printf.sprintf "+(%s)" (aux_session_map ~prefix:"!" tagmap)
+    | Finish      -> "finish"
   in
   aux ty
 

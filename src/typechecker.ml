@@ -330,6 +330,9 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     | PidType(pidty) ->
         aux_pid_type pidty
 
+    | ChannelType(ses) ->
+        aux_session ses
+
     | TypeVar(Updatable{contents = Link(ty)}) ->
         aux ty
 
@@ -346,11 +349,21 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     | TypeVar(MustBeBound(_)) ->
         false
 
-  and aux_effect (Effect(ty)) =
-    aux ty
+  and aux_effect (Effect(tagmap)) =
+    aux_session_map tagmap
 
-  and aux_pid_type (Pid(ty)) =
-    aux ty
+  and aux_pid_type (Pid(tagmap)) =
+    aux_session_map tagmap
+
+  and aux_session_map tagmap =
+    tagmap |> TagAssoc.exists (fun tag (ty, ses) ->
+      aux ty || aux_session ses
+    )
+
+  and aux_session = function
+    | In(tagmap)  -> aux_session_map tagmap
+    | Out(tagmap) -> aux_session_map tagmap
+    | Finish      -> false
 
   and aux_option_row = function
     | RowVar(UpdatableRow{contents = FreeRow(_)}) ->
@@ -401,6 +414,9 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
         let b0 = aux ty0 in
         beff || b0
 
+    | ChannelType(ses) ->
+        aux_session ses
+
     | TypeVar(_) ->
         false
 
@@ -413,11 +429,21 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
     | DataType(_tyid, tyargs) ->
         aux_list tyargs
 
-  and aux_pid (Pid(ty)) =
-    aux ty
+  and aux_pid (Pid(sesmap)) =
+    aux_session_map sesmap
 
-  and aux_effect (Effect(ty)) =
-    aux ty
+  and aux_effect (Effect(sesmap)) =
+    aux_session_map sesmap
+
+  and aux_session_map tagmap =
+    tagmap |> TagAssoc.exists (fun tag (ty, ses) ->
+      aux ty || aux_session ses
+    )
+
+  and aux_session = function
+    | In(tagmap)  -> aux_session_map tagmap
+    | Out(tagmap) -> aux_session_map tagmap
+    | Finish      -> false
 
   and aux_option_row = function
     | FixedRow(labmap)                                 -> aux_label_assoc labmap
@@ -448,6 +474,7 @@ fun tyidp tvp oidset ->
     | BaseType(_)             -> false
     | PidType(typid)          -> aux_pid typid
     | EffType(tyeff, tysub)   -> aux_effect tyeff || aux tysub
+    | ChannelType(ses)        -> aux_session ses
     | ProductType(tys)        -> tys |> TupleList.to_list |> List.exists aux
 
     | FuncType(tydoms, mndlabmap, optrow, tycod) ->
@@ -462,11 +489,21 @@ fun tyidp tvp oidset ->
     | TypeVar(tv) ->
         tvp tv
 
-  and aux_pid = function
-    | Pid(ty) -> aux ty
+  and aux_pid (Pid(sesmap)) =
+    aux_session_map sesmap
 
-  and aux_effect = function
-    | Effect(ty) -> aux ty
+  and aux_effect (Effect(sesmap)) =
+    aux_session_map sesmap
+
+  and aux_session_map tagmap =
+    tagmap |> TagAssoc.exists (fun tag (ty, ses) ->
+      aux ty || aux_session ses
+    )
+
+  and aux_session = function
+    | In(tagmap)  -> aux_session_map tagmap
+    | Out(tagmap) -> aux_session_map tagmap
+    | Finish      -> false
 
   and aux_option_row = function
     | RowVar(_)        -> false
@@ -602,6 +639,9 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
     | (PidType(pidty1), PidType(pidty2)) ->
         aux_pid_type pidty1 pidty2
 
+    | (ChannelType(ses1), ChannelType(ses2)) ->
+        failwith "Typechecker, unify, ChannelType"
+
     | (ProductType(tys1), ProductType(tys2)) ->
         aux_list (tys1 |> TupleList.to_list) (tys2 |> TupleList.to_list)
 
@@ -691,11 +731,11 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
     with
     | Invalid_argument(_) -> Contradiction
 
-  and aux_effect (Effect(ty1)) (Effect(ty2)) =
-    aux ty1 ty2
+  and aux_effect (Effect(sesmap1)) (Effect(sesmap2)) =
+    failwith "Typechecker, unify, aux_effect"
 
-  and aux_pid_type (Pid(ty1)) (Pid(ty2)) =
-    aux ty1 ty2
+  and aux_pid_type (Pid(sesmap1)) (Pid(sesmap2)) =
+    failwith "Typechecker, unify, aux_pid_type"
 
   and aux_option_row (optrow1 : mono_row) (optrow2 : mono_row) =
     match (optrow1, optrow2) with
@@ -1004,7 +1044,7 @@ and decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_t
                   | ("binary", _)   -> invalid rng "binary" ~expect:0 ~actual:len_actual
                   | ("char", [])    -> BaseType(CharType)
                   | ("char", _)     -> invalid rng "char" ~expect:0 ~actual:len_actual
-                  | ("pid", [ty])   -> PidType(Pid(ty))
+                  | ("pid", [ty])   -> failwith "Typechecker, decode_manual_type_scheme, PidType"
                   | ("pid", _)      -> invalid rng "pid" ~expect:1 ~actual:len_actual
                   | _               -> raise_error (UndefinedTypeName(rng, tynm))
                 end
@@ -1033,7 +1073,10 @@ and decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_t
           RecordType(labmap)
 
       | MEffType(mty1, mty2) ->
+          failwith "Typechecker, decode_manual_type_scheme, EffType"
+(*
           EffType(Effect(aux mty1), aux mty2)
+*)
 
       | MTypeVar(typaram) ->
           begin
@@ -1411,11 +1454,11 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             let lname = generate_local_name rngv x in
             (tyx, pre.tyenv |> Typeenv.add_val x (TypeConv.lift tyx) (OutputIdentifier.Local(lname)), lname)
       in
-      let tyrecv = fresh_type_variable lev UniversalKind (Range.dummy "do-recv") in
-      unify ty1 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tyx));
+      let ses = failwith "typecheck, Do" in
+      unify ty1 (Range.dummy "do-eff2", EffType(Effect(ses), tyx));
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       let tysome = fresh_type_variable lev UniversalKind (Range.dummy "do-some") in
-      unify ty2 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tysome));
+      unify ty2 (Range.dummy "do-eff2", EffType(Effect(ses), tysome));
       let e2 =
         ithunk (ILetIn(lname, iforce e1, iforce e2))
       in
@@ -1423,16 +1466,22 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
   | Receive(branches) ->
       let lev = pre.level in
-      let tyrecv = fresh_type_variable lev UniversalKind (Range.dummy "receive-recv") in
+      let ses = failwith "typecheck, Receive" in
       let tyret = fresh_type_variable lev UniversalKind (Range.dummy "receive-ret") in
       let ibracc =
         branches |> List.fold_left (fun ibracc branch ->
-          let ibranch = typecheck_receive_branch pre tyrecv tyret branch in
+          let ibranch = typecheck_receive_branch pre ses tyret branch in
           Alist.extend ibracc ibranch
         ) Alist.empty
       in
-      let ty = (rng, EffType(Effect(tyrecv), tyret)) in
+      let ty = (rng, EffType(Effect(ses), tyret)) in
       (ty, IReceive(ibracc |> Alist.to_list))
+
+  | SendNew(utast1, tag, utast2) ->
+      failwith "Typechecker, typecheck, SendNew"
+
+  | SendVia(utast1, tag, utast2) ->
+      failwith "Typechecker, typecheck, SendVia"
 
   | Tuple(utasts) ->
       let tyes = utasts |> TupleList.map (typecheck pre) in
@@ -1695,10 +1744,12 @@ and typecheck_case_branch (pre : pre) =
 
 
 and typecheck_receive_branch (pre : pre) =
+  failwith "typecheck_receive_branch"
+(*
   typecheck_branch_scheme (fun ty1 typatexp tyret ->
     unify ty1 (Range.dummy "branch", EffType(Effect(typatexp), tyret))
   ) pre
-
+*)
 
 and typecheck_branch_scheme (unifyk : mono_type -> mono_type -> mono_type -> unit) (pre : pre) typatexp tyret (Branch(pat, utast0opt, utast1)) : branch =
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
@@ -2106,11 +2157,11 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
       | _                        -> Some(false)
     ) plabmap1 plabmap2 |> LabelAssoc.for_all (fun _ b -> b)
 
-  and aux_pid (Pid(pty1)) (Pid(pty2)) =
-    aux pty1 pty2
+  and aux_pid (Pid(pses1)) (Pid(pses2)) =
+    failwith "subtype_poly_type, aux_pid"
 
-  and aux_effect (Effect(pty1)) (Effect(pty2)) =
-    aux pty1 pty2
+  and aux_effect (Effect(pses1)) (Effect(pses2)) =
+    failwith "subtype_poly_type, aux_effect"
   in
   aux pty1 pty2
 
@@ -2274,11 +2325,11 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
     with
     | Invalid_argument(_) -> false
 
-  and aux_effect (Effect(pty1)) (Effect(pty2)) =
-    aux pty1 pty2
+  and aux_effect (Effect(psesmap1)) (Effect(psesmap2)) =
+    failwith "poly_type_equal, aux_effect"
 
-  and aux_pid_type (Pid(pty1)) (Pid(pty2)) =
-    aux pty1 pty2
+  and aux_pid_type (Pid(psesmap1)) (Pid(psesmap2)) =
+    failwith "poly_type_equal, aux_pid_type"
 
   and aux_option_row poptrow1 poptrow2 =
     match (poptrow1, poptrow2) with
@@ -2748,6 +2799,7 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
       | BaseType(_)               -> ptymain
       | PidType(ppid)             -> PidType(aux_pid ppid)
       | EffType(peff, ptysub)     -> EffType(aux_effect peff, aux ptysub)
+      | ChannelType(pses)         -> ChannelType(aux_session pses)
       | TypeVar(_)                -> ptymain
       | ProductType(ptys)         -> ProductType(ptys |> TupleList.map aux)
 
@@ -2784,11 +2836,19 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
     in
     (rng, ptymain)
 
-  and aux_pid = function
-    | Pid(pty) -> Pid(aux pty)
+  and aux_pid (Pid(psesmap)) =
+    Pid(aux_session_map psesmap)
 
-  and aux_effect = function
-    | Effect(pty) -> Effect(aux pty)
+  and aux_effect (Effect(psesmap)) =
+    Effect(aux_session_map psesmap)
+
+  and aux_session_map ptagmap =
+    ptagmap |> TagAssoc.map (fun (pty, pses) -> (aux pty, aux_session pses))
+
+  and aux_session = function
+    | In(ptagmap)  -> In(aux_session_map ptagmap)
+    | Out(ptagmap) -> Out(aux_session_map ptagmap)
+    | Finish       -> Finish
 
   and aux_option_row (poptrow : poly_row) =
     match poptrow with

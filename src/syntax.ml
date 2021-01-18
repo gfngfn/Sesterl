@@ -40,6 +40,9 @@ type signature_name = string
 type label = string
 [@@deriving show { with_path = false; } ]
 
+type tag = string
+[@@deriving show { with_path = false; } ]
+
 module LabelAssoc : (sig
   include Map.S
   val pp : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit
@@ -52,6 +55,8 @@ end with type key = string) = struct
       Format.fprintf ppf "%s ->@ %a;@ " label ppsub v
     )
 end
+
+module TagAssoc = LabelAssoc
 
 
 let pp_identifier ppf s =
@@ -166,6 +171,8 @@ and untyped_ast_main =
   | LetPatIn     of untyped_pattern * untyped_ast * untyped_ast
   | Do           of binder option * untyped_ast * untyped_ast
   | Receive      of untyped_branch list
+  | SendNew      of untyped_ast * tag * untyped_ast
+  | SendVia      of untyped_ast * tag * untyped_ast
   | Tuple        of untyped_ast TupleList.t
   | ListNil
   | ListCons     of untyped_ast * untyped_ast
@@ -336,16 +343,22 @@ and ('a, 'b) typ_main =
   | FuncType    of (('a, 'b) typ) list * (('a, 'b) typ) LabelAssoc.t * ('a, 'b) row * ('a, 'b) typ
   | PidType     of ('a, 'b) pid_type
   | EffType     of ('a, 'b) effect * ('a, 'b) typ
+  | ChannelType of ('a, 'b) session
   | TypeVar     of 'a
   | ProductType of (('a, 'b) typ) TupleList.t
   | DataType    of TypeID.t * (('a, 'b) typ) list
   | RecordType  of (('a, 'b) typ) LabelAssoc.t
 
 and ('a, 'b) effect =
-  | Effect of ('a, 'b) typ
+  | Effect of (('a, 'b) typ * ('a, 'b) session) TagAssoc.t
 
 and ('a, 'b) pid_type =
-  | Pid of ('a, 'b) typ
+  | Pid of (('a, 'b) typ * ('a, 'b) session) TagAssoc.t
+
+and ('a, 'b) session =
+  | In     of (('a, 'b) typ * ('a, 'b) session) TagAssoc.t
+  | Out    of (('a, 'b) typ * ('a, 'b) session) TagAssoc.t
+  | Finish
 
 and ('a, 'b) row =
   | FixedRow of (('a, 'b) typ) LabelAssoc.t
@@ -377,6 +390,8 @@ and mono_row_var =
 
 and mono_type = (mono_type_var, mono_row_var) typ
 
+type mono_session = (mono_type_var, mono_row_var) session
+
 type mono_row = (mono_type_var, mono_row_var) row
 
 type mono_kind = (mono_type_var, mono_row_var) kind
@@ -392,6 +407,8 @@ type poly_row_var =
   | BoundRow of BoundRowID.t
 
 and poly_type = (poly_type_var, poly_row_var) typ
+
+type poly_session = (poly_type_var, poly_row_var) session
 
 type poly_row = (poly_type_var, poly_row_var) row
 
