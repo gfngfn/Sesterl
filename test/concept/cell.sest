@@ -1,0 +1,57 @@
+/* The current type checker does NOT accept this module. */
+module Cell :> sig
+  type t :: (o) -> o
+  val start<$a, $content> : fun($content) -> [$a]t<$content>
+  val set<$a, $content> : fun(t<$content>, $content) -> [$a]unit
+  val get<$a, $content> : fun(t<$content>) -> [$a]$content
+  val stop<$a, $content> : fun(t<$content>) -> [$a]unit
+end = struct
+
+  type request<$a, $content> =
+    | Get(pid<$a>)
+    | Set(pid<$a>, $content)
+    | Stop
+
+  type response<$content> =
+    | Content($content)
+    | Done
+
+  type t<$content> = pid<request<response<$content>, $content>>
+
+  val rec loop(v) =
+    receive
+    | Get(from) ->
+        do send(from, Content(v)) in
+        loop(v)
+
+    | Set(from, v_new) ->
+        do send(from, Done) in
+        loop(v_new)
+
+    | Stop ->
+        return({})
+    end
+
+  val start(v) =
+    spawn(loop(v))
+
+  val get(cell) =
+    do me <- self in
+    do send(cell, Get(me)) in
+    receive
+    | Content(v) ->
+        return(v)
+    end
+
+  val set(cell, v) =
+    do me <- self in
+    do send(cell, Set(me, v)) in
+    receive
+    | Done ->
+        return({})
+    end
+
+  val stop(cell) =
+    send(cell, Stop)
+
+end
