@@ -368,7 +368,7 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
       let s2 = iter ast2 in
       Printf.sprintf "begin %s = %s, %s end" s0 s1 s2
 
-  | ICase(ast1, [ IBranch(ipat, None, ast2) ]) ->
+  | ICase(ast1, [ IBranchCase(ipat, ast2) ]) ->
     (* -- slight optimization of case-expressions into pattern-matching let-expressions -- *)
       let spat = stringify_pattern ipat in
       let s1 = iter ast1 in
@@ -377,11 +377,15 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
 
   | ICase(ast0, branches) ->
       let s0 = iter ast0 in
-      let sbrs = branches |> List.map (stringify_branch gmap) in
+      let sbrs = branches |> List.map (stringify_branch_case gmap) in
       Printf.sprintf "case %s of %s end" s0 (String.concat "; " sbrs)
 
-  | IReceive(branches) ->
-      let sbrs = branches |> List.map (stringify_branch gmap) in
+  | IReceive(newbrs, viabrs) ->
+      let sbrs =
+        let snewbrs = newbrs |> List.map (stringify_branch_new gmap) in
+        let sviabrs = viabrs |> List.map (stringify_branch_via gmap) in
+        List.append snewbrs sviabrs
+      in
       Printf.sprintf "receive %s end" (String.concat "; " sbrs)
 
   | ITuple(es) ->
@@ -426,21 +430,20 @@ and mapify_label_assoc (gmap : global_name_map) (emap : ast LabelAssoc.t) =
   ) emap Alist.empty |> Alist.to_list |> String.concat ", "
 
 
-and stringify_branch (gmap : global_name_map) (br : branch) =
+and stringify_branch_case (gmap : global_name_map) (br : branch_case) =
   match br with
-  | IBranch(pat, ast0opt, ast1) ->
+  | IBranchCase(pat, ast1) ->
       let spat = stringify_pattern pat in
-      let swhen =
-        match ast0opt with
-        | None ->
-            ""
-
-        | Some(ast0) ->
-            let s0 = stringify_ast gmap ast0 in
-            Printf.sprintf " when %s" s0
-      in
       let s1 = stringify_ast gmap ast1 in
-      Printf.sprintf "%s%s -> %s" spat swhen s1
+      Printf.sprintf "%s -> %s" spat s1
+
+
+and stringify_branch_new (gmap : global_name_map) (newbr : branch_new) =
+  failwith "TODO: stringify_branch_new"
+
+
+and stringify_branch_via (gmap : global_name_map) (viabr : branch_via) =
+  failwith "TODO: stringify_branch_via"
 
 
 and stringify_pattern (ipat : pattern) =

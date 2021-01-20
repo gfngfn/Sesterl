@@ -85,6 +85,8 @@ rule token = parse
         | "include"   -> INCLUDE(pos)
         | "import"    -> IMPORT(pos)
         | "freeze"    -> FREEZE(pos)
+        | "new"       -> NEW(pos)
+        | "via"       -> VIA(pos)
         | _           -> LOWER(pos, s)
     }
 

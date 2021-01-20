@@ -170,13 +170,13 @@ and untyped_ast_main =
   | LetIn        of rec_or_nonrec * untyped_ast
   | LetPatIn     of untyped_pattern * untyped_ast * untyped_ast
   | Do           of binder option * untyped_ast * untyped_ast
-  | Receive      of untyped_branch list
+  | Receive      of untyped_branch_new list * untyped_branch_via list
   | SendNew      of untyped_ast * tag * untyped_ast
   | SendVia      of untyped_ast * tag * untyped_ast
   | Tuple        of untyped_ast TupleList.t
   | ListNil
   | ListCons     of untyped_ast * untyped_ast
-  | Case         of untyped_ast * untyped_branch list
+  | Case         of untyped_ast * untyped_branch_case list
   | Constructor  of constructor_name * untyped_ast list
   | BinaryByList of (int ranged) list
   | Record       of labeled_untyped_ast list
@@ -223,8 +223,25 @@ and untyped_let_binding = {
   vb_body        : untyped_ast;
 }
 
-and untyped_branch =
-  | Branch of untyped_pattern * untyped_ast option * untyped_ast
+and untyped_branch_new =
+  | BranchNew of {
+      binder      : identifier ranged;
+      tag         : tag ranged;
+      pattern     : untyped_pattern;
+      computation : untyped_ast;
+    }
+
+and untyped_branch_via =
+  | BranchVia of {
+      binder      : identifier ranged;
+      token       : untyped_ast;
+      tag         : tag ranged;
+      pattern     : untyped_pattern;
+      computation : untyped_ast;
+    }
+
+and untyped_branch_case =
+  | BranchCase of untyped_pattern * untyped_ast
 
 and untyped_pattern =
   untyped_pattern_main ranged
@@ -392,6 +409,8 @@ and mono_type = (mono_type_var, mono_row_var) typ
 
 type mono_session = (mono_type_var, mono_row_var) session
 
+type mono_session_map = (mono_type * mono_session) TagAssoc.t
+
 type mono_row = (mono_type_var, mono_row_var) row
 
 type mono_kind = (mono_type_var, mono_row_var) kind
@@ -409,6 +428,8 @@ type poly_row_var =
 and poly_type = (poly_type_var, poly_row_var) typ
 
 type poly_session = (poly_type_var, poly_row_var) session
+
+type poly_session_map = (poly_type * poly_session) TagAssoc.t
 
 type poly_row = (poly_type_var, poly_row_var) row
 
@@ -532,8 +553,8 @@ and ast =
   | ILambda      of local_name option * local_name list * local_name LabelAssoc.t * (local_name * ast option) LabelAssoc.t * ast
   | IApply       of name * mono_row * ast list * ast LabelAssoc.t * ast LabelAssoc.t
   | ILetIn       of local_name * ast * ast
-  | ICase        of ast * branch list
-  | IReceive     of branch list
+  | ICase        of ast * branch_case list
+  | IReceive     of branch_new list * branch_via list
   | ITuple       of ast TupleList.t
   | IListNil
   | IListCons    of ast * ast
@@ -546,8 +567,25 @@ and ast =
   | IFreeze       of global_name * ast list
   | IFreezeUpdate of ast * ast list
 
-and branch =
-  | IBranch of pattern * ast option * ast
+and branch_new =
+  | IBranchNew of {
+      binder      : name;
+      tag         : tag;
+      pattern     : pattern;
+      computation : ast;
+    }
+
+and branch_via =
+  | IBranchVia of {
+      binder      : name;
+      via         : ast;
+      tag         : tag;
+      pattern     : pattern;
+      computation : ast;
+    }
+
+and branch_case =
+  | IBranchCase of pattern * ast
 
 
 let pp_sep_comma ppf () =
@@ -632,7 +670,7 @@ and pp_ast ppf = function
   | ICase(e0, ibrs) ->
       Format.fprintf ppf "(case@[<hov2>@ %a@]@ of@[<hov2>@ %a@]@ end)"
         pp_ast e0
-        (Format.pp_print_list pp_branch) ibrs
+        (Format.pp_print_list pp_branch_case) ibrs
 
   | ITuple(es) ->
       Format.fprintf ppf "{%a}"
@@ -642,8 +680,8 @@ and pp_ast ppf = function
       Format.fprintf ppf "..."
 
 
-and pp_branch ppf = function
-  | IBranch(ipat, _, e) ->
+and pp_branch_case ppf = function
+  | IBranchCase(ipat, e) ->
       Format.fprintf ppf "%a (when ...) ->@[<hov2>@ %a@];@ "
         pp_pattern ipat
         pp_ast e

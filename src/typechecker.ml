@@ -248,7 +248,7 @@ let iforce (e : ast) : ast =
 
 
 let iletpatin (ipat : pattern) (e1 : ast) (e2 : ast) : ast =
-  ICase(e1, [ IBranch(ipat, None, e2) ])
+  ICase(e1, [ IBranchCase(ipat, e2) ])
 
 
 let iletrecin_single (_, _, name_outer, name_inner, e1) (e2 : ast) : ast =
@@ -640,7 +640,7 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
         aux_pid_type pidty1 pidty2
 
     | (ChannelType(ses1), ChannelType(ses2)) ->
-        failwith "Typechecker, unify, ChannelType"
+        failwith "TODO: unify, ChannelType"
 
     | (ProductType(tys1), ProductType(tys2)) ->
         aux_list (tys1 |> TupleList.to_list) (tys2 |> TupleList.to_list)
@@ -732,10 +732,10 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
     | Invalid_argument(_) -> Contradiction
 
   and aux_effect (Effect(sesmap1)) (Effect(sesmap2)) =
-    failwith "Typechecker, unify, aux_effect"
+    failwith "TODO: unify, aux_effect"
 
   and aux_pid_type (Pid(sesmap1)) (Pid(sesmap2)) =
-    failwith "Typechecker, unify, aux_pid_type"
+    failwith "TODO: unify, aux_pid_type"
 
   and aux_option_row (optrow1 : mono_row) (optrow2 : mono_row) =
     match (optrow1, optrow2) with
@@ -857,6 +857,10 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
   | Contradiction      -> raise_error (ContradictionError(tyact, tyexp))
   | Inclusion(fid)     -> raise_error (InclusionError(fid, tyact, tyexp))
   | InclusionRow(frid) -> raise_error (InclusionRowError(frid, tyact, tyexp))
+
+
+let unify_session_map (sesmap1 : mono_session_map) (sesmap2 : mono_session_map) : unit =
+  failwith "TODO: unify_session_map"
 
 
 let fresh_type_variable ?name:nameopt (lev : int) (mbkd : mono_base_kind) (rng : Range.t) : mono_type =
@@ -1044,7 +1048,7 @@ and decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_t
                   | ("binary", _)   -> invalid rng "binary" ~expect:0 ~actual:len_actual
                   | ("char", [])    -> BaseType(CharType)
                   | ("char", _)     -> invalid rng "char" ~expect:0 ~actual:len_actual
-                  | ("pid", [ty])   -> failwith "Typechecker, decode_manual_type_scheme, PidType"
+                  | ("pid", [ty])   -> failwith "TODO: decode_manual_type_scheme, PidType"
                   | ("pid", _)      -> invalid rng "pid" ~expect:1 ~actual:len_actual
                   | _               -> raise_error (UndefinedTypeName(rng, tynm))
                 end
@@ -1073,7 +1077,7 @@ and decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_t
           RecordType(labmap)
 
       | MEffType(mty1, mty2) ->
-          failwith "Typechecker, decode_manual_type_scheme, EffType"
+          failwith "TODO: decode_manual_type_scheme, EffType"
 (*
           EffType(Effect(aux mty1), aux mty2)
 *)
@@ -1410,7 +1414,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let (ty1, e1) = typecheck pre utast1 in
       let (ty2, e2) = typecheck pre utast2 in
       unify ty1 ty2;
-      let ibranches = [ IBranch(IPBool(true), None, e1); IBranch(IPBool(false), None, e2) ] in
+      let ibranches = [ IBranchCase(IPBool(true), e1); IBranchCase(IPBool(false), e2) ] in
       (ty1, ICase(e0, ibranches))
 
   | LetIn(NonRec(letbind), utast2) ->
@@ -1454,7 +1458,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             let lname = generate_local_name rngv x in
             (tyx, pre.tyenv |> Typeenv.add_val x (TypeConv.lift tyx) (OutputIdentifier.Local(lname)), lname)
       in
-      let ses = failwith "typecheck, Do" in
+      let ses = failwith "TODO: typecheck, Do" in
       unify ty1 (Range.dummy "do-eff2", EffType(Effect(ses), tyx));
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       let tysome = fresh_type_variable lev UniversalKind (Range.dummy "do-some") in
@@ -1464,24 +1468,34 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       in
       (ty2, e2)
 
-  | Receive(branches) ->
+  | Receive(newbrs, viabrs) ->
       let lev = pre.level in
-      let ses = failwith "typecheck, Receive" in
       let tyret = fresh_type_variable lev UniversalKind (Range.dummy "receive-ret") in
-      let ibracc =
-        branches |> List.fold_left (fun ibracc branch ->
-          let ibranch = typecheck_receive_branch pre ses tyret branch in
-          Alist.extend ibracc ibranch
-        ) Alist.empty
+      let sesmapexp = failwith "TODO: typecheck, Receive, sesmapexp" in
+      let (inewbracc, sesmap) =
+        newbrs |> List.fold_left (fun (acc : branch_new Alist.t * _ TagAssoc.t) (newbr : untyped_branch_new) ->
+          let (inewbracc, sesmap) = acc in
+          let (_, tag) =
+            let BranchNew(r) = newbr in
+            r.tag
+          in
+          let inewbr = typecheck_branch_new pre sesmapexp tyret newbr in
+          let ses = failwith "TODO: typecheck, Receive, ses" in
+          match sesmap |> TagAssoc.find_opt tag with
+          | None    -> (Alist.extend inewbracc inewbr, sesmap |> TagAssoc.add tag ses)
+          | Some(_) -> failwith "TODO: typecheck, Receive, report error"
+        ) (Alist.empty, TagAssoc.empty)
       in
-      let ty = (rng, EffType(Effect(ses), tyret)) in
-      (ty, IReceive(ibracc |> Alist.to_list))
+      unify_session_map sesmap sesmapexp;  (* Probably not appropriate. *)
+      let iviabrs = viabrs |> List.map (typecheck_branch_via pre sesmapexp tyret) in
+      let ty = (rng, EffType(Effect(sesmap), tyret)) in
+      (ty, IReceive(inewbracc |> Alist.to_list, iviabrs))
 
   | SendNew(utast1, tag, utast2) ->
-      failwith "Typechecker, typecheck, SendNew"
+      failwith "TODO: typecheck, SendNew"
 
   | SendVia(utast1, tag, utast2) ->
-      failwith "Typechecker, typecheck, SendVia"
+      failwith "TODO: typecheck, SendVia"
 
   | Tuple(utasts) ->
       let tyes = utasts |> TupleList.map (typecheck pre) in
@@ -1507,7 +1521,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let tyret = fresh_type_variable lev UniversalKind (Range.dummy "case-ret") in
       let ibracc =
         branches |> List.fold_left (fun ibracc branch ->
-          let ibranch = typecheck_case_branch pre ty0 tyret branch in
+          let ibranch = typecheck_branch_case pre ~pattern:ty0 ~return:tyret branch in
           Alist.extend ibracc ibranch
         ) Alist.empty
       in
@@ -1737,42 +1751,33 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name
       (tyid, ctorid, tyargs, tys_expected)
 
 
-and typecheck_case_branch (pre : pre) =
-  typecheck_branch_scheme (fun ty1 _ tyret ->
-    unify ty1 tyret
-  ) pre
-
-
-and typecheck_receive_branch (pre : pre) =
-  failwith "typecheck_receive_branch"
-(*
-  typecheck_branch_scheme (fun ty1 typatexp tyret ->
-    unify ty1 (Range.dummy "branch", EffType(Effect(typatexp), tyret))
-  ) pre
-*)
-
-and typecheck_branch_scheme (unifyk : mono_type -> mono_type -> mono_type -> unit) (pre : pre) typatexp tyret (Branch(pat, utast0opt, utast1)) : branch =
+and typecheck_branch_case (pre : pre) ~pattern:(typatexp : mono_type) ~return:(tyret : mono_type) (BranchCase(pat, utast1)) : branch_case =
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
+  unify typat typatexp;
+  let pre = pre |> add_binding_map_to_type_environment bindmap in
+  let (ty1, e1) = typecheck pre utast1 in
+  BindingMap.iter (fun x (_, _, rng) ->
+    check_properly_used pre.tyenv (rng, x)
+  ) bindmap;
+  unify ty1 tyret;
+  IBranchCase(ipat, e1)
+
+
+and typecheck_branch_new (pre : pre) (sesmapexp : mono_session_map) (tyret : mono_type) (newbr : untyped_branch_new) =
+  failwith "TODO: typecheck_branch_new"
+
+
+and typecheck_branch_via (pre : pre) (sesmapexp : mono_session_map) (tyret : mono_type) (viabr : untyped_branch_via) =
+  failwith "TODO: typecheck_branch_via"
+
+
+and add_binding_map_to_type_environment (bindmap : binding_map) (pre : pre) : pre =
   let tyenv =
     BindingMap.fold (fun x (ty, lname, _) tyenv ->
       tyenv |> Typeenv.add_val x (TypeConv.lift ty) (OutputIdentifier.Local(lname))
     ) bindmap pre.tyenv
   in
-  let pre = { pre with tyenv } in
-  unify typat typatexp;
-  let e0opt =
-    utast0opt |> Option.map (fun utast0 ->
-      let (ty0, e0) = typecheck pre utast0 in
-      unify ty0 (Range.dummy "when", BaseType(BoolType));
-      e0
-    )
-  in
-  let (ty1, e1) = typecheck pre utast1 in
-  BindingMap.iter (fun x (_, _, rng) ->
-    check_properly_used tyenv (rng, x)
-  ) bindmap;
-  unifyk ty1 typatexp tyret;
-  IBranch(ipat, e0opt, e1)
+  { pre with tyenv }
 
 
 and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type * pattern * binding_map =
@@ -2158,10 +2163,10 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
     ) plabmap1 plabmap2 |> LabelAssoc.for_all (fun _ b -> b)
 
   and aux_pid (Pid(pses1)) (Pid(pses2)) =
-    failwith "subtype_poly_type, aux_pid"
+    failwith "TODO: subtype_poly_type, aux_pid"
 
   and aux_effect (Effect(pses1)) (Effect(pses2)) =
-    failwith "subtype_poly_type, aux_effect"
+    failwith "TODO: subtype_poly_type, aux_effect"
   in
   aux pty1 pty2
 
@@ -2326,10 +2331,10 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
     | Invalid_argument(_) -> false
 
   and aux_effect (Effect(psesmap1)) (Effect(psesmap2)) =
-    failwith "poly_type_equal, aux_effect"
+    failwith "TODO: poly_type_equal, aux_effect"
 
   and aux_pid_type (Pid(psesmap1)) (Pid(psesmap2)) =
-    failwith "poly_type_equal, aux_pid_type"
+    failwith "TODO: poly_type_equal, aux_pid_type"
 
   and aux_option_row poptrow1 poptrow2 =
     match (poptrow1, poptrow2) with

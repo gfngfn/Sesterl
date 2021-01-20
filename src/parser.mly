@@ -89,7 +89,7 @@
     (rng, DeclInclude((dr, SigWith((dr, SigDecls(decls)), [], tybinds))))
 %}
 
-%token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE WHEN END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE
+%token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE WHEN END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE NEW VIA
 %token<Range.t> LPAREN RPAREN LSQUARE RSQUARE LBRACE RBRACE
 %token<Range.t> DEFEQ COMMA ARROW REVARROW BAR UNDERSCORE CONS COLON COERCE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
@@ -454,9 +454,9 @@ exprfun:
       let rng = make_range (Token(tokL)) (Token(tokR)) in
       (rng, Lambda(ordparams, mndparams, optparams, e))
     }
-  | tokL=RECEIVE; branches=nonempty_list(branch); tokR=END {
+  | tokL=RECEIVE; newbrs=list(branchnew); viabrs=list(branchvia) tokR=END {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
-      (rng, Receive(branches))
+      (rng, Receive(newbrs, viabrs))
     }
   | tokL=CASE; e=exprlet; OF; branches=nonempty_list(branch); tokR=END {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
@@ -659,8 +659,28 @@ tuplesub:
   COMMA; e=exprlet { e }
 ;
 branch:
-  | BAR; pat=patcons; ARROW; e=exprlet                   { Branch(pat, None, e) }
-  | BAR; pat=patcons; WHEN; ew=exprlet; ARROW; e=exprlet { Branch(pat, Some(ew), e) }
+  | BAR; pat=patcons; ARROW; e=exprlet { BranchCase(pat, e) }
+;
+branchnew:
+  | BAR; ident=ident; REVARROW; NEW; tag=UPPER; pat=patcons; ARROW; e=exprlet {
+      BranchNew{
+        binder      = ident;
+        tag         = tag;
+        pattern     = pat;
+        computation = e;
+      }
+    }
+;
+branchvia:
+  | BAR; ident=ident REVARROW; VIA; e0=exprbot; tag=UPPER; pat=patcons; ARROW; e=exprlet {
+      BranchVia{
+        binder      = ident;
+        token       = e0;
+        tag         = tag;
+        pattern     = pat;
+        computation = e;
+      }
+    }
 ;
 patcons:
   | p1=patbot; CONS; p2=patcons { let rng = make_range (Ranged(p1)) (Ranged(p2)) in (rng, PListCons(p1, p2)) }
