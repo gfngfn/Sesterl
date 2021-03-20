@@ -1222,7 +1222,7 @@ and decode_parameter (pre : pre) (binder : binder) =
   (x, tydom, lname)
 
 
-and add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typeenv.t * mono_type list * local_name list =
+and add_ordered_parameters_to_type_environment (pre : pre) (binders : binder list) : Typeenv.t * mono_type list * local_name list =
   let (tyenv, lnameacc, tydomacc) =
     List.fold_left (fun (tyenv, lnameacc, ptydomacc) binder ->
       let (x, tydom, lname) = decode_parameter pre binder in
@@ -1298,7 +1298,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
   | Lambda((ordbinders, mndbinders, optbinders), utast0) ->
       let (tyenv, tydoms, ordnames) =
-        add_parameters_to_type_environment pre ordbinders
+        add_ordered_parameters_to_type_environment pre ordbinders
       in
       let (tyenv, mndlabmap, mndnamemap) =
         add_labeled_mandatory_parameters_to_type_environment { pre with tyenv } mndbinders
@@ -1866,7 +1866,7 @@ fun namef pre letbind ->
     in
 
    (* Second, add local value parameters at level `levS`. *)
-    let (tyenv, tys, lnames) = add_parameters_to_type_environment pre ordparams in
+    let (tyenv, tys, lnames) = add_ordered_parameters_to_type_environment pre ordparams in
     let (tyenv, mndlabmap, mndnamemap) =
       add_labeled_mandatory_parameters_to_type_environment { pre with tyenv } mndparams
     in
@@ -1954,7 +1954,7 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
 
     (* Second, add local value parameters at level `levS`. *)
     let (tyenv, tys, lnames) =
-      add_parameters_to_type_environment pre ordparams
+      add_ordered_parameters_to_type_environment pre ordparams
     in
     let (tyenv, mndlabmap, mndnamemap) =
       add_labeled_mandatory_parameters_to_type_environment { pre with tyenv } mndparams
