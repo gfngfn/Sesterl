@@ -264,34 +264,45 @@ As in Erlang, you can use primitives `self`, `send`, and `spawn` for message-pas
 Intuitively, `[τ]τ'` in `fun(τ_1, …, τ_n) -> [τ]τ'` stands for concurrent computations that will be run on processes capable of receiving messages of type `τ` and that finally produce a value of type `τ'`. The composition of such computations can be done by `do`-notation. Messages can be received by using `receive`-expressions. See a small example below:
 
 ```
-val rec wait_all(msgacc, n) = act
-  if n <= 0 then
-    return(msgacc)
-  else
-    receive
-    | {pid, msg} ->
-        let _ = print_debug(format(f'message ~p received from: ~p~n', {msg, pid})) in
-        wait_all(msg :: msgacc, n - 1)
-    end
+module Example = struct
 
-val rec spawn_all(pidacc, n) = act
-  if n <= 0 then
-    return(pidacc)
-  else
-    do parent <- self in
-    do pid <- spawn(
-      do me <- self in
-      let msg = some_heavy_calculation(n) in
-      send(parent, {me, msg})
-    ) in
-    spawn_all(pid :: pidacc, n - 1)
+  /* dummy */
+  val some_heavy_calculation(n) =
+    n
 
-let main() =
-  let n = 10 in
-  do pids <- spawn_all([], n) in
-  let _ = print_debug(format(f'spawned: ~p~n', {pids})) in
-  do msgs <- wait_all([], n) in
-  …
+  val rec wait_all(msgacc, n) = act
+    if n <= 0 then
+      return(msgacc)
+    else
+      receive
+      | {pid, msg} ->
+          let _ = print_debug(format(f'message ~p received from: ~p~n', {msg, pid})) in
+          wait_all(msg :: msgacc, n - 1)
+      end
+
+  val rec spawn_all(pidacc, n) = act
+    if n <= 0 then
+      return(pidacc)
+    else
+      do parent <- self() in
+      do pid <-
+        spawn(fun() -> act
+          do me <- self() in
+          let msg = some_heavy_calculation(n) in
+          send(parent, {me, msg})
+        end)
+      in
+      spawn_all(pid :: pidacc, n - 1)
+
+  val main(arg) = act
+    let n = 10 in
+    do pids <- spawn_all([], n) in
+    let _ = print_debug(format(f'spawned: ~p~n', {pids})) in
+    do msgs <- wait_all([], n) in
+    let _ = print_debug(msgs) in
+    return({})
+
+end
 ```
 
 Here, the primitive `return<$p, $a> : fun($a) -> [$p]$a` lifts a pure value to the computation that has no effect and simply returns the value.
