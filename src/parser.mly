@@ -42,7 +42,7 @@
   let binary e1 op e2 =
     let rng = make_range (Ranged(e1)) (Ranged(e2)) in
     let (rngop, vop) = op in
-    (rng, Apply((rngop, Var(vop)), [e1; e2], [], []))
+    (rng, Apply((rngop, Var(vop)), ([e1; e2], [], [])))
 
 (*
   let syntax_sugar_module_application : Range.t -> untyped_module -> untyped_module -> untyped_module =
@@ -270,7 +270,7 @@ bindvalret:
   | DEFEQ; ACT; c=comp {
       Effectful(None, c)
     }
-  | COLON; tokL=LSQUARE; mty1=ty; RSQUARE; mty2=ty DEFEQ; ACT; c=comp {
+  | COLON; LSQUARE; mty1=ty; RSQUARE; mty2=ty DEFEQ; ACT; c=comp {
       Effectful(Some(mty1, mty2), c)
     }
 ;
@@ -465,7 +465,7 @@ comp:
   | efun=exprapp; LPAREN; args=args; tokR=RPAREN {
       let (ordargs, (mndargs, optargs)) = args in
       let rng = make_range (Ranged(efun)) (Token(tokR)) in
-      (rng, CompApply(efun, ordargs, mndargs, optargs))
+      (rng, CompApply(efun, (ordargs, mndargs, optargs)))
     }
 ;
 exprlet:
@@ -546,7 +546,7 @@ exprapp:
   | efun=exprapp; LPAREN; args=args; tokR=RPAREN {
       let (ordargs, (mndargs, optargs)) = args in
       let rng = make_range (Ranged(efun)) (Token(tokR)) in
-      (rng, Apply(efun, ordargs, mndargs, optargs))
+      (rng, Apply(efun, (ordargs, mndargs, optargs)))
     }
   | tokL=FREEZE; modchain=modchainraw; ident=DOTLOWER; LPAREN; args=freezeargs; tokR=RPAREN {
       let (ordargs, rngs) = args in

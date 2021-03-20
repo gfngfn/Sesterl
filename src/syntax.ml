@@ -169,7 +169,7 @@ and untyped_ast_main =
   | Var          of identifier
   | Lambda       of untyped_parameters * untyped_ast
   | LambdaEff    of untyped_parameters * untyped_computation_ast
-  | Apply        of untyped_application
+  | Apply        of untyped_ast * untyped_arguments
   | If           of untyped_ast * untyped_ast * untyped_ast
   | LetIn        of rec_or_nonrec * untyped_ast
   | LetPatIn     of untyped_pattern * untyped_ast * untyped_ast
@@ -199,10 +199,10 @@ and untyped_computation_ast_main =
   | CompLetIn    of rec_or_nonrec * untyped_computation_ast
   | CompLetPatIn of untyped_pattern * untyped_ast * untyped_computation_ast
   | CompIf       of untyped_ast * untyped_computation_ast * untyped_computation_ast
-  | CompApply    of untyped_application
+  | CompApply    of untyped_ast * untyped_arguments
 
-and untyped_application =
-  untyped_ast * untyped_ast list * labeled_untyped_ast list * labeled_untyped_ast list
+and untyped_arguments =
+  untyped_ast list * labeled_untyped_ast list * labeled_untyped_ast list
 
 and frozen_fun =
   | FrozenModFun of module_name_chain * identifier ranged
