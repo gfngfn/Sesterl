@@ -75,8 +75,7 @@ module DynamicSupervisor = struct
 
     val init<$a> : $a = external 1 ```
       init(InitArg) ->
-          InitF = init_impl(InitArg),
-          case InitF() of
+          case init_impl(InitArg) of
               none ->
                   ignore;
 

@@ -84,8 +84,7 @@ module StaticSupervisor = struct
 
     val init<$a> : $a = external 1 ```
       init(Args) ->
-          InitF = init_impl(Args),
-          case InitF() of
+          case init_impl(Args) of
               none ->
                   ignore;
 
