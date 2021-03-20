@@ -235,7 +235,7 @@ let iapply (efun : ast) (mrow : mono_row) (eargs : ast list) (mndargmap : ast La
       ILetIn(lname, efun, IApply(OutputIdentifier.Local(lname), mrow, eargs, mndargmap, optargmap))
 
 
-let ilambda (ordnames : local_name list) (mndnamemap : local_name LabelAssoc.t) (optnamemap : (local_name * ast option) LabelAssoc.t) (e0 : ast) : ast =
+let ilambda ((ordnames, mndnamemap, optnamemap) : local_name list * local_name LabelAssoc.t * (local_name * ast option) LabelAssoc.t) (e0 : ast) : ast =
   ILambda(None, ordnames, mndnamemap, optnamemap, e0)
 
 
@@ -1276,6 +1276,22 @@ and add_labeled_mandatory_parameters_to_type_environment (pre : pre) (mndbinders
   ) (pre.tyenv, LabelAssoc.empty, LabelAssoc.empty)
 
 
+and add_parameters_to_type_environment (pre : pre) ((ordbinders, mndbinders, optbinders) : untyped_parameters) =
+  let (tyenv, tydoms, ordnames) =
+    add_ordered_parameters_to_type_environment pre ordbinders
+  in
+  let (tyenv, mndlabmap, mndnamemap) =
+    add_labeled_mandatory_parameters_to_type_environment { pre with tyenv } mndbinders
+  in
+  let (tyenv, optlabmap, optnamemap) =
+    add_labeled_optional_parameters_to_type_environment { pre with tyenv } optbinders
+  in
+  let pre = { pre with tyenv } in
+  let domain = {ordered = tydoms; mandatory = mndlabmap; optional = FixedRow(optlabmap)} in
+  let ibinders = (ordnames, mndnamemap, optnamemap) in
+  (pre, domain, ibinders)
+
+
 and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   match utastmain with
   | BaseConst(bc) ->
@@ -1296,19 +1312,11 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             (ty, IVar(name))
       end
 
-  | Lambda((ordbinders, mndbinders, optbinders), utast0) ->
-      let (tyenv, tydoms, ordnames) =
-        add_ordered_parameters_to_type_environment pre ordbinders
-      in
-      let (tyenv, mndlabmap, mndnamemap) =
-        add_labeled_mandatory_parameters_to_type_environment { pre with tyenv } mndbinders
-      in
-      let (tyenv, optlabmap, optnamemap) =
-        add_labeled_optional_parameters_to_type_environment { pre with tyenv } optbinders
-      in
-      let (tycod, e0) = typecheck { pre with tyenv } utast0 in
-      let ty = (rng, FuncType({ordered = tydoms; mandatory = mndlabmap; optional = FixedRow(optlabmap)}, tycod)) in
-      (ty, ilambda ordnames mndnamemap optnamemap e0)
+  | Lambda(binders, utast0) ->
+      let (pre, domain, ibinders) = add_parameters_to_type_environment pre binders in
+      let (tycod, e0) = typecheck pre utast0 in
+      let ty = (rng, FuncType(domain, tycod)) in
+      (ty, ilambda ibinders e0)
 
   | LambdaEff(_, _) ->
       failwith "TODO: LambdaEff"
@@ -1855,7 +1863,7 @@ fun namef pre letbind ->
   let mndparams = letbind.vb_mandatories in
   let optparams = letbind.vb_optionals in
 
-  let (ty1, e0, (lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)) =
+  let (ty1, e0, ibinders) =
 
    (* First, add local type/row parameters at level `levS`. *)
     let pre =
@@ -1866,16 +1874,7 @@ fun namef pre letbind ->
     in
 
    (* Second, add local value parameters at level `levS`. *)
-    let (tyenv, tys, lnames) = add_ordered_parameters_to_type_environment pre ordparams in
-    let (tyenv, mndlabmap, mndnamemap) =
-      add_labeled_mandatory_parameters_to_type_environment { pre with tyenv } mndparams
-    in
-    let (tyenv, optlabmap, optnamemap) =
-      add_labeled_optional_parameters_to_type_environment { pre with tyenv } optparams
-    in
-    let output_info = (lnames, optlabmap, optnamemap, mndlabmap, mndnamemap) in
-    let domain = {ordered = tys; mandatory = mndlabmap; optional = FixedRow(optlabmap)} in
-    let pre = { pre with tyenv } in
+    let (pre, domain, ibinders) = add_parameters_to_type_environment pre (ordparams, mndparams, optparams) in
 
     (* Finally, typecheck the body expression. *)
     match letbind.vb_return with
@@ -1886,7 +1885,7 @@ fun namef pre letbind ->
           unify ty0 ty0_expected
         ) |> Option.value ~default:();
         let ty1 = (rngv, FuncType(domain, ty0)) in
-        (ty1, e0, output_info)
+        (ty1, e0, ibinders)
 
     | Effectful((tyretopt, utcomp0)) ->
         let ((eff0, ty0), e0) = typecheck_computation pre utcomp0 in
@@ -1897,10 +1896,9 @@ fun namef pre letbind ->
           unify ty0 ty2_expected
         ) |> Option.value ~default:();
         let ty1 = (rngv, EffType(domain, eff0, ty0)) in
-        (ty1, e0, output_info)
+        (ty1, e0, ibinders)
   in
-  let e1 = ILambda(None, lnames, mndnamemap, optnamemap, e0) in
-
+  let e1 = ilambda ibinders e0 in
   let pty1 =
     match TypeConv.generalize pre.level ty1 with
     | Ok(pty1)             -> pty1
@@ -1943,7 +1941,7 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
   let mndparams = letbind.vb_mandatories in
   let optparams = letbind.vb_optionals in
 
-  let (ty1, e0, (lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)) =
+  let (ty1, e0, ibinders) =
     (* First, add local type/row parameters at level `levS`. *)
     let pre =
       let (pre, assoc) = make_type_parameter_assoc pre letbind.vb_forall in
@@ -1953,18 +1951,7 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
     in
 
     (* Second, add local value parameters at level `levS`. *)
-    let (tyenv, tys, lnames) =
-      add_ordered_parameters_to_type_environment pre ordparams
-    in
-    let (tyenv, mndlabmap, mndnamemap) =
-      add_labeled_mandatory_parameters_to_type_environment { pre with tyenv } mndparams
-    in
-    let (tyenv, optlabmap, optnamemap) =
-      add_labeled_optional_parameters_to_type_environment { pre with tyenv } optparams
-    in
-    let output_info = (lnames, optlabmap, optnamemap, mndlabmap, mndnamemap) in
-    let domain = {ordered = tys; mandatory = mndlabmap; optional = FixedRow(optlabmap)} in
-    let pre = { pre with tyenv } in
+    let (pre, domain, ibinders) = add_parameters_to_type_environment pre (ordparams, mndparams, optparams) in
 
     (* Finally, typecheck the body expression. *)
     match letbind.vb_return with
@@ -1975,7 +1962,7 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
           unify ty0 ty0_expected
         ) |> Option.value ~default:();
         let ty1 = (rngv, FuncType(domain, ty0)) in
-        (ty1, e0, output_info)
+        (ty1, e0, ibinders)
 
     | Effectful((tyretopt, utcomp0)) ->
         let ((eff0, ty0), e0) = typecheck_computation pre utcomp0 in
@@ -1986,9 +1973,9 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
           unify ty0 ty2_expected
         ) |> Option.value ~default:();
         let ty1 = (rngv, EffType(domain, eff0, ty0)) in
-        (ty1, e0, output_info)
+        (ty1, e0, ibinders)
   in
-  let e1 = ILambda(None, lnames, mndnamemap, optnamemap, e0) in
+  let e1 = ilambda ibinders e0 in
   unify ty1 tyf;
   let ptyf =
     match TypeConv.generalize pre.level ty1 with
