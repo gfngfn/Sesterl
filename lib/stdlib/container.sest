@@ -45,7 +45,7 @@ module Stdlib :> sig
       fun($response, $state) -> [$msg]reply<$msg, $response, $state>
 
     val reply_fast<$msg, $response, $state> :
-      fun($response, -rest [$msg]$state) -> [$msg]reply<$msg, $response, $state>
+      fun($response, -rest fun() -> [$msg]$state) -> [$msg]reply<$msg, $response, $state>
 
     type no_reply :: (o) -> o
 
@@ -86,7 +86,7 @@ module Stdlib :> sig
 
     module Static : sig
       type child_proc :: o
-      val make_child_proc<$a, $b> : fun([$b]option<pid<$a>>) -> child_proc
+      val make_child_proc<$a, $b> : fun(fun() -> [$b]option<pid<$a>>) -> child_proc
       type child_spec :: (o) -> o
       val make_child_spec<$id> :
         fun(
@@ -122,7 +122,7 @@ module Stdlib :> sig
 
     module Dynamic : sig
       type child_proc :: (o) -> o
-      val make_child_proc<$b, $child_msg> : fun([$b]option<pid<$child_msg>>) -> child_proc<$child_msg>
+      val make_child_proc<$b, $child_msg> : fun(fun() -> [$b]option<pid<$child_msg>>) -> child_proc<$child_msg>
       type child_spec :: (o, o, o) -> o
       val make_child_spec<$msg, $arg, $child_msg> :
         fun(
