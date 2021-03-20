@@ -1,0 +1,96 @@
+module SampleSupUsage = struct
+
+  module Sup :> sig
+    type proc
+    val start_link<$a> : fun(unit) -> [$a]option<proc>
+  end = struct
+
+    module G = Stdlib.GenServer
+    module S = Stdlib.Supervisor.Static
+
+    module Child1 = struct
+
+      module Callback = struct
+        type init_arg = int
+        type request = Get
+        type response = Got(int)
+        type cast_message = Set(int)
+        type info = unit
+        type state = int
+
+        val init(n) = act
+          G.init_ok(n)
+
+        val handle_call(request, from, n) = act
+          case request of
+          | Get -> G.reply(Got(n), n)
+          end
+
+        val handle_cast(msg, n) = act
+          case msg of
+          | Set(m) -> G.no_reply(m)
+          end
+
+        val handle_info(info, n) = act
+          G.no_reply(n)
+
+        val terminate(n) = act
+          return({})
+      end
+
+      include G.Make(Callback)
+    end
+
+    module SupCallback = struct
+
+      type child_id = int
+      type init_arg = unit
+      type info = unit
+
+      val start_child1(n) = act
+        S.make_child_proc(fun() -> act
+          do res <- Child1.start_link(n) in
+          let ret =
+            case res of
+            | Some(proc) -> Some(Child1.as_pid(proc))
+            | None       -> None
+            end
+          in
+          return(ret)
+        end)
+
+      val init(init_arg) = act
+        let sup_flags =
+          S.make_sup_flags(
+            ?strategy  S.OneForOne,
+            ?intensity 1,
+            ?period    5,
+          )
+        in
+        let child_specs =
+          [
+            S.make_child_spec(
+              -id    1,
+              -start (freeze start_child1(42)),
+            )
+          ]
+        in
+        S.init_ok(sup_flags, child_specs)
+    end
+
+    include S.Make(SupCallback)
+  end
+
+  val main(args) = act
+    do res <- Sup.start_link({}) in
+    case res of
+    | None ->
+        let _ = print_debug("did not start") in
+        return({})
+
+    | Some(proc) ->
+        let _ = print_debug("ok") in
+        return({})
+    end
+
+end

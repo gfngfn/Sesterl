@@ -16,14 +16,14 @@ module DynamicSupervisor = struct
   ```
 
   type child_spec<$msg, $arg, $child_msg> = {
-    start    : frozen<{$arg}, child_proc<$child_msg>>,
+    start    : frozen<{$arg}, $msg, child_proc<$child_msg>>,
     restart  : restart,
     shutdown : shutdown,
     typ      : worker,
   }
 
   val make_child_spec<$msg, $arg, $child_msg>(
-    -start    start : frozen<{$arg}, child_proc<$child_msg>>,
+    -start    start : frozen<{$arg}, $msg, child_proc<$child_msg>>,
     ?restart  restart = Permanent,
     ?shutdown shutdown_opt,
     ?type     typ = Worker,

@@ -1,0 +1,11 @@
+package: sample_sup_usage
+source_directories:
+  - "./"
+
+dependencies:
+  - name: "stdlib"
+    source:
+      type: "local"
+      directory: "../../../lib/stdlib"
+
+main_module: "SampleSupUsage"

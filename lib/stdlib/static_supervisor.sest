@@ -7,7 +7,7 @@ module StaticSupervisor = struct
 
   type child_proc = ChildProcDummy
 
-  val make_child_proc<$a, $b> : fun(fun() -> [$b]option<pid<$a>>) -> child_proc = external 1 ```
+  val make_child_proc<$a, $b, $c> : fun(fun() -> [$b]option<pid<$a>>) -> [$c]child_proc = external 1 ```
     make_child_proc(PidOptF) ->
         case PidOptF() of
             {some, Pid} -> {ok, Pid};
@@ -15,21 +15,21 @@ module StaticSupervisor = struct
         end.
   ```
 
-  type child_spec<$id> = {
+  type child_spec<$msg, $id> = {
     id       : $id,
-    start    : frozen<unit, child_proc>,
+    start    : frozen<unit, $msg, child_proc>,
     restart  : restart,
     shutdown : shutdown,
     typ      : worker,
   }
 
-  val make_child_spec<$id>(
+  val make_child_spec<$msg, $id>(
     -id       id : $id,
-    -start    start,
+    -start    start : frozen<unit, $msg, child_proc>,
     ?restart  restart = Permanent,
     ?shutdown shutdown_opt,
     ?type     typ = Worker,
-  ) : child_spec<$id> =
+  ) : child_spec<$msg, $id> =
     let shutdown =
       case {shutdown_opt, typ} of
       | {Some(shutdown), _} -> shutdown
@@ -60,9 +60,9 @@ module StaticSupervisor = struct
   ) : sup_flags =
     { strategy = strategy, intensity = intensity, period = period }
 
-  type initialized<$id> = option<{sup_flags, list<child_spec<$id>>}>
+  type initialized<$msg, $id> = option<{sup_flags, list<child_spec<$msg, $id>>}>
 
-  val init_ok<$msg, $id>(sup_flags : sup_flags, child_specs : list<child_spec<$id>>) : [$msg]initialized<$id> = act
+  val init_ok<$msg, $id>(sup_flags : sup_flags, child_specs : list<child_spec<$msg, $id>>) : [$msg]initialized<$msg, $id> = act
     return(Some({sup_flags, child_specs}))
 
   val init_fail() = act
@@ -72,7 +72,7 @@ module StaticSupervisor = struct
     type child_id :: o
     type init_arg :: o
     type info :: o
-    val init : fun(init_arg) -> [info]initialized<child_id>
+    val init : fun(init_arg) -> [info]initialized<info, child_id>
   end
 
   module Make = fun(Callback : Behaviour) -> struct
