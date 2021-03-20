@@ -142,13 +142,13 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let pty = (rngf rng, TypeVar(ptv)) in
         (bbidset, pty)
 
-    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
+    | FuncType({ordered = tydoms; mandatory = mndlabmap; optional = optrow}, tycod) ->
         let (bbidset1, ptydoms) = aux_list tydoms in
         let (bbidset2, pmndlabmap) = aux_label_assoc mndlabmap in
         let (bbidset3, poptrow) = aux_option_row optrow in
         let (bbidset4, ptycod) = aux tycod in
         let bbidset = List.fold_left BoundBothIDSet.union bbidset1 [bbidset2; bbidset3; bbidset4] in
-        let pty = (rngf rng, FuncType(ptydoms, pmndlabmap, poptrow, ptycod)) in
+        let pty = (rngf rng, FuncType({ordered = ptydoms; mandatory = pmndlabmap; optional = poptrow}, ptycod)) in
         (bbidset, pty)
 
     | EffType(eff, ty0) ->
@@ -270,7 +270,7 @@ fun intern intern_row pty ->
     | TypeVar(ptv) ->
         intern rng ptv
 
-    | FuncType(ptydoms, mndlabmap, optrow, ptycod) ->
+    | FuncType({ordered = ptydoms; mandatory = mndlabmap; optional = optrow}, ptycod) ->
         let tydoms = ptydoms |> List.map aux in
         let pmndlabmap = mndlabmap |> LabelAssoc.map aux in
         let poptrow =
@@ -283,7 +283,7 @@ fun intern intern_row pty ->
               RowVar(intern_row prv)
         in
         let tycod = aux ptycod in
-        (rng, FuncType(tydoms, pmndlabmap, poptrow, tycod))
+        (rng, FuncType({ordered = tydoms; mandatory = pmndlabmap; optional = poptrow}, tycod))
 
     | EffType(peff, pty0) ->
         let eff = aux_effect peff in
@@ -607,7 +607,7 @@ fun showtv showrv ty ->
     | BaseType(bty) ->
         show_base_type bty
 
-    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
+    | FuncType({ordered = tydoms; mandatory = mndlabmap; optional = optrow}, tycod) ->
         let sdoms = tydoms |> List.map aux in
         let sdomscat = String.concat ", " sdoms in
         let is_ord_empty = (List.length sdoms = 0) in

@@ -333,13 +333,19 @@ type ('a, 'b) typ =
 
 and ('a, 'b) typ_main =
   | BaseType    of base_type
-  | FuncType    of (('a, 'b) typ) list * (('a, 'b) typ) LabelAssoc.t * ('a, 'b) row * ('a, 'b) typ
+  | FuncType    of ('a, 'b) domain_type * ('a, 'b) typ
   | PidType     of ('a, 'b) pid_type
   | EffType     of ('a, 'b) effect * ('a, 'b) typ
   | TypeVar     of 'a
   | ProductType of (('a, 'b) typ) TupleList.t
   | DataType    of TypeID.t * (('a, 'b) typ) list
   | RecordType  of (('a, 'b) typ) LabelAssoc.t
+
+and ('a, 'b) domain_type = {
+  ordered   : (('a, 'b) typ) list;
+  mandatory : (('a, 'b) typ) LabelAssoc.t;
+  optional  : ('a, 'b) row;
+}
 
 and ('a, 'b) effect =
   | Effect of ('a, 'b) typ

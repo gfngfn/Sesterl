@@ -55,7 +55,17 @@ let b = (dr, BaseType(BoolType))
 let i = (dr, BaseType(IntType))
 let f = (dr, BaseType(FloatType))
 let c = (dr, BaseType(CharType))
-let ( @-> ) tydoms tycod = (dr, FuncType(tydoms, LabelAssoc.empty, FixedRow(LabelAssoc.empty), tycod))
+
+let ( @-> ) tydoms tycod =
+  let domain =
+    {
+      ordered   = tydoms;
+      mandatory = LabelAssoc.empty;
+      optional  = FixedRow(LabelAssoc.empty);
+    }
+  in
+  (dr, FuncType(domain, tycod))
+
 let eff tyrcv ty0 = (dr, EffType(Effect(tyrcv), ty0))
 let pid tyrcv = (dr, PidType(Pid(tyrcv)))
 

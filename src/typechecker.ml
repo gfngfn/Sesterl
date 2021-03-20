@@ -304,7 +304,7 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     | BaseType(_) ->
         false
 
-    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
+    | FuncType({ordered = tydoms; mandatory = mndlabmap; optional = optrow}, tycod) ->
         let b1 = aux_list tydoms in
         let bmnd = aux_label_assoc mndlabmap in
         let bopt = aux_option_row optrow in
@@ -385,7 +385,7 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
     | BaseType(_) ->
         false
 
-    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
+    | FuncType({ordered = tydoms; mandatory = mndlabmap; optional = optrow}, tycod) ->
         let b1 = aux_list tydoms in
         let bmnd = aux_label_assoc mndlabmap in
         let bopt = aux_option_row optrow in
@@ -450,7 +450,7 @@ fun tyidp tvp oidset ->
     | EffType(tyeff, tysub)   -> aux_effect tyeff || aux tysub
     | ProductType(tys)        -> tys |> TupleList.to_list |> List.exists aux
 
-    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
+    | FuncType({ordered = tydoms; mandatory = mndlabmap; optional = optrow}, tycod) ->
         List.exists aux tydoms || aux_label_assoc mndlabmap || aux_option_row optrow || aux tycod
 
     | DataType(tyid, tyargs) ->
@@ -587,7 +587,8 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
     | (BaseType(bt1), BaseType(bt2)) ->
         if bt1 = bt2 then Consistent else Contradiction
 
-    | (FuncType(ty1doms, mndlabmap1, optrow1, ty1cod), FuncType(ty2doms, mndlabmap2, optrow2, ty2cod)) ->
+    | (FuncType({ordered = ty1doms; mandatory = mndlabmap1; optional = optrow1}, ty1cod),
+       FuncType({ordered = ty2doms; mandatory = mndlabmap2; optional = optrow2}, ty2cod)) ->
         let res1 = aux_list ty1doms ty2doms in
         let resmnd = aux_label_assoc_exact mndlabmap1 mndlabmap2 in
         let resopt = aux_option_row optrow1 optrow2 in
@@ -1023,7 +1024,7 @@ and decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_t
       | MFuncType(mtydoms, mndlabmtys, mrow, mtycod) ->
           let mndlabmap = aux_labeled_list mndlabmtys in
           let optrow = aux_row mrow in
-          FuncType(List.map aux mtydoms, mndlabmap, optrow, aux mtycod)
+          FuncType({ordered = List.map aux mtydoms; mandatory = mndlabmap; optional = optrow}, aux mtycod)
 
       | MProductType(mtys) ->
           ProductType(TupleList.map aux mtys)
@@ -1265,7 +1266,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         add_labeled_optional_parameters_to_type_environment { pre with tyenv } optbinders
       in
       let (tycod, e0) = typecheck { pre with tyenv } utast0 in
-      let ty = (rng, FuncType(tydoms, mndlabmap, FixedRow(optlabmap), tycod)) in
+      let ty = (rng, FuncType({ordered = tydoms; mandatory = mndlabmap; optional = FixedRow(optlabmap)}, tycod)) in
       (ty, ilambda ordnames mndnamemap optnamemap e0)
 
   | Apply(utastfun, utastargs, mndutastargs, optutastargs) ->
@@ -1320,7 +1321,8 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       in
       let tyargsall = List.append tyargs tyrests in
       let tyret = fresh_type_variable ~name:"Freeze, ret" pre.level UniversalKind rng in
-      unify tyfun (Range.dummy "Freeze1", FuncType(tyargsall, LabelAssoc.empty, FixedRow(LabelAssoc.empty), tyret));
+      let domain = {ordered = tyargsall; mandatory = LabelAssoc.empty; optional = FixedRow(LabelAssoc.empty)} in
+      unify tyfun (Range.dummy "Freeze1", FuncType(domain, tyret));
       let tyrest =
         let dr = Range.dummy "Freeze2" in
         match tyrests with
@@ -1674,7 +1676,7 @@ and typecheck_application (pre : pre) (rng : Range.t) utastargs mndutastargs opt
     let mrvu = ref (FreeRow(frid)) in
     RowVar(UpdatableRow(mrvu))
   in
-  unify tyfun (Range.dummy "Apply", FuncType(tyargs, mndlabmap, optrow, tyret));
+  unify tyfun (Range.dummy "Apply", FuncType({ordered = tyargs; mandatory = mndlabmap; optional = optrow}, tyret));
   (tyret, optrow, eargs, mndargmap, optargmap)
 
 
@@ -1826,7 +1828,7 @@ fun namef pre letbind ->
     ) |> Option.value ~default:();
     (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)
   in
-  let ty1 = (rngv, FuncType(tys, mndlabmap, FixedRow(optlabmap), ty0)) in
+  let ty1 = (rngv, FuncType({ordered = tys; mandatory = mndlabmap; optional = FixedRow(optlabmap)}, ty0)) in
   let e1 = ILambda(None, lnames, mndnamemap, optnamemap, e0) in
 
   let pty1 =
@@ -1901,7 +1903,7 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
     ) |> Option.value ~default:();
     (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)
   in
-  let ty1 = (rngv, FuncType(tys, mndlabmap, FixedRow(optlabmap), ty0)) in
+  let ty1 = (rngv, FuncType({ordered = tys; mandatory = mndlabmap; optional = FixedRow(optlabmap)}, ty0)) in
   let e1 = ILambda(None, lnames, mndnamemap, optnamemap, e0) in
   unify ty1 tyf;
   let ptyf =
@@ -1970,7 +1972,8 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
     | (BaseType(bt1), BaseType(bt2)) ->
         bt1 = bt2
 
-    | (FuncType(ptydoms1, mndlabmap1, poptrow1, ptycod1), FuncType(ptydoms2, mndlabmap2, poptrow2, ptycod2)) ->
+    | (FuncType({ordered = ptydoms1; mandatory = mndlabmap1; optional = poptrow1}, ptycod1),
+       FuncType({ordered = ptydoms2; mandatory = mndlabmap2; optional = poptrow2}, ptycod2)) ->
         let b1 = aux_list ptydoms1 ptydoms2 in
         let bmnd = aux_label_assoc mndlabmap1 mndlabmap2 in
         let bopt = subtype_option_row wtmap internbid internbrid poptrow1 poptrow2 in
@@ -2240,7 +2243,8 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
     | (BaseType(bty1), BaseType(bty2)) ->
         bty1 = bty2
 
-    | (FuncType(pty1doms, pmndlabmap1, poptrow1, pty1cod), FuncType(pty2doms, pmndlabmap2, poptrow2, pty2cod)) ->
+    | (FuncType({ordered = pty1doms; mandatory = pmndlabmap1; optional = poptrow1}, pty1cod),
+       FuncType({ordered = pty2doms; mandatory = pmndlabmap2; optional = poptrow2}, pty2cod)) ->
         aux_list pty1doms pty2doms && aux_label_assoc pmndlabmap1 pmndlabmap2 && aux_option_row poptrow1 poptrow2 && aux pty1cod pty2cod
 
     | (EffType(peff1, ptysub1), EffType(peff2, ptysub2)) ->
@@ -2751,8 +2755,15 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
       | TypeVar(_)                -> ptymain
       | ProductType(ptys)         -> ProductType(ptys |> TupleList.map aux)
 
-      | FuncType(ptydoms, pmndlabmap, poptrow, ptycod) ->
-          FuncType(ptydoms |> List.map aux, pmndlabmap |> LabelAssoc.map aux, aux_option_row poptrow, aux ptycod)
+      | FuncType({ordered = ptydoms; mandatory = pmndlabmap; optional = poptrow}, ptycod) ->
+          let domain =
+            {
+              ordered   = ptydoms |> List.map aux;
+              mandatory = pmndlabmap |> LabelAssoc.map aux;
+              optional  = aux_option_row poptrow;
+            }
+          in
+          FuncType(domain, aux ptycod)
 
       | RecordType(labmap) ->
           RecordType(labmap |> LabelAssoc.map aux)
