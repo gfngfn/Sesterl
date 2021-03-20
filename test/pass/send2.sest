@@ -1,0 +1,38 @@
+module Send2 = struct
+
+  val some_heavy_calculation(n) =
+    n
+
+  val rec wait_all(msgacc, n) = act
+    if n <= 0 then
+      return(msgacc)
+    else
+      receive
+      | {pid, msg} ->
+          let _ = print_debug(format(f'message ~p received from: ~p~n', {msg, pid})) in
+          wait_all(msg :: msgacc, n - 1)
+      end
+
+  val rec spawn_all(pidacc, n) = act
+    if n <= 0 then
+      return(pidacc)
+    else
+      do parent <- self() in
+      do pid <-
+        spawn(fun() -> act
+          do me <- self() in
+          let msg = some_heavy_calculation(n) in
+          send(parent, {me, msg})
+        end)
+      in
+      spawn_all(pid :: pidacc, n - 1)
+
+  val main(arg) = act
+    let n = 10 in
+    do pids <- spawn_all([], n) in
+    let _ = print_debug(format(f'spawned: ~p~n', {pids})) in
+    do msgs <- wait_all([], n) in
+    let _ = print_debug(msgs) in
+    return({})
+
+end
