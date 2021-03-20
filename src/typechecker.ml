@@ -225,7 +225,7 @@ let (&&&) res1 res2 =
   | _               -> res1
 
 
-let iapply (efun : ast) (mrow : mono_row) (eargs : ast list) (mndargmap : ast LabelAssoc.t) (optargmap : ast LabelAssoc.t) : ast =
+let iapply (efun : ast) (mrow : mono_row) ((eargs, mndargmap, optargmap) : ast list * ast LabelAssoc.t * ast LabelAssoc.t) : ast =
   match efun with
   | IVar(name) ->
       IApply(name, mrow, eargs, mndargmap, optargmap)
@@ -235,20 +235,12 @@ let iapply (efun : ast) (mrow : mono_row) (eargs : ast list) (mndargmap : ast La
       ILetIn(lname, efun, IApply(OutputIdentifier.Local(lname), mrow, eargs, mndargmap, optargmap))
 
 
-let ilambda (ordnames : local_name list) (mndnamemap : local_name LabelAssoc.t) (optnamemap : (local_name * ast option) LabelAssoc.t) (e0 : ast) : ast =
+let ilambda ((ordnames, mndnamemap, optnamemap) : local_name list * local_name LabelAssoc.t * (local_name * ast option) LabelAssoc.t) (e0 : ast) : ast =
   ILambda(None, ordnames, mndnamemap, optnamemap, e0)
 
 
-let ithunk (e : ast) : ast =
-  IThunk(e)
-
-
-let iforce (e : ast) : ast =
-  IForce(e)
-
-
 let iletpatin (ipat : pattern) (e1 : ast) (e2 : ast) : ast =
-  ICase(e1, [ IBranch(ipat, None, e2) ])
+  ICase(e1, [ IBranch(ipat, e2) ])
 
 
 let iletrecin_single (_, _, name_outer, name_inner, e1) (e2 : ast) : ast =
@@ -285,8 +277,10 @@ let iletrecin_multiple (binds : (identifier * poly_type * local_name * local_nam
     IPTuple(binds |> TupleList.map (fun (_, _, name_outer, _, _) -> IPVar(name_outer)))
   in
   iletpatin ipat_outer_tuple
-    (iapply (ILambda(Some(name_for_whole_rec), [], LabelAssoc.empty, LabelAssoc.empty, ITuple(tuple_entries)))
-      (FixedRow(LabelAssoc.empty)) [] LabelAssoc.empty LabelAssoc.empty)
+    (iapply
+      (ILambda(Some(name_for_whole_rec), [], LabelAssoc.empty, LabelAssoc.empty, ITuple(tuple_entries)))
+      (FixedRow(LabelAssoc.empty))
+      ([], LabelAssoc.empty, LabelAssoc.empty))
     e2
 
 
@@ -304,12 +298,10 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     | BaseType(_) ->
         false
 
-    | FuncType({ordered = tydoms; mandatory = mndlabmap; optional = optrow}, tycod) ->
-        let b1 = aux_list tydoms in
-        let bmnd = aux_label_assoc mndlabmap in
-        let bopt = aux_option_row optrow in
-        let b2 = aux tycod in
-        b1 || bmnd || bopt || b2
+    | FuncType(domain, tycod) ->
+        let bdom = aux_domain domain in
+        let bcod = aux tycod in
+        bdom || bcod
           (* Must not be short-circuit due to the level inference. *)
 
     | ProductType(tys) ->
@@ -321,10 +313,11 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     | DataType(_tyid, tyargs) ->
         aux_list tyargs
 
-    | EffType(eff, ty0) ->
+    | EffType(domain, eff, ty0) ->
+        let bdom = aux_domain domain in
         let beff = aux_effect eff in
         let b0 = aux ty0 in
-        beff || b0
+        bdom || beff || b0
           (* Must not be short-circuit due to the level inference. *)
 
     | PidType(pidty) ->
@@ -345,6 +338,13 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
 
     | TypeVar(MustBeBound(_)) ->
         false
+
+  and aux_domain (domain : mono_domain_type) : bool =
+    let {ordered = tydoms; mandatory = mndlabmap; optional = optrow} = domain in
+    let b1 = aux_list tydoms in
+    let bmnd = aux_label_assoc mndlabmap in
+    let bopt = aux_option_row optrow in
+    b1 || bmnd || bopt
 
   and aux_effect (Effect(ty)) =
     aux ty
@@ -385,21 +385,21 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
     | BaseType(_) ->
         false
 
-    | FuncType({ordered = tydoms; mandatory = mndlabmap; optional = optrow}, tycod) ->
-        let b1 = aux_list tydoms in
-        let bmnd = aux_label_assoc mndlabmap in
-        let bopt = aux_option_row optrow in
-        let b2 = aux tycod in
-        b1 || bmnd || bopt || b2
+    | FuncType(domain, tycod) ->
+        let bdom = aux_domain domain in
+        let bcod = aux tycod in
+        bdom || bcod
           (* Must not be short-circuit due to the level inference. *)
 
     | PidType(pidty) ->
         aux_pid pidty
 
-    | EffType(effty, ty0) ->
+    | EffType(domain, effty, ty0) ->
+        let bdom = aux_domain domain in
         let beff = aux_effect effty in
         let b0 = aux ty0 in
-        beff || b0
+        bdom || beff || b0
+          (* Must not be short-circuit due to the level inference. *)
 
     | TypeVar(_) ->
         false
@@ -412,6 +412,13 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
 
     | DataType(_tyid, tyargs) ->
         aux_list tyargs
+
+  and aux_domain (domain : mono_domain_type) =
+    let {ordered = tydoms; mandatory = mndlabmap; optional = optrow} = domain in
+    let b1 = aux_list tydoms in
+    let bmnd = aux_label_assoc mndlabmap in
+    let bopt = aux_option_row optrow in
+    b1 || bmnd || bopt
 
   and aux_pid (Pid(ty)) =
     aux ty
@@ -447,11 +454,13 @@ fun tyidp tvp oidset ->
     match ptymain with
     | BaseType(_)             -> false
     | PidType(typid)          -> aux_pid typid
-    | EffType(tyeff, tysub)   -> aux_effect tyeff || aux tysub
     | ProductType(tys)        -> tys |> TupleList.to_list |> List.exists aux
 
-    | FuncType({ordered = tydoms; mandatory = mndlabmap; optional = optrow}, tycod) ->
-        List.exists aux tydoms || aux_label_assoc mndlabmap || aux_option_row optrow || aux tycod
+    | EffType(domain, tyeff, tysub) ->
+        aux_domain domain || aux_effect tyeff || aux tysub
+
+    | FuncType(domain, tycod) ->
+        aux_domain domain || aux tycod
 
     | DataType(tyid, tyargs) ->
         tyidp oidset tyid || List.exists aux tyargs
@@ -461,6 +470,10 @@ fun tyidp tvp oidset ->
 
     | TypeVar(tv) ->
         tvp tv
+
+  and aux_domain domain =
+    let {ordered = tydoms; mandatory = mndlabmap; optional = optrow} = domain in
+    List.exists aux tydoms || aux_label_assoc mndlabmap || aux_option_row optrow
 
   and aux_pid = function
     | Pid(ty) -> aux ty
@@ -547,10 +560,8 @@ let label_assoc_union =
   LabelAssoc.union (fun _ _ ty2 -> Some(ty2))
 
 
-let unify (tyact : mono_type) (tyexp : mono_type) : unit =
-(*
-  Format.printf "UNIFY %a =?= %a\n" pp_mono_type tyact pp_mono_type tyexp; (* for debug *)
-*)
+module Unification = struct
+
   let rec aux (ty1 : mono_type) (ty2 : mono_type) : unification_result =
     let (_, ty1main) = ty1 in
     let (_, ty2main) = ty2 in
@@ -587,18 +598,16 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
     | (BaseType(bt1), BaseType(bt2)) ->
         if bt1 = bt2 then Consistent else Contradiction
 
-    | (FuncType({ordered = ty1doms; mandatory = mndlabmap1; optional = optrow1}, ty1cod),
-       FuncType({ordered = ty2doms; mandatory = mndlabmap2; optional = optrow2}, ty2cod)) ->
-        let res1 = aux_list ty1doms ty2doms in
-        let resmnd = aux_label_assoc_exact mndlabmap1 mndlabmap2 in
-        let resopt = aux_option_row optrow1 optrow2 in
-        let res2 = aux ty1cod ty2cod in
-        res1 &&& resmnd &&& resopt &&& res2
+    | (FuncType(domain1, ty1cod), FuncType(domain2, ty2cod)) ->
+        let resdom = aux_domain domain1 domain2 in
+        let rescod = aux ty1cod ty2cod in
+        resdom &&& rescod
 
-    | (EffType(eff1, tysub1), EffType(eff2, tysub2)) ->
+    | (EffType(domain1, eff1, tysub1), EffType(domain2, eff2, tysub2)) ->
+        let resdom = aux_domain domain1 domain2 in
         let reseff = aux_effect eff1 eff2 in
         let ressub = aux tysub1 tysub2 in
-        reseff &&& ressub
+        resdom &&& reseff &&& ressub
 
     | (PidType(pidty1), PidType(pidty2)) ->
         aux_pid_type pidty1 pidty2
@@ -691,6 +700,14 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
       ) Consistent tys1 tys2
     with
     | Invalid_argument(_) -> Contradiction
+
+  and aux_domain domain1 domain2 =
+    let {ordered = ty1doms; mandatory = mndlabmap1; optional = optrow1} = domain1 in
+    let {ordered = ty2doms; mandatory = mndlabmap2; optional = optrow2} = domain2 in
+    let res1 = aux_list ty1doms ty2doms in
+    let resmnd = aux_label_assoc_exact mndlabmap1 mndlabmap2 in
+    let resopt = aux_option_row optrow1 optrow2 in
+    res1 &&& resmnd &&& resopt
 
   and aux_effect (Effect(ty1)) (Effect(ty2)) =
     aux ty1 ty2
@@ -811,8 +828,23 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
       | Consistent -> aux ty1 ty2
       | _          -> res
     ) intersection Consistent
-  in
-  let res = aux tyact tyexp in
+
+end
+
+let unify (tyact : mono_type) (tyexp : mono_type) : unit =
+(*
+  Format.printf "UNIFY %a =?= %a\n" pp_mono_type tyact pp_mono_type tyexp; (* for debug *)
+*)
+  let res = Unification.aux tyact tyexp in
+  match res with
+  | Consistent         -> ()
+  | Contradiction      -> raise_error (ContradictionError(tyact, tyexp))
+  | Inclusion(fid)     -> raise_error (InclusionError(fid, tyact, tyexp))
+  | InclusionRow(frid) -> raise_error (InclusionRowError(frid, tyact, tyexp))
+
+
+let unify_effect (Effect(tyact) : mono_effect) (Effect(tyexp) : mono_effect) : unit =
+  let res = Unification.aux tyact tyexp in
   match res with
   | Consistent         -> ()
   | Contradiction      -> raise_error (ContradictionError(tyact, tyexp))
@@ -855,6 +887,21 @@ let generate_global_name ~arity:(arity : int) ~has_option:(has_option : bool) (r
   match OutputIdentifier.generate_global x ~arity:arity ~has_option:has_option with
   | None        -> raise_error (InvalidIdentifier(rng, x))
   | Some(gname) -> gname
+
+
+let local_name_scheme letbind =
+  let (rngv, x) = letbind.vb_identifier in
+  let lname_inner = generate_local_name rngv x in
+  let lname_outer = OutputIdentifier.fresh () in
+  (lname_inner, lname_outer)
+
+
+let global_name_scheme valbind =
+  let arity = List.length valbind.vb_parameters + List.length valbind.vb_mandatories in
+  let has_option = (List.length valbind.vb_optionals > 0) in
+  let (rngv, x) = valbind.vb_identifier in
+  let gname = generate_global_name ~arity:arity ~has_option:has_option rngv x in
+  (gname, gname)
 
 
 let types_of_format (lev : int) (fmtelems : format_element list) : mono_type list =
@@ -1021,7 +1068,7 @@ and decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_t
                   invalid rng tynm ~expect:len_expected ~actual:len_actual
           end
 
-      | MFuncType(mtydoms, mndlabmtys, mrow, mtycod) ->
+      | MFuncType((mtydoms, mndlabmtys, mrow), mtycod) ->
           let mndlabmap = aux_labeled_list mndlabmtys in
           let optrow = aux_row mrow in
           FuncType({ordered = List.map aux mtydoms; mandatory = mndlabmap; optional = optrow}, aux mtycod)
@@ -1033,8 +1080,11 @@ and decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_t
           let labmap = aux_labeled_list labmtys in
           RecordType(labmap)
 
-      | MEffType(mty1, mty2) ->
-          EffType(Effect(aux mty1), aux mty2)
+      | MEffType((mtydoms, mndlabmtys, mrow), mty1, mty2) ->
+          let mndlabmap = aux_labeled_list mndlabmtys in
+          let optrow = aux_row mrow in
+          let domain = {ordered = List.map aux mtydoms; mandatory = mndlabmap; optional = optrow} in
+          EffType(domain, Effect(aux mty1), aux mty2)
 
       | MTypeVar(typaram) ->
           begin
@@ -1181,7 +1231,7 @@ and decode_parameter (pre : pre) (binder : binder) =
   (x, tydom, lname)
 
 
-and add_parameters_to_type_environment (pre : pre) (binders : binder list) : Typeenv.t * mono_type list * local_name list =
+and add_ordered_parameters_to_type_environment (pre : pre) (binders : binder list) : Typeenv.t * mono_type list * local_name list =
   let (tyenv, lnameacc, tydomacc) =
     List.fold_left (fun (tyenv, lnameacc, ptydomacc) binder ->
       let (x, tydom, lname) = decode_parameter pre binder in
@@ -1235,6 +1285,22 @@ and add_labeled_mandatory_parameters_to_type_environment (pre : pre) (mndbinders
   ) (pre.tyenv, LabelAssoc.empty, LabelAssoc.empty)
 
 
+and add_parameters_to_type_environment (pre : pre) ((ordbinders, mndbinders, optbinders) : untyped_parameters) =
+  let (tyenv, tydoms, ordnames) =
+    add_ordered_parameters_to_type_environment pre ordbinders
+  in
+  let (tyenv, mndlabmap, mndnamemap) =
+    add_labeled_mandatory_parameters_to_type_environment { pre with tyenv } mndbinders
+  in
+  let (tyenv, optlabmap, optnamemap) =
+    add_labeled_optional_parameters_to_type_environment { pre with tyenv } optbinders
+  in
+  let pre = { pre with tyenv } in
+  let domain = {ordered = tydoms; mandatory = mndlabmap; optional = FixedRow(optlabmap)} in
+  let ibinders = (ordnames, mndnamemap, optnamemap) in
+  (pre, domain, ibinders)
+
+
 and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   match utastmain with
   | BaseConst(bc) ->
@@ -1255,26 +1321,24 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             (ty, IVar(name))
       end
 
-  | Lambda(ordbinders, mndbinders, optbinders, utast0) ->
-      let (tyenv, tydoms, ordnames) =
-        add_parameters_to_type_environment pre ordbinders
-      in
-      let (tyenv, mndlabmap, mndnamemap) =
-        add_labeled_mandatory_parameters_to_type_environment { pre with tyenv } mndbinders
-      in
-      let (tyenv, optlabmap, optnamemap) =
-        add_labeled_optional_parameters_to_type_environment { pre with tyenv } optbinders
-      in
-      let (tycod, e0) = typecheck { pre with tyenv } utast0 in
-      let ty = (rng, FuncType({ordered = tydoms; mandatory = mndlabmap; optional = FixedRow(optlabmap)}, tycod)) in
-      (ty, ilambda ordnames mndnamemap optnamemap e0)
+  | Lambda(binders, utast0) ->
+      let (pre, domain, ibinders) = add_parameters_to_type_environment pre binders in
+      let (tycod, e0) = typecheck pre utast0 in
+      let ty = (rng, FuncType(domain, tycod)) in
+      (ty, ilambda ibinders e0)
 
-  | Apply(utastfun, utastargs, mndutastargs, optutastargs) ->
+  | LambdaEff(binders, utcomp0) ->
+      let (pre, domain, ibinders) = add_parameters_to_type_environment pre binders in
+      let ((eff, ty0), e0) = typecheck_computation pre utcomp0 in
+      let ty = (rng, EffType(domain, eff, ty0)) in
+      (ty, ilambda ibinders e0)
+
+  | Apply(utastfun, utargs) ->
       let (tyfun, efun) = typecheck pre utastfun in
-      let (tyret, optrow, eargs, mndargmap, optargmap) =
-        typecheck_application pre rng utastargs mndutastargs optutastargs tyfun
-      in
-      (tyret, iapply efun optrow eargs mndargmap optargmap)
+      let (domain, optrow, iargs) = typecheck_arguments pre rng utargs in
+      let tyret = fresh_type_variable ~name:"(Apply)" pre.level UniversalKind rng in
+      unify tyfun (Range.dummy "Apply", FuncType(domain, tyret));
+      (tyret, iapply efun optrow iargs)
 
   | Freeze(rngapp, frozenfun, utastargs, restrngs) ->
       let (ptyfun, gname) =
@@ -1320,16 +1384,19 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         )
       in
       let tyargsall = List.append tyargs tyrests in
+
+      let tyrecv = fresh_type_variable ~name:"Freeze, recv" pre.level UniversalKind rng in
+      let eff = Effect(tyrecv) in
       let tyret = fresh_type_variable ~name:"Freeze, ret" pre.level UniversalKind rng in
       let domain = {ordered = tyargsall; mandatory = LabelAssoc.empty; optional = FixedRow(LabelAssoc.empty)} in
-      unify tyfun (Range.dummy "Freeze1", FuncType(domain, tyret));
+      unify tyfun (Range.dummy "Freeze1", EffType(domain, eff, tyret));
       let tyrest =
         let dr = Range.dummy "Freeze2" in
         match tyrests with
         | []        -> (dr, BaseType(UnitType))
         | ty :: tys -> (dr, ProductType(TupleList.make ty tys))
       in
-      (Primitives.frozen_type rng tyrest tyret, IFreeze(gname, eargs))
+      (Primitives.frozen_type rng ~rest:tyrest ~receive:tyrecv ~return:tyret, IFreeze(gname, eargs))
 
   | FreezeUpdate(utast0, utastargs, restrngs) ->
       let (ty0, e0) = typecheck pre utast0 in
@@ -1341,6 +1408,9 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
           fresh_type_variable ~name:"FreezeUpdate, rest1" pre.level UniversalKind restrng
         )
       in
+      let tyrecv =
+        fresh_type_variable ~name:"FreezeUpdate, recv" pre.level UniversalKind (Range.dummy "FreezeUpdate, recv")
+      in
       let tyret =
         fresh_type_variable ~name:"FreezeUpdate, ret" pre.level UniversalKind (Range.dummy "FreezeUpdate, ret")
       in
@@ -1351,7 +1421,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
           | []        -> (dr, BaseType(UnitType))
           | ty :: tys -> (dr, ProductType(TupleList.make ty tys))
         in
-        Primitives.frozen_type (Range.dummy "FreezeUpdate") tyrest_expected tyret
+        Primitives.frozen_type (Range.dummy "FreezeUpdate") ~rest:tyrest_expected ~receive:tyrecv ~return:tyret
       in
       unify ty0 ty_expected;
       let tyrest =
@@ -1360,7 +1430,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         | []        -> (dr, BaseType(UnitType))
         | ty :: tys -> (dr, ProductType(TupleList.make ty tys))
       in
-      (Primitives.frozen_type rng tyrest tyret, IFreezeUpdate(e0, eargs))
+      (Primitives.frozen_type rng ~rest:tyrest ~receive:tyrecv ~return:tyret, IFreezeUpdate(e0, eargs))
 
 
   | If(utast0, utast1, utast2) ->
@@ -1369,7 +1439,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let (ty1, e1) = typecheck pre utast1 in
       let (ty2, e2) = typecheck pre utast2 in
       unify ty1 ty2;
-      let ibranches = [ IBranch(IPBool(true), None, e1); IBranch(IPBool(false), None, e2) ] in
+      let ibranches = [ IBranch(IPBool(true), e1); IBranch(IPBool(false), e2) ] in
       (ty1, ICase(e0, ibranches))
 
   | LetIn(NonRec(letbind), utast2) ->
@@ -1382,14 +1452,8 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       (ty2, ILetIn(lname, e1, e2))
 
   | LetIn(Rec(letbinds), utast2) ->
-      let namesf letbind =
-        let (rngv, x) = letbind.vb_identifier in
-        let lname_inner = generate_local_name rngv x in
-        let lname_outer = OutputIdentifier.fresh () in
-        (lname_inner, lname_outer)
-      in
       let proj lname = OutputIdentifier.Local(lname) in
-      let binds = typecheck_letrec_mutual namesf proj pre letbinds in
+      let binds = typecheck_letrec_mutual local_name_scheme proj pre letbinds in
       let (ty2, e2) =
         let tyenv =
           binds |> List.fold_left (fun tyenv (x, pty, lname_outer, _, _) ->
@@ -1399,42 +1463,6 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         typecheck { pre with tyenv } utast2
       in
       (ty2, iletrecin binds e2)
-
-  | Do(identopt, utast1, utast2) ->
-      let lev = pre.level in
-      let (ty1, e1) = typecheck pre utast1 in
-      let (tyx, tyenv, lname) =
-        match identopt with
-        | None ->
-            ((Range.dummy "do-unit", BaseType(UnitType)), pre.tyenv, OutputIdentifier.unused)
-
-        | Some(((rngv, x), _) as binder) ->
-            let tyx = decode_type_annotation_or_fresh pre binder in
-            let lname = generate_local_name rngv x in
-            (tyx, pre.tyenv |> Typeenv.add_val x (TypeConv.lift tyx) (OutputIdentifier.Local(lname)), lname)
-      in
-      let tyrecv = fresh_type_variable lev UniversalKind (Range.dummy "do-recv") in
-      unify ty1 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tyx));
-      let (ty2, e2) = typecheck { pre with tyenv } utast2 in
-      let tysome = fresh_type_variable lev UniversalKind (Range.dummy "do-some") in
-      unify ty2 (Range.dummy "do-eff2", EffType(Effect(tyrecv), tysome));
-      let e2 =
-        ithunk (ILetIn(lname, iforce e1, iforce e2))
-      in
-      (ty2, e2)
-
-  | Receive(branches) ->
-      let lev = pre.level in
-      let tyrecv = fresh_type_variable lev UniversalKind (Range.dummy "receive-recv") in
-      let tyret = fresh_type_variable lev UniversalKind (Range.dummy "receive-ret") in
-      let ibracc =
-        branches |> List.fold_left (fun ibracc branch ->
-          let ibranch = typecheck_receive_branch pre tyrecv tyret branch in
-          Alist.extend ibracc ibranch
-        ) Alist.empty
-      in
-      let ty = (rng, EffType(Effect(tyrecv), tyret)) in
-      (ty, IReceive(ibracc |> Alist.to_list))
 
   | Tuple(utasts) ->
       let tyes = utasts |> TupleList.map (typecheck pre) in
@@ -1456,30 +1484,12 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
   | Case(utast0, branches) ->
       let (ty0, e0) = typecheck pre utast0 in
-      let lev = pre.level in
-      let tyret = fresh_type_variable lev UniversalKind (Range.dummy "case-ret") in
-      let ibracc =
-        branches |> List.fold_left (fun ibracc branch ->
-          let ibranch = typecheck_case_branch pre ty0 tyret branch in
-          Alist.extend ibracc ibranch
-        ) Alist.empty
-      in
-      (tyret, ICase(e0, ibracc |> Alist.to_list))
+      let tyret = fresh_type_variable pre.level UniversalKind (Range.dummy "case-ret") in
+      let ibrs = branches |> List.map (typecheck_pure_case_branch pre ~pattern:ty0 ~return:tyret) in
+      (tyret, ICase(e0, ibrs))
 
   | LetPatIn(utpat, utast1, utast2) ->
-      let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in
-      let (typat, ipat, bindmap) = typecheck_pattern pre utpat in
-      unify ty1 typat;
-      let tyenv =
-        BindingMap.fold (fun x (ty, lname, _) tyenv ->
-          let pty =
-            match TypeConv.generalize pre.level ty with
-            | Ok(pty)             -> pty
-            | Error((cycle, pty)) -> raise_error (CyclicTypeParameter(rng, cycle, pty))
-          in
-          tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname))
-        ) bindmap pre.tyenv
-      in
+      let (tyenv, ipat, bindmap, e1) = typecheck_let_pattern pre rng utpat utast1 in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
       BindingMap.iter (fun x (_, _, rng) ->
         check_properly_used tyenv (rng, x)
@@ -1611,6 +1621,113 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       end
 
 
+and typecheck_let_pattern (pre : pre) (rng : Range.t) (utpat : untyped_pattern) (utast1 : untyped_ast) =
+  let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in
+  let (typat, ipat, bindmap) = typecheck_pattern pre utpat in
+  unify ty1 typat;
+  let tyenv =
+    BindingMap.fold (fun x (ty, lname, _) tyenv ->
+      let pty =
+        match TypeConv.generalize pre.level ty with
+        | Ok(pty)             -> pty
+        | Error((cycle, pty)) -> raise_error (CyclicTypeParameter(rng, cycle, pty))
+      in
+      tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname))
+    ) bindmap pre.tyenv
+  in
+  (tyenv, ipat, bindmap, e1)
+
+
+and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono_effect * mono_type) * ast =
+  let (rng, utcompmain) = utcomp in
+  match utcompmain with
+  | CompDo(identopt, utcomp1, utcomp2) ->
+      let ((eff1, ty1), e1) = typecheck_computation pre utcomp1 in
+      let (tyx, tyenv, lname) =
+        match identopt with
+        | None ->
+            ((Range.dummy "do-unit", BaseType(UnitType)), pre.tyenv, OutputIdentifier.unused)
+
+        | Some(((rngv, x), _) as binder) ->
+            let tyx = decode_type_annotation_or_fresh pre binder in
+            let lname = generate_local_name rngv x in
+            (tyx, pre.tyenv |> Typeenv.add_val x (TypeConv.lift tyx) (OutputIdentifier.Local(lname)), lname)
+      in
+      unify ty1 tyx;
+      let ((eff2, ty2), e2) = typecheck_computation { pre with tyenv } utcomp2 in
+      unify_effect eff1 eff2;
+      let e2 = ILetIn(lname, e1, e2) in
+      ((eff2, ty2), e2)
+
+  | CompReceive(branches) ->
+      let lev = pre.level in
+      let effexp =
+        let ty = fresh_type_variable lev UniversalKind (Range.dummy "receive-recv") in
+        Effect(ty)
+      in
+      let tyret = fresh_type_variable lev UniversalKind (Range.dummy "receive-ret") in
+      let ibrs = branches |> List.map (typecheck_receive_branch pre effexp tyret) in
+      ((effexp, tyret), IReceive(ibrs))
+
+  | CompLetIn(NonRec(letbind), utcomp2) ->
+      let (pty, lname, e1) = typecheck_let generate_local_name pre letbind in
+      let tyenv =
+        let (_, x) = letbind.vb_identifier in
+        pre.tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname)) in
+      let ((eff2, ty2), e2) = typecheck_computation { pre with tyenv } utcomp2 in
+      check_properly_used tyenv letbind.vb_identifier;
+      ((eff2, ty2), ILetIn(lname, e1, e2))
+
+  | CompLetIn(Rec(letbinds), utcomp2) ->
+      let proj lname = OutputIdentifier.Local(lname) in
+      let binds = typecheck_letrec_mutual local_name_scheme proj pre letbinds in
+      let ((eff2, ty2), e2) =
+        let tyenv =
+          binds |> List.fold_left (fun tyenv (x, pty, lname_outer, _, _) ->
+            tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname_outer))
+          ) pre.tyenv
+        in
+        typecheck_computation { pre with tyenv } utcomp2
+      in
+      ((eff2, ty2), iletrecin binds e2)
+
+  | CompLetPatIn(utpat, utast1, utcomp2) ->
+      let (tyenv, ipat, bindmap, e1) = typecheck_let_pattern pre rng utpat utast1 in
+      let ((eff2, ty2), e2) = typecheck_computation { pre with tyenv } utcomp2 in
+      ((eff2, ty2), iletpatin ipat e1 e2)
+
+  | CompIf(utast0, utcomp1, utcomp2) ->
+      let (ty0, e0) = typecheck pre utast0 in
+      unify ty0 (Range.dummy "If", BaseType(BoolType));
+      let ((eff1, ty1), e1) = typecheck_computation pre utcomp1 in
+      let ((eff2, ty2), e2) = typecheck_computation pre utcomp2 in
+      unify_effect eff1 eff2;
+      unify ty1 ty2;
+      let ibranches = [ IBranch(IPBool(true), e1); IBranch(IPBool(false), e2) ] in
+      ((eff1, ty1), ICase(e0, ibranches))
+
+  | CompCase(utast0, branches) ->
+      let (ty0, e0) = typecheck pre utast0 in
+      let eff =
+        let tyrecv = fresh_type_variable pre.level UniversalKind (Range.dummy "CompCase1") in
+        Effect(tyrecv)
+      in
+      let tyret = fresh_type_variable pre.level UniversalKind (Range.dummy "CompCase2") in
+      let ibrs = branches |> List.map (typecheck_effectful_case_branch pre ~pattern:ty0 ~return:(eff, tyret)) in
+      ((eff, tyret), ICase(e0, ibrs))
+
+  | CompApply(utastfun, utargs) ->
+      let (tyfun, efun) = typecheck pre utastfun in
+      let (domain, optrow, iargs) = typecheck_arguments pre rng utargs in
+      let eff =
+        let tyrecv = fresh_type_variable ~name:"(CompApply2)" pre.level UniversalKind rng in
+        Effect(tyrecv)
+      in
+      let tyret = fresh_type_variable ~name:"(CompApply1)" pre.level UniversalKind rng in
+      unify tyfun (Range.dummy "CompApply", EffType(domain, eff, tyret));
+      ((eff, tyret), iapply efun optrow iargs)
+
+
 and get_structure_signature (tyenv : Typeenv.t) (modidents : (module_name ranged) list) : SigRecord.t =
   match modidents with
   | [] ->
@@ -1641,7 +1758,7 @@ and get_structure_signature (tyenv : Typeenv.t) (modidents : (module_name ranged
       end
 
 
-and typecheck_application (pre : pre) (rng : Range.t) utastargs mndutastargs optutastargs (tyfun : mono_type) =
+and typecheck_arguments (pre : pre) (rng : Range.t) ((utastargs, mndutastargs, optutastargs) : untyped_arguments) =
   let tyeargs = List.map (typecheck pre) utastargs in
   let tyargs = List.map fst tyeargs in
   let eargs = List.map snd tyeargs in
@@ -1669,15 +1786,14 @@ and typecheck_application (pre : pre) (rng : Range.t) utastargs mndutastargs opt
         (optlabmap, optargmap)
     ) (LabelAssoc.empty, LabelAssoc.empty)
   in
-  let tyret = fresh_type_variable ~name:"(Apply)" pre.level UniversalKind rng in
   let optrow =
     let frid = FreeRowID.fresh ~message:"Apply, row" pre.level in
     KindStore.register_free_row frid optlabmap;
     let mrvu = ref (FreeRow(frid)) in
     RowVar(UpdatableRow(mrvu))
   in
-  unify tyfun (Range.dummy "Apply", FuncType({ordered = tyargs; mandatory = mndlabmap; optional = optrow}, tyret));
-  (tyret, optrow, eargs, mndargmap, optargmap)
+  let domain = {ordered = tyargs; mandatory = mndlabmap; optional = optrow} in
+  (domain, optrow, (eargs, mndargmap, optargmap))
 
 
 and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name) =
@@ -1690,40 +1806,54 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name
       (tyid, ctorid, tyargs, tys_expected)
 
 
-and typecheck_case_branch (pre : pre) =
-  typecheck_branch_scheme (fun ty1 _ tyret ->
-    unify ty1 tyret
-  ) pre
-
-
-and typecheck_receive_branch (pre : pre) =
-  typecheck_branch_scheme (fun ty1 typatexp tyret ->
-    unify ty1 (Range.dummy "branch", EffType(Effect(typatexp), tyret))
-  ) pre
-
-
-and typecheck_branch_scheme (unifyk : mono_type -> mono_type -> mono_type -> unit) (pre : pre) typatexp tyret (Branch(pat, utast0opt, utast1)) : branch =
+and typecheck_pure_case_branch (pre : pre) ~pattern:typatexp ~return:tyret (CaseBranch(pat, utast1)) =
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
   let tyenv =
     BindingMap.fold (fun x (ty, lname, _) tyenv ->
       tyenv |> Typeenv.add_val x (TypeConv.lift ty) (OutputIdentifier.Local(lname))
     ) bindmap pre.tyenv
   in
-  let pre = { pre with tyenv } in
-  unify typat typatexp;
-  let e0opt =
-    utast0opt |> Option.map (fun utast0 ->
-      let (ty0, e0) = typecheck pre utast0 in
-      unify ty0 (Range.dummy "when", BaseType(BoolType));
-      e0
-    )
-  in
-  let (ty1, e1) = typecheck pre utast1 in
+  let (ty1, e1) = typecheck { pre with tyenv } utast1 in
   BindingMap.iter (fun x (_, _, rng) ->
     check_properly_used tyenv (rng, x)
   ) bindmap;
-  unifyk ty1 typatexp tyret;
-  IBranch(ipat, e0opt, e1)
+  unify typat typatexp;
+  unify ty1 tyret;
+  IBranch(ipat, e1)
+
+
+and typecheck_effectful_case_branch (pre : pre) ~pattern:typatexp ~return:(eff, tyret) (CompCaseBranch(pat, utcomp1)) =
+  let (typat, ipat, bindmap) = typecheck_pattern pre pat in
+  let tyenv =
+    BindingMap.fold (fun x (ty, lname, _) tyenv ->
+      tyenv |> Typeenv.add_val x (TypeConv.lift ty) (OutputIdentifier.Local(lname))
+    ) bindmap pre.tyenv
+  in
+  let ((eff1, ty1), e1) = typecheck_computation { pre with tyenv } utcomp1 in
+  BindingMap.iter (fun x (_, _, rng) ->
+    check_properly_used tyenv (rng, x)
+  ) bindmap;
+  unify typat typatexp;
+  unify_effect eff1 eff;
+  unify ty1 tyret;
+  IBranch(ipat, e1)
+
+
+and typecheck_receive_branch (pre : pre) (effexp : mono_effect) (tyret : mono_type) (ReceiveBranch(pat, utcomp1)) =
+  let (typat, ipat, bindmap) = typecheck_pattern pre pat in
+  let tyenv =
+    BindingMap.fold (fun x (ty, lname, _) tyenv ->
+      tyenv |> Typeenv.add_val x (TypeConv.lift ty) (OutputIdentifier.Local(lname))
+    ) bindmap pre.tyenv
+  in
+  let ((eff1, ty1), e1) = typecheck_computation { pre with tyenv } utcomp1 in
+  BindingMap.iter (fun x (_, _, rng) ->
+    check_properly_used tyenv (rng, x)
+  ) bindmap;
+  unify_effect (Effect(typat)) effexp;
+  unify_effect eff1 effexp;
+  unify ty1 tyret;
+  IBranch(ipat, e1)
 
 
 and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type * pattern * binding_map =
@@ -1798,9 +1928,8 @@ fun namef pre letbind ->
   let ordparams = letbind.vb_parameters in
   let mndparams = letbind.vb_mandatories in
   let optparams = letbind.vb_optionals in
-  let utast0 = letbind.vb_body in
 
-  let (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap) =
+  let (ty1, e0, ibinders) =
 
    (* First, add local type/row parameters at level `levS`. *)
     let pre =
@@ -1811,26 +1940,31 @@ fun namef pre letbind ->
     in
 
    (* Second, add local value parameters at level `levS`. *)
-    let (tyenv, tys, lnames) = add_parameters_to_type_environment pre ordparams in
-    let (tyenv, mndlabmap, mndnamemap) =
-      add_labeled_mandatory_parameters_to_type_environment { pre with tyenv } mndparams
-    in
-    let (tyenv, optlabmap, optnamemap) =
-      add_labeled_optional_parameters_to_type_environment { pre with tyenv } optparams
-    in
-    let pre = { pre with tyenv } in
+    let (pre, domain, ibinders) = add_parameters_to_type_environment pre (ordparams, mndparams, optparams) in
 
     (* Finally, typecheck the body expression. *)
-    let (ty0, e0) = typecheck pre utast0 in
-    letbind.vb_return_type |> Option.map (fun mty0 ->
-      let ty0_expected = decode_manual_type pre mty0 in
-      unify ty0 ty0_expected
-    ) |> Option.value ~default:();
-    (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)
-  in
-  let ty1 = (rngv, FuncType({ordered = tys; mandatory = mndlabmap; optional = FixedRow(optlabmap)}, ty0)) in
-  let e1 = ILambda(None, lnames, mndnamemap, optnamemap, e0) in
+    match letbind.vb_return with
+    | Pure((tyretopt, utast0)) ->
+        let (ty0, e0) = typecheck pre utast0 in
+        tyretopt |> Option.map (fun mty0 ->
+          let ty0_expected = decode_manual_type pre mty0 in
+          unify ty0 ty0_expected
+        ) |> Option.value ~default:();
+        let ty1 = (rngv, FuncType(domain, ty0)) in
+        (ty1, e0, ibinders)
 
+    | Effectful((tyretopt, utcomp0)) ->
+        let ((eff0, ty0), e0) = typecheck_computation pre utcomp0 in
+        tyretopt |> Option.map (fun (mty1, mty2) ->
+          let ty1_expected = decode_manual_type pre mty1 in
+          let ty2_expected = decode_manual_type pre mty2 in
+          unify_effect eff0 (Effect(ty1_expected));
+          unify ty0 ty2_expected
+        ) |> Option.value ~default:();
+        let ty1 = (rngv, EffType(domain, eff0, ty0)) in
+        (ty1, e0, ibinders)
+  in
+  let e1 = ilambda ibinders e0 in
   let pty1 =
     match TypeConv.generalize pre.level ty1 with
     | Ok(pty1)             -> pty1
@@ -1872,9 +2006,8 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
   let ordparams = letbind.vb_parameters in
   let mndparams = letbind.vb_mandatories in
   let optparams = letbind.vb_optionals in
-  let utast0 = letbind.vb_body in
 
-  let (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap) =
+  let (ty1, e0, ibinders) =
     (* First, add local type/row parameters at level `levS`. *)
     let pre =
       let (pre, assoc) = make_type_parameter_assoc pre letbind.vb_forall in
@@ -1884,27 +2017,31 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
     in
 
     (* Second, add local value parameters at level `levS`. *)
-    let (tyenv, tys, lnames) =
-      add_parameters_to_type_environment pre ordparams
-    in
-    let (tyenv, mndlabmap, mndnamemap) =
-      add_labeled_mandatory_parameters_to_type_environment { pre with tyenv } mndparams
-    in
-    let (tyenv, optlabmap, optnamemap) =
-      add_labeled_optional_parameters_to_type_environment { pre with tyenv } optparams
-    in
-    let pre = { pre with tyenv } in
+    let (pre, domain, ibinders) = add_parameters_to_type_environment pre (ordparams, mndparams, optparams) in
 
     (* Finally, typecheck the body expression. *)
-    let (ty0, e0) = typecheck pre utast0 in
-    letbind.vb_return_type |> Option.map (fun mty0 ->
-      let ty0_expected = decode_manual_type pre mty0 in
-      unify ty0 ty0_expected;
-    ) |> Option.value ~default:();
-    (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)
+    match letbind.vb_return with
+    | Pure((tyretopt, utast0)) ->
+        let (ty0, e0) = typecheck pre utast0 in
+        tyretopt |> Option.map (fun mty0 ->
+          let ty0_expected = decode_manual_type pre mty0 in
+          unify ty0 ty0_expected
+        ) |> Option.value ~default:();
+        let ty1 = (rngv, FuncType(domain, ty0)) in
+        (ty1, e0, ibinders)
+
+    | Effectful((tyretopt, utcomp0)) ->
+        let ((eff0, ty0), e0) = typecheck_computation pre utcomp0 in
+        tyretopt |> Option.map (fun (mty1, mty2) ->
+          let ty1_expected = decode_manual_type pre mty1 in
+          let ty2_expected = decode_manual_type pre mty2 in
+          unify_effect eff0 (Effect(ty1_expected));
+          unify ty0 ty2_expected
+        ) |> Option.value ~default:();
+        let ty1 = (rngv, EffType(domain, eff0, ty0)) in
+        (ty1, e0, ibinders)
   in
-  let ty1 = (rngv, FuncType({ordered = tys; mandatory = mndlabmap; optional = FixedRow(optlabmap)}, ty0)) in
-  let e1 = ILambda(None, lnames, mndnamemap, optnamemap, e0) in
+  let e1 = ilambda ibinders e0 in
   unify ty1 tyf;
   let ptyf =
     match TypeConv.generalize pre.level ty1 with
@@ -1972,21 +2109,19 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
     | (BaseType(bt1), BaseType(bt2)) ->
         bt1 = bt2
 
-    | (FuncType({ordered = ptydoms1; mandatory = mndlabmap1; optional = poptrow1}, ptycod1),
-       FuncType({ordered = ptydoms2; mandatory = mndlabmap2; optional = poptrow2}, ptycod2)) ->
-        let b1 = aux_list ptydoms1 ptydoms2 in
-        let bmnd = aux_label_assoc mndlabmap1 mndlabmap2 in
-        let bopt = subtype_option_row wtmap internbid internbrid poptrow1 poptrow2 in
-        let b2 = aux ptycod1 ptycod2 in
-        b1 && bmnd && bopt && b2
+    | (FuncType(pdomain1, ptycod1), FuncType(pdomain2, ptycod2)) ->
+        let bdom = aux_domain pdomain1 pdomain2 in
+        let bcod = aux ptycod1 ptycod2 in
+        bdom && bcod
 
     | (PidType(pidty1), PidType(pidty2)) ->
         aux_pid pidty1 pidty2
 
-    | (EffType(effty1, pty1), EffType(effty2, pty2)) ->
+    | (EffType(domain1, effty1, pty1), EffType(domain2, effty2, pty2)) ->
+        let b0 = aux_domain domain1 domain2 in
         let b1 = aux_effect effty1 effty2 in
         let b2 = aux pty1 pty2 in
-        b1 && b2
+        b0 && b1 && b2
 
     | (ProductType(ptys1), ProductType(ptys2)) ->
         aux_list (TupleList.to_list ptys1) (TupleList.to_list ptys2)
@@ -2108,6 +2243,14 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
       | (Some(pty1), Some(pty2)) -> Some(aux pty1 pty2)
       | _                        -> Some(false)
     ) plabmap1 plabmap2 |> LabelAssoc.for_all (fun _ b -> b)
+
+  and aux_domain domain1 domain2 =
+    let {ordered = ptydoms1; mandatory = mndlabmap1; optional = poptrow1} = domain1 in
+    let {ordered = ptydoms2; mandatory = mndlabmap2; optional = poptrow2} = domain2 in
+    let b1 = aux_list ptydoms1 ptydoms2 in
+    let bmnd = aux_label_assoc mndlabmap1 mndlabmap2 in
+    let bopt = subtype_option_row wtmap internbid internbrid poptrow1 poptrow2 in
+    b1 && bmnd && bopt
 
   and aux_pid (Pid(pty1)) (Pid(pty2)) =
     aux pty1 pty2
@@ -2243,12 +2386,13 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
     | (BaseType(bty1), BaseType(bty2)) ->
         bty1 = bty2
 
-    | (FuncType({ordered = pty1doms; mandatory = pmndlabmap1; optional = poptrow1}, pty1cod),
-       FuncType({ordered = pty2doms; mandatory = pmndlabmap2; optional = poptrow2}, pty2cod)) ->
-        aux_list pty1doms pty2doms && aux_label_assoc pmndlabmap1 pmndlabmap2 && aux_option_row poptrow1 poptrow2 && aux pty1cod pty2cod
+    | (FuncType(pdomain1, pty1cod), FuncType(pdomain2, pty2cod)) ->
+        let bdom = aux_domain pdomain1 pdomain2 in
+        bdom && aux pty1cod pty2cod
 
-    | (EffType(peff1, ptysub1), EffType(peff2, ptysub2)) ->
-        aux_effect peff1 peff2 && aux ptysub1 ptysub2
+    | (EffType(pdomain1, peff1, ptysub1), EffType(pdomain2, peff2, ptysub2)) ->
+        let bdom = aux_domain pdomain1 pdomain2 in
+        bdom && aux_effect peff1 peff2 && aux ptysub1 ptysub2
 
     | (PidType(ppidty1), PidType(ppidty2)) ->
         aux_pid_type ppidty1 ppidty2
@@ -2277,6 +2421,11 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
       List.fold_left2 (fun b ty1 ty2 -> b && aux ty1 ty2) true tys1 tys2
     with
     | Invalid_argument(_) -> false
+
+  and aux_domain pdomain1 pdomain2 =
+    let {ordered = pty1doms; mandatory = pmndlabmap1; optional = poptrow1} = pdomain1 in
+    let {ordered = pty2doms; mandatory = pmndlabmap2; optional = poptrow2} = pdomain2 in
+    aux_list pty1doms pty2doms && aux_label_assoc pmndlabmap1 pmndlabmap2 && aux_option_row poptrow1 poptrow2
 
   and aux_effect (Effect(pty1)) (Effect(pty2)) =
     aux pty1 pty2
@@ -2751,19 +2900,14 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
       match ptymain with
       | BaseType(_)               -> ptymain
       | PidType(ppid)             -> PidType(aux_pid ppid)
-      | EffType(peff, ptysub)     -> EffType(aux_effect peff, aux ptysub)
       | TypeVar(_)                -> ptymain
       | ProductType(ptys)         -> ProductType(ptys |> TupleList.map aux)
 
-      | FuncType({ordered = ptydoms; mandatory = pmndlabmap; optional = poptrow}, ptycod) ->
-          let domain =
-            {
-              ordered   = ptydoms |> List.map aux;
-              mandatory = pmndlabmap |> LabelAssoc.map aux;
-              optional  = aux_option_row poptrow;
-            }
-          in
-          FuncType(domain, aux ptycod)
+      | EffType(pdomain, peff, ptysub) ->
+          EffType(aux_domain pdomain, aux_effect peff, aux ptysub)
+
+      | FuncType(pdomain, ptycod) ->
+          FuncType(aux_domain pdomain, aux ptycod)
 
       | RecordType(labmap) ->
           RecordType(labmap |> LabelAssoc.map aux)
@@ -2794,6 +2938,14 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
           end
     in
     (rng, ptymain)
+
+  and aux_domain pdomain =
+    let {ordered = ptydoms; mandatory = pmndlabmap; optional = poptrow} = pdomain in
+    {
+      ordered   = ptydoms |> List.map aux;
+      mandatory = pmndlabmap |> LabelAssoc.map aux;
+      optional  = aux_option_row poptrow;
+    }
 
   and aux_pid = function
     | Pid(pty) -> Pid(aux pty)
@@ -3135,15 +3287,8 @@ and typecheck_binding (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord
             assert false
 
         | Rec(valbinds) ->
-            let namesf valbind =
-              let arity = List.length valbind.vb_parameters + List.length valbind.vb_mandatories in
-              let has_option = (List.length valbind.vb_optionals > 0) in
-              let (rngv, x) = valbind.vb_identifier in
-              let gname = generate_global_name ~arity:arity ~has_option:has_option rngv x in
-              (gname, gname)
-            in
             let proj gname = OutputIdentifier.Global(gname) in
-            let recbinds = typecheck_letrec_mutual namesf proj pre_init valbinds in
+            let recbinds = typecheck_letrec_mutual global_name_scheme proj pre_init valbinds in
             let (sigr, irecbindacc) =
               recbinds |> List.fold_left (fun (sigr, irecbindacc) (x, pty, gname_outer, _, e) ->
                 let sigr = sigr |> SigRecord.add_val x pty gname_outer in

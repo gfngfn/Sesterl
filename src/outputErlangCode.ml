@@ -368,7 +368,7 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
       let s2 = iter ast2 in
       Printf.sprintf "begin %s = %s, %s end" s0 s1 s2
 
-  | ICase(ast1, [ IBranch(ipat, None, ast2) ]) ->
+  | ICase(ast1, [ IBranch(ipat, ast2) ]) ->
     (* -- slight optimization of case-expressions into pattern-matching let-expressions -- *)
       let spat = stringify_pattern ipat in
       let s1 = iter ast1 in
@@ -408,15 +408,6 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
             Printf.sprintf "{%s, %s}" sctor (String.concat ", " ss)
       end
 
-  | IThunk(e0) ->
-      let s0 = iter e0 in
-      Printf.sprintf "fun() -> %s end" s0
-
-  | IForce(e0) ->
-      let sname = fresh_local_symbol () in
-      let s0 = iter e0 in
-      Printf.sprintf "begin %s = %s, %s() end" sname s0 sname
-
 
 and mapify_label_assoc (gmap : global_name_map) (emap : ast LabelAssoc.t) =
   LabelAssoc.fold (fun label ast acc ->
@@ -428,19 +419,10 @@ and mapify_label_assoc (gmap : global_name_map) (emap : ast LabelAssoc.t) =
 
 and stringify_branch (gmap : global_name_map) (br : branch) =
   match br with
-  | IBranch(pat, ast0opt, ast1) ->
+  | IBranch(pat, ast1) ->
       let spat = stringify_pattern pat in
-      let swhen =
-        match ast0opt with
-        | None ->
-            ""
-
-        | Some(ast0) ->
-            let s0 = stringify_ast gmap ast0 in
-            Printf.sprintf " when %s" s0
-      in
       let s1 = stringify_ast gmap ast1 in
-      Printf.sprintf "%s%s -> %s" spat swhen s1
+      Printf.sprintf "%s -> %s" spat s1
 
 
 and stringify_pattern (ipat : pattern) =

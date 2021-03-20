@@ -255,18 +255,16 @@ val rec tree_size(t : bintree<$a>) =
 
 ### Concurrency
 
-As in Erlang, you can use primitives `self`, `send`, and `spawn` for message-passing concurrency. They are given types by using a kind of monadic types `[τ_0]τ_1` and types `pid<τ>` for PIDs (i.e. process identifiers) as follows:
+As in Erlang, you can use primitives `self`, `send`, and `spawn` for message-passing concurrency. They are given types by using a kind of monadic function types `fun(τ_1, …, τ_n) -> [τ]τ'` and types `pid<τ>` for PIDs (i.e. process identifiers) as follows:
 
-* `self<$p> : [$p]pid<$p>`
+* `self<$p> : fun() -> [$p]pid<$p>`
 * `send<$p, $q> : fun(pid<$q>, $q) -> [$p]unit`
-* `spawn<$p, $q> : fun([$q]unit) -> [$p]pid<$q>`
+* `spawn<$p, $q> : fun(fun() -> [$q]unit) -> [$p]pid<$q>`
 
-This formalization is based on *λ\_\{act\}* \[Fowler 2019\].
-
-Intuitively, `[τ_0]τ_1` is the type for suspended concurrent computations that will be run on processes capable of receiving messages of type `τ_0` and that finally produce a value of type `τ_1`. The composition of such computations can be done by `do`-notation. Messages can be received by using `receive`-expressions. See a small example below:
+Intuitively, `[τ]τ'` in `fun(τ_1, …, τ_n) -> [τ]τ'` stands for concurrent computations that will be run on processes capable of receiving messages of type `τ` and that finally produce a value of type `τ'`. The composition of such computations can be done by `do`-notation. Messages can be received by using `receive`-expressions. See a small example below:
 
 ```
-val rec wait_all(msgacc, n) =
+val rec wait_all(msgacc, n) = act
   if n <= 0 then
     return(msgacc)
   else
@@ -276,7 +274,7 @@ val rec wait_all(msgacc, n) =
         wait_all(msg :: msgacc, n - 1)
     end
 
-val rec spawn_all(pidacc, n) =
+val rec spawn_all(pidacc, n) = act
   if n <= 0 then
     return(pidacc)
   else
@@ -390,14 +388,21 @@ One of the interesting use cases of the module system is to represent OTP librar
 module GenServer : sig
 
   type initialized :: (o) -> o
+
   val init_ok<$msg, $state> : fun($state) -> [$msg]initialized<$state>
+
   val init_fail<$msg, $state> : fun() -> [$msg]initialized<$state>
 
   type reply :: (o, o, o) -> o
-  val reply<$msg, $response, $state> : fun($response, $state) -> [$msg]reply<$msg, $response, $state>
-  val reply_fast<$msg, $response, $state> : fun($response, -rest [$msg]$state) -> [$msg]reply<$msg, $response, $state>
+
+  val reply<$msg, $response, $state> :
+    fun($response, $state) -> [$msg]reply<$msg, $response, $state>
+
+  val reply_fast<$msg, $response, $state> :
+    fun($response, -rest fun() -> [$msg]$state) -> [$msg]reply<$msg, $response, $state>
 
   type no_reply :: (o) -> o
+
   val no_reply<$msg, $state> : fun($state) -> [$msg]no_reply<$state>
 
   signature Behaviour = sig
@@ -426,7 +431,6 @@ module GenServer : sig
     val where_is<$a> : fun(binary) -> [$a]option<proc>
     val stop<$a> : fun(proc) -> [$a]unit
   end
-
 end
 ```
 
@@ -475,7 +479,7 @@ assoc(Key, Xs) ->
   end.
 
 main() ->
-  ffi:assoc(1, [
+  ffi_example:assoc(1, [
     {3, <<"Komaba">>},
     {1, <<"Hongo">>},
     {4, <<"Yayoi">>},
@@ -686,11 +690,11 @@ Also, though not supporting them currently, we want to add features like the fol
   * [x] Support for F-ing modules
   * [x] Compilation using the static interpretation
   * [ ] First-class modules
-* [ ] Configuration
+* [x] Configuration
   * [x] Loading external modules by `require`
   * [x] Package system
   * [x] Embedding external modules as submodules
-  * [ ] Connection with rebar3
+  * [x] Connection with rebar3
 * [ ] (Multiparty) session types
 
 

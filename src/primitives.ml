@@ -39,8 +39,11 @@ let format_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
   (rng, DataType(TypeID.Variant(vid_format), [ty]))
 
 
-let frozen_type (rng : Range.t) (tyrest : ('a, 'b) typ) (tycod : ('a, 'b) typ) : ('a, 'b) typ =
-  (rng, DataType(TypeID.Variant(vid_frozen), [tyrest; tycod]))
+let frozen_type (rng : Range.t)
+    ~rest:(tyrest : ('a, 'b) typ)
+    ~receive:(tyrecv : ('a, 'b) typ)
+    ~return:(tycod : ('a, 'b) typ) : ('a, 'b) typ =
+  (rng, DataType(TypeID.Variant(vid_frozen), [tyrest; tyrecv; tycod]))
 
 
 let fresh_bound () =
@@ -66,7 +69,16 @@ let ( @-> ) tydoms tycod =
   in
   (dr, FuncType(domain, tycod))
 
-let eff tyrcv ty0 = (dr, EffType(Effect(tyrcv), ty0))
+let eff tydoms tyrcv ty0 =
+  let domain =
+    {
+      ordered   = tydoms;
+      mandatory = LabelAssoc.empty;
+      optional  = FixedRow(LabelAssoc.empty);
+    }
+  in
+  (dr, EffType(domain, Effect(tyrcv), ty0))
+
 let pid tyrcv = (dr, PidType(Pid(tyrcv)))
 
 let tylogic : poly_type = [b; b] @-> b
@@ -77,21 +89,21 @@ let tyarith_float : poly_type = [f; f] @-> f
 let tyspawn : poly_type =
   let tyrecv = fresh_bound () in
   let tyrecvnew = fresh_bound () in
-  [eff tyrecvnew u] @-> eff tyrecv (pid tyrecvnew)
+  eff [eff [] tyrecvnew u] tyrecv (pid tyrecvnew)
 
 let tysend : poly_type =
   let tyrecv = fresh_bound () in
   let tyrecvremote = fresh_bound () in
-  [pid tyrecvremote; tyrecvremote] @-> eff tyrecv u
+  eff [pid tyrecvremote; tyrecvremote] tyrecv u
 
 let tyreturn : poly_type =
   let tyrecv = fresh_bound () in
   let tyres = fresh_bound () in
-  [tyres] @-> eff tyrecv tyres
+  eff [tyres] tyrecv tyres
 
 let tyself : poly_type =
   let tyrecv = fresh_bound () in
-  eff tyrecv (pid tyrecv)
+  eff [] tyrecv (pid tyrecv)
 
 let typrintdebug : poly_type =
   let typaram = fresh_bound () in
@@ -127,9 +139,9 @@ let primitive_definitions = [
       typ        = tyspawn;
     };
     target = {
-      target_name = "thunk_spawn";
+      target_name = "spawn";
       parameters  = ["F"];
-      code        = "fun() -> erlang:spawn(F) end";
+      code        = "erlang:spawn(F)";
     };
   };
   {
@@ -138,9 +150,9 @@ let primitive_definitions = [
       typ        = tysend;
     };
     target = {
-      target_name = "thunk_send";
+      target_name = "send";
       parameters  = ["X"; "Y"];
-      code        = "fun() -> X ! Y, ok end";
+      code        = "X ! Y, ok";
     };
   };
   {
@@ -149,9 +161,9 @@ let primitive_definitions = [
       typ        = tyreturn;
     };
     target = {
-      target_name = "thunk_return";
+      target_name = "return";
       parameters  = ["X"];
-      code        = "fun() -> X end";
+      code        = "X";
     }
   };
   {
@@ -160,7 +172,7 @@ let primitive_definitions = [
       typ        = tyself;
     };
     target = {
-      target_name = "thunk_self";
+      target_name = "self";
       parameters  = [];
       code        = "erlang:self()";
     };
@@ -335,7 +347,9 @@ let initial_environment =
         KindStore.register_bound_id bid1 UniversalKind;
         let bid2 = BoundID.fresh () in
         KindStore.register_bound_id bid2 UniversalKind;
-        ("frozen", vid_frozen, [bid1; bid2], [
+        let bid3 = BoundID.fresh () in
+        KindStore.register_bound_id bid3 UniversalKind;
+        ("frozen", vid_frozen, [bid1; bid2; bid3], [
         ])
       end;
     ]
