@@ -1711,8 +1711,16 @@ and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono
       let ibranches = [ IBranch(IPBool(true), e1); IBranch(IPBool(false), e2) ] in
       ((eff1, ty1), ICase(e0, ibranches))
 
-  | CompApply(_utastfun, (_utastargs, _mndutastargs, _optutastargs)) ->
-      failwith "TODO: CompApply"
+  | CompApply(utastfun, utargs) ->
+      let (tyfun, efun) = typecheck pre utastfun in
+      let (domain, optrow, iargs) = typecheck_arguments pre rng utargs in
+      let eff =
+        let tyrecv = fresh_type_variable ~name:"(CompApply2)" pre.level UniversalKind rng in
+        Effect(tyrecv)
+      in
+      let tyret = fresh_type_variable ~name:"(CompApply1)" pre.level UniversalKind rng in
+      unify tyfun (Range.dummy "CompApply", EffType(domain, eff, tyret));
+      ((eff, tyret), ithunk (iapply efun optrow iargs))
 
 
 and get_structure_signature (tyenv : Typeenv.t) (modidents : (module_name ranged) list) : SigRecord.t =
