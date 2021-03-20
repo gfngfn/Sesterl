@@ -39,8 +39,11 @@ let format_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
   (rng, DataType(TypeID.Variant(vid_format), [ty]))
 
 
-let frozen_type (rng : Range.t) (tyrest : ('a, 'b) typ) (tycod : ('a, 'b) typ) : ('a, 'b) typ =
-  (rng, DataType(TypeID.Variant(vid_frozen), [tyrest; tycod]))
+let frozen_type (rng : Range.t)
+    ~rest:(tyrest : ('a, 'b) typ)
+    ~receive:(tyrecv : ('a, 'b) typ)
+    ~return:(tycod : ('a, 'b) typ) : ('a, 'b) typ =
+  (rng, DataType(TypeID.Variant(vid_frozen), [tyrest; tyrecv; tycod]))
 
 
 let fresh_bound () =
@@ -344,7 +347,9 @@ let initial_environment =
         KindStore.register_bound_id bid1 UniversalKind;
         let bid2 = BoundID.fresh () in
         KindStore.register_bound_id bid2 UniversalKind;
-        ("frozen", vid_frozen, [bid1; bid2], [
+        let bid3 = BoundID.fresh () in
+        KindStore.register_bound_id bid3 UniversalKind;
+        ("frozen", vid_frozen, [bid1; bid2; bid3], [
         ])
       end;
     ]

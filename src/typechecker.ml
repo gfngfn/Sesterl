@@ -1384,16 +1384,19 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         )
       in
       let tyargsall = List.append tyargs tyrests in
+
+      let tyrecv = fresh_type_variable ~name:"Freeze, recv" pre.level UniversalKind rng in
+      let eff = Effect(tyrecv) in
       let tyret = fresh_type_variable ~name:"Freeze, ret" pre.level UniversalKind rng in
       let domain = {ordered = tyargsall; mandatory = LabelAssoc.empty; optional = FixedRow(LabelAssoc.empty)} in
-      unify tyfun (Range.dummy "Freeze1", FuncType(domain, tyret));
+      unify tyfun (Range.dummy "Freeze1", EffType(domain, eff, tyret));
       let tyrest =
         let dr = Range.dummy "Freeze2" in
         match tyrests with
         | []        -> (dr, BaseType(UnitType))
         | ty :: tys -> (dr, ProductType(TupleList.make ty tys))
       in
-      (Primitives.frozen_type rng tyrest tyret, IFreeze(gname, eargs))
+      (Primitives.frozen_type rng ~rest:tyrest ~receive:tyrecv ~return:tyret, IFreeze(gname, eargs))
 
   | FreezeUpdate(utast0, utastargs, restrngs) ->
       let (ty0, e0) = typecheck pre utast0 in
@@ -1405,6 +1408,9 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
           fresh_type_variable ~name:"FreezeUpdate, rest1" pre.level UniversalKind restrng
         )
       in
+      let tyrecv =
+        fresh_type_variable ~name:"FreezeUpdate, recv" pre.level UniversalKind (Range.dummy "FreezeUpdate, recv")
+      in
       let tyret =
         fresh_type_variable ~name:"FreezeUpdate, ret" pre.level UniversalKind (Range.dummy "FreezeUpdate, ret")
       in
@@ -1415,7 +1421,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
           | []        -> (dr, BaseType(UnitType))
           | ty :: tys -> (dr, ProductType(TupleList.make ty tys))
         in
-        Primitives.frozen_type (Range.dummy "FreezeUpdate") tyrest_expected tyret
+        Primitives.frozen_type (Range.dummy "FreezeUpdate") ~rest:tyrest_expected ~receive:tyrecv ~return:tyret
       in
       unify ty0 ty_expected;
       let tyrest =
@@ -1424,7 +1430,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         | []        -> (dr, BaseType(UnitType))
         | ty :: tys -> (dr, ProductType(TupleList.make ty tys))
       in
-      (Primitives.frozen_type rng tyrest tyret, IFreezeUpdate(e0, eargs))
+      (Primitives.frozen_type rng ~rest:tyrest ~receive:tyrecv ~return:tyret, IFreezeUpdate(e0, eargs))
 
 
   | If(utast0, utast1, utast2) ->
