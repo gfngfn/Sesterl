@@ -1478,15 +1478,9 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
   | Case(utast0, branches) ->
       let (ty0, e0) = typecheck pre utast0 in
-      let lev = pre.level in
-      let tyret = fresh_type_variable lev UniversalKind (Range.dummy "case-ret") in
-      let ibracc =
-        branches |> List.fold_left (fun ibracc branch ->
-          let ibranch = typecheck_case_branch pre ~pattern:ty0 ~return:tyret branch in
-          Alist.extend ibracc ibranch
-        ) Alist.empty
-      in
-      (tyret, ICase(e0, ibracc |> Alist.to_list))
+      let tyret = fresh_type_variable pre.level UniversalKind (Range.dummy "case-ret") in
+      let ibrs = branches |> List.map (typecheck_pure_case_branch pre ~pattern:ty0 ~return:tyret) in
+      (tyret, ICase(e0, ibrs))
 
   | LetPatIn(utpat, utast1, utast2) ->
       let (tyenv, ipat, bindmap, e1) = typecheck_let_pattern pre rng utpat utast1 in
@@ -1706,6 +1700,16 @@ and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono
       let ibranches = [ IBranch(IPBool(true), e1); IBranch(IPBool(false), e2) ] in
       ((eff1, ty1), ICase(e0, ibranches))
 
+  | CompCase(utast0, branches) ->
+      let (ty0, e0) = typecheck pre utast0 in
+      let eff =
+        let tyrecv = fresh_type_variable pre.level UniversalKind (Range.dummy "CompCase1") in
+        Effect(tyrecv)
+      in
+      let tyret = fresh_type_variable pre.level UniversalKind (Range.dummy "CompCase2") in
+      let ibrs = branches |> List.map (typecheck_effectful_case_branch pre ~pattern:ty0 ~return:(eff, tyret)) in
+      ((eff, tyret), ICase(e0, ibrs))
+
   | CompApply(utastfun, utargs) ->
       let (tyfun, efun) = typecheck pre utastfun in
       let (domain, optrow, iargs) = typecheck_arguments pre rng utargs in
@@ -1796,7 +1800,7 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name
       (tyid, ctorid, tyargs, tys_expected)
 
 
-and typecheck_case_branch (pre : pre) ~pattern:typatexp ~return:tyret (CaseBranch(pat, utast1)) =
+and typecheck_pure_case_branch (pre : pre) ~pattern:typatexp ~return:tyret (CaseBranch(pat, utast1)) =
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
   let tyenv =
     BindingMap.fold (fun x (ty, lname, _) tyenv ->
@@ -1808,6 +1812,23 @@ and typecheck_case_branch (pre : pre) ~pattern:typatexp ~return:tyret (CaseBranc
     check_properly_used tyenv (rng, x)
   ) bindmap;
   unify typat typatexp;
+  unify ty1 tyret;
+  IBranch(ipat, e1)
+
+
+and typecheck_effectful_case_branch (pre : pre) ~pattern:typatexp ~return:(eff, tyret) (CompCaseBranch(pat, utcomp1)) =
+  let (typat, ipat, bindmap) = typecheck_pattern pre pat in
+  let tyenv =
+    BindingMap.fold (fun x (ty, lname, _) tyenv ->
+      tyenv |> Typeenv.add_val x (TypeConv.lift ty) (OutputIdentifier.Local(lname))
+    ) bindmap pre.tyenv
+  in
+  let ((eff1, ty1), e1) = typecheck_computation { pre with tyenv } utcomp1 in
+  BindingMap.iter (fun x (_, _, rng) ->
+    check_properly_used tyenv (rng, x)
+  ) bindmap;
+  unify typat typatexp;
+  unify_effect eff1 eff;
   unify ty1 tyret;
   IBranch(ipat, e1)
 

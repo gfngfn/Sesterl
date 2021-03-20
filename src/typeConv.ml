@@ -661,7 +661,7 @@ fun showtv showrv ty ->
         let sdom = show_domain showtv showrv domain in
         let seff = aux_effect eff in
         let s0 = aux ty0 in
-        Printf.sprintf "fun(%s) -> [%s]%s"
+        Printf.sprintf "fun(%s) -> %s%s"
           sdom seff s0
 
     | PidType(pidty) ->

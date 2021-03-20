@@ -462,6 +462,10 @@ comp:
       let rng = make_range (Token(tokL)) (Ranged(c2)) in
       (rng, CompIf(e0, c1, c2))
     }
+  | tokL=CASE; e=exprlet; OF; branches=nonempty_list(comp_case_branch); tokR=END {
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, CompCase(e, branches))
+    }
   | efun=exprapp; LPAREN; args=args; tokR=RPAREN {
       let (ordargs, (mndargs, optargs)) = args in
       let rng = make_range (Ranged(efun)) (Token(tokR)) in
@@ -701,6 +705,9 @@ receive_branch:
 ;
 case_branch:
   | BAR; pat=patcons; ARROW; e=exprlet { CaseBranch(pat, e) }
+;
+comp_case_branch:
+  | BAR; pat=patcons; ARROW; c=comp { CompCaseBranch(pat, c) }
 ;
 patcons:
   | p1=patbot; CONS; p2=patcons { let rng = make_range (Ranged(p1)) (Ranged(p2)) in (rng, PListCons(p1, p2)) }

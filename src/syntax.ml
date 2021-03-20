@@ -199,6 +199,7 @@ and untyped_computation_ast_main =
   | CompLetIn    of rec_or_nonrec * untyped_computation_ast
   | CompLetPatIn of untyped_pattern * untyped_ast * untyped_computation_ast
   | CompIf       of untyped_ast * untyped_computation_ast * untyped_computation_ast
+  | CompCase     of untyped_ast * untyped_computation_case_branch list
   | CompApply    of untyped_ast * untyped_arguments
 
 and untyped_arguments =
@@ -250,6 +251,9 @@ and untyped_receive_branch =
 
 and untyped_case_branch =
   | CaseBranch of untyped_pattern * untyped_ast
+
+and untyped_computation_case_branch =
+  | CompCaseBranch of untyped_pattern * untyped_computation_ast
 
 and untyped_pattern =
   untyped_pattern_main ranged
