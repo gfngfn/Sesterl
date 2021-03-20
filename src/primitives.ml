@@ -136,9 +136,9 @@ let primitive_definitions = [
       typ        = tyspawn;
     };
     target = {
-      target_name = "thunk_spawn";
+      target_name = "spawn";
       parameters  = ["F"];
-      code        = "fun() -> erlang:spawn(F) end";
+      code        = "erlang:spawn(F)";
     };
   };
   {
@@ -147,9 +147,9 @@ let primitive_definitions = [
       typ        = tysend;
     };
     target = {
-      target_name = "thunk_send";
+      target_name = "send";
       parameters  = ["X"; "Y"];
-      code        = "fun() -> X ! Y, ok end";
+      code        = "X ! Y, ok";
     };
   };
   {
@@ -158,9 +158,9 @@ let primitive_definitions = [
       typ        = tyreturn;
     };
     target = {
-      target_name = "thunk_return";
+      target_name = "return";
       parameters  = ["X"];
-      code        = "fun() -> X end";
+      code        = "X";
     }
   };
   {
@@ -169,7 +169,7 @@ let primitive_definitions = [
       typ        = tyself;
     };
     target = {
-      target_name = "thunk_self";
+      target_name = "self";
       parameters  = [];
       code        = "erlang:self()";
     };

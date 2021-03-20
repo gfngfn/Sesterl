@@ -50,16 +50,10 @@ module Send = struct
       in
       spawn_all(pid :: acc, n - 1)
 
-  val entrypoint() = act
+  val main(args) = act
     let m = 10 in
     do pids <- spawn_all([], m) in
     let _ = print_debug(pids) in
     wait_all({}, m)
-
-  val main<$a> : $a = external 1 ```
-main(_) ->
-    F = entrypoint(),
-    F(). % forcing a thunk
-  ```
 
 end

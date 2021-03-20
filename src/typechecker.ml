@@ -239,14 +239,6 @@ let ilambda ((ordnames, mndnamemap, optnamemap) : local_name list * local_name L
   ILambda(None, ordnames, mndnamemap, optnamemap, e0)
 
 
-let ithunk (e : ast) : ast =
-  IThunk(e)
-
-
-let iforce (e : ast) : ast =
-  IForce(e)
-
-
 let iletpatin (ipat : pattern) (e1 : ast) (e2 : ast) : ast =
   ICase(e1, [ IBranch(ipat, e2) ])
 
@@ -1664,7 +1656,7 @@ and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono
       unify ty1 tyx;
       let ((eff2, ty2), e2) = typecheck_computation { pre with tyenv } utcomp2 in
       unify_effect eff1 eff2;
-      let e2 = ithunk (ILetIn(lname, iforce e1, iforce e2)) in
+      let e2 = ILetIn(lname, e1, e2) in
       ((eff2, ty2), e2)
 
   | CompReceive(branches) ->
@@ -1684,7 +1676,7 @@ and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono
         pre.tyenv |> Typeenv.add_val x pty (OutputIdentifier.Local(lname)) in
       let ((eff2, ty2), e2) = typecheck_computation { pre with tyenv } utcomp2 in
       check_properly_used tyenv letbind.vb_identifier;
-      ((eff2, ty2), ithunk (ILetIn(lname, e1, e2)))
+      ((eff2, ty2), ILetIn(lname, e1, e2))
 
   | CompLetIn(Rec(letbinds), utcomp2) ->
       let proj lname = OutputIdentifier.Local(lname) in
@@ -1697,12 +1689,12 @@ and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono
         in
         typecheck_computation { pre with tyenv } utcomp2
       in
-      ((eff2, ty2), ithunk (iletrecin binds e2))
+      ((eff2, ty2), iletrecin binds e2)
 
   | CompLetPatIn(utpat, utast1, utcomp2) ->
       let (tyenv, ipat, bindmap, e1) = typecheck_let_pattern pre rng utpat utast1 in
       let ((eff2, ty2), e2) = typecheck_computation { pre with tyenv } utcomp2 in
-      ((eff2, ty2), ithunk (iletpatin ipat e1 e2))
+      ((eff2, ty2), iletpatin ipat e1 e2)
 
   | CompIf(utast0, utcomp1, utcomp2) ->
       let (ty0, e0) = typecheck pre utast0 in
@@ -1723,7 +1715,7 @@ and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono
       in
       let tyret = fresh_type_variable ~name:"(CompApply1)" pre.level UniversalKind rng in
       unify tyfun (Range.dummy "CompApply", EffType(domain, eff, tyret));
-      ((eff, tyret), ithunk (iapply efun optrow iargs))
+      ((eff, tyret), iapply efun optrow iargs)
 
 
 and get_structure_signature (tyenv : Typeenv.t) (modidents : (module_name ranged) list) : SigRecord.t =

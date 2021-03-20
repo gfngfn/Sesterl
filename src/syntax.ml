@@ -568,8 +568,6 @@ and ast =
   | IRecord      of ast LabelAssoc.t
   | IRecordAccess of ast * label
   | IRecordUpdate of ast * label * ast
-  | IThunk       of ast
-  | IForce       of ast
   | IFreeze       of global_name * ast list
   | IFreezeUpdate of ast * ast list
 
