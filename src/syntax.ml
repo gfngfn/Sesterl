@@ -133,12 +133,15 @@ and manual_type = manual_type_main ranged
 
 and manual_type_main =
   | MTypeName    of type_name * manual_type list
-  | MFuncType    of manual_type list * labeled_manual_type list * manual_row * manual_type
+  | MFuncType    of manual_domain_type * manual_type
   | MProductType of manual_type TupleList.t
   | MRecordType  of labeled_manual_type list
-  | MEffType     of manual_type * manual_type
+  | MEffType     of manual_domain_type * manual_type * manual_type
   | MTypeVar     of type_variable_name
   | MModProjType of untyped_module * type_name ranged * manual_type list
+
+and manual_domain_type =
+  manual_type list * labeled_manual_type list * manual_row
 
 and manual_row =
   | MFixedRow of (label ranged * manual_type) list
@@ -159,17 +162,16 @@ and untyped_ast =
 and untyped_ast_main =
   | BaseConst    of base_constant
   | Var          of identifier
-  | Lambda       of binder list * labeled_binder list * labeled_optional_binder list * untyped_ast
-  | Apply        of untyped_ast * untyped_ast list * labeled_untyped_ast list * labeled_untyped_ast list
+  | Lambda       of untyped_parameters * untyped_ast
+  | LambdaEff    of untyped_parameters * untyped_computation_ast
+  | Apply        of untyped_application
   | If           of untyped_ast * untyped_ast * untyped_ast
   | LetIn        of rec_or_nonrec * untyped_ast
   | LetPatIn     of untyped_pattern * untyped_ast * untyped_ast
-  | Do           of binder option * untyped_ast * untyped_ast
-  | Receive      of untyped_branch list
   | Tuple        of untyped_ast TupleList.t
   | ListNil
   | ListCons     of untyped_ast * untyped_ast
-  | Case         of untyped_ast * untyped_branch list
+  | Case         of untyped_ast * untyped_case_branch list
   | Constructor  of constructor_name * untyped_ast list
   | BinaryByList of (int ranged) list
   | Record       of labeled_untyped_ast list
@@ -179,6 +181,21 @@ and untyped_ast_main =
   | FreezeUpdate of untyped_ast * untyped_ast list * Range.t list
   | ModProjVal   of (module_name ranged) list * identifier ranged
   | ModProjCtor  of (module_name ranged) list * constructor_name ranged * untyped_ast list
+
+and untyped_parameters =
+  binder list * labeled_binder list * labeled_optional_binder list
+
+and untyped_computation_ast =
+  untyped_computation_ast_main ranged
+
+and untyped_computation_ast_main =
+  | CompDo      of binder option * untyped_computation_ast * untyped_computation_ast
+  | CompReceive of untyped_receive_branch list
+  | CompLetIn   of rec_or_nonrec * untyped_computation_ast
+  | CompApply   of untyped_application
+
+and untyped_application =
+  untyped_ast * untyped_ast list * labeled_untyped_ast list * labeled_untyped_ast list
 
 and frozen_fun =
   | FrozenModFun of module_name_chain * identifier ranged
@@ -216,8 +233,11 @@ and untyped_let_binding = {
   vb_body        : untyped_ast;
 }
 
-and untyped_branch =
-  | Branch of untyped_pattern * untyped_ast option * untyped_ast
+and untyped_receive_branch =
+  | ReceiveBranch of untyped_pattern * untyped_computation_ast
+
+and untyped_case_branch =
+  | CaseBranch of untyped_pattern * untyped_ast
 
 and untyped_pattern =
   untyped_pattern_main ranged
@@ -335,7 +355,7 @@ and ('a, 'b) typ_main =
   | BaseType    of base_type
   | FuncType    of ('a, 'b) domain_type * ('a, 'b) typ
   | PidType     of ('a, 'b) pid_type
-  | EffType     of ('a, 'b) effect * ('a, 'b) typ
+  | EffType     of ('a, 'b) domain_type * ('a, 'b) effect * ('a, 'b) typ
   | TypeVar     of 'a
   | ProductType of (('a, 'b) typ) TupleList.t
   | DataType    of TypeID.t * (('a, 'b) typ) list
@@ -389,6 +409,10 @@ type mono_kind = (mono_type_var, mono_row_var) kind
 
 type mono_base_kind = (mono_type_var, mono_row_var) base_kind
 
+type mono_effect = (mono_type_var, mono_row_var) effect
+
+type mono_domain_type = (mono_type_var, mono_row_var) domain_type
+
 type poly_type_var =
   | Mono  of mono_type_var
   | Bound of BoundID.t
@@ -404,6 +428,8 @@ type poly_row = (poly_type_var, poly_row_var) row
 type poly_kind = (poly_type_var, poly_row_var) kind
 
 type poly_base_kind = (poly_type_var, poly_row_var) base_kind
+
+type poly_domain_type = (poly_type_var, poly_row_var) domain_type
 
 module FreeIDHashTable = Hashtbl.Make(FreeID)
 
@@ -536,7 +562,7 @@ and ast =
   | IFreezeUpdate of ast * ast list
 
 and branch =
-  | IBranch of pattern * ast option * ast
+  | IBranch of pattern * ast
 
 
 let pp_sep_comma ppf () =
@@ -632,8 +658,8 @@ and pp_ast ppf = function
 
 
 and pp_branch ppf = function
-  | IBranch(ipat, _, e) ->
-      Format.fprintf ppf "%a (when ...) ->@[<hov2>@ %a@];@ "
+  | IBranch(ipat, e) ->
+      Format.fprintf ppf "%a ->@[<hov2>@ %a@];@ "
         pp_pattern ipat
         pp_ast e
 

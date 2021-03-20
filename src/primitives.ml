@@ -66,7 +66,16 @@ let ( @-> ) tydoms tycod =
   in
   (dr, FuncType(domain, tycod))
 
-let eff tyrcv ty0 = (dr, EffType(Effect(tyrcv), ty0))
+let eff tydoms tyrcv ty0 =
+  let domain =
+    {
+      ordered   = tydoms;
+      mandatory = LabelAssoc.empty;
+      optional  = FixedRow(LabelAssoc.empty);
+    }
+  in
+  (dr, EffType(domain, Effect(tyrcv), ty0))
+
 let pid tyrcv = (dr, PidType(Pid(tyrcv)))
 
 let tylogic : poly_type = [b; b] @-> b
@@ -77,21 +86,21 @@ let tyarith_float : poly_type = [f; f] @-> f
 let tyspawn : poly_type =
   let tyrecv = fresh_bound () in
   let tyrecvnew = fresh_bound () in
-  [eff tyrecvnew u] @-> eff tyrecv (pid tyrecvnew)
+  eff [eff [] tyrecvnew u] tyrecv (pid tyrecvnew)
 
 let tysend : poly_type =
   let tyrecv = fresh_bound () in
   let tyrecvremote = fresh_bound () in
-  [pid tyrecvremote; tyrecvremote] @-> eff tyrecv u
+  eff [pid tyrecvremote; tyrecvremote] tyrecv u
 
 let tyreturn : poly_type =
   let tyrecv = fresh_bound () in
   let tyres = fresh_bound () in
-  [tyres] @-> eff tyrecv tyres
+  eff [tyres] tyrecv tyres
 
 let tyself : poly_type =
   let tyrecv = fresh_bound () in
-  eff tyrecv (pid tyrecv)
+  eff [] tyrecv (pid tyrecv)
 
 let typrintdebug : poly_type =
   let typaram = fresh_bound () in

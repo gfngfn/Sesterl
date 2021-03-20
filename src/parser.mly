@@ -6,6 +6,10 @@
     | Token of Range.t
     | Ranged of (Range.t * 'a)
 
+  type ('a, 'b) pure_or_effectful =
+    | Pure      of 'a
+    | Effectful of 'b
+
 
   let make_range rs1 rs2 =
     let aux = function
@@ -89,7 +93,7 @@
     (rng, DeclInclude((dr, SigWith((dr, SigDecls(decls)), [], tybinds))))
 %}
 
-%token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE WHEN END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE
+%token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE ACT END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE
 %token<Range.t> LPAREN RPAREN LSQUARE RSQUARE LBRACE RBRACE
 %token<Range.t> DEFEQ COMMA ARROW REVARROW BAR UNDERSCORE CONS COLON COERCE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
@@ -425,6 +429,25 @@ sigexprbot:
       (rng, utsigmain)
     }
 ;
+comp:
+  | tokL=DO; ident=LOWER; tyannot=tyannot; REVARROW; c1=comp; IN; c2=comp {
+      let rng = make_range (Token(tokL)) (Ranged(c2)) in
+      (rng, CompDo(Some((ident, tyannot)), c1, c2))
+    }
+  | tokL=DO; c1=comp; IN; c2=comp {
+      let rng = make_range (Token(tokL)) (Ranged(c2)) in
+      (rng, CompDo(None, c1, c2))
+    }
+  | tokL=RECEIVE; branches=nonempty_list(receive_branch); tokR=END {
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, CompReceive(branches))
+    }
+  | efun=exprapp; LPAREN; args=args; tokR=RPAREN {
+      let (ordargs, (mndargs, optargs)) = args in
+      let rng = make_range (Ranged(efun)) (Token(tokR)) in
+      (rng, CompApply(efun, ordargs, mndargs, optargs))
+    }
+;
 exprlet:
   | tokL=LET; rec_or_nonrec=bindvallocal; IN; e2=exprlet {
       let rng = make_range (Token(tokL)) (Ranged(e2)) in
@@ -438,31 +461,26 @@ exprlet:
       let rng = make_range (Token(tokL)) (Ranged(e2)) in
       (rng, If(e0, e1, e2))
     }
-  | tokL=DO; ident=LOWER; tyannot=tyannot; REVARROW; e1=exprlet; IN; e2=exprlet {
-      let rng = make_range (Token(tokL)) (Ranged(e2)) in
-      (rng, Do(Some((ident, tyannot)), e1, e2))
-    }
-  | tokL=DO; e1=exprlet; IN; e2=exprlet {
-      let rng = make_range (Token(tokL)) (Ranged(e2)) in
-      (rng, Do(None, e1, e2))
-    }
   | e=exprfun { e }
 ;
 exprfun:
-  | tokL=LAMBDA; LPAREN; params=params; RPAREN; ARROW; e=exprlet; tokR=END {
+  | tokL=LAMBDA; LPAREN; params=params; RPAREN; ARROW; cod=exprcod; tokR=END {
       let (ordparams, (mndparams, optparams)) = params in
+      let lamparams = (ordparams, mndparams, optparams) in
       let rng = make_range (Token(tokL)) (Token(tokR)) in
-      (rng, Lambda(ordparams, mndparams, optparams, e))
+      match cod with
+      | Pure(e)      -> (rng, Lambda(lamparams, e))
+      | Effectful(c) -> (rng, LambdaEff(lamparams, c))
     }
-  | tokL=RECEIVE; branches=nonempty_list(branch); tokR=END {
-      let rng = make_range (Token(tokL)) (Token(tokR)) in
-      (rng, Receive(branches))
-    }
-  | tokL=CASE; e=exprlet; OF; branches=nonempty_list(branch); tokR=END {
+  | tokL=CASE; e=exprlet; OF; branches=nonempty_list(case_branch); tokR=END {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
       (rng, Case(e, branches))
     }
   | e=exprland { e }
+;
+exprcod:
+  | e=exprlet   { Pure(e) }
+  | ACT; c=comp { Effectful(c) }
 ;
 exprland:
   | e1=exprlor; op=BINOP_AMP; e2=exprland { binary e1 op e2 }
@@ -658,9 +676,11 @@ gtgt:
 tuplesub:
   COMMA; e=exprlet { e }
 ;
-branch:
-  | BAR; pat=patcons; ARROW; e=exprlet                   { Branch(pat, None, e) }
-  | BAR; pat=patcons; WHEN; ew=exprlet; ARROW; e=exprlet { Branch(pat, Some(ew), e) }
+receive_branch:
+  | BAR; pat=patcons; ARROW; c=comp { ReceiveBranch(pat, c) }
+;
+case_branch:
+  | BAR; pat=patcons; ARROW; e=exprlet { CaseBranch(pat, e) }
 ;
 patcons:
   | p1=patbot; CONS; p2=patcons { let rng = make_range (Ranged(p1)) (Ranged(p2)) in (rng, PListCons(p1, p2)) }
@@ -779,22 +799,33 @@ tybot:
       let rng = make_range (Token(tokL)) (Token(tokR)) in
       (rng, MTypeName(tynm, mtyargs))
     }
-  | tokL=LAMBDA; LPAREN; tydoms=tydoms; RPAREN; ARROW; mtycod=ty {
+  | tokL=LAMBDA; LPAREN; tydoms=tydoms; RPAREN; ARROW; cod=tycod {
       let (ordmtydoms, (mndmtydoms, optmtydoms)) = tydoms in
-      let rng = make_range (Token(tokL)) (Ranged(mtycod)) in
-      (rng, MFuncType(ordmtydoms, mndmtydoms, optmtydoms, mtycod))
+      match cod with
+      | Pure(mtycod) ->
+          let rng = make_range (Token(tokL)) (Ranged(mtycod)) in
+          (rng, MFuncType((ordmtydoms, mndmtydoms, optmtydoms), mtycod))
+
+      | Effectful(rngL, mty1, mty2) ->
+          let rng = make_range (Token(tokL)) (Token(rngL)) in
+          (rng, MEffType((ordmtydoms, mndmtydoms, optmtydoms), mty1, mty2))
     }
   | tokL=LBRACE; mty1=ty; mtys=list(tytuplesub) tokR=RBRACE {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
       (rng, MProductType(TupleList.make mty1 mtys))
     }
-  | tokL=LSQUARE; mty1=ty; RSQUARE; mty2=ty {
-      let rng = make_range (Token(tokL)) (Ranged(mty2)) in
-      (rng, MEffType(mty1, mty2))
-    }
   | tokL=LBRACE; tyrecord=tyrecord; tokR=RBRACE {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
       (rng, MRecordType(tyrecord))
+    }
+;
+tycod:
+  | mtycod=ty {
+      Pure(mtycod)
+    }
+  | tokL=LSQUARE; mty1=ty; RSQUARE; mty2=ty {
+      let rng = make_range (Token(tokL)) (Ranged(mty2)) in
+      Effectful(rng, mty1, mty2)
     }
 ;
 tyrecord:
