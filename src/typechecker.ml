@@ -584,10 +584,8 @@ let label_assoc_union =
   LabelAssoc.union (fun _ _ ty2 -> Some(ty2))
 
 
-let unify (tyact : mono_type) (tyexp : mono_type) : unit =
-(*
-  Format.printf "UNIFY %a =?= %a\n" pp_mono_type tyact pp_mono_type tyexp; (* for debug *)
-*)
+module Unification = struct
+
   let rec aux (ty1 : mono_type) (ty2 : mono_type) : unification_result =
     let (_, ty1main) = ty1 in
     let (_, ty2main) = ty2 in
@@ -640,7 +638,7 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
         aux_pid_type pidty1 pidty2
 
     | (ChannelType(ses1), ChannelType(ses2)) ->
-        failwith "TODO: unify, ChannelType"
+        aux_session ses1 ses2
 
     | (ProductType(tys1), ProductType(tys2)) ->
         aux_list (tys1 |> TupleList.to_list) (tys2 |> TupleList.to_list)
@@ -732,10 +730,20 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
     | Invalid_argument(_) -> Contradiction
 
   and aux_effect (Effect(sesmap1)) (Effect(sesmap2)) =
-    failwith "TODO: unify, aux_effect"
+    aux_session_map sesmap1 sesmap2
 
   and aux_pid_type (Pid(sesmap1)) (Pid(sesmap2)) =
-    failwith "TODO: unify, aux_pid_type"
+    aux_session_map sesmap1 sesmap2
+
+  and aux_session_map tagmap1 tagmap2 =
+    failwith "TODO: unify, aux_session_map"
+
+  and aux_session ses1 ses2 =
+    match (ses1, ses2) with
+    | (In(tagmap1), In(tagmap2))   -> aux_session_map tagmap1 tagmap2
+    | (Out(tagmap1), Out(tagmap2)) -> aux_session_map tagmap1 tagmap2
+    | (Finish, Finish)             -> Consistent
+    | _                            -> Contradiction
 
   and aux_option_row (optrow1 : mono_row) (optrow2 : mono_row) =
     match (optrow1, optrow2) with
@@ -850,8 +858,14 @@ let unify (tyact : mono_type) (tyexp : mono_type) : unit =
       | Consistent -> aux ty1 ty2
       | _          -> res
     ) intersection Consistent
-  in
-  let res = aux tyact tyexp in
+
+end
+
+let unify (tyact : mono_type) (tyexp : mono_type) : unit =
+(*
+  Format.printf "UNIFY %a =?= %a\n" pp_mono_type tyact pp_mono_type tyexp; (* for debug *)
+*)
+  let res = Unification.aux tyact tyexp in
   match res with
   | Consistent         -> ()
   | Contradiction      -> raise_error (ContradictionError(tyact, tyexp))
