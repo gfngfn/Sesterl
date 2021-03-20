@@ -6,11 +6,6 @@
     | Token of Range.t
     | Ranged of (Range.t * 'a)
 
-  type ('a, 'b) pure_or_effectful =
-    | Pure      of 'a
-    | Effectful of 'b
-
-
   let make_range rs1 rs2 =
     let aux = function
       | Token(rng)       -> rng
@@ -251,7 +246,7 @@ recbinds:
   | AND; valbinding=bindvalsingle { valbinding }
 ;
 bindvalsingle:
-  | ident=LOWER; tyrowparams=typarams; LPAREN; params=params; RPAREN; tyannot=tyannot; DEFEQ; e0=exprlet {
+  | ident=LOWER; tyrowparams=typarams; LPAREN; params=params; RPAREN; ret=bindvalret {
       let (typarams, rowparams) = tyrowparams in
       let (ordparams, (mndparams, optparams)) = params in
       {
@@ -261,9 +256,22 @@ bindvalsingle:
         vb_parameters  = ordparams;
         vb_mandatories = mndparams;
         vb_optionals   = optparams;
-        vb_return_type = tyannot;
-        vb_body        = e0;
+        vb_return      = ret;
       }
+    }
+;
+bindvalret:
+  | DEFEQ; e=exprlet {
+      Pure(None, e)
+    }
+  | COLON; mty=ty DEFEQ; e=exprlet {
+      Pure(Some(mty), e)
+    }
+  | DEFEQ; ACT; c=comp {
+      Effectful(None, c)
+    }
+  | COLON; tokL=LSQUARE; mty1=ty; RSQUARE; mty2=ty DEFEQ; ACT; c=comp {
+      Effectful(Some(mty1, mty2), c)
     }
 ;
 ctorbranches:
@@ -441,6 +449,18 @@ comp:
   | tokL=RECEIVE; branches=nonempty_list(receive_branch); tokR=END {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
       (rng, CompReceive(branches))
+    }
+  | tokL=LET; rec_or_nonrec=bindvallocal; IN; c2=comp {
+      let rng = make_range (Token(tokL)) (Ranged(c2)) in
+      (rng, CompLetIn(rec_or_nonrec, c2))
+    }
+  | tokL=LET; pat=patcons; DEFEQ; e1=exprlet; IN; c2=comp {
+      let rng = make_range (Token(tokL)) (Ranged(c2)) in
+      (rng, CompLetPatIn(pat, e1, c2))
+    }
+  | tokL=IF; e0=exprlet; THEN; c1=comp; ELSE c2=comp {
+      let rng = make_range (Token(tokL)) (Ranged(c2)) in
+      (rng, CompIf(e0, c1, c2))
     }
   | efun=exprapp; LPAREN; args=args; tokR=RPAREN {
       let (ordargs, (mndargs, optargs)) = args in

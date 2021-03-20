@@ -5,6 +5,11 @@ module TupleList = List1
 
 type package_name = string
 
+type ('a, 'b) pure_or_effectful =
+  | Pure      of 'a
+  | Effectful of 'b
+[@@deriving show { with_path = false; } ]
+
 type 'a cycle =
   | Loop  of 'a
   | Cycle of 'a List2.t
@@ -189,10 +194,12 @@ and untyped_computation_ast =
   untyped_computation_ast_main ranged
 
 and untyped_computation_ast_main =
-  | CompDo      of binder option * untyped_computation_ast * untyped_computation_ast
-  | CompReceive of untyped_receive_branch list
-  | CompLetIn   of rec_or_nonrec * untyped_computation_ast
-  | CompApply   of untyped_application
+  | CompDo       of binder option * untyped_computation_ast * untyped_computation_ast
+  | CompReceive  of untyped_receive_branch list
+  | CompLetIn    of rec_or_nonrec * untyped_computation_ast
+  | CompLetPatIn of untyped_pattern * untyped_ast * untyped_computation_ast
+  | CompIf       of untyped_ast * untyped_computation_ast * untyped_computation_ast
+  | CompApply    of untyped_application
 
 and untyped_application =
   untyped_ast * untyped_ast list * labeled_untyped_ast list * labeled_untyped_ast list
@@ -229,9 +236,14 @@ and untyped_let_binding = {
   vb_parameters  : binder list;
   vb_mandatories : labeled_binder list;
   vb_optionals   : labeled_optional_binder list;
-  vb_return_type : manual_type option;
-  vb_body        : untyped_ast;
+  vb_return      : (pure_return, effectful_return) pure_or_effectful;
 }
+
+and pure_return =
+  manual_type option * untyped_ast
+
+and effectful_return =
+  (manual_type * manual_type) option * untyped_computation_ast
 
 and untyped_receive_branch =
   | ReceiveBranch of untyped_pattern * untyped_computation_ast

@@ -1653,6 +1653,19 @@ and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono
   | CompLetIn(_) ->
       failwith "TODO: CompLetIn"
 
+  | CompLetPatIn(_) ->
+      failwith "TODO: CompLetPatIn"
+
+  | CompIf(utast0, utcomp1, utcomp2) ->
+      let (ty0, e0) = typecheck pre utast0 in
+      unify ty0 (Range.dummy "If", BaseType(BoolType));
+      let ((eff1, ty1), e1) = typecheck_computation pre utcomp1 in
+      let ((eff2, ty2), e2) = typecheck_computation pre utcomp2 in
+      unify_effect eff1 eff2;
+      unify ty1 ty2;
+      let ibranches = [ IBranch(IPBool(true), e1); IBranch(IPBool(false), e2) ] in
+      ((eff1, ty1), ICase(e0, ibranches))
+
   | CompApply(_utastfun, _utastargs, _mndutastargs, _optutastargs) ->
       failwith "TODO: CompApply"
 
@@ -1841,9 +1854,8 @@ fun namef pre letbind ->
   let ordparams = letbind.vb_parameters in
   let mndparams = letbind.vb_mandatories in
   let optparams = letbind.vb_optionals in
-  let utast0 = letbind.vb_body in
 
-  let (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap) =
+  let (ty1, e0, (lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)) =
 
    (* First, add local type/row parameters at level `levS`. *)
     let pre =
@@ -1861,17 +1873,32 @@ fun namef pre letbind ->
     let (tyenv, optlabmap, optnamemap) =
       add_labeled_optional_parameters_to_type_environment { pre with tyenv } optparams
     in
+    let output_info = (lnames, optlabmap, optnamemap, mndlabmap, mndnamemap) in
+    let domain = {ordered = tys; mandatory = mndlabmap; optional = FixedRow(optlabmap)} in
     let pre = { pre with tyenv } in
 
     (* Finally, typecheck the body expression. *)
-    let (ty0, e0) = typecheck pre utast0 in
-    letbind.vb_return_type |> Option.map (fun mty0 ->
-      let ty0_expected = decode_manual_type pre mty0 in
-      unify ty0 ty0_expected
-    ) |> Option.value ~default:();
-    (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)
+    match letbind.vb_return with
+    | Pure((tyretopt, utast0)) ->
+        let (ty0, e0) = typecheck pre utast0 in
+        tyretopt |> Option.map (fun mty0 ->
+          let ty0_expected = decode_manual_type pre mty0 in
+          unify ty0 ty0_expected
+        ) |> Option.value ~default:();
+        let ty1 = (rngv, FuncType(domain, ty0)) in
+        (ty1, e0, output_info)
+
+    | Effectful((tyretopt, utcomp0)) ->
+        let ((eff0, ty0), e0) = typecheck_computation pre utcomp0 in
+        tyretopt |> Option.map (fun (mty1, mty2) ->
+          let ty1_expected = decode_manual_type pre mty1 in
+          let ty2_expected = decode_manual_type pre mty2 in
+          unify_effect eff0 (Effect(ty1_expected));
+          unify ty0 ty2_expected
+        ) |> Option.value ~default:();
+        let ty1 = (rngv, EffType(domain, eff0, ty0)) in
+        (ty1, e0, output_info)
   in
-  let ty1 = (rngv, FuncType({ordered = tys; mandatory = mndlabmap; optional = FixedRow(optlabmap)}, ty0)) in
   let e1 = ILambda(None, lnames, mndnamemap, optnamemap, e0) in
 
   let pty1 =
@@ -1915,9 +1942,8 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
   let ordparams = letbind.vb_parameters in
   let mndparams = letbind.vb_mandatories in
   let optparams = letbind.vb_optionals in
-  let utast0 = letbind.vb_body in
 
-  let (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap) =
+  let (ty1, e0, (lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)) =
     (* First, add local type/row parameters at level `levS`. *)
     let pre =
       let (pre, assoc) = make_type_parameter_assoc pre letbind.vb_forall in
@@ -1936,17 +1962,32 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
     let (tyenv, optlabmap, optnamemap) =
       add_labeled_optional_parameters_to_type_environment { pre with tyenv } optparams
     in
+    let output_info = (lnames, optlabmap, optnamemap, mndlabmap, mndnamemap) in
+    let domain = {ordered = tys; mandatory = mndlabmap; optional = FixedRow(optlabmap)} in
     let pre = { pre with tyenv } in
 
     (* Finally, typecheck the body expression. *)
-    let (ty0, e0) = typecheck pre utast0 in
-    letbind.vb_return_type |> Option.map (fun mty0 ->
-      let ty0_expected = decode_manual_type pre mty0 in
-      unify ty0 ty0_expected;
-    ) |> Option.value ~default:();
-    (ty0, e0, tys, lnames, optlabmap, optnamemap, mndlabmap, mndnamemap)
+    match letbind.vb_return with
+    | Pure((tyretopt, utast0)) ->
+        let (ty0, e0) = typecheck pre utast0 in
+        tyretopt |> Option.map (fun mty0 ->
+          let ty0_expected = decode_manual_type pre mty0 in
+          unify ty0 ty0_expected
+        ) |> Option.value ~default:();
+        let ty1 = (rngv, FuncType(domain, ty0)) in
+        (ty1, e0, output_info)
+
+    | Effectful((tyretopt, utcomp0)) ->
+        let ((eff0, ty0), e0) = typecheck_computation pre utcomp0 in
+        tyretopt |> Option.map (fun (mty1, mty2) ->
+          let ty1_expected = decode_manual_type pre mty1 in
+          let ty2_expected = decode_manual_type pre mty2 in
+          unify_effect eff0 (Effect(ty1_expected));
+          unify ty0 ty2_expected
+        ) |> Option.value ~default:();
+        let ty1 = (rngv, EffType(domain, eff0, ty0)) in
+        (ty1, e0, output_info)
   in
-  let ty1 = (rngv, FuncType({ordered = tys; mandatory = mndlabmap; optional = FixedRow(optlabmap)}, ty0)) in
   let e1 = ILambda(None, lnames, mndnamemap, optnamemap, e0) in
   unify ty1 tyf;
   let ptyf =
