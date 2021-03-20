@@ -1335,8 +1335,11 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let ty = (rng, FuncType(domain, tycod)) in
       (ty, ilambda ibinders e0)
 
-  | LambdaEff(_, _) ->
-      failwith "TODO: LambdaEff"
+  | LambdaEff(binders, utcomp0) ->
+      let (pre, domain, ibinders) = add_parameters_to_type_environment pre binders in
+      let ((eff, ty0), e0) = typecheck_computation pre utcomp0 in
+      let ty = (rng, EffType(domain, eff, ty0)) in
+      (ty, ilambda ibinders e0)
 
   | Apply(utastfun, utargs) ->
       let (tyfun, efun) = typecheck pre utastfun in
