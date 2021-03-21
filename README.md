@@ -32,6 +32,7 @@
 - [Major differences from similar projects](#major-differences-from-similar-projects)
 - [Future work](#future-work)
   - [TODO list](#todo-list)
+- [Overall Syntax](#overall-syntax)
 - [References](#references)
 
 
@@ -707,6 +708,209 @@ Also, though not supporting them currently, we want to add features like the fol
   * [x] Embedding external modules as submodules
   * [x] Connection with rebar3
 * [ ] (Multiparty) session types
+
+
+## Overall Syntax
+
+```
+n ::= (a decimal or hexadecimal integer literal)
+float ::= (a floating-point number liteal)
+bin ::= (a string literal enclosed by double quotation marks)
+X, C ::= (a capitalized identifier)
+x, t, k, l ::= (a lowercased identifier other than keywords)
+$a ::= (a lowercased identifier preceded by a dollar sign)
+?$a ::= (a lowercased identifier preceded by a question mark and a dollar sign)
+-l ::= (a lowercased identifier preceded by a hyphen)
+?l ::= (a lowercased identifier preceded by a question mark)
+
+# a single source file:
+source-file ::=
+  | ('import' X)* 'module' X (':>' S) '=' 'struct' (bind)* 'end'
+
+# a value expression:
+E ::=
+  | '(' E ')'
+  | E binary-operator E
+  | (X '.')* x
+  | (X '.')* C                                    # a variant constructor
+  | E '(' val-args ')'                            # a function application
+  | 'let' bind-val-local 'in' E                   # local binding(s)
+  | 'let' pattern '=' E 'in' E
+  | 'fun' '(' val-params ')' '->' E 'end'         # a pure abstraction
+  | 'fun' '(' val-params ')' '->' 'act' K 'end'   # an effectful abstraction
+  | 'if' E 'then' E 'else' E
+  | 'case' E 'of' pure-cases 'end'
+  | '{' '}'                                       # a unit value
+  | '{' E (',' E)* (',')? '}'                     # a tuple
+  | '{' l '=' E (',' l '=' E)* (',')? '}'         # a record
+  | E '.' l                                       # a record access
+  | '{' E '|' l '=' E (',' l '=' E)* (',')? '}'   # a record update
+  | E '::' E
+  | '[' ']'
+  | n
+  | float
+  | bin
+  | 'true'
+  | 'false'
+  | ...
+
+pure-cases ::=
+  | ('|')? pattern '->' E ('|' pattern '->' E)*
+
+# an effectful computation:
+K ::=
+  | 'do' x '<-' K 'in' K                  # a sequential composition (i.e. so-called a bind in a monadic sense)
+  | 'receive' effectful-cases 'end'       # a selective receive
+  | E '(' val-args ')'                    # a function application
+  | 'if' E 'then' K 'else' K
+  | 'case' E 'of' effectful-cases 'end'
+
+effectful-cases ::=
+  | ('|')? pattern '->' K ('|' pattern '->' K)*
+
+# a sequence of arguments for function applications:
+val-args ::=
+  | E (',' val-args)?
+  | val-labeled-args
+
+val-labeled-args ::=
+  | -l E (',' val-labeled-args)?
+  | val-optional-args
+
+val-optional-args ::=
+  | ?l E (',' val-optional-args)?
+  | (empty)
+
+# a pattern for the pattern matching:
+pattern ::=
+  | '_'
+  | x
+  | C
+  | C '(' pattern (',' pattern)* (',')? ')'
+  | '{' '}'
+  | '{' pattern (',' pattern)* (',')? '}'
+  | pattern '::' pattern
+  | '[' ']'
+  | n
+  | bin
+  | 'true'
+  | 'false'
+  | ...
+
+# a type:
+T ::=
+  | $a
+  | (X '.')* t ty-quant
+  | 'fun' '(' ty-doms ')' '->' T             # a function type
+  | 'fun' '(' ty-doms ')' '->' '[' T ']' T   # an action type
+  | '{' T (',' T)* (',')? '}'                # a product type
+  | '{' l '=' T (',' l '=' T)* (',')? '}'    # a record type
+
+# a sequence of domain types:
+ty-doms ::=
+  | T (',' ty-doms)?
+  | ty-labeled-doms
+
+ty-labeled-doms ::=
+  | -l T (',' ty-labeled-doms)?
+  | ty-optional-doms
+  | ?$a
+
+ty-optinal-doms ::=
+  | ?l T (',' ty-optional-doms)?
+  | (empty)
+
+# a kind:
+K ::=
+  | kd-base                                              # a base kind (i.e. an order-0 kind)
+  | '(' kd-base (',' kd-base)* (',')? ')' '->' kd-base   # an order-1 kind
+
+kd-base ::=
+  | k                                       # a named base kind (currently only 'o' is provided)
+  | '{' l '=' T (',' l '=' T)* (',')? '}'   # a record kind
+
+kd-row ::=
+  | '(' ty-optional-doms ')'
+
+# a module expression:
+M ::=
+  | '(' M ')'
+  | (X '.')* X
+  | 'struct' (bind)* 'end'         # a structure
+  | 'fun' '(' X ':' S ')' '->' M   # a functor abstraction
+  | (X '.')* X '( M )'             # a functor application
+  | X ':>' S                       # a coercion
+
+bind ::=
+  | 'val' (bind-val-local | bind-val-ffi)
+  | 'type' bind-ty
+  | 'module' X (':>' S)? '=' M
+  | 'signature' X '=' S
+  | 'include' M
+
+# a signature expression:
+S ::=
+  | '(' S ')'
+  | (X '.')* X
+  | 'sig' (decl)* 'end'
+  | 'fun' '(' X ':' S ')' '->' S   # a functor signature
+  | S 'with' 'type' bind-ty
+
+decl ::=
+  | 'val' x ty-quant ':' T
+  | 'type' t ('::' K)?
+  | 'type' t '=' bind-ty
+  | 'module' X ':' S
+  | 'signature' X '=' S
+
+bind-val-local ::=
+  | bind-val-single                                  # a non-recursive definition
+  | 'rec' bind-val-single ('and' bind-val-single)*   # (mutually) recursive definition(s)
+
+bind-val-single ::=
+  | x ty-quant '(' val-params ')' (':' T)? '=' E                   # a function definition
+  | x ty-quant '(' val-params ')' (':' '[' T ']' T)? '=' 'act' K   # an action definition
+
+bind-val-ffi ::=
+  | x ty-quant ':' T '=' 'external' n ('+')? string-block  # FFI
+
+bind-ty ::=
+  | bind-ty-single ('and' bind-ty-single)*
+
+bind-ty-single ::=
+  | t ty-quant '=' ('|')? ctor-branch ('|' ctor-branch)*   # a variant type definition
+  | t ty-quant '=' T                                       # a type synonym definition
+
+ctor-branch ::=
+  | C ('(' T (',' T)* ')')?   # a definition of a constructor and its parameter types
+
+# a comma-separated sequence of value parameters (for function definitions):
+val-params ::=
+  | x (':' T)? (',' val-params)?
+  | val-labeled-params
+
+# a comma-separated labeled parameters:
+val-labeled-params ::=
+  | -l x (':' T)? (',' val-labeled-params)?
+  | val-optional-params
+
+# a comma-separated labeled optional parameters (possibly with a default expression):
+val-optional-params ::=
+  | ?l x (':' T)? ('=' E)? (',' val-optional-params)?
+  | (empty)
+
+# a sequence of universal quantifiers for type parameters and row parameters
+ty-quant ::=
+  | ('<' ty-params '>')?
+
+ty-params ::=
+  | $a ('::' K)? (',' ty-params)?
+  | row-params
+
+row-params ::=
+  | ?$a '::' kd-row (',' row-params)?
+  | (empty)
+```
 
 
 ## References
