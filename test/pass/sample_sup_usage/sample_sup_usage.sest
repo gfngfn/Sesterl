@@ -50,13 +50,7 @@ module SampleSupUsage = struct
       val start_child1(n) = act
         S.make_child_proc(fun() -> act
           do res <- Child1.start_link(n) in
-          let ret =
-            case res of
-            | Some(proc) -> Some(Child1.as_pid(proc))
-            | None       -> None
-            end
-          in
-          return(ret)
+          return(Stdlib.Option.map(Child1.as_pid, res))
         end)
 
       val init(init_arg) = act
