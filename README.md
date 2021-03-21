@@ -712,6 +712,21 @@ Also, though not supporting them currently, we want to add features like the fol
 
 ## Overall Syntax
 
+How to read:
+
+* a word enclosed by single quotation marks (e.g. `'let'` or `'('`):
+  - a keyword token or a symbol token
+* a word without quotations (e.g. `E` or `val-args`):
+  - a metavariable of the (extended) BNF
+* `( DESCR )*`
+  - a possibly empty finite repetition of `DESCR`
+* `(empty)`
+  - no token (i.e. a token sequence of length zero)
+* `(DESCR1 | DESCR2)`
+  - either `DESCR1` or `DESCR2`
+* `( DESCR )?`
+  - equals `((empty) | DESCR)`
+
 ```
 n ::= (a decimal or hexadecimal integer literal)
 float ::= (a floating-point number liteal)
