@@ -5,6 +5,28 @@ module List = struct
         lists:map(F, Xs).
   ```
 
+  val filter<$a> : fun(fun($a) -> bool, list<$a>) -> list<$a> = external 2 ```
+    filter(P, Xs) ->
+        lists:filter(P, Xs).
+  ```
+
+  val filter_map<$a, $b> : fun(fun($a) -> option<$b>, list<$a>) -> list<$b> = external 2 ```
+    filter_map(F, Xs) ->
+        lists:filtermap(
+            fun(X) ->
+                case F(X) of
+                    none      -> false;
+                    {some, Y} -> {true, Y}
+                end
+            end,
+            Xs).
+  ```
+
+  val for_each<$msg, $a> : fun(fun($a) -> [$msg]unit, list<$a>) -> [$msg]unit = external 2 ```
+    for_each(F, Xs) ->
+        lists:foreach(F, Xs).
+  ```
+
   val foldl<$a, $b> : fun(fun($b, $a) -> $b, $b, list<$a>) -> $b = external 3 ```
     foldl(F, I, Xs) ->
         lists:foldl(fun(X, AccIn) -> F(AccIn, X) end, I, Xs).
