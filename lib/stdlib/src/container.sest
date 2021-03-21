@@ -1,3 +1,4 @@
+import Option
 import List
 import RawMap
 import ServerUtil
@@ -9,6 +10,13 @@ module Stdlib :> sig
   type name =
     | Local(binary)
     | Global(binary)
+
+  module Option : sig
+    val get<$a> : fun(option<$a>, -default $a) -> $a
+    val get_or_invoke<$a> : fun(option<$a>, -default fun() -> $a) -> $a
+    val map<$a, $b> : fun(fun($a) -> $b, option<$a>) -> option<$b>
+    val bind<$a, $b> : fun(option<$a>, fun($a) -> option<$b>) -> option<$b>
+  end
 
   module List : sig
     val map<$a, $b> : fun(fun($a) -> $b, list<$a>) -> list<$b>
@@ -161,6 +169,7 @@ module Stdlib :> sig
   end
 
 end = struct
+  module Option = Option
   module List = List
   module RawMap = RawMap
   include ServerUtil
