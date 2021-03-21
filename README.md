@@ -747,21 +747,23 @@ E ::=
   | '(' E ')'
   | E binary-operator E
   | (X '.')* x
-  | (X '.')* C                                    # a variant constructor
-  | E '(' val-args ')'                            # a function application
-  | 'let' bind-val-local 'in' E                   # local binding(s)
-  | 'let' pattern '=' E 'in' E
-  | 'fun' '(' val-params ')' '->' E 'end'         # a pure abstraction
-  | 'fun' '(' val-params ')' '->' 'act' K 'end'   # an effectful abstraction
-  | 'if' E 'then' E 'else' E
-  | 'case' E 'of' pure-cases 'end'
-  | '{' '}'                                       # a unit value
-  | '{' E (',' E)* (',')? '}'                     # a tuple
-  | '{' l '=' E (',' l '=' E)* (',')? '}'         # a record
-  | E '.' l                                       # a record access
-  | '{' E '|' l '=' E (',' l '=' E)* (',')? '}'   # a record update
-  | E '::' E
-  | '[' ']'
+  | (X '.')* C                                      # a variant constructor
+  | E '(' val-args ')'                              # a function application
+  | 'let' bind-val-local 'in' E                     # local binding(s)
+  | 'let' pattern '=' E 'in' E                      # local binding(s) by the pattern matching
+  | 'fun' '(' val-params ')' '->' E 'end'           # a pure abstraction
+  | 'fun' '(' val-params ')' '->' 'act' K 'end'     # an effectful abstraction
+  | 'if' E 'then' E 'else' E                        # a conditional branching
+  | 'case' E 'of' pure-cases 'end'                  # a pattern-matching expression
+  | '{' '}'                                         # a unit value
+  | '{' E (',' E)* (',')? '}'                       # a tuple
+  | '{' l '=' E (',' l '=' E)* (',')? '}'           # a record
+  | E '.' l                                         # a record access
+  | '{' E '|' l '=' E (',' l '=' E)* (',')? '}'     # a record update
+  | 'freeze' (X '.')* x '(' freeze-args ')'         # so-called a (possibly partial) mfargs() in Erlang
+  | 'freeze' '(' E ')' 'with' '(' freeze-args ')'   # addition of arguments to a partial mfargs()
+  | E '::' E                                        # so-called a cons
+  | '[' ']'                                         # so-called a nil
   | n
   | float
   | bin
