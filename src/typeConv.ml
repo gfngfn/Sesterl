@@ -111,6 +111,14 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let (bbidset, plabmap) = aux_label_assoc labmap in
         (bbidset, RecordKind(plabmap))
 
+  and aux_domain (domain : mono_domain_type) : BoundBothIDSet.t * poly_domain_type =
+    let {ordered = tydoms; mandatory = mndlabmap; optional = optrow} = domain in
+    let (bbidset1, ptydoms) = aux_list tydoms in
+    let (bbidset2, pmndlabmap) = aux_label_assoc mndlabmap in
+    let (bbidset3, poptrow) = aux_option_row optrow in
+    let bbidset = List.fold_left BoundBothIDSet.union bbidset1 [bbidset2; bbidset3] in
+    (bbidset, {ordered = ptydoms; mandatory = pmndlabmap; optional = poptrow})
+
   and aux ((rng, tymain) : mono_type) : BoundBothIDSet.t * poly_type =
     match tymain with
     | BaseType(bty) ->
@@ -142,20 +150,19 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let pty = (rngf rng, TypeVar(ptv)) in
         (bbidset, pty)
 
-    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
-        let (bbidset1, ptydoms) = aux_list tydoms in
-        let (bbidset2, pmndlabmap) = aux_label_assoc mndlabmap in
-        let (bbidset3, poptrow) = aux_option_row optrow in
-        let (bbidset4, ptycod) = aux tycod in
-        let bbidset = List.fold_left BoundBothIDSet.union bbidset1 [bbidset2; bbidset3; bbidset4] in
-        let pty = (rngf rng, FuncType(ptydoms, pmndlabmap, poptrow, ptycod)) in
+    | FuncType(domain, tycod) ->
+        let (bbidsetdom, pdomain) = aux_domain domain in
+        let (bbidsetcod, ptycod) = aux tycod in
+        let bbidset = BoundBothIDSet.union bbidsetdom bbidsetcod in
+        let pty = (rngf rng, FuncType(pdomain, ptycod)) in
         (bbidset, pty)
 
-    | EffType(eff, ty0) ->
+    | EffType(domain, eff, ty0) ->
+        let (bbidset0, pdomain) = aux_domain domain in
         let (bbidset1, peff) = aux_effect eff in
         let (bbidset2, pty0) = aux ty0 in
-        let pty = (rngf rng, EffType(peff, pty0)) in
-        (BoundBothIDSet.union bbidset1 bbidset2, pty)
+        let pty = (rngf rng, EffType(pdomain, peff, pty0)) in
+        (BoundBothIDSet.union (BoundBothIDSet.union bbidset0 bbidset1) bbidset2, pty)
 
     | PidType(pidty) ->
         let (bbidset, ppidty) = aux_pid_type pidty in
@@ -294,25 +301,16 @@ fun intern intern_row pty ->
     | TypeVar(ptv) ->
         intern rng ptv
 
-    | FuncType(ptydoms, mndlabmap, optrow, ptycod) ->
-        let tydoms = ptydoms |> List.map aux in
-        let pmndlabmap = mndlabmap |> LabelAssoc.map aux in
-        let poptrow =
-          match optrow with
-          | FixedRow(labmap) ->
-              let plabmap = labmap |> LabelAssoc.map aux in
-              FixedRow(plabmap)
-
-          | RowVar(prv) ->
-              RowVar(intern_row prv)
-        in
+    | FuncType(pdomain, ptycod) ->
+        let domain = aux_domain pdomain in
         let tycod = aux ptycod in
-        (rng, FuncType(tydoms, pmndlabmap, poptrow, tycod))
+        (rng, FuncType(domain, tycod))
 
-    | EffType(peff, pty0) ->
+    | EffType(pdomain, peff, pty0) ->
+        let domain = aux_domain pdomain in
         let eff = aux_effect peff in
         let ty0 = aux pty0 in
-        (rng, EffType(eff, ty0))
+        (rng, EffType(domain, eff, ty0))
 
     | PidType(ppidty) ->
         let pidty = aux_pid_type ppidty in
@@ -332,6 +330,21 @@ fun intern intern_row pty ->
 
     | DataType(tyid, ptyargs) ->
         (rng, DataType(tyid, ptyargs |> List.map aux))
+
+  and aux_domain pdomain =
+    let {ordered = ptydoms; mandatory = pmndlabmap; optional = poptrow} = pdomain in
+    let tydoms = ptydoms |> List.map aux in
+    let mndlabmap = pmndlabmap |> LabelAssoc.map aux in
+    let optrow =
+      match poptrow with
+      | FixedRow(plabmap) ->
+          let labmap = plabmap |> LabelAssoc.map aux in
+          FixedRow(labmap)
+
+      | RowVar(prv) ->
+          RowVar(intern_row prv)
+    in
+    {ordered = tydoms; mandatory = mndlabmap; optional = optrow}
 
   and aux_effect (Effect(psesmap)) =
     let sesmap = aux_session_map psesmap in
@@ -636,6 +649,37 @@ fun ~prefix:prefix ~suffix:suffix showtv showrv labmap ->
     Some(s)
 
 
+and show_domain : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) domain_type -> string =
+fun showtv showrv domain ->
+  let sdoms = domain.ordered |> List.map (show_type showtv showrv) in
+  let sdomscat = String.concat ", " sdoms in
+  let is_ord_empty = (List.length sdoms = 0) in
+  let (is_mnds_empty, smnds) =
+    match show_label_assoc ~prefix:"-" ~suffix:"" showtv showrv domain.mandatory with
+    | None    -> (true, "")
+    | Some(s) -> (false, s)
+  in
+  let (is_opts_empty, sopts) =
+    match show_row showtv showrv domain.optional with
+    | None    -> (true, "")
+    | Some(s) -> (false, s)
+  in
+  let smid1 =
+    if is_ord_empty then
+      ""
+    else
+      if is_mnds_empty && is_opts_empty then "" else ", "
+  in
+  let smid2 =
+    if is_mnds_empty || is_opts_empty then
+      ""
+    else
+      if is_ord_empty then "" else ", "
+  in
+  Printf.sprintf "%s%s%s%s%s"
+    sdomscat smid1 smnds smid2 sopts
+
+
 and show_type : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) typ -> string =
 fun showtv showrv ty ->
   let rec aux (_, tymain) =
@@ -643,40 +687,18 @@ fun showtv showrv ty ->
     | BaseType(bty) ->
         show_base_type bty
 
-    | FuncType(tydoms, mndlabmap, optrow, tycod) ->
-        let sdoms = tydoms |> List.map aux in
-        let sdomscat = String.concat ", " sdoms in
-        let is_ord_empty = (List.length sdoms = 0) in
-        let (is_mnds_empty, smnds) =
-          match show_label_assoc ~prefix:"-" ~suffix:"" showtv showrv mndlabmap with
-          | None    -> (true, "")
-          | Some(s) -> (false, s)
-        in
-        let (is_opts_empty, sopts) =
-          match show_row showtv showrv optrow with
-          | None    -> (true, "")
-          | Some(s) -> (false, s)
-        in
-        let smid1 =
-          if is_ord_empty then
-            ""
-          else
-            if is_mnds_empty && is_opts_empty then "" else ", "
-        in
-        let smid2 =
-          if is_mnds_empty || is_opts_empty then
-            ""
-          else
-            if is_ord_empty then "" else ", "
-        in
+    | FuncType(domain, tycod) ->
+        let sdom = show_domain showtv showrv domain in
         let scod = aux tycod in
-        Printf.sprintf "fun(%s%s%s%s%s) -> %s"
-          sdomscat smid1 smnds smid2 sopts scod
+        Printf.sprintf "fun(%s) -> %s"
+           sdom scod
 
-    | EffType(eff, ty0) ->
+    | EffType(domain, eff, ty0) ->
+        let sdom = show_domain showtv showrv domain in
         let seff = aux_effect eff in
         let s0 = aux ty0 in
-        seff ^ s0
+        Printf.sprintf "fun(%s) -> %s%s"
+          sdom seff s0
 
     | PidType(pidty) ->
         let spid = aux_pid_type pidty in

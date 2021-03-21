@@ -26,7 +26,7 @@ module Send = struct
     in
     aux([], xs)
 
-  val rec wait_all<$b>(r : $b, n : int) =
+  val rec wait_all<$b>(r : $b, n : int) = act
     if n <= 0 then
       let _ = print_debug("\"end!\"") in
       return(r)
@@ -37,27 +37,23 @@ module Send = struct
           wait_all(r, n - 1)
       end
 
-  val rec spawn_all<$m>(acc, n : int) : [{pid<$m>, bintree<int>}]list<pid<$m>> =
+  val rec spawn_all<$m>(acc, n : int) : [{pid<$m>, bintree<int>}]list<pid<$m>> = act
     if n <= 0 then
       return(reverse_list(acc))
     else
-      do parent <- self in
-      do pid : pid<$m> <- spawn(
-        do me <- self in
-        send(parent, {me, bintree_of_int(n)})
-      ) in
+      do parent <- self() in
+      do pid : pid<$m> <-
+        spawn(fun() -> act
+          do me <- self() in
+          send(parent, {me, bintree_of_int(n)})
+        end)
+      in
       spawn_all(pid :: acc, n - 1)
 
-  val entrypoint() =
+  val main(args) = act
     let m = 10 in
     do pids <- spawn_all([], m) in
     let _ = print_debug(pids) in
     wait_all({}, m)
-
-  val main<$a> : $a = external 1 ```
-main(_) ->
-    F = entrypoint(),
-    F(). % forcing a thunk
-  ```
 
 end

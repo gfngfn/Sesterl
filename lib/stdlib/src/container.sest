@@ -1,3 +1,4 @@
+import Option
 import List
 import RawMap
 import ServerUtil
@@ -10,8 +11,18 @@ module Stdlib :> sig
     | Local(binary)
     | Global(binary)
 
+  module Option : sig
+    val get<$a> : fun(option<$a>, -default $a) -> $a
+    val get_or_invoke<$a> : fun(option<$a>, -default fun() -> $a) -> $a
+    val map<$a, $b> : fun(fun($a) -> $b, option<$a>) -> option<$b>
+    val bind<$a, $b> : fun(option<$a>, fun($a) -> option<$b>) -> option<$b>
+  end
+
   module List : sig
     val map<$a, $b> : fun(fun($a) -> $b, list<$a>) -> list<$b>
+    val filter<$a> : fun(fun($a) -> bool, list<$a>) -> list<$a>
+    val filter_map<$a, $b> : fun(fun($a) -> option<$b>, list<$a>) -> list<$b>
+    val for_each<$msg, $a> : fun(fun($a) -> [$msg]unit, list<$a>) -> [$msg]unit
     val foldl<$a, $b> : fun(fun($b, $a) -> $b, $b, list<$a>) -> $b
     val foldr<$a, $b> : fun(fun($a, $b) -> $b, $b, list<$a>) -> $b
     val all<$a> : fun(fun($a) -> bool, list<$a>) -> bool
@@ -45,7 +56,7 @@ module Stdlib :> sig
       fun($response, $state) -> [$msg]reply<$msg, $response, $state>
 
     val reply_fast<$msg, $response, $state> :
-      fun($response, -rest [$msg]$state) -> [$msg]reply<$msg, $response, $state>
+      fun($response, -rest fun() -> [$msg]$state) -> [$msg]reply<$msg, $response, $state>
 
     type no_reply :: (o) -> o
 
@@ -86,28 +97,28 @@ module Stdlib :> sig
 
     module Static : sig
       type child_proc :: o
-      val make_child_proc<$a, $b> : fun([$b]option<pid<$a>>) -> child_proc
-      type child_spec :: (o) -> o
-      val make_child_spec<$id> :
+      val make_child_proc<$a, $b, $c> : fun(fun() -> [$b]option<pid<$a>>) -> [$c]child_proc
+      type child_spec :: (o, o) -> o
+      val make_child_spec<$msg, $id> :
         fun(
           -id       $id,
-          -start    frozen<unit, child_proc>,
+          -start    frozen<unit, $msg, child_proc>,
           ?restart  restart,
           ?shutdown shutdown,
           ?type     worker,
-        ) -> child_spec<$id>
+        ) -> child_spec<$msg, $id>
       type strategy = OneForAll | OneForOne | RestForOne
       type sup_flags :: o
       val make_sup_flags : fun(?strategy strategy, ?intensity int, ?period int) -> sup_flags
-      type initialized :: (o) -> o
-      val init_ok<$msg, $id> : fun(sup_flags, list<child_spec<$id>>) -> [$msg]initialized<$id>
-      val init_fail<$msg, $id> : fun() -> [$msg]initialized<$id>
+      type initialized :: (o, o) -> o
+      val init_ok<$msg, $id> : fun(sup_flags, list<child_spec<$msg, $id>>) -> [$msg]initialized<$msg, $id>
+      val init_fail<$msg, $id> : fun() -> [$msg]initialized<$msg, $id>
 
       signature Behaviour = sig
         type child_id :: o
         type init_arg :: o
         type info :: o
-        val init : fun(init_arg) -> [info]initialized<child_id>
+        val init : fun(init_arg) -> [info]initialized<info, child_id>
       end
 
       module Make : fun(Callback : Behaviour) -> sig
@@ -122,11 +133,11 @@ module Stdlib :> sig
 
     module Dynamic : sig
       type child_proc :: (o) -> o
-      val make_child_proc<$b, $child_msg> : fun([$b]option<pid<$child_msg>>) -> child_proc<$child_msg>
+      val make_child_proc<$b, $child_msg> : fun(fun() -> [$b]option<pid<$child_msg>>) -> child_proc<$child_msg>
       type child_spec :: (o, o, o) -> o
       val make_child_spec<$msg, $arg, $child_msg> :
         fun(
-          -start    frozen<{$arg}, child_proc<$child_msg>>,
+          -start    frozen<{$arg}, $msg, child_proc<$child_msg>>,
           ?restart  restart,
           ?shutdown shutdown,
           ?type     worker,
@@ -158,6 +169,7 @@ module Stdlib :> sig
   end
 
 end = struct
+  module Option = Option
   module List = List
   module RawMap = RawMap
   include ServerUtil

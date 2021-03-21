@@ -7,7 +7,7 @@ module StaticSupervisor = struct
 
   type child_proc = ChildProcDummy
 
-  val make_child_proc<$a, $b> : fun([$b]option<pid<$a>>) -> child_proc = external 1 ```
+  val make_child_proc<$a, $b, $c> : fun(fun() -> [$b]option<pid<$a>>) -> [$c]child_proc = external 1 ```
     make_child_proc(PidOptF) ->
         case PidOptF() of
             {some, Pid} -> {ok, Pid};
@@ -15,21 +15,21 @@ module StaticSupervisor = struct
         end.
   ```
 
-  type child_spec<$id> = {
+  type child_spec<$msg, $id> = {
     id       : $id,
-    start    : frozen<unit, child_proc>,
+    start    : frozen<unit, $msg, child_proc>,
     restart  : restart,
     shutdown : shutdown,
     typ      : worker,
   }
 
-  val make_child_spec<$id>(
+  val make_child_spec<$msg, $id>(
     -id       id : $id,
-    -start    start,
+    -start    start : frozen<unit, $msg, child_proc>,
     ?restart  restart = Permanent,
     ?shutdown shutdown_opt,
     ?type     typ = Worker,
-  ) : child_spec<$id> =
+  ) : child_spec<$msg, $id> =
     let shutdown =
       case {shutdown_opt, typ} of
       | {Some(shutdown), _} -> shutdown
@@ -60,32 +60,31 @@ module StaticSupervisor = struct
   ) : sup_flags =
     { strategy = strategy, intensity = intensity, period = period }
 
-  type initialized<$id> = option<{sup_flags, list<child_spec<$id>>}>
+  type initialized<$msg, $id> = option<{sup_flags, list<child_spec<$msg, $id>>}>
 
-  val init_ok<$msg, $id>(sup_flags : sup_flags, child_specs : list<child_spec<$id>>) : [$msg]initialized<$id> =
+  val init_ok<$msg, $id>(sup_flags : sup_flags, child_specs : list<child_spec<$msg, $id>>) : [$msg]initialized<$msg, $id> = act
     return(Some({sup_flags, child_specs}))
 
-  val init_fail() =
+  val init_fail() = act
     return(None)
 
   signature Behaviour = sig
     type child_id :: o
     type init_arg :: o
     type info :: o
-    val init : fun(init_arg) -> [info]initialized<child_id>
+    val init : fun(init_arg) -> [info]initialized<info, child_id>
   end
 
   module Make = fun(Callback : Behaviour) -> struct
 
     type proc = ProcDummy
 
-    val init_impl(args) =
+    val init_impl(args) = act
       Callback.init(args)
 
     val init<$a> : $a = external 1 ```
       init(Args) ->
-          InitF = init_impl(Args),
-          case InitF() of
+          case init_impl(Args) of
               none ->
                   ignore;
 
@@ -130,16 +129,13 @@ module StaticSupervisor = struct
     val start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
       start_link(InitArg) ->
           % io:format("debug L('o' )J (~p) St start_link (pre):~n  ~p~n", [?MODULE, InitArg]),
-          fun() ->
-              % io:format("debug L('o' )J (~p) St start_link (arg):~n  ~p~n", [?MODULE, InitArg]),
-              StartRet = supervisor:start_link(?MODULE, InitArg),
-              % io:format("debug L('o' )J (~p) St start_link (ret):~n  ~p~n", [?MODULE, StartRet]),
-              case StartRet of
-                  {ok, Pid} -> {some, Pid};
-                  _         -> none
-              end
+          % io:format("debug L('o' )J (~p) St start_link (arg):~n  ~p~n", [?MODULE, InitArg]),
+          StartRet = supervisor:start_link(?MODULE, InitArg),
+          % io:format("debug L('o' )J (~p) St start_link (ret):~n  ~p~n", [?MODULE, StartRet]),
+          case StartRet of
+              {ok, Pid} -> {some, Pid};
+              _         -> none
           end.
-            % thunk
     ```
 
     val start_link_name<$a> : fun(Callback.init_arg, -name ServerUtil.name) -> [$a]option<{bool, proc}> = external 2 ```
@@ -150,31 +146,25 @@ module StaticSupervisor = struct
                   {local, Bin}  -> {local, erlang:binary_to_atom(Bin, utf8)};
                   {global, Bin} -> {global, erlang:binary_to_atom(Bin, utf8)}
               end,
-          fun() ->
-              % io:format("debug L('o' )J (~p) St start_link_name (arg):~n  ~p~n", [?MODULE, InitArg]),
-              StartRet = supervisor:start_link(Name, ?MODULE, InitArg),
-              Ret =
-              case StartRet of
-                  {ok, SupPid} when is_pid(SupPid)   -> {some, {true, SupPid}};
-                  {error, {already_started, SupPid}} -> {some, {false, SupPid}};
-                  _                                  -> none
-              end,
-              % io:format("debug L('o' )J (~p) St start_link_name (ret):~n  ~p~n", [?MODULE, StartRet]),
-              Ret
-          end.
-            % thunk
+          % io:format("debug L('o' )J (~p) St start_link_name (arg):~n  ~p~n", [?MODULE, InitArg]),
+          StartRet = supervisor:start_link(Name, ?MODULE, InitArg),
+          Ret =
+          case StartRet of
+              {ok, SupPid} when is_pid(SupPid)   -> {some, {true, SupPid}};
+              {error, {already_started, SupPid}} -> {some, {false, SupPid}};
+              _                                  -> none
+          end,
+          % io:format("debug L('o' )J (~p) St start_link_name (ret):~n  ~p~n", [?MODULE, StartRet]),
+          Ret.
     ```
 
     val where_is<$a> : fun(binary) -> [$a]option<proc> = external 1 ```
       where_is(NameBin) ->
           NameAtom = erlang:binary_to_atom(NameBin, utf8),
-          fun() ->
-              case erlang:whereis(NameAtom) of
-                  Pid when is_pid(Pid) -> {some, Pid};
-                  _                    -> none
-              end
+          case erlang:whereis(NameAtom) of
+              Pid when is_pid(Pid) -> {some, Pid};
+              _                    -> none
           end.
-            % thunk
     ```
 
   end

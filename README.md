@@ -32,6 +32,7 @@
 - [Major differences from similar projects](#major-differences-from-similar-projects)
 - [Future work](#future-work)
   - [TODO list](#todo-list)
+- [Overall Syntax](#overall-syntax)
 - [References](#references)
 
 
@@ -255,45 +256,54 @@ val rec tree_size(t : bintree<$a>) =
 
 ### Concurrency
 
-As in Erlang, you can use primitives `self`, `send`, and `spawn` for message-passing concurrency. They are given types by using a kind of monadic types `[τ_0]τ_1` and types `pid<τ>` for PIDs (i.e. process identifiers) as follows:
+As in Erlang, you can use primitives `self`, `send`, and `spawn` for message-passing concurrency. They are given types by using a kind of monadic function types `fun(τ_1, …, τ_n) -> [τ]τ'` and types `pid<τ>` for PIDs (i.e. process identifiers) as follows:
 
-* `self<$p> : [$p]pid<$p>`
+* `self<$p> : fun() -> [$p]pid<$p>`
 * `send<$p, $q> : fun(pid<$q>, $q) -> [$p]unit`
-* `spawn<$p, $q> : fun([$q]unit) -> [$p]pid<$q>`
+* `spawn<$p, $q> : fun(fun() -> [$q]unit) -> [$p]pid<$q>`
 
-This formalization is based on *λ\_\{act\}* \[Fowler 2019\].
-
-Intuitively, `[τ_0]τ_1` is the type for suspended concurrent computations that will be run on processes capable of receiving messages of type `τ_0` and that finally produce a value of type `τ_1`. The composition of such computations can be done by `do`-notation. Messages can be received by using `receive`-expressions. See a small example below:
+Intuitively, `[τ]τ'` in `fun(τ_1, …, τ_n) -> [τ]τ'` stands for concurrent computations that will be run on processes capable of receiving messages of type `τ` and that finally produce a value of type `τ'`. The composition of such computations can be done by `do`-notation. Messages can be received by using `receive`-expressions. See a small example below:
 
 ```
-val rec wait_all(msgacc, n) =
-  if n <= 0 then
-    return(msgacc)
-  else
-    receive
-    | {pid, msg} ->
-        let _ = print_debug(format(f'message ~p received from: ~p~n', {msg, pid})) in
-        wait_all(msg :: msgacc, n - 1)
-    end
+module Example = struct
 
-val rec spawn_all(pidacc, n) =
-  if n <= 0 then
-    return(pidacc)
-  else
-    do parent <- self in
-    do pid <- spawn(
-      do me <- self in
-      let msg = some_heavy_calculation(n) in
-      send(parent, {me, msg})
-    ) in
-    spawn_all(pid :: pidacc, n - 1)
+  /* dummy */
+  val some_heavy_calculation(n) =
+    n
 
-let main() =
-  let n = 10 in
-  do pids <- spawn_all([], n) in
-  let _ = print_debug(format(f'spawned: ~p~n', {pids})) in
-  do msgs <- wait_all([], n) in
-  …
+  val rec wait_all(msgacc, n) = act
+    if n <= 0 then
+      return(msgacc)
+    else
+      receive
+      | {pid, msg} ->
+          let _ = print_debug(format(f'message ~p received from: ~p~n', {msg, pid})) in
+          wait_all(msg :: msgacc, n - 1)
+      end
+
+  val rec spawn_all(pidacc, n) = act
+    if n <= 0 then
+      return(pidacc)
+    else
+      do parent <- self() in
+      do pid <-
+        spawn(fun() -> act
+          do me <- self() in
+          let msg = some_heavy_calculation(n) in
+          send(parent, {me, msg})
+        end)
+      in
+      spawn_all(pid :: pidacc, n - 1)
+
+  val main(arg) = act
+    let n = 10 in
+    do pids <- spawn_all([], n) in
+    let _ = print_debug(format(f'spawned: ~p~n', {pids})) in
+    do msgs <- wait_all([], n) in
+    let _ = print_debug(msgs) in
+    return({})
+
+end
 ```
 
 Here, the primitive `return<$p, $a> : fun($a) -> [$p]$a` lifts a pure value to the computation that has no effect and simply returns the value.
@@ -390,14 +400,21 @@ One of the interesting use cases of the module system is to represent OTP librar
 module GenServer : sig
 
   type initialized :: (o) -> o
+
   val init_ok<$msg, $state> : fun($state) -> [$msg]initialized<$state>
+
   val init_fail<$msg, $state> : fun() -> [$msg]initialized<$state>
 
   type reply :: (o, o, o) -> o
-  val reply<$msg, $response, $state> : fun($response, $state) -> [$msg]reply<$msg, $response, $state>
-  val reply_fast<$msg, $response, $state> : fun($response, -rest [$msg]$state) -> [$msg]reply<$msg, $response, $state>
+
+  val reply<$msg, $response, $state> :
+    fun($response, $state) -> [$msg]reply<$msg, $response, $state>
+
+  val reply_fast<$msg, $response, $state> :
+    fun($response, -rest fun() -> [$msg]$state) -> [$msg]reply<$msg, $response, $state>
 
   type no_reply :: (o) -> o
+
   val no_reply<$msg, $state> : fun($state) -> [$msg]no_reply<$state>
 
   signature Behaviour = sig
@@ -426,7 +443,6 @@ module GenServer : sig
     val where_is<$a> : fun(binary) -> [$a]option<proc>
     val stop<$a> : fun(proc) -> [$a]unit
   end
-
 end
 ```
 
@@ -475,7 +491,7 @@ assoc(Key, Xs) ->
   end.
 
 main() ->
-  ffi:assoc(1, [
+  ffi_example:assoc(1, [
     {3, <<"Komaba">>},
     {1, <<"Hongo">>},
     {4, <<"Yayoi">>},
@@ -686,12 +702,232 @@ Also, though not supporting them currently, we want to add features like the fol
   * [x] Support for F-ing modules
   * [x] Compilation using the static interpretation
   * [ ] First-class modules
-* [ ] Configuration
+* [x] Configuration
   * [x] Loading external modules by `require`
   * [x] Package system
   * [x] Embedding external modules as submodules
-  * [ ] Connection with rebar3
+  * [x] Connection with rebar3
 * [ ] (Multiparty) session types
+
+
+## Overall Syntax
+
+How to read:
+
+* a word enclosed by single quotation marks (e.g. `'let'` or `'('`):
+  - a keyword token or a symbol token
+* a word without quotations (e.g. `E` or `val-args`):
+  - a metavariable of the (extended) BNF
+* `( DESCR )*`
+  - a possibly empty finite repetition of `DESCR`
+* `(empty)`
+  - no token (i.e. a token sequence of length zero)
+* `(DESCR1 | DESCR2)`
+  - either `DESCR1` or `DESCR2`
+* `( DESCR )?`
+  - equals `((empty) | DESCR)`
+
+```
+n ::= (a decimal or hexadecimal integer literal)
+float ::= (a floating-point number liteal)
+bin ::= (a string literal enclosed by double quotation marks)
+X, C ::= (a capitalized identifier)
+x, t, k, l ::= (a lowercased identifier other than keywords)
+$a ::= (a lowercased identifier preceded by a dollar sign)
+?$a ::= (a lowercased identifier preceded by a question mark and a dollar sign)
+-l ::= (a lowercased identifier preceded by a hyphen)
+?l ::= (a lowercased identifier preceded by a question mark)
+
+# a single source file:
+source-file ::=
+  | ('import' X)* 'module' X (':>' S) '=' 'struct' (bind)* 'end'
+
+# a value expression:
+E ::=
+  | '(' E ')'
+  | E binary-operator E
+  | (X '.')* x
+  | (X '.')* C                                      # a variant constructor
+  | E '(' val-args ')'                              # a function application
+  | 'let' bind-val-local 'in' E                     # local binding(s)
+  | 'let' pattern '=' E 'in' E                      # local binding(s) by the pattern matching
+  | 'fun' '(' val-params ')' '->' E 'end'           # a pure abstraction
+  | 'fun' '(' val-params ')' '->' 'act' K 'end'     # an effectful abstraction
+  | 'if' E 'then' E 'else' E                        # a conditional branching
+  | 'case' E 'of' pure-cases 'end'                  # a pattern-matching expression
+  | '{' '}'                                         # a unit value
+  | '{' E (',' E)* (',')? '}'                       # a tuple
+  | '{' l '=' E (',' l '=' E)* (',')? '}'           # a record
+  | E '.' l                                         # a record access
+  | '{' E '|' l '=' E (',' l '=' E)* (',')? '}'     # a record update
+  | 'freeze' (X '.')* x '(' freeze-args ')'         # so-called a (possibly partial) mfargs() in Erlang
+  | 'freeze' '(' E ')' 'with' '(' freeze-args ')'   # addition of arguments to a partial mfargs()
+  | E '::' E                                        # so-called a cons
+  | '[' ']'                                         # so-called a nil
+  | n
+  | float
+  | bin
+  | 'true'
+  | 'false'
+  | ...
+
+pure-cases ::=
+  | ('|')? pattern '->' E ('|' pattern '->' E)*
+
+# an effectful computation:
+K ::=
+  | 'do' x '<-' K 'in' K                  # a sequential composition (i.e. so-called a bind in a monadic sense)
+  | 'receive' effectful-cases 'end'       # a selective receive
+  | E '(' val-args ')'                    # a function application
+  | 'if' E 'then' K 'else' K
+  | 'case' E 'of' effectful-cases 'end'
+
+effectful-cases ::=
+  | ('|')? pattern '->' K ('|' pattern '->' K)*
+
+# a sequence of arguments for function applications:
+val-args ::=
+  | E (',' val-args)?
+  | val-labeled-args
+
+val-labeled-args ::=
+  | -l E (',' val-labeled-args)?
+  | val-optional-args
+
+val-optional-args ::=
+  | ?l E (',' val-optional-args)?
+  | (empty)
+
+# a pattern for the pattern matching:
+pattern ::=
+  | '_'
+  | x
+  | C
+  | C '(' pattern (',' pattern)* (',')? ')'
+  | '{' '}'
+  | '{' pattern (',' pattern)* (',')? '}'
+  | pattern '::' pattern
+  | '[' ']'
+  | n
+  | bin
+  | 'true'
+  | 'false'
+  | ...
+
+# a type:
+T ::=
+  | $a
+  | (X '.')* t ty-quant
+  | 'fun' '(' ty-doms ')' '->' T             # a function type
+  | 'fun' '(' ty-doms ')' '->' '[' T ']' T   # an action type
+  | '{' T (',' T)* (',')? '}'                # a product type
+  | '{' l '=' T (',' l '=' T)* (',')? '}'    # a record type
+
+# a sequence of domain types:
+ty-doms ::=
+  | T (',' ty-doms)?
+  | ty-labeled-doms
+
+ty-labeled-doms ::=
+  | -l T (',' ty-labeled-doms)?
+  | ty-optional-doms
+  | ?$a
+
+ty-optinal-doms ::=
+  | ?l T (',' ty-optional-doms)?
+  | (empty)
+
+# a kind:
+K ::=
+  | kd-base                                              # a base kind (i.e. an order-0 kind)
+  | '(' kd-base (',' kd-base)* (',')? ')' '->' kd-base   # an order-1 kind
+
+kd-base ::=
+  | k                                       # a named base kind (currently only 'o' is provided)
+  | '{' l '=' T (',' l '=' T)* (',')? '}'   # a record kind
+
+kd-row ::=
+  | '(' ty-optional-doms ')'
+
+# a module expression:
+M ::=
+  | '(' M ')'
+  | (X '.')* X
+  | 'struct' (bind)* 'end'         # a structure
+  | 'fun' '(' X ':' S ')' '->' M   # a functor abstraction
+  | (X '.')* X '( M )'             # a functor application
+  | X ':>' S                       # a coercion
+
+bind ::=
+  | 'val' (bind-val-local | bind-val-ffi)
+  | 'type' bind-ty
+  | 'module' X (':>' S)? '=' M
+  | 'signature' X '=' S
+  | 'include' M
+
+# a signature expression:
+S ::=
+  | '(' S ')'
+  | (X '.')* X
+  | 'sig' (decl)* 'end'
+  | 'fun' '(' X ':' S ')' '->' S   # a functor signature
+  | S 'with' 'type' bind-ty
+
+decl ::=
+  | 'val' x ty-quant ':' T
+  | 'type' t ('::' K)?
+  | 'type' t '=' bind-ty
+  | 'module' X ':' S
+  | 'signature' X '=' S
+
+bind-val-local ::=
+  | bind-val-single                                  # a non-recursive definition
+  | 'rec' bind-val-single ('and' bind-val-single)*   # (mutually) recursive definition(s)
+
+bind-val-single ::=
+  | x ty-quant '(' val-params ')' (':' T)? '=' E                   # a function definition
+  | x ty-quant '(' val-params ')' (':' '[' T ']' T)? '=' 'act' K   # an action definition
+
+bind-val-ffi ::=
+  | x ty-quant ':' T '=' 'external' n ('+')? string-block  # FFI
+
+bind-ty ::=
+  | bind-ty-single ('and' bind-ty-single)*
+
+bind-ty-single ::=
+  | t ty-quant '=' ('|')? ctor-branch ('|' ctor-branch)*   # a variant type definition
+  | t ty-quant '=' T                                       # a type synonym definition
+
+ctor-branch ::=
+  | C ('(' T (',' T)* ')')?   # a definition of a constructor and its parameter types
+
+# a comma-separated sequence of value parameters (for function definitions):
+val-params ::=
+  | x (':' T)? (',' val-params)?
+  | val-labeled-params
+
+# a comma-separated labeled parameters:
+val-labeled-params ::=
+  | -l x (':' T)? (',' val-labeled-params)?
+  | val-optional-params
+
+# a comma-separated labeled optional parameters (possibly with a default expression):
+val-optional-params ::=
+  | ?l x (':' T)? ('=' E)? (',' val-optional-params)?
+  | (empty)
+
+# a sequence of universal quantifiers for type parameters and row parameters
+ty-quant ::=
+  | ('<' ty-params '>')?
+
+ty-params ::=
+  | $a ('::' K)? (',' ty-params)?
+  | row-params
+
+row-params ::=
+  | ?$a '::' kd-row (',' row-params)?
+  | (empty)
+```
 
 
 ## References

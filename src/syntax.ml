@@ -5,6 +5,11 @@ module TupleList = List1
 
 type package_name = string
 
+type ('a, 'b) pure_or_effectful =
+  | Pure      of 'a
+  | Effectful of 'b
+[@@deriving show { with_path = false; } ]
+
 type 'a cycle =
   | Loop  of 'a
   | Cycle of 'a List2.t
@@ -138,12 +143,15 @@ and manual_type = manual_type_main ranged
 
 and manual_type_main =
   | MTypeName    of type_name * manual_type list
-  | MFuncType    of manual_type list * labeled_manual_type list * manual_row * manual_type
+  | MFuncType    of manual_domain_type * manual_type
   | MProductType of manual_type TupleList.t
   | MRecordType  of labeled_manual_type list
-  | MEffType     of manual_type * manual_type
+  | MEffType     of manual_domain_type * manual_type * manual_type
   | MTypeVar     of type_variable_name
   | MModProjType of untyped_module * type_name ranged * manual_type list
+
+and manual_domain_type =
+  manual_type list * labeled_manual_type list * manual_row
 
 and manual_row =
   | MFixedRow of (label ranged * manual_type) list
@@ -164,19 +172,16 @@ and untyped_ast =
 and untyped_ast_main =
   | BaseConst    of base_constant
   | Var          of identifier
-  | Lambda       of binder list * labeled_binder list * labeled_optional_binder list * untyped_ast
-  | Apply        of untyped_ast * untyped_ast list * labeled_untyped_ast list * labeled_untyped_ast list
+  | Lambda       of untyped_parameters * untyped_ast
+  | LambdaEff    of untyped_parameters * untyped_computation_ast
+  | Apply        of untyped_ast * untyped_arguments
   | If           of untyped_ast * untyped_ast * untyped_ast
   | LetIn        of rec_or_nonrec * untyped_ast
   | LetPatIn     of untyped_pattern * untyped_ast * untyped_ast
-  | Do           of binder option * untyped_ast * untyped_ast
-  | Receive      of untyped_branch_new list * untyped_branch_via list
-  | SendNew      of untyped_ast * tag * untyped_ast
-  | SendVia      of untyped_ast * tag * untyped_ast
   | Tuple        of untyped_ast TupleList.t
   | ListNil
   | ListCons     of untyped_ast * untyped_ast
-  | Case         of untyped_ast * untyped_branch_case list
+  | Case         of untyped_ast * untyped_case_branch list
   | Constructor  of constructor_name * untyped_ast list
   | BinaryByList of (int ranged) list
   | Record       of labeled_untyped_ast list
@@ -186,6 +191,26 @@ and untyped_ast_main =
   | FreezeUpdate of untyped_ast * untyped_ast list * Range.t list
   | ModProjVal   of (module_name ranged) list * identifier ranged
   | ModProjCtor  of (module_name ranged) list * constructor_name ranged * untyped_ast list
+
+and untyped_parameters =
+  binder list * labeled_binder list * labeled_optional_binder list
+
+and untyped_computation_ast =
+  untyped_computation_ast_main ranged
+
+and untyped_computation_ast_main =
+  | CompDo       of binder option * untyped_computation_ast * untyped_computation_ast
+  | CompReceive  of untyped_branch_new list * untyped_branch_via list
+  | CompSendNew  of untyped_ast * tag * untyped_ast
+  | CompSendVia  of untyped_ast * tag * untyped_ast
+  | CompLetIn    of rec_or_nonrec * untyped_computation_ast
+  | CompLetPatIn of untyped_pattern * untyped_ast * untyped_computation_ast
+  | CompIf       of untyped_ast * untyped_computation_ast * untyped_computation_ast
+  | CompCase     of untyped_ast * untyped_computation_case_branch list
+  | CompApply    of untyped_ast * untyped_arguments
+
+and untyped_arguments =
+  untyped_ast list * labeled_untyped_ast list * labeled_untyped_ast list
 
 and frozen_fun =
   | FrozenModFun of module_name_chain * identifier ranged
@@ -219,8 +244,7 @@ and untyped_let_binding = {
   vb_parameters  : binder list;
   vb_mandatories : labeled_binder list;
   vb_optionals   : labeled_optional_binder list;
-  vb_return_type : manual_type option;
-  vb_body        : untyped_ast;
+  vb_return      : (pure_return, effectful_return) pure_or_effectful;
 }
 
 and untyped_branch_new =
@@ -228,7 +252,7 @@ and untyped_branch_new =
       binder      : identifier ranged;
       tag         : tag ranged;
       pattern     : untyped_pattern;
-      computation : untyped_ast;
+      computation : untyped_computation_ast;
     }
 
 and untyped_branch_via =
@@ -237,11 +261,23 @@ and untyped_branch_via =
       token       : untyped_ast;
       tag         : tag ranged;
       pattern     : untyped_pattern;
-      computation : untyped_ast;
+      computation : untyped_computation_ast;
     }
 
-and untyped_branch_case =
-  | BranchCase of untyped_pattern * untyped_ast
+and pure_return =
+  manual_type option * untyped_ast
+
+and effectful_return =
+  (manual_type * manual_type) option * untyped_computation_ast
+
+and untyped_receive_branch =
+  | ReceiveBranch of untyped_pattern * untyped_computation_ast
+
+and untyped_case_branch =
+  | CaseBranch of untyped_pattern * untyped_ast
+
+and untyped_computation_case_branch =
+  | CompCaseBranch of untyped_pattern * untyped_computation_ast
 
 and untyped_pattern =
   untyped_pattern_main ranged
@@ -357,14 +393,20 @@ type ('a, 'b) typ =
 
 and ('a, 'b) typ_main =
   | BaseType    of base_type
-  | FuncType    of (('a, 'b) typ) list * (('a, 'b) typ) LabelAssoc.t * ('a, 'b) row * ('a, 'b) typ
+  | FuncType    of ('a, 'b) domain_type * ('a, 'b) typ
   | PidType     of ('a, 'b) pid_type
-  | EffType     of ('a, 'b) effect * ('a, 'b) typ
+  | EffType     of ('a, 'b) domain_type * ('a, 'b) effect * ('a, 'b) typ
   | ChannelType of ('a, 'b) session
   | TypeVar     of 'a
   | ProductType of (('a, 'b) typ) TupleList.t
   | DataType    of TypeID.t * (('a, 'b) typ) list
   | RecordType  of (('a, 'b) typ) LabelAssoc.t
+
+and ('a, 'b) domain_type = {
+  ordered   : (('a, 'b) typ) list;
+  mandatory : (('a, 'b) typ) LabelAssoc.t;
+  optional  : ('a, 'b) row;
+}
 
 and ('a, 'b) effect =
   | Effect of (('a, 'b) typ * ('a, 'b) session) TagAssoc.t
@@ -409,6 +451,8 @@ and mono_type = (mono_type_var, mono_row_var) typ
 
 type mono_session = (mono_type_var, mono_row_var) session
 
+type ('a, 'b) session_map = (('a, 'b) typ * ('a, 'b) session) TagAssoc.t
+
 type mono_session_map = (mono_type * mono_session) TagAssoc.t
 
 type mono_row = (mono_type_var, mono_row_var) row
@@ -416,6 +460,10 @@ type mono_row = (mono_type_var, mono_row_var) row
 type mono_kind = (mono_type_var, mono_row_var) kind
 
 type mono_base_kind = (mono_type_var, mono_row_var) base_kind
+
+type mono_effect = (mono_type_var, mono_row_var) effect
+
+type mono_domain_type = (mono_type_var, mono_row_var) domain_type
 
 type poly_type_var =
   | Mono  of mono_type_var
@@ -436,6 +484,8 @@ type poly_row = (poly_type_var, poly_row_var) row
 type poly_kind = (poly_type_var, poly_row_var) kind
 
 type poly_base_kind = (poly_type_var, poly_row_var) base_kind
+
+type poly_domain_type = (poly_type_var, poly_row_var) domain_type
 
 module FreeIDHashTable = Hashtbl.Make(FreeID)
 
@@ -562,8 +612,6 @@ and ast =
   | IRecord      of ast LabelAssoc.t
   | IRecordAccess of ast * label
   | IRecordUpdate of ast * label * ast
-  | IThunk       of ast
-  | IForce       of ast
   | IFreeze       of global_name * ast list
   | IFreezeUpdate of ast * ast list
 
@@ -682,7 +730,7 @@ and pp_ast ppf = function
 
 and pp_branch_case ppf = function
   | IBranchCase(ipat, e) ->
-      Format.fprintf ppf "%a (when ...) ->@[<hov2>@ %a@];@ "
+      Format.fprintf ppf "%a ->@[<hov2>@ %a@];@ "
         pp_pattern ipat
         pp_ast e
 
