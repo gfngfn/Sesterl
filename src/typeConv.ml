@@ -134,9 +134,13 @@ let collect_ids (ty : mono_type) (dispmap : DisplayMap.t) : DisplayMap.t =
         aux ty
 
     | TypeVar(Updatable{contents = Free(fid)}) ->
-        FreeIDHashTable.replace fidht fid ();
-        let mbkd = KindStore.get_free_id fid in
-        aux_base_kind mbkd
+        if FreeIDHashTable.mem fidht fid then
+          ()
+        else begin
+          FreeIDHashTable.replace fidht fid ();
+          let mbkd = KindStore.get_free_id fid in
+          aux_base_kind mbkd
+        end
 
     | TypeVar(MustBeBound(mbbid)) ->
         ()
@@ -189,9 +193,13 @@ let collect_ids (ty : mono_type) (dispmap : DisplayMap.t) : DisplayMap.t =
         aux_label_assoc labmap
 
     | RowVar(UpdatableRow{contents = FreeRow(frid)}) ->
-        FreeRowIDHashTable.replace fridht frid ();
-        let labmap = KindStore.get_free_row frid in
-        aux_label_assoc labmap
+        if FreeRowIDHashTable.mem fridht frid then
+          ()
+        else begin
+          FreeRowIDHashTable.replace fridht frid ();
+          let labmap = KindStore.get_free_row frid in
+          aux_label_assoc labmap
+        end
 
     | RowVar(MustBeBoundRow(mbbrid)) ->
         ()
