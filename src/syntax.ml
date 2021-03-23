@@ -330,11 +330,17 @@ and labeled_manual_type =
   label ranged * manual_type
 [@@deriving show { with_path = false; } ]
 
-module FreeRowID = FreeID  (* temporary *)
+module FreeRowID = struct
+  include FreeID
+end
 
-module BoundRowID = BoundID  (* temporary *)
+module BoundRowID = struct
+  include BoundID
+end
 
-module MustBeBoundRowID = MustBeBoundID  (* temporary *)
+module MustBeBoundRowID = struct
+  include MustBeBoundID
+end
 
 
 module BoundBothID = struct

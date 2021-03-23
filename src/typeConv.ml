@@ -63,8 +63,10 @@ module DisplayMap : sig
   val empty : t
   val add_free_id : FreeID.t -> t -> t
   val add_free_row_id : FreeRowID.t -> t -> t
-  val find_free_id : FreeID.t -> t -> string option
-  val find_free_row_id : FreeRowID.t -> t -> string option
+  val find_free_id : FreeID.t -> t -> string
+  val find_free_row_id : FreeRowID.t -> t -> string
+  val make_free_id_hash_set : t -> unit FreeIDHashTable.t
+  val make_free_row_id_hash_set : t -> unit FreeRowIDHashTable.t
 end = struct
 
   module FreeIDMap = Map.Make(FreeID)
@@ -94,50 +96,73 @@ end = struct
         aux (ch :: chs) r
     in
     let chs = aux [] i in
-    Core_kernel.String.of_char_list chs
+    Core_kernel.String.of_char_list ('\'' :: chs)
 
   let add_free_id fid dispmap =
-    let i = dispmap.current_max in
-    let s = make_value i in
-    { dispmap with
-      current_max = i + 1;
-      free_ids    = dispmap.free_ids |> FreeIDMap.add fid s;
-    }
+    let fids = dispmap.free_ids in
+    if fids |> FreeIDMap.mem fid then
+      dispmap
+    else
+      let i = dispmap.current_max in
+      let s = make_value i in
+      { dispmap with
+        current_max = i + 1;
+        free_ids    = fids |> FreeIDMap.add fid s;
+      }
 
   let add_free_row_id frid dispmap =
-    let i = dispmap.current_max in
-    let s = make_value i in
-    { dispmap with
-      current_max = i + 1;
-      free_ids    = dispmap.free_row_ids |> FreeIDMap.add frid s;
-    }
+    let frids = dispmap.free_row_ids in
+    if frids |> FreeRowIDMap.mem frid then
+      dispmap
+    else
+      let i = dispmap.current_max in
+      let s = make_value i in
+      { dispmap with
+        current_max  = i + 1;
+        free_row_ids = dispmap.free_row_ids |> FreeRowIDMap.add frid s;
+      }
 
   let find_free_id fid dispmap =
-    dispmap.free_ids |> FreeIDMap.find_opt fid
+    match dispmap.free_ids |> FreeIDMap.find_opt fid with
+    | Some(s) -> s
+    | None    -> Format.asprintf "!!%a!!" FreeID.pp fid
 
   let find_free_row_id frid dispmap =
-    dispmap.free_row_ids |> FreeRowIDMap.find_opt frid
+    match dispmap.free_row_ids |> FreeRowIDMap.find_opt frid with
+    | Some(s) -> s
+    | None    -> Format.asprintf "!!%a!!" FreeRowID.pp frid
+
+  let make_free_id_hash_set dispmap =
+    let fidht = FreeIDHashTable.create 32 in
+    dispmap.free_ids |> FreeIDMap.iter (fun fid _ ->
+      FreeIDHashTable.add fidht fid ()
+    );
+    fidht
+
+  let make_free_row_id_hash_set dispmap =
+    let fridht = FreeRowIDHashTable.create 32 in
+    dispmap.free_row_ids |> FreeRowIDMap.iter (fun frid _ ->
+      FreeRowIDHashTable.add fridht frid ()
+    );
+    fridht
 
 end
 
 
-let collect_ids (ty : mono_type) (dispmap : DisplayMap.t) : DisplayMap.t =
-  let fidht = FreeIDHashTable.create 32 in
-  let fridht = FreeRowIDHashTable.create 32 in
-
-  let rec aux ((_, tymain) : mono_type) : unit =
+let collect_ids_scheme (fidht : unit FreeIDHashTable.t) (fridht : unit FreeRowIDHashTable.t) =
+  let rec aux_mono ((_, tymain) : mono_type) : unit =
     match tymain with
     | BaseType(bty) ->
         ()
 
     | TypeVar(Updatable{contents = Link(ty)}) ->
-        aux ty
+        aux_mono ty
 
     | TypeVar(Updatable{contents = Free(fid)}) ->
         if FreeIDHashTable.mem fidht fid then
           ()
         else begin
-          FreeIDHashTable.replace fidht fid ();
+          FreeIDHashTable.add fidht fid ();
           let mbkd = KindStore.get_free_id fid in
           aux_base_kind mbkd
         end
@@ -147,27 +172,27 @@ let collect_ids (ty : mono_type) (dispmap : DisplayMap.t) : DisplayMap.t =
 
     | FuncType(domain, tycod) ->
         aux_domain domain;
-        aux tycod
+        aux_mono tycod
 
     | EffType(domain, eff, ty0) ->
         aux_domain domain;
         aux_effect eff;
-        aux ty0
+        aux_mono ty0
 
     | PidType(pidty) ->
         aux_pid_type pidty
 
     | ProductType(tys) ->
-        tys |> TupleList.to_list |> List.iter aux
+        tys |> TupleList.to_list |> List.iter aux_mono
 
     | RecordType(labmap) ->
         aux_label_assoc labmap
 
     | DataType(tyid, tyargs) ->
-        tyargs |> List.iter aux
+        tyargs |> List.iter aux_mono
 
   and aux_label_assoc (labmap : mono_type LabelAssoc.t) : unit =
-    LabelAssoc.iter (fun _ ty -> aux ty) labmap
+    LabelAssoc.iter (fun _ ty -> aux_mono ty) labmap
 
   and aux_base_kind (mbkd : mono_base_kind) : unit =
     match mbkd with
@@ -175,15 +200,15 @@ let collect_ids (ty : mono_type) (dispmap : DisplayMap.t) : DisplayMap.t =
     | RecordKind(labmap) -> aux_label_assoc labmap
 
   and aux_domain (domain : mono_domain_type) : unit =
-    domain.ordered |> List.iter aux;
+    domain.ordered |> List.iter aux_mono;
     aux_label_assoc domain.mandatory;
     aux_option_row domain.optional
 
   and aux_effect (Effect(ty)) =
-    aux ty
+    aux_mono ty
 
   and aux_pid_type (Pid(ty)) =
-    aux ty
+    aux_mono ty
 
   and aux_option_row : mono_row -> unit = function
     | FixedRow(labmap) ->
@@ -196,7 +221,7 @@ let collect_ids (ty : mono_type) (dispmap : DisplayMap.t) : DisplayMap.t =
         if FreeRowIDHashTable.mem fridht frid then
           ()
         else begin
-          FreeRowIDHashTable.replace fridht frid ();
+          FreeRowIDHashTable.add fridht frid ();
           let labmap = KindStore.get_free_row frid in
           aux_label_assoc labmap
         end
@@ -204,7 +229,14 @@ let collect_ids (ty : mono_type) (dispmap : DisplayMap.t) : DisplayMap.t =
     | RowVar(MustBeBoundRow(mbbrid)) ->
         ()
   in
-  aux ty;
+  (aux_mono, aux_base_kind)
+
+
+let collect_ids_mono (ty : mono_type) (dispmap : DisplayMap.t) : DisplayMap.t =
+  let fidht = DisplayMap.make_free_id_hash_set dispmap in
+  let fridht = DisplayMap.make_free_row_id_hash_set dispmap in
+  let (aux_mono, _) = collect_ids_scheme fidht fridht in
+  aux_mono ty;
   let dispmap =
     FreeIDHashTable.fold (fun fid () dispmap ->
       dispmap |> DisplayMap.add_free_id fid
@@ -216,7 +248,6 @@ let collect_ids (ty : mono_type) (dispmap : DisplayMap.t) : DisplayMap.t =
     ) fridht dispmap
   in
   dispmap
-
 
 
 (* Arguments:
@@ -897,44 +928,51 @@ fun showtv showrv ->
       Printf.sprintf "{%s}" s
 
 
-and show_mono_type_var (mtv : mono_type_var) : string =
+and show_mono_type_var (dispmap : DisplayMap.t) (mtv : mono_type_var) : string =
   match mtv with
   | MustBeBound(mbbid) -> Format.asprintf "%a" MustBeBoundID.pp mbbid
-  | Updatable(mtvu)    -> show_mono_type_var_updatable !mtvu
+  | Updatable(mtvu)    -> show_mono_type_var_updatable dispmap !mtvu
 
 
-and show_mono_type_var_updatable (mtvu : mono_type_var_updatable) : string =
+and show_mono_type_var_updatable (dispmap : DisplayMap.t) (mtvu : mono_type_var_updatable) : string =
   match mtvu with
-  | Link(ty)  -> show_type show_mono_type_var show_mono_row_var ty
-  | Free(fid) -> Format.asprintf "%a" FreeID.pp fid
+  | Link(ty)  -> show_type (show_mono_type_var dispmap) (show_mono_row_var dispmap) ty
+  | Free(fid) -> dispmap |> DisplayMap.find_free_id fid
 
 
-and show_mono_row_var (mrv : mono_row_var) : string option =
+and show_mono_row_var (dispmap : DisplayMap.t) (mrv : mono_row_var) : string option =
   match mrv with
-  | UpdatableRow(mrvu)     -> show_mono_row_var_updatable !mrvu
+  | UpdatableRow(mrvu)     -> show_mono_row_var_updatable dispmap !mrvu
   | MustBeBoundRow(mbbrid) -> Some(Format.asprintf "%a" MustBeBoundRowID.pp mbbrid)
 
 
-and show_mono_row_var_updatable (mrvu : mono_row_var_updatable) : string option =
+and show_mono_row_var_updatable (dispmap : DisplayMap.t) (mrvu : mono_row_var_updatable) : string option =
   match mrvu with
-  | LinkRow(labmap) -> show_label_assoc ~prefix:"?" ~suffix:"" show_mono_type_var show_mono_row_var labmap
-  | FreeRow(frid)   -> Some(Format.asprintf "%a" FreeRowID.pp frid)
+  | LinkRow(labmap) ->
+      show_label_assoc ~prefix:"?" ~suffix:""
+        (show_mono_type_var dispmap)
+        (show_mono_row_var dispmap)
+        labmap
+
+  | FreeRow(frid) ->
+      let s = dispmap |> DisplayMap.find_free_row_id frid in
+      Some(s)
 
 
-let show_mono_type : mono_type -> string =
-  show_type show_mono_type_var show_mono_row_var
+let show_mono_type (dispmap : DisplayMap.t) : mono_type -> string =
+  show_type (show_mono_type_var dispmap) (show_mono_row_var dispmap)
 
 
-let pp_mono_type ppf ty =
-  Format.fprintf ppf "%s" (show_mono_type ty)
+let pp_mono_type dispmap ppf ty =
+  Format.fprintf ppf "%s" (show_mono_type dispmap ty)
 
 
-let show_mono_base_kind : mono_base_kind -> string =
-  show_base_kind show_mono_type_var show_mono_row_var
+let show_mono_base_kind (dispmap : DisplayMap.t) : mono_base_kind -> string =
+  show_base_kind (show_mono_type_var dispmap) (show_mono_row_var dispmap)
 
 
-let pp_mono_base_kind ppf mbkd =
-  Format.fprintf ppf "%s" (show_mono_base_kind mbkd)
+let pp_mono_base_kind dispmap ppf mbkd =
+  Format.fprintf ppf "%s" (show_mono_base_kind dispmap mbkd)
 
 
 type 'a state =
@@ -945,7 +983,7 @@ type hash_tables = ((string option) state) BoundIDHashTable.t * ((string LabelAs
 
 
 (* Does NOT fall into an infinite loop even when type variables are mutually dependent or cyclic. *)
-let rec show_poly_type_var (hts : hash_tables) = function
+let rec show_poly_type_var (dispmap : DisplayMap.t) (hts : hash_tables) = function
   | Bound(bid) ->
       let (bidht, _) = hts in
       if BoundIDHashTable.mem bidht bid then () else begin
@@ -957,7 +995,7 @@ let rec show_poly_type_var (hts : hash_tables) = function
               None
 
           | _ ->
-              let skd = show_poly_base_kind_sub hts pbkd in
+              let skd = show_poly_base_kind_sub dispmap hts pbkd in
               Some(skd)
         in
         BoundIDHashTable.replace bidht bid (Touched(skdopt))
@@ -965,30 +1003,30 @@ let rec show_poly_type_var (hts : hash_tables) = function
       Format.asprintf "%a" BoundID.pp bid
 
   | Mono(mtv) ->
-      show_mono_type_var mtv
+      show_mono_type_var dispmap mtv
 
 
-and show_poly_row_var (hts : hash_tables) = function
+and show_poly_row_var (dispmap : DisplayMap.t) (hts : hash_tables) = function
   | BoundRow(brid) ->
       let (_, bridht) = hts in
       if BoundRowIDHashTable.mem bridht brid then () else begin
         BoundRowIDHashTable.add bridht brid Touching;
         let plabmap = KindStore.get_bound_row brid in
-        let smap = plabmap |> LabelAssoc.map (show_poly_type_sub hts) in
+        let smap = plabmap |> LabelAssoc.map (show_poly_type_sub dispmap hts) in
         BoundRowIDHashTable.replace bridht brid (Touched(smap))
       end;
       Some(Format.asprintf "%a" BoundRowID.pp brid)
 
   | MonoRow(mrv) ->
-      show_mono_row_var mrv
+      show_mono_row_var dispmap mrv
 
 
-and show_poly_type_sub (hts : hash_tables) : poly_type -> string =
-  show_type (show_poly_type_var hts) (show_poly_row_var hts)
+and show_poly_type_sub (dispmap : DisplayMap.t) (hts : hash_tables) : poly_type -> string =
+  show_type (show_poly_type_var dispmap hts) (show_poly_row_var dispmap hts)
 
 
-and show_poly_base_kind_sub (hts : hash_tables) : poly_base_kind -> string =
-  show_base_kind (show_poly_type_var hts) (show_poly_row_var hts)
+and show_poly_base_kind_sub (dispmap : DisplayMap.t) (hts : hash_tables) : poly_base_kind -> string =
+  show_base_kind (show_poly_type_var dispmap hts) (show_poly_row_var dispmap hts)
 
 
 let show_bound_type_ids ((bidht, _) : hash_tables) =
@@ -1026,29 +1064,29 @@ let create_initial_hash_tables () : hash_tables =
   (bidht, bridht)
 
 
-let show_poly_type (pty : poly_type) : string list * string list * string =
+let show_poly_type (dispmap : DisplayMap.t) (pty : poly_type) : string list * string list * string =
   let hts = create_initial_hash_tables () in
-  let smain = show_poly_type_sub hts pty in
+  let smain = show_poly_type_sub dispmap hts pty in
   let sbids = show_bound_type_ids hts in
   let sbrids = show_bound_row_ids hts in
   (sbids, sbrids, smain)
 
 
-let show_poly_base_kind (pbkd : poly_base_kind) : string list * string list * string =
+let show_poly_base_kind (dispmap : DisplayMap.t) (pbkd : poly_base_kind) : string list * string list * string =
   let hts = create_initial_hash_tables () in
-  let smain = show_poly_base_kind_sub hts pbkd in
+  let smain = show_poly_base_kind_sub dispmap hts pbkd in
   let sbids = show_bound_type_ids hts in
   let sbrids = show_bound_row_ids hts in
   (sbids, sbrids, smain)
 
 
-let show_poly_kind (pkd : poly_kind) : string list * string list * string =
+let show_poly_kind (dispmap : DisplayMap.t) (pkd : poly_kind) : string list * string list * string =
   let hts = create_initial_hash_tables () in
   match pkd with
   | Kind(pbkddoms, pbkdcod) ->
       let smain =
-        let sdoms = pbkddoms |> List.map (show_poly_base_kind_sub hts) in
-        let scod = show_poly_base_kind_sub hts pbkdcod in
+        let sdoms = pbkddoms |> List.map (show_poly_base_kind_sub dispmap hts) in
+        let scod = show_poly_base_kind_sub dispmap hts pbkdcod in
         if List.length sdoms > 0 then
           Printf.sprintf "(%s) -> %s" (String.concat ", " sdoms) scod
         else
@@ -1059,8 +1097,8 @@ let show_poly_kind (pkd : poly_kind) : string list * string list * string =
       (sbids, sbrids, smain)
 
 
-let pp_poly_type ppf pty =
-  let (_, _, sty) = show_poly_type pty in
+let pp_poly_type dispmap ppf pty =
+  let (_, _, sty) = show_poly_type dispmap pty in
   Format.fprintf ppf "%s" sty
 
 (*

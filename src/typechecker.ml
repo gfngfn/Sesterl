@@ -2441,7 +2441,7 @@ and subtype_poly_type (wtmap : WitnessMap.t) (pty1 : poly_type) (pty2 : poly_typ
 *)
     match BoundRowIDHashTable.find_opt bridht brid1 with
     | None ->
-        BoundIDHashTable.add bridht brid1 prow2;
+        BoundRowIDHashTable.add bridht brid1 prow2;
         true
 
     | Some(prow) ->
