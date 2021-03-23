@@ -133,7 +133,7 @@ module Stdlib :> sig
 
     module Dynamic : sig
       type child_proc :: (o) -> o
-      val make_child_proc<$b, $child_msg> : fun(fun() -> [$b]option<pid<$child_msg>>) -> child_proc<$child_msg>
+      val make_child_proc<$b, $child_msg, $c> : fun(fun() -> [$b]option<pid<$child_msg>>) -> [$c]child_proc<$child_msg>
       type child_spec :: (o, o, o) -> o
       val make_child_spec<$msg, $arg, $child_msg> :
         fun(
