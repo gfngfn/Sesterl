@@ -3,7 +3,7 @@ module type S = sig
 
   type t
 
-  val fresh : string -> t
+  val fresh : string list -> string -> t
 
   val hash : t -> int
 
@@ -15,6 +15,7 @@ module type S = sig
 
   val pp : Format.formatter -> t -> unit
 
+  val pp_raw : Format.formatter -> t -> unit
 end
 
 module Variant : S

@@ -689,3 +689,5 @@ module GlobalNameMap = Map.Make(OutputIdentifier.Global)
 type global_name_map = string GlobalNameMap.t
 (* The type for maps tracking which module every global name belongs to.
    This is used by 'Primitives' and 'OutputErlangCode'. *)
+
+type address = module_name Alist.t
