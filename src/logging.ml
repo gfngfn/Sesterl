@@ -136,25 +136,36 @@ let report_type_error (e : type_error) : unit =
 
   | ContradictionError(ty1, ty2) ->
       let (rng1, _) = ty1 in
-      Format.printf "%a: this expression has type %a but is expected of type %a\n"
-        Range.pp rng1
-        TypeConv.pp_mono_type ty1
+      Format.printf "%a: this expression has type\n"
+        Range.pp rng1;
+      Format.printf "    %a\n"
+        TypeConv.pp_mono_type ty1;
+      Format.printf "  but is expected of type\n";
+      Format.printf "    %a\n"
         TypeConv.pp_mono_type ty2
 
   | InclusionError(fid, ty1, ty2) ->
       let (rng1, _) = ty1 in
-      Format.printf "%a: this expression has type %a and type %a at the same time, but these types are inconsistent as to the occurrence of type variable %a\n"
-        Range.pp rng1
-        TypeConv.pp_mono_type ty1
-        TypeConv.pp_mono_type ty2
+      Format.printf "%a: this expression has type\n"
+        Range.pp rng1;
+      Format.printf "    %a\n"
+        TypeConv.pp_mono_type ty1;
+      Format.printf "  and type\n";
+      Format.printf "    %a\n"
+        TypeConv.pp_mono_type ty2;
+      Format.printf "at the same time, but these types are inconsistent as to the occurrence of type variable %a\n"
         FreeID.pp fid
 
   | InclusionRowError(frid, ty1, ty2) ->
       let (rng1, _) = ty1 in
-      Format.printf "%a: this expression has type %a and type %a at the same time, but these types are inconsistent as to the occurrence of row variable %a\n"
-        Range.pp rng1
-        TypeConv.pp_mono_type ty1
-        TypeConv.pp_mono_type ty2
+      Format.printf "%a: this expression has type\n"
+        Range.pp rng1;
+      Format.printf "    %a\n"
+        TypeConv.pp_mono_type ty1;
+      Format.printf "  and type\n";
+      Format.printf "    %a\n"
+        TypeConv.pp_mono_type ty2;
+      Format.printf "at the same time, but these types are inconsistent as to the occurrence of row variable %a\n"
         FreeRowID.pp frid
 
   | BoundMoreThanOnceInPattern(rng, x) ->
@@ -381,6 +392,29 @@ let report_type_error (e : type_error) : unit =
       Format.printf "%a: label '%s' is used more than once in a binding\n"
         Range.pp rng
         label
+
+  | BadArityOfOrderedArguments(info) ->
+      Format.printf "%a: the function expects %d ordered argument(s), but is applied to %d ordered argument(s) here\n"
+        Range.pp info.range
+        info.expected
+        info.got
+
+  | MissingMandatoryLabel(info) ->
+      Format.printf "%a: missing mandatory label '-%s' with an argument of type\n"
+        Range.pp info.range
+        info.label;
+      Format.printf "    %a\n"
+        TypeConv.pp_mono_type info.typ
+
+  | UnexpectedMandatoryLabel(info) ->
+      Format.printf "%a: unexpected mandatory label '-%s'\n"
+        Range.pp info.range
+        info.label
+
+  | UnexpectedOptionalLabel(info) ->
+      Format.printf "%a: unexpected optional label '?%s'\n"
+        Range.pp info.range
+        info.label
 
   | NullaryFormatString(rng) ->
       Format.printf "%a: nullary format string\n"

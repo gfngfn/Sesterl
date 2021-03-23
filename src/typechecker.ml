@@ -1335,10 +1335,19 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
   | Apply(utastfun, utargs) ->
       let (tyfun, efun) = typecheck pre utastfun in
-      let (domain, optrow, iargs) = typecheck_arguments pre rng utargs in
-      let tyret = fresh_type_variable ~name:"(Apply)" pre.level UniversalKind rng in
-      unify tyfun (Range.dummy "Apply", FuncType(domain, tyret));
-      (tyret, iapply efun optrow iargs)
+      begin
+        match TypeConv.canonicalize_root tyfun with
+        | (_, FuncType(domain_expected, tyret)) ->
+          (* A slight trick for making error messages easier to comprehend. *)
+            let iargs = typecheck_arguments_against_domain pre rng utargs domain_expected in
+            (tyret, iapply efun domain_expected.optional iargs)
+
+        | _ ->
+            let (domain, optrow, iargs) = typecheck_arguments pre rng utargs in
+            let tyret = fresh_type_variable ~name:"(Apply)" pre.level UniversalKind rng in
+            unify tyfun (Range.dummy "Apply", FuncType(domain, tyret));
+            (tyret, iapply efun optrow iargs)
+      end
 
   | Freeze(rngapp, frozenfun, utastargs, restrngs) ->
       let (ptyfun, gname) =
@@ -1794,6 +1803,100 @@ and typecheck_arguments (pre : pre) (rng : Range.t) ((utastargs, mndutastargs, o
   in
   let domain = {ordered = tyargs; mandatory = mndlabmap; optional = optrow} in
   (domain, optrow, (eargs, mndargmap, optargmap))
+
+
+and typecheck_arguments_against_domain (pre : pre) (rng : Range.t) ((utastargs, mndutastargs, optutastargs) : untyped_arguments) (domain_expected : mono_domain_type) =
+  let {ordered = tys_expected; mandatory = mndlabmap_expected; optional = optrow_expected} = domain_expected in
+  let eargs =
+    let numord_got = List.length utastargs in
+    let numord_expected = List.length tys_expected in
+    if numord_got = numord_expected then
+      List.fold_left2 (fun eargacc utastarg ty_expected ->
+        let (ty_got, e) = typecheck pre utastarg in
+        unify ty_got ty_expected;
+        Alist.extend eargacc e
+      ) Alist.empty utastargs tys_expected |> Alist.to_list
+    else
+      raise_error @@ BadArityOfOrderedArguments{range = rng; got = numord_got; expected = numord_expected}
+  in
+  let mndargmap =
+    let (mndlabmap_rest, mndargmap) =
+      mndutastargs |> List.fold_left (fun (mndlabmap_rest, mndargmap) (rlabel, utast) ->
+        let (rnglabel, label) = rlabel in
+        if mndargmap |> LabelAssoc.mem label then
+          raise_error @@ DuplicatedLabel(rnglabel, label)
+        else
+          match mndlabmap_rest |> LabelAssoc.find_opt label with
+          | None ->
+              raise_error @@ UnexpectedMandatoryLabel{range = rnglabel; label = label}
+
+          | Some(ty_expected) ->
+              let (ty_got, e) = typecheck pre utast in
+              unify ty_got ty_expected;
+              let mndlabmap_rest = mndlabmap_rest |> LabelAssoc.remove label in
+              let mndargmap = mndargmap |> LabelAssoc.add label e in
+              (mndlabmap_rest, mndargmap)
+
+      ) (mndlabmap_expected, LabelAssoc.empty)
+    in
+    match mndlabmap_rest |> LabelAssoc.bindings with
+    | []               -> mndargmap
+    | (label, ty) :: _ -> raise_error @@ MissingMandatoryLabel{range = rng; label = label; typ = ty}
+  in
+  let optargmap =
+    let labmap_known =
+      match optrow_expected with
+      | FixedRow(labmap) ->
+          labmap
+
+      | RowVar(UpdatableRow{contents = LinkRow(labmap)}) ->
+          labmap
+
+      | RowVar(MustBeBoundRow(mbbrid)) ->
+          let plabmap = KindStore.get_bound_row (MustBeBoundRowID.to_bound mbbrid) in
+          plabmap |> LabelAssoc.map (TypeConv.instantiate pre.level)
+
+      | RowVar(UpdatableRow{contents = FreeRow(frid)}) ->
+          KindStore.get_free_row frid
+    in
+    let (unknown_label, optlabmap, optargmap) =
+      optutastargs |> List.fold_left (fun (unknown_label, optlabmap, optargmap) (rlabel, utast) ->
+        let (rnglabel, label) = rlabel in
+        if optargmap |> LabelAssoc.mem label then
+          raise_error (DuplicatedLabel(rnglabel, label))
+        else
+          let (ty_got, e) = typecheck pre utast in
+          let optargmap = optargmap |> LabelAssoc.add label e in
+          match labmap_known |> LabelAssoc.find_opt label with
+          | None ->
+              let optlabmap = optlabmap |> LabelAssoc.add label ty_got in
+              (Some(rlabel), optlabmap, optargmap)
+
+          | Some(ty_expected) ->
+              unify ty_got ty_expected;
+              let optlabmap = optlabmap |> LabelAssoc.add label ty_expected in
+              (unknown_label, optlabmap, optargmap)
+
+      ) (None, LabelAssoc.empty, LabelAssoc.empty)
+    in
+    let () =
+      match unknown_label with
+      | Some(rnglabel, label) ->
+          begin
+            match optrow_expected with
+            | RowVar(UpdatableRow{contents = FreeRow(frid)}) ->
+                KindStore.register_free_row frid optlabmap
+
+            | _ ->
+                raise_error @@ UnexpectedOptionalLabel{range = rnglabel; label = label}
+          end
+
+      | None ->
+          ()
+    in
+    optargmap
+  in
+  (eargs, mndargmap, optargmap)
 
 
 and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name) =

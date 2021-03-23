@@ -37,6 +37,7 @@ type type_error =
   | ContradictionError                  of mono_type * mono_type
   | InclusionError                      of FreeID.t * mono_type * mono_type
   | InclusionRowError                   of FreeRowID.t * mono_type * mono_type
+  | BadArityOfOrderedArguments          of {range : Range.t; got : int; expected : int}
   | BoundMoreThanOnceInPattern          of Range.t * identifier
   | UnboundTypeParameter                of Range.t * type_variable_name
   | UnboundRowParameter                 of Range.t * row_variable_name
@@ -76,5 +77,8 @@ type type_error =
   | InvalidIdentifier                   of Range.t * string
   | ConflictInSignature                 of Range.t * string
   | DuplicatedLabel                     of Range.t * label
+  | UnexpectedMandatoryLabel            of {range : Range.t; label : label}
+  | MissingMandatoryLabel               of {range : Range.t; label : label; typ : mono_type}
+  | UnexpectedOptionalLabel             of {range : Range.t; label : label}
   | NullaryFormatString                 of Range.t
   | CannotFreezeNonGlobalName           of Range.t * identifier
