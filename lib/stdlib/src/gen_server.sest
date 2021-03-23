@@ -124,7 +124,7 @@ module GenServer = struct
     val start_link<$a> : fun(Callback.init_arg) -> [$a]option<proc> = external 1 ```
       start_link(Args) ->
           Result = gen_server:start_link(?MODULE, Args, []),
-          io:format("debug L('o' )J returns: ~p~n", [Result]),
+          % io:format("debug L('o' )J returns: ~p~n", [Result]),
           case Result of
               {ok, Pid} -> {some, Pid};
               _         -> none
@@ -133,15 +133,15 @@ module GenServer = struct
 
     val start_link_name<$a> : fun(Callback.init_arg, -name ServerUtil.name) -> [$a]option<{bool, proc}> = external 2 ```
       start_link_name(Args, NameImpl) ->
-          io:format("debug L('o' )J (~p) GS start_link_name (pre):~n  ~p~n", [?MODULE, Args]),
+          % io:format("debug L('o' )J (~p) GS start_link_name (pre):~n  ~p~n", [?MODULE, Args]),
           Name =
               case NameImpl of
                   {local, Bin}  -> {local, erlang:binary_to_atom(Bin, utf8)};
                   {global, Bin} -> {global, erlang:binary_to_atom(Bin, utf8)}
               end,
-          io:format("debug L('o' )J (~p) GS start_link_name (arg):~n  ~p~n", [?MODULE, Args]),
+          % io:format("debug L('o' )J (~p) GS start_link_name (arg):~n  ~p~n", [?MODULE, Args]),
           StartRet = gen_server:start_link(Name, ?MODULE, Args, []),
-          io:format("debug L('o' )J (~p) GS start_link_name (ret):~n  ~p~n", [?MODULE, StartRet]),
+          % io:format("debug L('o' )J (~p) GS start_link_name (ret):~n  ~p~n", [?MODULE, StartRet]),
           case StartRet of
               {ok, Pid}                       -> {some, {true, Pid}};
               {error, {already_started, Pid}} -> {some, {false, Pid}};
