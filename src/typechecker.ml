@@ -1340,6 +1340,10 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         | (_, FuncType(domain_expected, tyret)) ->
           (* A slight trick for making error messages easier to comprehend. *)
             let iargs = typecheck_arguments_against_domain pre rng utargs domain_expected in
+            let tyret =
+              let (_, tyretmain) = tyret in
+              (rng, tyretmain)
+            in
             (tyret, iapply efun domain_expected.optional iargs)
 
         | _ ->
