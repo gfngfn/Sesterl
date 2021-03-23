@@ -128,6 +128,16 @@ let report_package_error (e : package_error) : unit =
         absdir
 
 
+let pp_type_parameter_list ppf bids =
+  match bids with
+  | [] ->
+      ()
+
+  | _ :: _ ->
+      let pp_sep ppf () = Format.fprintf ppf ", " in
+      Format.fprintf ppf "<%a>" (Format.pp_print_list ~pp_sep BoundID.pp) bids
+
+
 let report_type_error (e : type_error) : unit =
   Format.printf "! [Type error] ";
   match e with
@@ -323,24 +333,32 @@ let report_type_error (e : type_error) : unit =
   | PolymorphicContradiction(rng, x, pty1, pty2) ->
       Format.printf "%a:\n"
         Range.pp rng;
-      Format.printf "  not a subtype; as to value '%s', type %a cannot be encapsulated by type %a\n"
-        x
-        TypeConv.pp_poly_type pty1
+      Format.printf "  not a subtype; as to value '%s', type\n"
+        x;
+      Format.printf "    %a\n"
+        TypeConv.pp_poly_type pty1;
+      Format.printf "  cannot be encapsulated by type\n";
+      Format.printf "    %a\n"
         TypeConv.pp_poly_type pty2
 
   | PolymorphicInclusion(rng, fid, pty1, pty2) ->
       Format.printf "%a:\n"
         Range.pp rng;
-      Format.printf "  type %a is inconsistent with type %a as to type variable %a\n"
-        TypeConv.pp_poly_type pty1
-        TypeConv.pp_poly_type pty2
+      Format.printf "  type\n";
+      Format.printf "    %a\n"
+        TypeConv.pp_poly_type pty1;
+      Format.printf " is inconsistent with type\n";
+      Format.printf "    %a\n"
+        TypeConv.pp_poly_type pty2;
+      Format.printf "  as to type variable %a\n"
         FreeID.pp fid
 
   | MissingRequiredValName(rng, x, pty) ->
       Format.printf "%a:\n"
         Range.pp rng;
-      Format.printf "  missing required value '%s' of type %a\n"
-        x
+      Format.printf "  missing required value '%s' of type\n"
+        x;
+      Format.printf "    %a\n"
         TypeConv.pp_poly_type pty
 
   | MissingRequiredTypeName(rng, tynm, (_, pkd)) ->
@@ -384,14 +402,16 @@ let report_type_error (e : type_error) : unit =
       let (bids2, pty2) = TypeDefinitionStore.find_synonym_type sid2 in
       Format.printf "%a:\n"
         Range.pp rng;
-      Format.printf "  type %a is not a subtype of %a;\n  - %a<%a> = %a\n  - %a<%a> = %a\n"
+      Format.printf "  type %a is not a subtype of %a;\n"
         TypeID.Synonym.pp sid1
-        TypeID.Synonym.pp sid2
+        TypeID.Synonym.pp sid2;
+      Format.printf "  - %a%a = %a\n"
         TypeID.Synonym.pp sid1
-        (Format.pp_print_list BoundID.pp) bids1
-        TypeConv.pp_poly_type pty1
+        pp_type_parameter_list bids1
+        TypeConv.pp_poly_type pty1;
+      Format.printf "  - %a%a = %a\n"
         TypeID.Synonym.pp sid2
-        (Format.pp_print_list BoundID.pp) bids2
+        pp_type_parameter_list bids2
         TypeConv.pp_poly_type pty2
 
   | OpaqueIDExtrudesScopeViaValue(rng, _pty) ->
