@@ -57,6 +57,160 @@ end = struct
 
 end
 
+
+module DisplayMap : sig
+  type t
+  val empty : t
+  val add_free_id : FreeID.t -> t -> t
+  val add_free_row_id : FreeRowID.t -> t -> t
+  val find_free_id : FreeID.t -> t -> string option
+  val find_free_row_id : FreeRowID.t -> t -> string option
+end = struct
+
+  module FreeIDMap = Map.Make(FreeID)
+  module FreeRowIDMap = Map.Make(FreeRowID)
+
+  type t = {
+    current_max  : int;
+    free_ids     : string FreeIDMap.t;
+    free_row_ids : string FreeRowIDMap.t;
+  }
+
+  let empty =
+    {
+      current_max  = 0;
+      free_ids     = FreeIDMap.empty;
+      free_row_ids = FreeRowIDMap.empty;
+    }
+
+  let make_value i =
+    let rec aux chs i =
+      let q = i / 26 in
+      let r = i mod 26 in
+      let ch = Char.chr (Char.code 'a' + r) in
+      if q <= 0 then
+        ch :: chs
+      else
+        aux (ch :: chs) r
+    in
+    let chs = aux [] i in
+    Core_kernel.String.of_char_list chs
+
+  let add_free_id fid dispmap =
+    let i = dispmap.current_max in
+    let s = make_value i in
+    { dispmap with
+      current_max = i + 1;
+      free_ids    = dispmap.free_ids |> FreeIDMap.add fid s;
+    }
+
+  let add_free_row_id frid dispmap =
+    let i = dispmap.current_max in
+    let s = make_value i in
+    { dispmap with
+      current_max = i + 1;
+      free_ids    = dispmap.free_row_ids |> FreeIDMap.add frid s;
+    }
+
+  let find_free_id fid dispmap =
+    dispmap.free_ids |> FreeIDMap.find_opt fid
+
+  let find_free_row_id frid dispmap =
+    dispmap.free_row_ids |> FreeRowIDMap.find_opt frid
+
+end
+
+
+let collect_ids (ty : mono_type) (dispmap : DisplayMap.t) : DisplayMap.t =
+  let fidht = FreeIDHashTable.create 32 in
+  let fridht = FreeRowIDHashTable.create 32 in
+
+  let rec aux ((_, tymain) : mono_type) : unit =
+    match tymain with
+    | BaseType(bty) ->
+        ()
+
+    | TypeVar(Updatable{contents = Link(ty)}) ->
+        aux ty
+
+    | TypeVar(Updatable{contents = Free(fid)}) ->
+        FreeIDHashTable.replace fidht fid ();
+        let mbkd = KindStore.get_free_id fid in
+        aux_base_kind mbkd
+
+    | TypeVar(MustBeBound(mbbid)) ->
+        ()
+
+    | FuncType(domain, tycod) ->
+        aux_domain domain;
+        aux tycod
+
+    | EffType(domain, eff, ty0) ->
+        aux_domain domain;
+        aux_effect eff;
+        aux ty0
+
+    | PidType(pidty) ->
+        aux_pid_type pidty
+
+    | ProductType(tys) ->
+        tys |> TupleList.to_list |> List.iter aux
+
+    | RecordType(labmap) ->
+        aux_label_assoc labmap
+
+    | DataType(tyid, tyargs) ->
+        tyargs |> List.iter aux
+
+  and aux_label_assoc (labmap : mono_type LabelAssoc.t) : unit =
+    LabelAssoc.iter (fun _ ty -> aux ty) labmap
+
+  and aux_base_kind (mbkd : mono_base_kind) : unit =
+    match mbkd with
+    | UniversalKind      -> ()
+    | RecordKind(labmap) -> aux_label_assoc labmap
+
+  and aux_domain (domain : mono_domain_type) : unit =
+    domain.ordered |> List.iter aux;
+    aux_label_assoc domain.mandatory;
+    aux_option_row domain.optional
+
+  and aux_effect (Effect(ty)) =
+    aux ty
+
+  and aux_pid_type (Pid(ty)) =
+    aux ty
+
+  and aux_option_row : mono_row -> unit = function
+    | FixedRow(labmap) ->
+        aux_label_assoc labmap
+
+    | RowVar(UpdatableRow{contents = LinkRow(labmap)}) ->
+        aux_label_assoc labmap
+
+    | RowVar(UpdatableRow{contents = FreeRow(frid)}) ->
+        FreeRowIDHashTable.replace fridht frid ();
+        let labmap = KindStore.get_free_row frid in
+        aux_label_assoc labmap
+
+    | RowVar(MustBeBoundRow(mbbrid)) ->
+        ()
+  in
+  aux ty;
+  let dispmap =
+    FreeIDHashTable.fold (fun fid () dispmap ->
+      dispmap |> DisplayMap.add_free_id fid
+    ) fidht dispmap
+  in
+  let dispmap =
+    FreeRowIDHashTable.fold (fun frid () dispmap ->
+      dispmap |> DisplayMap.add_free_row_id frid
+    ) fridht dispmap
+  in
+  dispmap
+
+
+
 (* Arguments:
    - `levpred`:
      Given a level of free/must-be-bound ID,

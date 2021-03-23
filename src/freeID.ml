@@ -15,6 +15,10 @@ let equal fid1 fid2 =
   fid1.id = fid2.id
 
 
+let compare fid1 fid2 =
+  fid2.id - fid1.id
+
+
 let hash fid =
   fid.id
 
