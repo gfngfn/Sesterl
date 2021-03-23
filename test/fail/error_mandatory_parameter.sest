@@ -1,0 +1,12 @@
+module ErrorMandatoryParameter = struct
+
+  val get_or_else(x, -default d) =
+    case x of
+    | Some(v) -> v
+    | None    -> d
+    end
+
+  val main() =
+    get_or_else(Some(42))
+
+end
