@@ -1,0 +1,17 @@
+import CowboyWrapper
+
+module Handler = struct
+
+  val init(req, state) = act
+    let header = Stdlib.RawMap.put("content-type", "text/plain", Stdlib.RawMap.new()) in
+    do req <-
+      CowboyWrapper.reply(
+        200,
+        header,
+        "Hello, Sesterl!",
+        req,
+      )
+    in
+    CowboyWrapper.init_ok(req, state)
+
+end

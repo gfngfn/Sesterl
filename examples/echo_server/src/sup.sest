@@ -1,0 +1,20 @@
+module Sup = struct
+
+  module S = Stdlib.Supervisor.Static
+
+  module Callback = struct
+    type child_id = unit
+
+    type init_arg = unit
+
+    type info = unit
+
+    val init(args) = act
+      let sup_flags = S.make_sup_flags() in
+      let child_specs = [] in
+      S.init_ok(sup_flags, child_specs)
+  end
+
+  include S.Make(Callback)
+
+end

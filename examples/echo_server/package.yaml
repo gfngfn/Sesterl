@@ -1,0 +1,20 @@
+package: echo_server
+
+source_directories:
+  - "./src"
+
+main_module: "App"
+
+dependencies:
+  - name: "stdlib"
+    source:
+      type: "local"
+      directory: "../../lib/stdlib"
+
+erlang:
+  output_directory: "./_generated"
+  erlang_dependencies:
+    - name: "cowboy"
+      source:
+        type: "hex"
+        version: "2.8.0"

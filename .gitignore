@@ -3,6 +3,5 @@ _build/
 .merlin
 .DS_Store
 sesterl
-test/_generated/
-lib/_generated/
+_generated/
 *.install

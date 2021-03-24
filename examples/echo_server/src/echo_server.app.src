@@ -1,0 +1,16 @@
+{application, echo_server, [
+    {description, "An example echo server written in Sesterl"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {mod, {echo_server_app, []}},
+    {applications, [
+        kernel,
+        stdlib,
+        cowboy
+    ]},
+    {env, []},
+    {modules, []},
+
+    {licenses, ["MIT"]},
+    {links, []}
+]}.
