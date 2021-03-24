@@ -128,18 +128,23 @@ let report_package_error (e : package_error) : unit =
         absdir
 
 
-let pp_type_parameter_list ppf bids =
+let pp_type_parameter_list dispmap ppf bids =
   match bids with
   | [] ->
       ()
 
   | _ :: _ ->
+      let pp_bound_id ppf bid = Format.fprintf ppf "%s" (dispmap |> TypeConv.DisplayMap.find_bound_id bid) in
       let pp_sep ppf () = Format.fprintf ppf ", " in
-      Format.fprintf ppf "<%a>" (Format.pp_print_list ~pp_sep BoundID.pp) bids
+      Format.fprintf ppf "<%a>" (Format.pp_print_list ~pp_sep pp_bound_id) bids
 
 
 let make_display_map_from_mono_types =
   TypeConv.DisplayMap.empty |> List.fold_left (fun dispmap ty -> dispmap |> TypeConv.collect_ids_mono ty)
+
+
+let make_display_map_from_poly_types =
+  TypeConv.DisplayMap.empty |> List.fold_left (fun dispmap pty -> dispmap |> TypeConv.collect_ids_poly pty)
 
 
 let report_type_error (e : type_error) : unit =
@@ -174,8 +179,8 @@ let report_type_error (e : type_error) : unit =
       Format.printf "  and type\n";
       Format.printf "    %a\n"
         (TypeConv.pp_mono_type dispmap) ty2;
-      Format.printf "at the same time, but these types are inconsistent as to the occurrence of type variable %a\n"
-        FreeID.pp fid
+      Format.printf "at the same time, but these types are inconsistent as to the occurrence of type variable %s\n"
+        (dispmap |> TypeConv.DisplayMap.find_free_id fid)
 
   | InclusionRowError(frid, ty1, ty2) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
@@ -188,8 +193,8 @@ let report_type_error (e : type_error) : unit =
       Format.printf "  and type\n";
       Format.printf "    %a\n"
         (TypeConv.pp_mono_type dispmap) ty2;
-      Format.printf "at the same time, but these types are inconsistent as to the occurrence of row variable %a\n"
-        FreeRowID.pp frid
+      Format.printf "at the same time, but these types are inconsistent as to the occurrence of row variable %s\n"
+        (dispmap |> TypeConv.DisplayMap.find_free_row_id frid)
 
   | BoundMoreThanOnceInPattern(rng, x) ->
       Format.printf "%a:\n"
@@ -283,7 +288,7 @@ let report_type_error (e : type_error) : unit =
       )
 
   | CyclicTypeParameter(rng, cycle, pty) ->
-      let dispmap = TypeConv.DisplayMap.empty in  (* TODO: traverse `pty` and make `dispmap` *)
+      let dispmap = make_display_map_from_poly_types [pty] in
       let bbids =
         match cycle with
         | Loop(bbid)   -> [ bbid ]
@@ -293,8 +298,14 @@ let report_type_error (e : type_error) : unit =
         Range.pp rng;
       Format.printf "  cyclic type variables:\n";
       bbids |> List.iter (fun bbid ->
-        Format.printf "  - %a\n"
-          BoundBothID.pp bbid
+        let sb =
+          match bbid with
+          | BoundBothID.Type(bid) -> dispmap |> TypeConv.DisplayMap.find_bound_id bid
+          | BoundBothID.Row(brid) -> dispmap |> TypeConv.DisplayMap.find_bound_row_id brid
+        in
+        Format.printf "  - %s\n"
+          sb
+
       );
       Format.printf "  in:\n";
       let (sbids, sbrids, smain) = TypeConv.show_poly_type dispmap pty in
@@ -340,7 +351,7 @@ let report_type_error (e : type_error) : unit =
       Format.printf "  the specified type is already transparent\n"
 
   | PolymorphicContradiction(rng, x, pty1, pty2) ->
-      let dispmap = TypeConv.DisplayMap.empty in  (* TODO: traverse `pty*` and make `dispmap` *)
+      let dispmap = make_display_map_from_poly_types [pty1; pty2] in
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  not a subtype; as to value '%s', type\n"
@@ -352,7 +363,7 @@ let report_type_error (e : type_error) : unit =
         (TypeConv.pp_poly_type dispmap) pty2
 
   | PolymorphicInclusion(rng, fid, pty1, pty2) ->
-      let dispmap = TypeConv.DisplayMap.empty in  (* TODO: traverse `pty*` and make `dispmap` *)
+      let dispmap = make_display_map_from_poly_types [pty1; pty2] in
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  type\n";
@@ -361,11 +372,11 @@ let report_type_error (e : type_error) : unit =
       Format.printf " is inconsistent with type\n";
       Format.printf "    %a\n"
         (TypeConv.pp_poly_type dispmap) pty2;
-      Format.printf "  as to type variable %a\n"
-        FreeID.pp fid
+      Format.printf "  as to type variable %s\n"
+        (dispmap |> TypeConv.DisplayMap.find_free_id fid)
 
   | MissingRequiredValName(rng, x, pty) ->
-      let dispmap = TypeConv.DisplayMap.empty in  (* TODO: traverse `pty` and make `dispmap` *)
+      let dispmap = make_display_map_from_poly_types [pty] in
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  missing required value '%s' of type\n"
@@ -412,7 +423,7 @@ let report_type_error (e : type_error) : unit =
   | NotASubtypeSynonym(rng, sid1, sid2) ->
       let (bids1, pty1) = TypeDefinitionStore.find_synonym_type sid1 in
       let (bids2, pty2) = TypeDefinitionStore.find_synonym_type sid2 in
-      let dispmap = TypeConv.DisplayMap.empty in  (* TODO: traverse `pty*` and make `dispmap` *)
+      let dispmap = make_display_map_from_poly_types [pty1; pty2] in
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  type %a is not a subtype of %a;\n"
@@ -420,11 +431,11 @@ let report_type_error (e : type_error) : unit =
         TypeID.Synonym.pp sid2;
       Format.printf "  - %a%a = %a\n"
         TypeID.Synonym.pp sid1
-        pp_type_parameter_list bids1
+        (pp_type_parameter_list dispmap) bids1
         (TypeConv.pp_poly_type dispmap) pty1;
       Format.printf "  - %a%a = %a\n"
         TypeID.Synonym.pp sid2
-        pp_type_parameter_list bids2
+        (pp_type_parameter_list dispmap) bids2
         (TypeConv.pp_poly_type dispmap) pty2
 
   | OpaqueIDExtrudesScopeViaValue(rng, _pty) ->

@@ -32,7 +32,6 @@ type unification_result =
   | Contradiction
   | Inclusion     of FreeID.t
   | InclusionRow  of FreeRowID.t
-[@@deriving show { with_path = false; }]
 
 type pre = {
   level : int;

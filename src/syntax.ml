@@ -362,11 +362,11 @@ module BoundBothID = struct
 
   let equal x1 x2 =
     compare x1 x2 = 0
-
+(*
   let pp ppf = function
-    | Type(bid) -> BoundID.pp ppf bid
-    | Row(brid) -> BoundRowID.pp ppf brid
-
+    | Type(bid) -> BoundID.pp_raw ppf bid
+    | Row(brid) -> BoundRowID.pp_raw ppf brid
+*)
 end
 
 

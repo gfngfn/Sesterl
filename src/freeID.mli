@@ -17,4 +17,4 @@ val get_level : t -> level
 
 val update_level : t -> level -> unit
 
-val pp : Format.formatter -> t -> unit
+val pp_raw : Format.formatter -> t -> unit

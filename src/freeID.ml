@@ -7,7 +7,7 @@ type t = {
 }
 
 
-let pp ppf fid =
+let pp_raw ppf fid =
   Format.fprintf ppf "'%d" fid.id
 
 

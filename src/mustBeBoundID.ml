@@ -23,4 +23,5 @@ let to_bound mbbid =
 
 
 let pp ppf mbbid =
-  Format.fprintf ppf "_%aL%d" BoundID.pp mbbid.main mbbid.level
+  Format.fprintf ppf "_%aL%d" BoundID.pp_raw mbbid.main mbbid.level
+    (* TODO: display names *)
