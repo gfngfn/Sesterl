@@ -3,12 +3,20 @@ import CowboyWrapper
 module Handler = struct
 
   val init(req, state) = act
+    let qs = CowboyWrapper.parse_qs(req) in
     let header = Stdlib.RawMap.put("content-type", "text/plain", Stdlib.RawMap.new()) in
+    let body =
+      case Stdlib.RawMap.find("text", qs) of
+      | Some(Some(text)) -> text
+      | Some(None)       -> "Hello, Sesterl! (no text was given, 1)"
+      | None             -> "Hello, Sesterl! (no text was given, 2)"
+      end
+    in
     do req <-
       CowboyWrapper.reply(
         200,
         header,
-        "Hello, Sesterl!",
+        body,
         req,
       )
     in
