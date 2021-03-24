@@ -153,7 +153,7 @@ let print_bound_ids (ss : string list) =
       ()
 
   | _ :: _ ->
-      Format.printf "  where:\n";
+      Format.printf "  where\n";
       ss |> List.iter (fun s ->
         Format.printf "  - %s\n" s
       )
@@ -200,7 +200,7 @@ let print_nontrivial_mono_base_kinds (dispmap : TypeConv.DisplayMap.t) =
       ()
 
   | _ ->
-      Format.printf "  where:\n";
+      Format.printf "  where\n";
       fids |> List.iter (fun (fid, labmap) ->
         Format.printf "  - %s :: %a\n"
           (dispmap |> TypeConv.DisplayMap.find_free_id fid)

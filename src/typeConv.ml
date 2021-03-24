@@ -1182,7 +1182,7 @@ type 'a state =
   | Touching
   | Touched of 'a
 
-type hash_tables = ((string option) state) BoundIDHashTable.t * ((string LabelAssoc.t) state) BoundRowIDHashTable.t
+type hash_tables = (string state) BoundIDHashTable.t * ((string LabelAssoc.t) state) BoundRowIDHashTable.t
 
 
 (* Does NOT fall into an infinite loop even when type variables are mutually dependent or cyclic. *)
@@ -1192,16 +1192,12 @@ let rec show_poly_type_var (dispmap : DisplayMap.t) (hts : hash_tables) = functi
       if BoundIDHashTable.mem bidht bid then () else begin
         BoundIDHashTable.add bidht bid Touching;
         let pbkd = KindStore.get_bound_id bid in
-        let skdopt =
+        let skd =
           match pbkd with
-          | UniversalKind ->
-              None (* Some("o") *)
-
-          | _ ->
-              let skd = show_poly_base_kind_sub dispmap hts pbkd in
-              Some(skd)
+          | UniversalKind -> "o"
+          | _             -> show_poly_base_kind_sub dispmap hts pbkd
         in
-        BoundIDHashTable.replace bidht bid (Touched(skdopt))
+        BoundIDHashTable.replace bidht bid (Touched(skd))
       end;
       dispmap |> DisplayMap.find_bound_id bid
 
@@ -1238,9 +1234,8 @@ let show_bound_type_ids (dispmap : DisplayMap.t) ((bidht, _) : hash_tables) =
     let sb = dispmap |> DisplayMap.find_bound_id bid in
     let s =
       match skdopt with
-      | Touching           -> assert false
-      | Touched(Some(skd)) -> Printf.sprintf "%s :: %s" sb skd
-      | Touched(None)      -> sb
+      | Touching     -> assert false
+      | Touched(skd) -> Printf.sprintf "%s :: %s" sb skd
     in
     Alist.extend acc s
   ) bidht Alist.empty |> Alist.to_list
