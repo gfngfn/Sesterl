@@ -17,11 +17,15 @@ val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
 
 val get : string -> 'a t -> 'a t
 
+val get_opt : string -> 'a t -> ('a option) t
+
 val get_or_else : string -> 'a t -> 'a -> 'a t
 
 val number : float t
 
 val string : string t
+
+val bool : bool t
 
 val list : 'a t -> ('a list) t
 

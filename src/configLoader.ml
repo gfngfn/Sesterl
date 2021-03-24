@@ -26,9 +26,21 @@ type erlang_library = {
   erlang_library_source : erlang_library_source;
 }
 
+type relx_release = {
+  relx_name         : string;
+  relx_version      : string;
+  relx_applications : string list;
+}
+
+type relx = {
+  relx_release  : relx_release;
+  relx_dev_mode : bool;
+}
+
 type erlang_config = {
   output_directory    : relative_dir;
   erlang_dependencies : erlang_library list;
+  relx                : relx option;
 }
 
 
@@ -36,6 +48,7 @@ let default_erlang_config : erlang_config =
   {
     output_directory    = RelativeDir(Constants.default_output_directory);
     erlang_dependencies = [];
+    relx                = None;
   }
 
 
@@ -124,13 +137,37 @@ let erlang_dependency_decoder : erlang_library YamlDecoder.t =
   }
 
 
+let relx_release_decoder : relx_release YamlDecoder.t =
+  let open YamlDecoder in
+  get "name" string >>= fun name ->
+  get "version" string >>= fun version ->
+  get "applications" (list string) >>= fun applications ->
+  succeed {
+    relx_name         = name;
+    relx_version      = version;
+    relx_applications = applications;
+  }
+
+
+let relx_decoder : relx YamlDecoder.t =
+  let open YamlDecoder in
+  get "release" relx_release_decoder >>= fun release ->
+  get_or_else "dev_mode" bool false >>= fun dev_mode ->
+  succeed {
+    relx_release  = release;
+    relx_dev_mode = dev_mode;
+  }
+
+
 let erlang_config_decoder : erlang_config YamlDecoder.t =
   let open YamlDecoder in
   get_or_else "output_directory" string Constants.default_output_directory >>= fun reldir_out ->
   get_or_else "erlang_dependencies" (list erlang_dependency_decoder) [] >>= fun erldeps ->
+  get_opt "relx" relx_decoder >>= fun relx_opt ->
   succeed {
     output_directory    = RelativeDir(reldir_out);
     erlang_dependencies = erldeps;
+    relx                = relx_opt;
   }
 
 

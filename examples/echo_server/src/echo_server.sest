@@ -1,0 +1,34 @@
+import CowboyWrapper
+import Sup
+import Handler
+
+module App = struct
+
+  val start_impl(start_type, start_args) = act
+    let _ = print_debug("debug L('o' )J start") in
+    case CowboyWrapper.make_dispatch_table(freeze Handler.init(_, _), {}) of
+    | None ->
+        let _ = print_debug("debug L('o' )J failed to make the dispatch table") in
+        return(None)
+
+    | Some(dispatch) ->
+        do res <- CowboyWrapper.start_clear(-name "echo_server", -port 8080, -dispatch dispatch) in
+        let _ = print_debug({"debug L('o' )J start_clear", res}) in
+        case res of
+        | None    -> return(None)
+        | Some(_) -> Sup.start_link({})
+        end
+    end
+
+  val start<$a> : $a = external 2 ```
+    start(Type, Args) ->
+        case start_impl(Type, Args) of
+            none           -> error;
+            {some, SupPid} -> {ok, SupPid}
+        end.
+  ```
+
+  val stop(state) = act
+    CowboyWrapper.stop_listener("echo_server")
+
+end

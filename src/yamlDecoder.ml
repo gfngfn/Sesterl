@@ -6,6 +6,7 @@ type error =
   | FieldNotFound of string
   | NotAFloat
   | NotAString
+  | NotABool
   | NotAnArray
   | NotAnObject
   | OtherMessage of string
@@ -17,6 +18,7 @@ let pp_error (ppf : Format.formatter) =
   | FieldNotFound(field) -> p ppf "field '%s' not found" field
   | NotAFloat            -> p ppf "not a float value"
   | NotAString           -> p ppf "not a string value"
+  | NotABool             -> p ppf "not a Boolean value"
   | NotAnArray           -> p ppf "not an array"
   | NotAnObject          -> p ppf "not an object"
   | OtherMessage(msg)    -> p ppf "%s" msg
@@ -40,6 +42,16 @@ let failure (msg : string) : 'a t =
   fun _ -> Error(OtherMessage(msg))
 
 
+let bind (d : 'a t) (df : 'a -> 'b t) : 'b t =
+fun yval ->
+  match d yval with
+  | Ok(a)         -> df a yval
+  | Error(_) as e -> e
+
+
+let ( >>= ) = bind
+
+
 let get_scheme (field : string) (d : 'a t) (k : unit -> ('a, error) result) : 'a t =
   let open ResultMonad in
   function
@@ -61,19 +73,17 @@ let get (field : string) (d : 'a t) : 'a t =
   get_scheme field d (fun () -> err (FieldNotFound(field)))
 
 
+let get_opt (field : string) (d : 'a t) : ('a option) t =
+  let d_some =
+    d >>= fun v -> succeed (Some(v))
+  in
+  let open ResultMonad in
+  get_scheme field d_some (fun () -> return None)
+
+
 let get_or_else (field : string) (d : 'a t) (default : 'a) : 'a t =
   let open ResultMonad in
   get_scheme field d (fun () -> return default)
-
-
-let bind (d : 'a t) (df : 'a -> 'b t) : 'b t =
-fun yval ->
-  match d yval with
-  | Ok(a)         -> df a yval
-  | Error(_) as e -> e
-
-
-let ( >>= ) = bind
 
 
 let number : float t =
@@ -88,6 +98,13 @@ let string : string t =
   function
   | `String(x) -> return x
   | _          -> err NotAString
+
+
+let bool : bool t =
+  let open ResultMonad in
+  function
+  | `Bool(x) -> return x
+  | _        -> err NotABool
 
 
 let list (d : 'a t) : ('a list) t =
