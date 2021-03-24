@@ -28,9 +28,9 @@ module Internal(A : sig val suffix : string end) = struct
     name    : string;
   }
 
-  let fresh (modules : string list) =
+  let fresh =
     let current_max = ref 0 in
-    (fun name ->
+    (fun (modules : string list) (name : string) ->
       incr current_max;
       {
         number  = !current_max;
