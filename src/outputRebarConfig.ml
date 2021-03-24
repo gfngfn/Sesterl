@@ -5,6 +5,8 @@ open MyUtil
 type value =
   | Int    of int
   | String of string
+  | Atom   of string
+  | Bool   of bool
   | List   of value list
   | Keyed  of string * value list
   | Assoc  of assoc
@@ -16,6 +18,11 @@ and assoc =
 let rec stringify_value = function
   | Int(n)    -> string_of_int n
   | String(s) -> Printf.sprintf "\"%s\"" (String.escaped s)
+  | Atom(s)   -> s
+
+  | Bool(true)  -> "true"
+  | Bool(false) -> "false"
+
 
   | List(vs) ->
       let s = vs |> List.map stringify_value |> String.concat ", " in
@@ -81,16 +88,42 @@ let make (config : ConfigLoader.config) : assoc =
     in
     "deps" ==> Assoc(deps)
   in
+  let entries_relx =
+    let open ConfigLoader in
+    match config.erlang_config.relx with
+    | None ->
+        []
+
+    | Some(relx) ->
+        let release = relx.relx_release in
+        let entry =
+          "relx" ==> List[
+            Keyed("release", [
+              Keyed(release.relx_name, [ String(release.relx_version) ]);
+              List(
+                release.relx_applications |> List.map (fun app -> Atom(app))
+              );
+            ]);
+            Keyed("dev_mode", [ Bool(relx.relx_dev_mode) ])
+          ]
+        in
+        [ entry ]
+  in
   let entry_sesterl_opts =
     "sesterl_opts" ==> Assoc[
       "output_dir" ==> relative_dir_to_string reldir_out
     ]
   in
-  [
-    entry_plugins;
-    entry_src_dirs;
-    entry_deps;
-    entry_sesterl_opts;
+  List.concat [
+    [
+      entry_plugins;
+      entry_src_dirs;
+      entry_deps;
+    ];
+    entries_relx;
+    [
+      entry_sesterl_opts;
+    ];
   ]
 
 
