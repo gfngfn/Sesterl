@@ -73,6 +73,10 @@ module DisplayMap : sig
   val make_free_row_id_hash_set : t -> unit FreeRowIDHashTable.t
   val make_bound_id_hash_set : t -> unit BoundIDHashTable.t
   val make_bound_row_id_hash_set : t -> unit BoundRowIDHashTable.t
+  val fold_free_id : (FreeID.t -> string -> 'a -> 'a) -> 'a -> t -> 'a
+  val fold_free_row_id : (FreeRowID.t -> string -> 'a -> 'a) -> 'a -> t -> 'a
+  val fold_bound_id : (BoundID.t -> string -> 'a -> 'a) -> 'a -> t -> 'a
+  val fold_bound_row_id : (BoundRowID.t -> string -> 'a -> 'a) -> 'a -> t -> 'a
 end = struct
 
   module FreeIDMap = Map.Make(FreeID)
@@ -205,6 +209,18 @@ end = struct
       BoundRowIDHashTable.add bridht brid ()
     );
     bridht
+
+  let fold_free_id f acc dispmap =
+    FreeIDMap.fold f dispmap.free_ids acc
+
+  let fold_free_row_id f acc dispmap =
+    FreeRowIDMap.fold f dispmap.free_row_ids acc
+
+  let fold_bound_id f acc dispmap =
+    BoundIDMap.fold f dispmap.bound_ids acc
+
+  let fold_bound_row_id f acc dispmap =
+    BoundRowIDMap.fold f dispmap.bound_row_ids acc
 
 end
 
@@ -1146,6 +1162,10 @@ let show_mono_type (dispmap : DisplayMap.t) : mono_type -> string =
   show_type (show_mono_type_var dispmap) (show_mono_row_var dispmap)
 
 
+let show_mono_row (dispmap : DisplayMap.t) : mono_row -> string option =
+  show_row (show_mono_type_var dispmap) (show_mono_row_var dispmap)
+
+
 let pp_mono_type dispmap ppf ty =
   Format.fprintf ppf "%s" (show_mono_type dispmap ty)
 
@@ -1175,7 +1195,7 @@ let rec show_poly_type_var (dispmap : DisplayMap.t) (hts : hash_tables) = functi
         let skdopt =
           match pbkd with
           | UniversalKind ->
-              None
+              None (* Some("o") *)
 
           | _ ->
               let skd = show_poly_base_kind_sub dispmap hts pbkd in

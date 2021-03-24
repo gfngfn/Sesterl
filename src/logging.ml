@@ -147,6 +147,72 @@ let make_display_map_from_poly_types =
   TypeConv.DisplayMap.empty |> List.fold_left (fun dispmap pty -> dispmap |> TypeConv.collect_ids_poly pty)
 
 
+let print_bound_ids (ss : string list) =
+  match ss with
+  | [] ->
+      ()
+
+  | _ :: _ ->
+      Format.printf "  where:\n";
+      ss |> List.iter (fun s ->
+        Format.printf "  - %s\n" s
+      )
+
+
+let print_nontrivial_mono_base_kinds (dispmap : TypeConv.DisplayMap.t) =
+  let fids =
+    dispmap |> TypeConv.DisplayMap.fold_free_id (fun fid s acc ->
+      let bkd = KindStore.get_free_id fid in
+      match bkd with
+      | UniversalKind ->
+          acc
+
+      | RecordKind(labmap) ->
+          Alist.extend acc (fid, labmap)
+    ) Alist.empty |> Alist.to_list
+  in
+  let frids =
+    dispmap |> TypeConv.DisplayMap.fold_free_row_id (fun frid s acc ->
+      let labmap = KindStore.get_free_row frid in
+      match TypeConv.show_mono_row dispmap (FixedRow(labmap)) with
+      | None    -> acc
+      | Some(s) -> Alist.extend acc (frid, s)
+    ) Alist.empty |> Alist.to_list
+  in
+(*
+  let bids =
+    dispmap |> TypeConv.DisplayMap.fold_bound_id (fun bid s acc ->
+      let pkd = KindStore.get_bound_id bid in
+      match pkd with
+      | UniversalKind       -> acc
+      | RecordKind(plabmap) -> Alist.extend acc (bid, plabmap)
+    ) Alist.empty |> Alist.to_list
+  in
+  let brids =
+    dispmap |> TypeConv.DisplayMap.fold_bound_row_id (fun brid s acc ->
+      let plabmap = KindStore.get_free_row brid in
+      Alist.extend acc (brid, plabmap)
+    ) Alist.empty |> Alist.to_list
+  in
+*)
+  match (fids, frids) with
+  | ([], []) ->
+      ()
+
+  | _ ->
+      Format.printf "  where:\n";
+      fids |> List.iter (fun (fid, labmap) ->
+        Format.printf "  - %s :: %a\n"
+          (dispmap |> TypeConv.DisplayMap.find_free_id fid)
+          (TypeConv.pp_mono_base_kind dispmap) (RecordKind(labmap))
+      );
+      frids |> List.iter (fun (frid, skd) ->
+        Format.printf "  - %s :: (%s)\n"
+          (dispmap |> TypeConv.DisplayMap.find_free_row_id frid)
+          skd
+      )
+
+
 let report_type_error (e : type_error) : unit =
   Format.printf "! [Type error] ";
   match e with
@@ -166,7 +232,8 @@ let report_type_error (e : type_error) : unit =
         (TypeConv.pp_mono_type dispmap) ty1;
       Format.printf "  but is expected of type\n";
       Format.printf "    %a\n"
-        (TypeConv.pp_mono_type dispmap) ty2
+        (TypeConv.pp_mono_type dispmap) ty2;
+      print_nontrivial_mono_base_kinds dispmap
 
   | InclusionError(fid, ty1, ty2) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
@@ -180,7 +247,8 @@ let report_type_error (e : type_error) : unit =
       Format.printf "    %a\n"
         (TypeConv.pp_mono_type dispmap) ty2;
       Format.printf "at the same time, but these types are inconsistent as to the occurrence of type variable %s\n"
-        (dispmap |> TypeConv.DisplayMap.find_free_id fid)
+        (dispmap |> TypeConv.DisplayMap.find_free_id fid);
+      print_nontrivial_mono_base_kinds dispmap
 
   | InclusionRowError(frid, ty1, ty2) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
@@ -194,7 +262,8 @@ let report_type_error (e : type_error) : unit =
       Format.printf "    %a\n"
         (TypeConv.pp_mono_type dispmap) ty2;
       Format.printf "at the same time, but these types are inconsistent as to the occurrence of row variable %s\n"
-        (dispmap |> TypeConv.DisplayMap.find_free_row_id frid)
+        (dispmap |> TypeConv.DisplayMap.find_free_row_id frid);
+      print_nontrivial_mono_base_kinds dispmap
 
   | BoundMoreThanOnceInPattern(rng, x) ->
       Format.printf "%a:\n"
@@ -352,37 +421,45 @@ let report_type_error (e : type_error) : unit =
 
   | PolymorphicContradiction(rng, x, pty1, pty2) ->
       let dispmap = make_display_map_from_poly_types [pty1; pty2] in
+      let (sbids1, sbrids1, smain1) = TypeConv.show_poly_type dispmap pty1 in
+      let (sbids2, sbrids2, smain2) = TypeConv.show_poly_type dispmap pty2 in
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  not a subtype; as to value '%s', type\n"
         x;
-      Format.printf "    %a\n"
-        (TypeConv.pp_poly_type dispmap) pty1;
+      Format.printf "    %s\n"
+        smain1;
       Format.printf "  cannot be encapsulated by type\n";
-      Format.printf "    %a\n"
-        (TypeConv.pp_poly_type dispmap) pty2
+      Format.printf "    %s\n"
+        smain2;
+      print_bound_ids (List.concat [sbids1; sbrids1; sbids2; sbrids2])
 
   | PolymorphicInclusion(rng, fid, pty1, pty2) ->
       let dispmap = make_display_map_from_poly_types [pty1; pty2] in
+      let (sbids1, sbrids1, smain1) = TypeConv.show_poly_type dispmap pty1 in
+      let (sbids2, sbrids2, smain2) = TypeConv.show_poly_type dispmap pty2 in
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  type\n";
-      Format.printf "    %a\n"
-        (TypeConv.pp_poly_type dispmap) pty1;
+      Format.printf "    %s\n"
+        smain1;
       Format.printf " is inconsistent with type\n";
-      Format.printf "    %a\n"
-        (TypeConv.pp_poly_type dispmap) pty2;
+      Format.printf "    %s\n"
+        smain2;
       Format.printf "  as to type variable %s\n"
-        (dispmap |> TypeConv.DisplayMap.find_free_id fid)
+        (dispmap |> TypeConv.DisplayMap.find_free_id fid);
+      print_bound_ids (List.concat [sbids1; sbrids1; sbids2; sbrids2])
 
   | MissingRequiredValName(rng, x, pty) ->
       let dispmap = make_display_map_from_poly_types [pty] in
+      let (sbids, sbrids, smain) = TypeConv.show_poly_type dispmap pty in
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  missing required value '%s' of type\n"
         x;
-      Format.printf "    %a\n"
-        (TypeConv.pp_poly_type dispmap) pty
+      Format.printf "    %s\n"
+        smain;
+      print_bound_ids (List.concat [sbids; sbrids])
 
   | MissingRequiredTypeName(rng, tynm, (_, pkd)) ->
       Format.printf "%a:\n"
@@ -496,7 +573,8 @@ let report_type_error (e : type_error) : unit =
       Format.printf "  missing mandatory label '-%s' with an argument of type\n"
         info.label;
       Format.printf "    %a\n"
-        (TypeConv.pp_mono_type dispmap) ty
+        (TypeConv.pp_mono_type dispmap) ty;
+      print_nontrivial_mono_base_kinds dispmap
 
   | UnexpectedMandatoryLabel(info) ->
       Format.printf "%a:\n"
