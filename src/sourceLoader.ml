@@ -39,6 +39,9 @@ let read_source (abspath_in : absolute_path) : (loaded_module, syntax_error) res
   let res =
     let open ResultMonad in
     ParserInterface.process ~fname:fname lexbuf >>= fun (deps, modident, utsigopt, utmod) ->
+    let (_, m1) = modident in
+    Format.printf "!!!!module: %s\n" m1;
+    deps |> List.iter (fun (_, m2) -> Format.printf "!!!!dep: %s ---> %s\n" m1 m2);
     return {
       source_path       = abspath_in;
       module_identifier = modident;
@@ -58,6 +61,7 @@ let resolve_dependency (baremods : loaded_module list) : loaded_module list =
     baremods |> List.fold_left (fun (graph, nmmap) baremod ->
       let (_, modnm) = baremod.module_identifier in
       let abspath = baremod.source_path in
+      Format.printf "!!!!add vertex: %s\n" modnm;
       begin
         match nmmap |> ModuleNameMap.find_opt modnm with
         | Some((_, baremod0)) ->
@@ -77,6 +81,7 @@ let resolve_dependency (baremods : loaded_module list) : loaded_module list =
     graph |> ModuleNameMap.fold (fun modnm (vertex, baremod) graph ->
       let deps = baremod.dependencies in
       deps |> List.fold_left (fun graph (rng, modnm_dep) ->
+        Format.printf "!!!!add edge: %s --> %s\n" modnm modnm_dep;
         match nmmap |> ModuleNameMap.find_opt modnm_dep with
         | None ->
             raise (ConfigError(ModuleNotFound(rng, modnm_dep)))
@@ -142,8 +147,10 @@ let main (config : ConfigLoader.config) : loaded_package =
         let pkgname = config.ConfigLoader.package_name in
         raise (ConfigError(MainModuleNotFound(pkgname, main_module_name)))
 
-    | _ :: _ :: _ ->
-        assert false
+    | baremain1 :: baremain2 :: _ ->
+        let abspath1 = baremain1.source_path in
+        let abspath2 = baremain2.source_path in
+        raise (ConfigError(MultipleModuleOfTheSameName(main_module_name, abspath1, abspath2)))
 
     | [ baremain ] ->
         baremain

@@ -1,6 +1,7 @@
 
 open MyUtil
 open Syntax
+open Errors
 open Env
 
 
@@ -18,10 +19,16 @@ let check_single (is_verbose : bool) ~check_public_signature:(check_public_signa
   Logging.begin_to_typecheck abspath;
 
   let tyenv_for_mod =
-    deps |> List.fold_left (fun tyenv (_, depmodnm) ->
+    deps |> List.fold_left (fun tyenv (rng, depmodnm) ->
       match sigrmap |> SigRecordMap.find_opt depmodnm with
-      | None                     -> assert false
-      | Some(((_, sigr), sname)) -> tyenv |> Typeenv.add_module depmodnm (ConcStructure(sigr)) sname
+      | None ->
+        (* Only the main module of the given package can cause this error;
+           The dependency between submodules has already been checked by `SourceLoader`
+           when submodules are topologically sorted. *)
+          raise (ConfigError(ModuleNotFound(rng, depmodnm)))
+
+      | Some(((_, sigr), sname)) ->
+          tyenv |> Typeenv.add_module depmodnm (ConcStructure(sigr)) sname
     ) tyenv_before
   in
   let absmodsigopt =
