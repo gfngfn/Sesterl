@@ -330,11 +330,17 @@ and labeled_manual_type =
   label ranged * manual_type
 [@@deriving show { with_path = false; } ]
 
-module FreeRowID = FreeID  (* temporary *)
+module FreeRowID = struct
+  include FreeID
+end
 
-module BoundRowID = BoundID  (* temporary *)
+module BoundRowID = struct
+  include BoundID
+end
 
-module MustBeBoundRowID = MustBeBoundID  (* temporary *)
+module MustBeBoundRowID = struct
+  include MustBeBoundID
+end
 
 
 module BoundBothID = struct
@@ -356,11 +362,11 @@ module BoundBothID = struct
 
   let equal x1 x2 =
     compare x1 x2 = 0
-
+(*
   let pp ppf = function
-    | Type(bid) -> BoundID.pp ppf bid
-    | Row(brid) -> BoundRowID.pp ppf brid
-
+    | Type(bid) -> BoundID.pp_raw ppf bid
+    | Row(brid) -> BoundRowID.pp_raw ppf brid
+*)
 end
 
 
@@ -683,3 +689,5 @@ module GlobalNameMap = Map.Make(OutputIdentifier.Global)
 type global_name_map = string GlobalNameMap.t
 (* The type for maps tracking which module every global name belongs to.
    This is used by 'Primitives' and 'OutputErlangCode'. *)
+
+type address = module_name Alist.t

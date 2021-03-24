@@ -5,6 +5,8 @@ type t
 
 val equal : t -> t -> bool
 
+val compare : t -> t -> int
+
 val hash : t -> int
 
 val initialize : unit -> unit
@@ -15,4 +17,4 @@ val get_level : t -> level
 
 val update_level : t -> level -> unit
 
-val pp : Format.formatter -> t -> unit
+val pp_raw : Format.formatter -> t -> unit

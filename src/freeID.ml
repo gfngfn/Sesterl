@@ -7,12 +7,16 @@ type t = {
 }
 
 
-let pp ppf fid =
+let pp_raw ppf fid =
   Format.fprintf ppf "'%d" fid.id
 
 
 let equal fid1 fid2 =
   fid1.id = fid2.id
+
+
+let compare fid1 fid2 =
+  fid2.id - fid1.id
 
 
 let hash fid =

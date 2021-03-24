@@ -417,7 +417,7 @@ module SigRecord = struct
     | Conflict(s) -> Error(s)
 end
 
-
+(*
 let pp_comma ppf () =
   Format.fprintf ppf ", "
 
@@ -544,3 +544,4 @@ let display_top_structure ((_, modnm) : module_name ranged) (sigr : SigRecord.t)
   Format.printf "  module %s =\n" modnm;
   display_structure 2 sigr;
   Format.printf "  --------------------------------\n"
+*)

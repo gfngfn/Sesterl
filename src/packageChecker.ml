@@ -26,11 +26,13 @@ let check_single (is_verbose : bool) ~check_public_signature:(check_public_signa
   in
   let absmodsigopt =
     let tyenv_for_sig = if check_public_signature then tyenv_before else tyenv_for_mod in
-    utsigopt |> Option.map (Typechecker.typecheck_signature tyenv_for_sig)
+    utsigopt |> Option.map (Typechecker.typecheck_signature Alist.empty tyenv_for_sig)
   in
   let (_, abssigr, sname, binds) = Typechecker.main tyenv_for_mod modident absmodsigopt utmod in
+(*
   let (_, sigr) = abssigr in
   if is_verbose then display_top_structure modident sigr;
+*)
   let out = (sname, binds) in
   (abssigr, out)
 

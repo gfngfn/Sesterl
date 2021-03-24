@@ -1,0 +1,7 @@
+module ErrorArity = struct
+
+  val add(x, y) = x + y
+
+  val main() = add(42)
+
+end
