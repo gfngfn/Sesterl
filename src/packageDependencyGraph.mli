@@ -1,0 +1,22 @@
+
+open MyUtil
+open Syntax
+
+type vertex
+
+type t
+
+val empty : t
+
+val find_local_vertex : absolute_path -> t -> vertex option
+
+val add_local_vertex : absolute_path -> t -> t * vertex
+
+val add_edge : depending:vertex -> depended:vertex -> t -> t
+
+val topological_sort : t -> (absolute_path list, absolute_path cycle) result
+(** [topological_sort g] returns either:
+ {ul
+   {- [Ok(paths)] where [paths] is the sorted list of absolute paths of source files, or}
+   {- [Error(cycle)] where [cycle] is a list of mutually dependent source files.}
+ } *)

@@ -4,6 +4,7 @@ open Syntax
 open Env
 
 type config_error =
+  | CyclicPackageDependencyFound of package_name cycle
   | CyclicFileDependencyFound of absolute_path cycle
   | ConfigFileError           of YamlDecoder.error
   | MultipleModuleOfTheSameName of module_name * absolute_path * absolute_path
@@ -17,7 +18,7 @@ type config_error =
 exception ConfigError of config_error
 
 type package_error =
-  | DuplicatedPackageName of package_name * absolute_path * absolute_path
+  | DuplicatedPackageName of package_name * dependency_source * dependency_source
   | PackageDirNotFound    of absolute_dir
 
 type lexer_error =

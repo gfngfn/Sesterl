@@ -28,8 +28,8 @@ let empty : t = {
 }
 
 
-let find_vertex (fpath : absolute_path) (graph : t) : vertex option =
-  graph.paths |> PathMap.find_opt fpath |> Option.map (fun entry -> entry.vertex)
+let find_vertex (abspath : absolute_path) (graph : t) : vertex option =
+  graph.paths |> PathMap.find_opt abspath |> Option.map (fun entry -> entry.vertex)
 
 
 let add_vertex (abspath : absolute_path) (graph : t) : t * vertex =

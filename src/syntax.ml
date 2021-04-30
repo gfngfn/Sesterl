@@ -5,6 +5,16 @@ module TupleList = List1
 
 type package_name = string
 
+type git_spec =
+  | Tag    of string
+  | Ref    of string
+  | Branch of string
+
+type dependency_source =
+  | Local of absolute_path
+  | Git   of { repository : string; git_spec : git_spec }
+
+
 type ('a, 'b) pure_or_effectful =
   | Pure      of 'a
   | Effectful of 'b

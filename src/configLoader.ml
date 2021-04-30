@@ -4,11 +4,6 @@ open Errors
 open Syntax
 
 
-type git_spec =
-  | Tag    of string
-  | Ref    of string
-  | Branch of string
-
 type erlang_library_source =
   | ErlangLibFromHex of { version : string }
   | ErlangLibFromGit of { repository : string; git_spec : git_spec }
@@ -34,10 +29,6 @@ type erlang_config = {
   erlang_dependencies : erlang_library list;
   relx                : relx option;
 }
-
-type dependency_source =
-  | Local of absolute_path
-  | Git   of { repository : string; git_spec : git_spec }
 
 type dependency = {
   dependency_name   : package_name;

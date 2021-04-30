@@ -9,7 +9,10 @@
     ocamlgraph
     core
     uutf
-    yaml)
+    yaml
+    cohttp
+    cohttp-lwt-unix
+    lwt)
   (preprocess
     (pps
       ppx_deriving.show)))
