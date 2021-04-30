@@ -38,23 +38,30 @@ let main (absdir : absolute_dir) : (absolute_dir * ConfigLoader.config) list =
         let state = { state with loaded_dirs = loaded_dirs; loaded_names = loaded_names } in
         config.ConfigLoader.dependencies |> List.fold_left (fun state dependency ->
           let graph = state.graph in
-          let ConfigLoader.Local(absdir_sub) = dependency.ConfigLoader.dependency_source in
-          let absdir_sub =
-            match canonicalize_path absdir_sub with
-            | None         -> raise (PackageError(PackageDirNotFound(absdir_sub)))
-            | Some(absdir) -> absdir
-          in
-          match graph |> FileDependencyGraph.find_vertex absdir_sub with
-          | Some(vertex_sub) ->
-            (* If the depended source file has already been parsed *)
-              let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
-              { state with graph = graph }
+          match dependency.ConfigLoader.dependency_source with
+          | ConfigLoader.Local(absdir_sub) ->
+              let absdir_sub =
+                match canonicalize_path absdir_sub with
+                | None         -> raise (PackageError(PackageDirNotFound(absdir_sub)))
+                | Some(absdir) -> absdir
+              in
+              begin
+                match graph |> FileDependencyGraph.find_vertex absdir_sub with
+                | Some(vertex_sub) ->
+                  (* If the depended source file has already been parsed *)
+                    let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
+                    { state with graph = graph }
 
-          | None ->
-            (* If the depended source file has not been parsed yet *)
-              let (graph, vertex_sub) = graph |> FileDependencyGraph.add_vertex absdir_sub in
-              let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
-              aux { state with graph = graph } vertex_sub absdir_sub
+                | None ->
+                  (* If the depended source file has not been parsed yet *)
+                    let (graph, vertex_sub) = graph |> FileDependencyGraph.add_vertex absdir_sub in
+                    let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
+                    aux { state with graph = graph } vertex_sub absdir_sub
+              end
+
+          | ConfigLoader.Git(git_spec) ->
+              failwith "TODO: Git; unsupported"
+
         ) state
   in
   let state =
