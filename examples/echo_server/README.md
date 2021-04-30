@@ -2,11 +2,14 @@
 ## How to Compile and Run
 
 ```console
-# Compile sources
-$ sesterl build ./ -o _generated/
-
 # Generate `rebar.config`
 $ sesterl config ./
+
+# Compile sources
+$ rebar3 sesterl compile
+
+# Compile sources (without Rebar3)
+$ sesterl build ./ -o _generated/
 
 # Run
 $ rebar3 shell
