@@ -6,6 +6,6 @@ dependencies:
   - name: "stdlib"
     source:
       type: "local"
-      directory: "../../../lib/stdlib"
+      directory: "../../../external/stdlib"
 
 main_module: "SampleSupUsage"

@@ -9,7 +9,7 @@ dependencies:
   - name: "stdlib"
     source:
       type: "local"
-      directory: "../../lib/stdlib"
+      directory: "../../external/stdlib"
 
 erlang:
   output_directory: "./_generated"

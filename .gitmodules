@@ -1,0 +1,3 @@
+[submodule "external/stdlib"]
+	path = external/stdlib
+	url = https://github.com/gfngfn/sesterl_stdlib

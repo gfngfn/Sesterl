@@ -1,7 +1,0 @@
-module ServerUtil = struct
-
-  type name =
-  | Local(binary)
-  | Global(binary)
-
-end

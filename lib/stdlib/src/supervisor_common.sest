@@ -1,9 +1,0 @@
-module SupervisorCommon = struct
-
-  type restart = Permanent | Transient | Temporary
-
-  type shutdown = BrutalKill | Timeout(int) | Infinity
-
-  type worker = Worker | Supervisor
-
-end

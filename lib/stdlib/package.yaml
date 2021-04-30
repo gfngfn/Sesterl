@@ -1,6 +1,0 @@
-package: stdlib
-
-source_directories:
-  - "./src"
-
-main_module: "Stdlib"
