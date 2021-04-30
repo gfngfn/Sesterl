@@ -4,7 +4,7 @@ module CowboyWrapper :> sig
   type listener :: o
   type init_result :: (o) -> o
   type header = Stdlib.RawMap.t<binary, binary>
-  val make_dispatch_table<$msg, $state> : fun(frozen<{req, $state}, $msg, init_result<$state>>, $state) -> option<dispatch_table>
+  val make_dispatch_table<$msg, $state> : fun(frozen<{req, $state}, $msg, init_result<$state>>, list<{binary, $state}>) -> option<dispatch_table>
   val start_clear<$eff> : fun(-name binary, -port int, -dispatch dispatch_table) -> [$eff]option<listener>
   val parse_qs : fun(req) -> Stdlib.RawMap.t<binary, option<binary>>
   val reply<$a> : fun(int, header, binary, req) -> [$a]req
@@ -18,16 +18,14 @@ end = struct
   type init_result<$state> = InitResultDummy
   type header = Stdlib.RawMap.t<binary, binary>
 
-  val make_dispatch_table<$msg, $state> : fun(frozen<{req, $state}, $msg, init_result<$state>>, $state) -> option<dispatch_table>
+  val make_dispatch_table<$msg, $state> : fun(frozen<{req, $state}, $msg, init_result<$state>>, list<{binary, $state}>) -> option<dispatch_table>
   = external 2 ```
-    make_dispatch_table(MFArgs, InitialState) ->
+    make_dispatch_table(MFArgs, Routes) ->
         try
             {M, init, []} = MFArgs,
             Dispatch =
                 cowboy_router:compile([
-                    {'_', [
-                        {"/", M, InitialState}
-                    ]}
+                    {'_', lists:map(fun({Path, InitialState}) -> {Path, M, InitialState} end, Routes)}
                 ]),
             {some, Dispatch}
         catch
