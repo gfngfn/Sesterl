@@ -3134,7 +3134,7 @@ and typecheck_declaration (address : address) (tyenv : Typeenv.t) (utdecl : unty
         match modsig with
         | ConcFunctor(_) ->
             let (rng, _) = utsig in
-            raise_error (NotAFunctorSignature(rng, modsig))
+            raise_error (NotAStructureSignature(rng, modsig))
 
         | ConcStructure(sigr) ->
             (oidset, sigr)
