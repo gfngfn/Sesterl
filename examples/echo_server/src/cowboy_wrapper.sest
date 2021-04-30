@@ -6,6 +6,7 @@ module CowboyWrapper :> sig
   type header = Stdlib.RawMap.t<binary, binary>
   val make_dispatch_table<$msg, $state> : fun(frozen<{req, $state}, $msg, init_result<$state>>, list<{binary, $state}>) -> option<dispatch_table>
   val start_clear<$eff> : fun(-name binary, -port int, -dispatch dispatch_table) -> [$eff]option<listener>
+  val bindings : fun(req) -> Stdlib.RawMap.t<binary, binary>
   val parse_qs : fun(req) -> Stdlib.RawMap.t<binary, option<binary>>
   val reply<$a> : fun(int, header, binary, req) -> [$a]req
   val init_ok<$a, $state> : fun(req, $state) -> [$a]init_result<$state>
@@ -48,6 +49,21 @@ end = struct
             {ok, ListenerPid} -> {some, ListenerPid};
             {error, _}        -> none
         end.
+  ```
+
+  val bindings : fun(req) -> Stdlib.RawMap.t<binary, binary> = external 1 ```
+    bindings(Req) ->
+        %% Bindings :: #{atom() => any()}
+        Bindings = cowboy_req:bindings(Req),
+        maps:fold(
+            fun(AtomKey, Value, Acc) ->
+                if
+                    is_binary(Value) -> maps:put(erlang:atom_to_binary(AtomKey), Value, Acc);
+                    true             -> Acc
+                end
+            end,
+            #{},
+            Bindings).
   ```
 
   val parse_qs : fun(req) -> Stdlib.RawMap.t<binary, option<binary>> = external 1 ```

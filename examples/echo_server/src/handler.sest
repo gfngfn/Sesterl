@@ -3,15 +3,21 @@ import CowboyWrapper
 module Handler = struct
 
   val init(req, state) = act
-    let qs = CowboyWrapper.parse_qs(req) in
-    let header = Stdlib.RawMap.put("content-type", "text/plain", Stdlib.RawMap.new()) in
+    let bs = CowboyWrapper.bindings(req) in
     let body =
-      case Stdlib.RawMap.find("text", qs) of
-      | Some(Some(text)) -> text
-      | Some(None)       -> "Hello, Sesterl! ('text' was given but no content)"
-      | None             -> "Hello, Sesterl! ('text' was not given)"
+      case Stdlib.RawMap.find("user_name", bs) of
+      | Some(user_name) ->
+          user_name
+      | None ->
+          let qs = CowboyWrapper.parse_qs(req) in
+          case Stdlib.RawMap.find("text", qs) of
+          | Some(Some(text)) -> text
+          | Some(None)       -> "Hello, Sesterl! ('text' was given but no content)"
+          | None             -> "Hello, Sesterl! ('text' was not given)"
+          end
       end
     in
+    let header = Stdlib.RawMap.put("content-type", "text/plain", Stdlib.RawMap.new()) in
     do req <-
       CowboyWrapper.reply(
         200,

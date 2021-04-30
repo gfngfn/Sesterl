@@ -10,7 +10,8 @@ module App = struct
         CowboyWrapper.make_dispatch_table(
             freeze Handler.init(_, _),
             [
-                {"/", {}}
+                {"/",                 {}},
+                {"/users/:user_name", {}},
             ])
     of
     | None ->
