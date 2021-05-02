@@ -9,10 +9,10 @@ module TestFirstClassModule = struct
     val compare : fun(t, t) -> int
   end
 
-  val f() =
-    pack Sub : Ord
+  val f(x : pack Ord) =
+    x
 
   val main(args) =
-    print_debug(f())
+    print_debug(f(pack Sub : Ord))
 
 end
