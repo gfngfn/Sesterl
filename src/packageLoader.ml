@@ -25,7 +25,6 @@ type reading_state = {
 
 
 let main (external_map : external_map) (absdir : absolute_dir) : (absolute_dir * ConfigLoader.config) list =
-  let absdir_main = absdir in
   let rec aux (state : reading_state) (vertex : FileDependencyGraph.vertex) (absdir : absolute_dir) : reading_state =
     let config = load_config absdir in
     let pkgname = config.ConfigLoader.package_name in
@@ -48,11 +47,8 @@ let main (external_map : external_map) (absdir : absolute_dir) : (absolute_dir *
             | ConfigLoader.Git(_git_spec) ->
                 begin
                   match external_map |> ExternalMap.find_opt pkgname_sub with
-                  | None ->
-                      raise (PackageError(NotFoundInExternalMap(pkgname_sub, external_map)))
-
-                  | Some(path_in) ->
-                      make_absolute_path absdir_main path_in
+                  | None             -> raise (PackageError(NotFoundInExternalMap(pkgname_sub, external_map)))
+                  | Some(absdir_sub) -> absdir_sub
                 end
           in
           let absdir_sub =

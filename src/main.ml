@@ -47,15 +47,20 @@ let catch_error (k : unit -> unit) =
 
 let build (fpath_in : string) (dir_out : string) (is_verbose : bool) (externals : string list) =
   catch_error (fun () ->
+    let current_directory = Sys.getcwd () in
     let abspath_in =
-      let dir = Sys.getcwd () in
-      make_absolute_path dir fpath_in
+      make_absolute_path current_directory fpath_in
     in
     let external_map =
       externals |> List.fold_left (fun map s ->
         match String.split_on_char ':' s with
-        | [pkgname; path] -> map |> ExternalMap.add pkgname path
-        | _               -> raise (InvalidExternalSpec(s))
+        | [pkgname; path_in] ->
+            let absdir = make_absolute_path current_directory path_in in
+            map |> ExternalMap.add pkgname absdir
+
+        | _ ->
+            raise (InvalidExternalSpec(s))
+
       ) ExternalMap.empty
     in
     let pkgs =
