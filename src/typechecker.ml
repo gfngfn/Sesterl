@@ -1632,6 +1632,10 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             end
       end
 
+  | Pack(modidentchain) ->
+      let (_modsig1, _sname1) = find_module_from_chain pre.tyenv modidentchain in
+      failwith "TODO: Pack"
+
 
 and typecheck_let_pattern (pre : pre) (rng : Range.t) (utpat : untyped_pattern) (utast1 : untyped_ast) =
   let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in
