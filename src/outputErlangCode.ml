@@ -57,6 +57,8 @@ let rec traverse_binding_list (sname : space_name) ((gmap, smap) : name_map) (sp
     ) gmap
   in
 
+  let nmap = (gmap, smap) in
+
   (* Traverses all the submodules. *)
   let (omodbindacc, nmap) =
     ibinds |> List.fold_left (fun ((omodbindacc, nmap) as original) ibind ->
@@ -65,13 +67,13 @@ let rec traverse_binding_list (sname : space_name) ((gmap, smap) : name_map) (sp
           original
 
       | IBindModule(snamesub, ibindssub) ->
-          let (omodbindssub, gmap) =
+          let (omodbindssub, nmap) =
             let spacepathsub = Alist.extend spacepath snamesub in
             traverse_binding_list snamesub nmap spacepathsub ibindssub
           in
-          (Alist.append omodbindacc omodbindssub, gmap)
+          (Alist.append omodbindacc omodbindssub, nmap)
 
-    ) (Alist.empty, (gmap, smap))
+    ) (Alist.empty, nmap)
   in
 
   (* Constructs the output module corresponding to the current space (if not empty). *)
@@ -218,8 +220,8 @@ let rec stringify_option_decoding_operation (nmap : name_map) (sname_map : strin
   ) optnamemap Alist.empty |> Alist.to_list |> String.concat ""
 
 
-and stringify_arguments gmap mrow ordastargs mndargmap optargmap =
-  let iter = stringify_ast gmap in
+and stringify_arguments (nmap : name_map) mrow ordastargs mndargmap optargmap =
+  let iter = stringify_ast nmap in
   let astargs =
     let mndastargs =
       mndargmap |> LabelAssoc.bindings |> List.map (fun (_, ast) -> ast)
@@ -228,7 +230,7 @@ and stringify_arguments gmap mrow ordastargs mndargmap optargmap =
     List.append ordastargs mndastargs
   in
   let sargs = astargs |> List.map iter in
-  let soptmap = mapify_label_assoc gmap optargmap in
+  let soptmap = mapify_label_assoc nmap optargmap in
   let can_take_optional = TypeConv.can_row_take_optional mrow in
   let no_mandatory_argument = (List.length astargs = 0) in
   (sargs, soptmap, can_take_optional, no_mandatory_argument)

@@ -299,7 +299,8 @@ let add_operators (ops : (string * poly_type * string) list) ((tyenv, nmap) : Ty
 
 
 let add_primitives (prims : primitive_definition list) ((tyenv, nmap) : Typeenv.t * name_map) : Typeenv.t * name_map =
-  prims |> List.fold_left (fun (tyenv, (gmap, smap)) primdef ->
+  prims |> List.fold_left (fun (tyenv, nmap) primdef ->
+    let (gmap, smap) = nmap in
     match primdef.source with
     | None ->
         (tyenv, nmap)
