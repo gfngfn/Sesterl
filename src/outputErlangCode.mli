@@ -1,6 +1,8 @@
 
 open MyUtil
 open Syntax
+open IntermediateSyntax
+
 
 val main : string -> global_name_map -> package_name:(space_name option) -> module_name:space_name -> binding list -> global_name_map
 (** [main dir_out gmap ~package_name:pkgopt ~module_name:sname binds]

@@ -1,6 +1,7 @@
 
 open MyUtil
 open Syntax
+open Env
 
 
 module BoundBothIDSet = Set.Make(BoundBothID)
@@ -165,22 +166,22 @@ end = struct
   let find_free_id fid dispmap =
     match dispmap.free_ids |> FreeIDMap.find_opt fid with
     | Some(s) -> s
-    | None    -> Format.asprintf "!!%a!!" FreeID.pp_raw fid
+    | None    -> Format.asprintf "!!%a!!" FreeID.pp fid
 
   let find_free_row_id frid dispmap =
     match dispmap.free_row_ids |> FreeRowIDMap.find_opt frid with
     | Some(s) -> s
-    | None    -> Format.asprintf "!!%a!!" FreeRowID.pp_raw frid
+    | None    -> Format.asprintf "!!%a!!" FreeRowID.pp frid
 
   let find_bound_id bid dispmap =
     match dispmap.bound_ids |> BoundIDMap.find_opt bid with
     | Some(s) -> s
-    | None    -> Format.asprintf "!!%a!!" BoundID.pp_raw bid
+    | None    -> Format.asprintf "!!%a!!" BoundID.pp bid
 
   let find_bound_row_id brid dispmap =
     match dispmap.bound_row_ids |> BoundRowIDMap.find_opt brid with
     | Some(s) -> s
-    | None    -> Format.asprintf "!!%a!!" BoundRowID.pp_raw brid
+    | None    -> Format.asprintf "!!%a!!" BoundRowID.pp brid
 
   let make_free_id_hash_set dispmap =
     let fidht = FreeIDHashTable.create 32 in
@@ -283,6 +284,9 @@ let collect_ids_scheme
     | DataType(tyid, tyargs) ->
         tyargs |> List.iter aux_mono
 
+    | PackType(_modsig) ->
+        failwith "TODO: collect_ids_scheme, PackType"
+
   and aux_poly ((_, ptymain) : poly_type) : unit =
     match ptymain with
     | BaseType(_) ->
@@ -330,6 +334,9 @@ let collect_ids_scheme
 
     | DataType(tyid, ptyargs) ->
         ptyargs |> List.iter aux_poly
+
+    | PackType(_modsig) ->
+        failwith "TODO: collect_ids_scheme, PackType"
 
   and aux_mono_label_assoc (labmap : mono_type LabelAssoc.t) : unit =
     LabelAssoc.iter (fun _ ty -> aux_mono ty) labmap
@@ -581,6 +588,9 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let pty = (rngf rng, DataType(tyid, ptyargs)) in
         (bbidset, pty)
 
+    | PackType(_modsig) ->
+        failwith "TODO: lift_scheme, PackType"
+
   and aux_list (tys : mono_type list) =
     let (bbidsetacc, ptyacc) =
       tys |> List.fold_left (fun (bbidsetacc, ptyacc) ty ->
@@ -694,6 +704,9 @@ fun intern intern_row pty ->
 
     | DataType(tyid, ptyargs) ->
         (rng, DataType(tyid, ptyargs |> List.map aux))
+
+    | PackType(_modsig) ->
+        failwith "TODO: instantiate_scheme, PackType"
 
   and aux_domain pdomain =
     let {ordered = ptydoms; mandatory = pmndlabmap; optional = poptrow} = pdomain in
@@ -1084,6 +1097,9 @@ fun showtv showrv ty ->
               let ss = tyargs |> List.map aux in
               Format.asprintf "%a<%s>" TypeID.pp tyid (String.concat ", " ss)
         end
+
+    | PackType(_modsig) ->
+        failwith "TODO: show_type, PackType"
 
   and aux_effect (Effect(ty)) =
     let s = aux ty in

@@ -1,5 +1,6 @@
 
 open Syntax
+open IntermediateSyntax
 open Env
 
 val primitive_module_name : string

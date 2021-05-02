@@ -1,6 +1,7 @@
 
 open MyUtil
 open Syntax
+open IntermediateSyntax
 open Env
 open Errors
 
@@ -338,6 +339,9 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     | TypeVar(MustBeBound(_)) ->
         false
 
+    | PackType(_modsig) ->
+        failwith "TODO: occurs, PackType"
+
   and aux_domain (domain : mono_domain_type) : bool =
     let {ordered = tydoms; mandatory = mndlabmap; optional = optrow} = domain in
     let b1 = aux_list tydoms in
@@ -412,6 +416,9 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
     | DataType(_tyid, tyargs) ->
         aux_list tyargs
 
+    | PackType(_modsig) ->
+        failwith "TODO: occurs_row, PackType"
+
   and aux_domain (domain : mono_domain_type) =
     let {ordered = tydoms; mandatory = mndlabmap; optional = optrow} = domain in
     let b1 = aux_list tydoms in
@@ -469,6 +476,9 @@ fun tyidp tvp oidset ->
 
     | TypeVar(tv) ->
         tvp tv
+
+    | PackType(_modsig) ->
+        failwith "TODO: opaque_occurs_in_type_scheme, PackType"
 
   and aux_domain domain =
     let {ordered = tydoms; mandatory = mndlabmap; optional = optrow} = domain in
@@ -622,6 +632,9 @@ module Unification = struct
 
     | (RecordType(labmap1), RecordType(labmap2)) ->
         aux_label_assoc_exact labmap1 labmap2
+
+    | (PackType(_modsig1), PackType(_modsig2)) ->
+        failwith "TODO: unify, PackType"
 
     | (TypeVar(Updatable({contents = Free(fid1)} as mtvu1)), TypeVar(Updatable{contents = Free(fid2)})) ->
         if FreeID.equal fid1 fid2 then
@@ -1601,7 +1614,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   | ModProjCtor(modidents1, (rng2, ctornm2), utasts) ->
       let sigr1 = get_structure_signature pre.tyenv modidents1 in
       begin
-        match sigr1 |> SigRecord.find_constructor ctornm2 with
+        match sigr1 |> SigRecord.find_constructor TypeDefinitionStore.find_variant_type ctornm2 with
         | None ->
             raise_error (UndefinedConstructor(rng2, ctornm2))
 
@@ -3046,6 +3059,9 @@ and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
                    → The replacement probably has been properly done by `substitute_structure`. *)
             | Some(vid_to) -> DataType(TypeID.Variant(vid_to), ptyargs |> List.map aux)
           end
+
+      | PackType(_modsig) ->
+          failwith "TODO: substitute_poly_type, PackType"
     in
     (rng, ptymain)
 

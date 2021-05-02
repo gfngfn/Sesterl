@@ -1,5 +1,6 @@
 
 open Syntax
+open Env
 
 
 module FreeRowHashTable = Hashtbl.Make(FreeRowID)

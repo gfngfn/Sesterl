@@ -1,6 +1,7 @@
 
 open MyUtil
 open Syntax
+open IntermediateSyntax
 
 
 let fresh_local_symbol () =

@@ -1,5 +1,6 @@
 
 open Syntax
+open Env
 
 val register_free_row : FreeRowID.t -> mono_type LabelAssoc.t -> unit
 

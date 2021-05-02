@@ -2,28 +2,44 @@
 open MyUtil
 open Syntax
 
-type val_entry = {
-  typ  : poly_type;
-  name : name;
-  mutable is_used : bool;
+
+type 'a abstracted = OpaqueIDSet.t * 'a
+
+type ('a, 'b) typ =
+  (('a, 'b) typ_main) ranged
+
+and ('a, 'b) typ_main =
+  | BaseType    of base_type
+  | FuncType    of ('a, 'b) domain_type * ('a, 'b) typ
+  | PidType     of ('a, 'b) pid_type
+  | EffType     of ('a, 'b) domain_type * ('a, 'b) effect * ('a, 'b) typ
+  | TypeVar     of 'a
+  | ProductType of (('a, 'b) typ) TupleList.t
+  | DataType    of TypeID.t * (('a, 'b) typ) list
+  | RecordType  of (('a, 'b) typ) LabelAssoc.t
+  | PackType    of module_signature
+
+and ('a, 'b) domain_type = {
+  ordered   : (('a, 'b) typ) list;
+  mandatory : (('a, 'b) typ) LabelAssoc.t;
+  optional  : ('a, 'b) row;
 }
 
-type type_entry =
-  | Defining       of TypeID.t
-  | DefinedVariant of TypeID.Variant.t
-  | DefinedSynonym of TypeID.Synonym.t
-  | DefinedOpaque  of TypeID.Opaque.t
+and ('a, 'b) effect =
+  | Effect of ('a, 'b) typ
 
-type variant_entry = {
-  v_type_parameters : BoundID.t list;
-  v_branches        : constructor_branch_map;
-}
+and ('a, 'b) pid_type =
+  | Pid of ('a, 'b) typ
 
-type opaque_entry = {
-  o_kind : poly_kind;
-}
+and ('a, 'b) row =
+  | FixedRow of (('a, 'b) typ) LabelAssoc.t
+  | RowVar   of 'b
 
-type module_signature =
+and ('a, 'b) base_kind =
+  | UniversalKind
+  | RecordKind    of (('a, 'b) typ) LabelAssoc.t
+
+and module_signature =
   | ConcStructure of record_signature
   | ConcFunctor   of functor_signature
 
@@ -39,6 +55,18 @@ and functor_signature = {
 and functor_domain =
   | Domain of record_signature
 
+and val_entry = {
+  typ  : poly_type;
+  name : name;
+  mutable is_used : bool;
+}
+
+and type_entry =
+  | Defining       of TypeID.t
+  | DefinedVariant of TypeID.Variant.t
+  | DefinedSynonym of TypeID.Synonym.t
+  | DefinedOpaque  of TypeID.Opaque.t
+
 and module_entry = {
   mod_name      : space_name;
   mod_signature : module_signature;
@@ -48,6 +76,19 @@ and signature_entry = {
   sig_signature : module_signature abstracted;
     [@printer (fun ppf (oidset, _) -> Format.fprintf ppf "(%a, _)" pp_opaque_id_set oidset)]
 }
+
+and opaque_entry = {
+  o_kind : poly_kind;
+}
+
+and constructor_entry = {
+  belongs         : TypeID.Variant.t;
+  constructor_id  : ConstructorID.t;
+  type_variables  : BoundID.t list;
+  parameter_types : poly_type list;
+}
+
+and type_opacity = TypeID.t * poly_kind
 
 and environment = {
   vals         : val_entry ValNameMap.t;
@@ -79,6 +120,65 @@ and record_signature_entry =
   | SRSig      of signature_name * module_signature abstracted
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRSig>")]
 [@@deriving show { with_path = false }]
+
+and ('a, 'b) kind =
+  | Kind of (('a, 'b) base_kind) list * ('a, 'b) base_kind
+      (* Handles order-0 or order-1 kind only, *)
+
+and mono_type_var_updatable =
+  | Free of FreeID.t
+  | Link of mono_type
+
+and mono_type_var =
+  | Updatable   of mono_type_var_updatable ref
+  | MustBeBound of MustBeBoundID.t
+
+and mono_row_var_updatable =
+  | FreeRow of FreeRowID.t
+  | LinkRow of mono_type LabelAssoc.t
+
+and mono_row_var =
+  | UpdatableRow   of mono_row_var_updatable ref
+  | MustBeBoundRow of MustBeBoundRowID.t
+
+and mono_type = (mono_type_var, mono_row_var) typ
+
+and mono_row = (mono_type_var, mono_row_var) row
+
+and mono_kind = (mono_type_var, mono_row_var) kind
+
+and mono_base_kind = (mono_type_var, mono_row_var) base_kind
+
+and mono_effect = (mono_type_var, mono_row_var) effect
+
+and mono_domain_type = (mono_type_var, mono_row_var) domain_type
+
+and poly_type_var =
+  | Mono  of mono_type_var
+  | Bound of BoundID.t
+
+and poly_row_var =
+  | MonoRow  of mono_row_var
+  | BoundRow of BoundRowID.t
+
+and poly_type = (poly_type_var, poly_row_var) typ
+
+and poly_row = (poly_type_var, poly_row_var) row
+
+and poly_kind = (poly_type_var, poly_row_var) kind
+
+and poly_base_kind = (poly_type_var, poly_row_var) base_kind
+
+and poly_domain_type = (poly_type_var, poly_row_var) domain_type
+
+type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorMap.t
+
+type local_row_parameter_map = (MustBeBoundRowID.t * poly_type LabelAssoc.t) RowParameterMap.t
+
+type variant_entry = {
+  v_type_parameters : BoundID.t list;
+  v_branches        : constructor_branch_map;
+}
 
 
 module Typeenv = struct
@@ -257,13 +357,13 @@ module SigRecord = struct
     Alist.extend sigr (SRRecTypes(tydefs))
 
 
-  let find_constructor (ctornm : constructor_name) (sigr : t) : constructor_entry option =
+  let find_constructor (vidf : TypeID.Variant.t -> BoundID.t list * constructor_branch_map) (ctornm : constructor_name) (sigr : t) : constructor_entry option =
     sigr |> Alist.to_rev_list |> List.find_map (function
     | SRRecTypes(tydefs) ->
         tydefs |> List.find_map (fun (tynm, (tyid, pkd)) ->
           match tyid with
           | TypeID.Variant(vid) ->
-              let (bids, ctorbrs) = TypeDefinitionStore.find_variant_type vid in
+              let (bids, ctorbrs) = vidf vid in
               ctorbrs |> ConstructorMap.find_opt ctornm |> Option.map (fun (ctorid, ptyparams) ->
                 {
                   belongs         = vid;

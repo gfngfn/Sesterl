@@ -28,5 +28,5 @@ let fresh () =
   { id = !current_max; }
 
 
-let pp_raw ppf bid =
+let pp ppf bid =
   Format.fprintf ppf "'#%d" bid.id

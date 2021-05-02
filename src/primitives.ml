@@ -1,5 +1,6 @@
 
 open Syntax
+open IntermediateSyntax
 open Env
 
 
