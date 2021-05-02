@@ -29,6 +29,10 @@ let report_unsupported_feature (msg : string) =
   Format.printf "! [Unsupported] \"%s\"\n" msg
 
 
+let report_invalid_external_spec (s : string) =
+  Format.printf "! [Error] invalid external spec: \"%s\"\n" s
+
+
 let report_system_error (msg : string) =
   Format.printf "! [Error] system error: %s\n" msg
 

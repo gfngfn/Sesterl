@@ -5,6 +5,9 @@ open Errors
 open Env
 
 
+exception InvalidExternalSpec of string
+
+
 let catch_error (k : unit -> unit) =
   try
     k ()
@@ -15,6 +18,10 @@ let catch_error (k : unit -> unit) =
 
   | Failure(msg) ->
       Logging.report_unsupported_feature msg;
+      exit 1
+
+  | InvalidExternalSpec(s) ->
+      Logging.report_invalid_external_spec s;
       exit 1
 
   | PackageLoader.PackageError(e) ->
@@ -38,11 +45,18 @@ let catch_error (k : unit -> unit) =
       exit 1
 
 
-let build (fpath_in : string) (dir_out : string) (is_verbose : bool) =
+let build (fpath_in : string) (dir_out : string) (is_verbose : bool) (externals : string list) =
   catch_error (fun () ->
     let abspath_in =
       let dir = Sys.getcwd () in
       make_absolute_path dir fpath_in
+    in
+    let _external_map =
+      externals |> List.fold_left (fun map s ->
+        match String.split_on_char ':' s with
+        | [pkgname; path] -> map |> ExternalMap.add pkgname path
+        | _               -> raise (InvalidExternalSpec(s))
+      ) ExternalMap.empty
     in
     let pkgs =
         let (_, extopt) = Core.Filename.split_extension abspath_in in
@@ -111,6 +125,12 @@ let flag_verbose : bool Cmdliner.Term.t =
   Arg.(value (flag (info [ "verbose" ] ~doc)))
 
 
+let flag_packages : (string list) Cmdliner.Term.t =
+  let open Cmdliner in
+  let doc = "Specify paths of external packages." in
+  Arg.(value (opt_all string [] (info [ "p"; "package" ] ~docv:"PACKAGE" ~doc)))
+
+
 let arg_in : string Cmdliner.Term.t =
   let open Cmdliner in
   Arg.(required (pos 0 (some file) None (info [])))
@@ -119,7 +139,7 @@ let arg_in : string Cmdliner.Term.t =
 let command_build =
   let open Cmdliner in
   let term : unit Term.t =
-    Term.(const build $ arg_in $ flag_output $ flag_verbose)
+    Term.(const build $ arg_in $ flag_output $ flag_verbose $ flag_packages)
   in
   let info : Term.info =
     Term.info "build"
