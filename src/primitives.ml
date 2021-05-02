@@ -288,21 +288,21 @@ let add_variant_types vntdefs (tyenv, gmap) =
   (tyenv, gmap)
 
 
-let add_operators (ops : (string * poly_type * string) list) ((tyenv, gmap) : Typeenv.t * global_name_map) : Typeenv.t * global_name_map =
+let add_operators (ops : (string * poly_type * string) list) ((tyenv, nmap) : Typeenv.t * name_map) : Typeenv.t * name_map =
   let tyenv =
     ops |> List.fold_left (fun tyenv (x, pty, target) ->
       let name = OutputIdentifier.Operator(OutputIdentifier.operator target) in
       tyenv |> Typeenv.add_val x pty name
     ) tyenv
   in
-  (tyenv, gmap)
+  (tyenv, nmap)
 
 
-let add_primitives (prims : primitive_definition list) ((tyenv, gmap) : Typeenv.t * global_name_map) : Typeenv.t * global_name_map =
-  prims |> List.fold_left (fun (tyenv, gmap) primdef ->
+let add_primitives (prims : primitive_definition list) ((tyenv, nmap) : Typeenv.t * name_map) : Typeenv.t * name_map =
+  prims |> List.fold_left (fun (tyenv, (gmap, smap)) primdef ->
     match primdef.source with
     | None ->
-        (tyenv, gmap)
+        (tyenv, nmap)
 
     | Some(srcdef) ->
         let targetdef = primdef.target in
@@ -314,12 +314,12 @@ let add_primitives (prims : primitive_definition list) ((tyenv, gmap) : Typeenv.
         in
         let tyenv = tyenv |> Typeenv.add_val srcdef.identifier srcdef.typ (OutputIdentifier.Global(gname)) in
         let gmap = gmap |> GlobalNameMap.add gname primitive_module_name in
-        (tyenv, gmap)
-  ) (tyenv, gmap)
+        (tyenv, (gmap, smap))
+  ) (tyenv, nmap)
 
 
 let initial_environment =
-  (Typeenv.empty, GlobalNameMap.empty)
+  (Typeenv.empty, (GlobalNameMap.empty, SpaceNameMap.empty))
     |> add_variant_types [
       begin
         let bid = BoundID.fresh () in

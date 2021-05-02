@@ -35,6 +35,14 @@ val operator : string -> operator
 
 val unused : local
 
+module Space : sig
+
+  type t = space
+
+  val compare : t -> t -> int
+
+end
+
 module Local : sig
 
   type t = local
