@@ -14,6 +14,14 @@ dependencies:
         type: "branch"
         value: "master"
 
+  - name: "sesterl_cowboy"
+    source:
+      type: "git"
+      repository: "https://github.com/gfngfn/sesterl_cowboy"
+      spec:
+        type: "branch"
+        value: "master"
+
 erlang:
   output_directory: "./_generated"
   erlang_dependencies:
