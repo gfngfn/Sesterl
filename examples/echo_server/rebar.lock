@@ -4,7 +4,7 @@
  {<<"ranch">>,{pkg,<<"ranch">>,<<"1.7.1">>},1},
  {<<"sesterl_cowboy">>,
   {git,"https://github.com/gfngfn/sesterl_cowboy",
-       {ref,"7e4ddf579ead16554e325ffc1931184d62e63377"}},
+       {ref,"67c009ad96d766536b36b54badb029b4fc9d9f1b"}},
   0},
  {<<"sesterl_stdlib">>,
   {git,"https://github.com/gfngfn/sesterl_stdlib",
