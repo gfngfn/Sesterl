@@ -340,7 +340,8 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
         false
 
     | PackType(_modsig) ->
-        failwith "TODO: occurs, PackType"
+        false
+          (* Signatures do not contain free IDs. *)
 
   and aux_domain (domain : mono_domain_type) : bool =
     let {ordered = tydoms; mandatory = mndlabmap; optional = optrow} = domain in
@@ -417,7 +418,8 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
         aux_list tyargs
 
     | PackType(_modsig) ->
-        failwith "TODO: occurs_row, PackType"
+        false
+          (* Signatures do not contain free row IDs. *)
 
   and aux_domain (domain : mono_domain_type) =
     let {ordered = tydoms; mandatory = mndlabmap; optional = optrow} = domain in
@@ -1645,9 +1647,11 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             end
       end
 
-  | Pack(modidentchain) ->
-      let (_modsig1, _sname1) = find_module_from_chain pre.tyenv modidentchain in
-      failwith "TODO: Pack"
+  | Pack(modidentchain1, utsig2) ->
+      let (modsig1, sname1) = find_module_from_chain pre.tyenv modidentchain1 in
+      let absmodsig2 = typecheck_signature Alist.empty pre.tyenv utsig2 in
+      let absmodsig = coerce_signature Alist.empty rng modsig1 absmodsig2 in
+      ((rng, PackType(absmodsig)), IPack(sname1))
 
 
 and typecheck_let_pattern (pre : pre) (rng : Range.t) (utpat : untyped_pattern) (utast1 : untyped_ast) =

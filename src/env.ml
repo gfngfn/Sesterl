@@ -17,7 +17,8 @@ and ('a, 'b) typ_main =
   | ProductType of (('a, 'b) typ) TupleList.t
   | DataType    of TypeID.t * (('a, 'b) typ) list
   | RecordType  of (('a, 'b) typ) LabelAssoc.t
-  | PackType    of module_signature
+  | PackType    of module_signature abstracted
+      [@printer (fun ppf (oidset, modsig) -> Format.fprintf ppf "PackType(%a, _)" pp_opaque_id_set oidset)]
 
 and ('a, 'b) domain_type = {
   ordered   : (('a, 'b) typ) list;

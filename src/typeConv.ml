@@ -284,8 +284,8 @@ let collect_ids_scheme
     | DataType(tyid, tyargs) ->
         tyargs |> List.iter aux_mono
 
-    | PackType(_modsig) ->
-        failwith "TODO: collect_ids_scheme, PackType"
+    | PackType(_absmodsig) ->
+        () (* TODO: traverse signatures *)
 
   and aux_poly ((_, ptymain) : poly_type) : unit =
     match ptymain with
@@ -335,8 +335,8 @@ let collect_ids_scheme
     | DataType(tyid, ptyargs) ->
         ptyargs |> List.iter aux_poly
 
-    | PackType(_modsig) ->
-        failwith "TODO: collect_ids_scheme, PackType"
+    | PackType(_absmodsig) ->
+        () (* TODO: traverse signatures *)
 
   and aux_mono_label_assoc (labmap : mono_type LabelAssoc.t) : unit =
     LabelAssoc.iter (fun _ ty -> aux_mono ty) labmap
@@ -588,8 +588,9 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let pty = (rngf rng, DataType(tyid, ptyargs)) in
         (bbidset, pty)
 
-    | PackType(_modsig) ->
-        failwith "TODO: lift_scheme, PackType"
+    | PackType(absmodsig) ->
+        let pty = (rngf rng, PackType(absmodsig)) in
+        (BoundBothIDSet.empty, pty)
 
   and aux_list (tys : mono_type list) =
     let (bbidsetacc, ptyacc) =
@@ -705,8 +706,8 @@ fun intern intern_row pty ->
     | DataType(tyid, ptyargs) ->
         (rng, DataType(tyid, ptyargs |> List.map aux))
 
-    | PackType(_modsig) ->
-        failwith "TODO: instantiate_scheme, PackType"
+    | PackType(absmodsig) ->
+        (rng, PackType(absmodsig))
 
   and aux_domain pdomain =
     let {ordered = ptydoms; mandatory = pmndlabmap; optional = poptrow} = pdomain in
@@ -1098,8 +1099,8 @@ fun showtv showrv ty ->
               Format.asprintf "%a<%s>" TypeID.pp tyid (String.concat ", " ss)
         end
 
-    | PackType(_modsig) ->
-        failwith "TODO: show_type, PackType"
+    | PackType(_absmodsig) ->
+        "(signature)" (* TODO: show signatures *)
 
   and aux_effect (Effect(ty)) =
     let s = aux ty in

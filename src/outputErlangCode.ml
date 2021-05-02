@@ -409,6 +409,9 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
             Printf.sprintf "{%s, %s}" sctor (String.concat ", " ss)
       end
 
+  | IPack(_sname) ->
+      failwith "TODO: IPack"
+
 
 and mapify_label_assoc (gmap : global_name_map) (emap : ast LabelAssoc.t) =
   LabelAssoc.fold (fun label ast acc ->

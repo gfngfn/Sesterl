@@ -44,6 +44,7 @@ and ast =
   | IRecordUpdate of ast * label * ast
   | IFreeze       of global_name * ast list
   | IFreezeUpdate of ast * ast list
+  | IPack         of space_name
 
 and branch =
   | IBranch of pattern * ast

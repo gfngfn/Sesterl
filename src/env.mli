@@ -1,6 +1,8 @@
 
 open Syntax
 
+type 'a abstracted = OpaqueIDSet.t * 'a
+
 type environment
 
 type record_signature
@@ -17,7 +19,7 @@ and ('a, 'b) typ_main =
   | ProductType of (('a, 'b) typ) TupleList.t
   | DataType    of TypeID.t * (('a, 'b) typ) list
   | RecordType  of (('a, 'b) typ) LabelAssoc.t
-  | PackType    of module_signature
+  | PackType    of module_signature abstracted
 
 and ('a, 'b) domain_type = {
   ordered   : (('a, 'b) typ) list;
@@ -106,8 +108,6 @@ type poly_base_kind = (poly_type_var, poly_row_var) base_kind
 type poly_domain_type = (poly_type_var, poly_row_var) domain_type
 
 type type_opacity = TypeID.t * poly_kind
-
-type 'a abstracted = OpaqueIDSet.t * 'a
 
 type constructor_entry = {
   belongs         : TypeID.Variant.t;

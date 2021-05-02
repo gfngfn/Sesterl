@@ -190,7 +190,7 @@ and untyped_ast_main =
   | FreezeUpdate of untyped_ast * untyped_ast list * Range.t list
   | ModProjVal   of (module_name ranged) list * identifier ranged
   | ModProjCtor  of (module_name ranged) list * constructor_name ranged * untyped_ast list
-  | Pack         of module_name_chain
+  | Pack         of module_name_chain * untyped_signature
 
 and untyped_parameters =
   binder list * labeled_binder list * labeled_optional_binder list
