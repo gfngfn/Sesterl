@@ -2550,6 +2550,17 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
     | (RecordType(plabmap1), RecordType(plabmap2)) ->
         aux_label_assoc plabmap1 plabmap2
 
+    | (PackType(absmodsig1), PackType(absmodsig2)) ->
+        begin
+          try
+            subtype_abstract_with_abstract Alist.empty (Range.dummy "poly_type_equal1") absmodsig1 absmodsig2;
+            subtype_abstract_with_abstract Alist.empty (Range.dummy "poly_type_equal2") absmodsig2 absmodsig1;
+            true
+          with
+          | _ ->
+              false
+        end
+
     | (DataType(TypeID.Variant(vid1), ptyargs1), DataType(TypeID.Variant(vid2), ptyargs2)) ->
         TypeID.Variant.equal vid1 vid2 && aux_list ptyargs1 ptyargs2
 
