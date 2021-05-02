@@ -29,6 +29,10 @@ let report_unsupported_feature (msg : string) =
   Format.printf "! [Unsupported] \"%s\"\n" msg
 
 
+let report_invalid_external_spec (s : string) =
+  Format.printf "! [Error] invalid external spec: \"%s\"\n" s
+
+
 let report_system_error (msg : string) =
   Format.printf "! [Error] system error: %s\n" msg
 
@@ -126,6 +130,13 @@ let report_package_error (e : package_error) : unit =
   | PackageDirNotFound(absdir) ->
       Format.printf "package directory '%s' not found\n"
         absdir
+
+  | NotFoundInExternalMap(pkgname, external_map) ->
+      let knowns = external_map |> ExternalMap.bindings in
+      Format.printf "package '%s' not found in:\n" pkgname;
+      knowns |> List.iter (fun (name, path) ->
+        Format.printf "  - %s (%s)\n" name path
+      )
 
 
 let pp_type_parameter_list dispmap ppf bids =

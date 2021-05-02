@@ -24,7 +24,7 @@ type reading_state = {
 }
 
 
-let main (absdir : absolute_dir) : (absolute_dir * ConfigLoader.config) list =
+let main (external_map : external_map) (absdir : absolute_dir) : (absolute_dir * ConfigLoader.config) list =
   let rec aux (state : reading_state) (vertex : FileDependencyGraph.vertex) (absdir : absolute_dir) : reading_state =
     let config = load_config absdir in
     let pkgname = config.ConfigLoader.package_name in
@@ -38,7 +38,19 @@ let main (absdir : absolute_dir) : (absolute_dir * ConfigLoader.config) list =
         let state = { state with loaded_dirs = loaded_dirs; loaded_names = loaded_names } in
         config.ConfigLoader.dependencies |> List.fold_left (fun state dependency ->
           let graph = state.graph in
-          let ConfigLoader.Local(absdir_sub) = dependency.ConfigLoader.dependency_source in
+          let pkgname_sub = dependency.ConfigLoader.dependency_name in
+          let absdir_sub =
+            match dependency.ConfigLoader.dependency_source with
+            | ConfigLoader.Local(absdir_sub) ->
+                absdir_sub
+
+            | ConfigLoader.Git(_git_spec) ->
+                begin
+                  match external_map |> ExternalMap.find_opt pkgname_sub with
+                  | None             -> raise (PackageError(NotFoundInExternalMap(pkgname_sub, external_map)))
+                  | Some(absdir_sub) -> absdir_sub
+                end
+          in
           let absdir_sub =
             match canonicalize_path absdir_sub with
             | None         -> raise (PackageError(PackageDirNotFound(absdir_sub)))

@@ -5,6 +5,10 @@ module TupleList = List1
 
 type package_name = string
 
+module ExternalMap = Map.Make(String)
+
+type external_map = absolute_dir ExternalMap.t
+
 type ('a, 'b) pure_or_effectful =
   | Pure      of 'a
   | Effectful of 'b

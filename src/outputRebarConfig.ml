@@ -53,6 +53,13 @@ let relative_dir_to_string (RelativeDir(s) : relative_dir) : value =
   String(s)
 
 
+let make_git_spec (git_spec : ConfigLoader.git_spec) =
+  match git_spec with
+  | Tag(s)    -> keyed "tag" [ String(s) ]
+  | Ref(s)    -> keyed "ref" [ String(s) ]
+  | Branch(s) -> keyed "branch" [ String(s) ]
+
+
 let make (config : ConfigLoader.config) : assoc =
   let entry_plugins =
     let v_git_spec = keyed "branch" [ String "master" ] in
@@ -66,7 +73,20 @@ let make (config : ConfigLoader.config) : assoc =
     "src_dirs" ==> List(reldirs |> List.map relative_dir_to_string)
   in
   let entry_deps =
-    let deps =
+    let deps_sesterl =
+      config.dependencies |> List.fold_left (fun acc dep ->
+        let name = dep.ConfigLoader.dependency_name in
+        match dep.ConfigLoader.dependency_source with
+        | Local(_) ->
+            acc
+
+        | Git{ repository = uri; git_spec = git_spec } ->
+            let v_git_spec = make_git_spec git_spec in
+            let v_dep = keyed "git" [ String(uri); v_git_spec ] in
+            Alist.extend acc (name, v_dep)
+      ) Alist.empty |> Alist.to_list
+    in
+    let deps_erlang =
       config.erlang_config.erlang_dependencies |> List.map (fun erldep ->
         let name = erldep.ConfigLoader.erlang_library_name in
         let v_dep =
@@ -75,18 +95,13 @@ let make (config : ConfigLoader.config) : assoc =
               String(version)
 
           | ErlangLibFromGit{ repository = uri; git_spec = git_spec } ->
-              let v_git_spec =
-                match git_spec with
-                | Tag(s)    -> keyed "tag" [ String(s) ]
-                | Ref(s)    -> keyed "ref" [ String(s) ]
-                | Branch(s) -> keyed "branch" [ String(s) ]
-              in
+              let v_git_spec = make_git_spec git_spec in
               keyed "git" [ String(uri); v_git_spec ]
         in
         (name, v_dep)
       )
     in
-    "deps" ==> Assoc(deps)
+    "deps" ==> Assoc(List.append deps_sesterl deps_erlang)
   in
   let entries_relx =
     let open ConfigLoader in

@@ -4,14 +4,6 @@ open Errors
 open Syntax
 
 
-type dependency_source =
-  | Local of absolute_path
-
-type dependency = {
-  dependency_name   : package_name;
-  dependency_source : dependency_source;
-}
-
 type git_spec =
   | Tag    of string
   | Ref    of string
@@ -43,6 +35,15 @@ type erlang_config = {
   relx                : relx option;
 }
 
+type dependency_source =
+  | Local of absolute_path
+  | Git   of { repository : string; git_spec : git_spec }
+
+type dependency = {
+  dependency_name   : package_name;
+  dependency_source : dependency_source;
+}
+
 
 let default_erlang_config : erlang_config =
   {
@@ -60,29 +61,6 @@ type config = {
   dependencies       : dependency list;
   erlang_config      : erlang_config;
 }
-
-
-let source_decoder (confdir : absolute_dir) : dependency_source YamlDecoder.t =
-  let open YamlDecoder in
-  branch "type" [
-    "local" ==> begin
-      get "directory" string >>= fun dirstr ->
-      succeed (Local(make_absolute_path confdir dirstr))
-    end;
-  ]
-  ~on_error:(fun other ->
-    Printf.sprintf "unsupported type '%s' for specifying dependency sources" other
-  )
-
-
-let dependency_decoder (confdir : absolute_dir) : dependency YamlDecoder.t =
-  let open YamlDecoder in
-  get "name" string >>= fun name ->
-  get "source" (source_decoder confdir) >>= fun source ->
-  succeed {
-    dependency_name   = name;
-    dependency_source = source;
-  }
 
 
 let git_spec_decoder : git_spec YamlDecoder.t =
@@ -168,6 +146,34 @@ let erlang_config_decoder : erlang_config YamlDecoder.t =
     output_directory    = RelativeDir(reldir_out);
     erlang_dependencies = erldeps;
     relx                = relx_opt;
+  }
+
+
+let source_decoder (confdir : absolute_dir) : dependency_source YamlDecoder.t =
+  let open YamlDecoder in
+  branch "type" [
+    "local" ==> begin
+      get "directory" string >>= fun dirstr ->
+      succeed (Local(make_absolute_path confdir dirstr))
+    end;
+    "git" ==> begin
+      get "repository" string >>= fun repository ->
+      get "spec" git_spec_decoder >>= fun git_spec ->
+      succeed (Git{ repository = repository; git_spec = git_spec })
+    end;
+  ]
+  ~on_error:(fun other ->
+    Printf.sprintf "unsupported type '%s' for specifying dependency sources" other
+  )
+
+
+let dependency_decoder (confdir : absolute_dir) : dependency YamlDecoder.t =
+  let open YamlDecoder in
+  get "name" string >>= fun name ->
+  get "source" (source_decoder confdir) >>= fun source ->
+  succeed {
+    dependency_name   = name;
+    dependency_source = source;
   }
 
 

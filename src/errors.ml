@@ -19,6 +19,7 @@ exception ConfigError of config_error
 type package_error =
   | DuplicatedPackageName of package_name * absolute_path * absolute_path
   | PackageDirNotFound    of absolute_dir
+  | NotFoundInExternalMap of package_name * external_map
 
 type lexer_error =
   | UnidentifiedToken                of Range.t * string

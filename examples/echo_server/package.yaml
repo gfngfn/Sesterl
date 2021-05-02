@@ -6,10 +6,21 @@ source_directories:
 main_module: "App"
 
 dependencies:
-  - name: "stdlib"
+  - name: "sesterl_stdlib"
     source:
-      type: "local"
-      directory: "../../external/stdlib"
+      type: "git"
+      repository: "https://github.com/gfngfn/sesterl_stdlib"
+      spec:
+        type: "branch"
+        value: "master"
+
+  - name: "sesterl_cowboy"
+    source:
+      type: "git"
+      repository: "https://github.com/gfngfn/sesterl_cowboy"
+      spec:
+        type: "branch"
+        value: "master"
 
 erlang:
   output_directory: "./_generated"

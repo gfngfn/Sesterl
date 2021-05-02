@@ -8,9 +8,6 @@ $ sesterl config ./
 # Compile sources
 $ rebar3 sesterl compile
 
-# Compile sources (without Rebar3)
-$ sesterl build ./ -o _generated/
-
 # Run
 $ rebar3 shell
 ```
@@ -26,4 +23,6 @@ $ curl "http://localhost:8080/?text=foo"
 foo
 $ curl "http://localhost:8080/?text=Hello%20World"
 Hello World
+$ curl "http://localhost:8080/users/taro"
+taro
 ```
