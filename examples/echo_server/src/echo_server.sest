@@ -4,7 +4,6 @@ import Handler
 module App = struct
 
   val start_impl(start_type, start_args) = act
-    let _ = print_debug("debug L('o' )J start") in
     case
         Cowboy.make_dispatch_table(pack Handler : Cowboy.Handler, [
             {"/",                 {}},
@@ -12,12 +11,10 @@ module App = struct
         ])
     of
     | None ->
-        let _ = print_debug("debug L('o' )J failed to make the dispatch table") in
         return(None)
 
     | Some(dispatch) ->
         do res <- Cowboy.start_clear(-name "echo_server", -port 8080, -dispatch dispatch) in
-        let _ = print_debug({"debug L('o' )J start_clear", res}) in
         case res of
         | None    -> return(None)
         | Some(_) -> Sup.start_link({})
