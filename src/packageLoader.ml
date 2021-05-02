@@ -39,6 +39,7 @@ let main (external_map : external_map) (absdir : absolute_dir) : (absolute_dir *
         let state = { state with loaded_dirs = loaded_dirs; loaded_names = loaded_names } in
         config.ConfigLoader.dependencies |> List.fold_left (fun state dependency ->
           let graph = state.graph in
+          let pkgname_sub = dependency.ConfigLoader.dependency_name in
           let absdir_sub =
             match dependency.ConfigLoader.dependency_source with
             | ConfigLoader.Local(absdir_sub) ->
@@ -46,9 +47,9 @@ let main (external_map : external_map) (absdir : absolute_dir) : (absolute_dir *
 
             | ConfigLoader.Git(_git_spec) ->
                 begin
-                  match external_map |> ExternalMap.find_opt pkgname with
+                  match external_map |> ExternalMap.find_opt pkgname_sub with
                   | None ->
-                      raise (PackageError(NotFoundInExternalMap(pkgname, external_map)))
+                      raise (PackageError(NotFoundInExternalMap(pkgname_sub, external_map)))
 
                   | Some(path_in) ->
                       make_absolute_path absdir_main path_in
