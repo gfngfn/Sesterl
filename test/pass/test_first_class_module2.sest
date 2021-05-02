@@ -1,0 +1,11 @@
+module TestFirstClassModule2 :> sig
+  signature Ord = sig
+    type t
+    val compare : fun(t, t) -> int
+  end
+end = struct
+  signature Ord = sig
+    type t
+    val compare : fun(t, t) -> int
+  end
+end
