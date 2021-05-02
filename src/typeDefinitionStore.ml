@@ -1,5 +1,6 @@
 
 open Syntax
+open Env
 
 
 let synonym_table : (BoundID.t list * poly_type) SynonymIDHashTable.t =

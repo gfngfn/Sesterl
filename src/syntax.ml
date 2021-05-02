@@ -148,6 +148,7 @@ and manual_type_main =
   | MEffType     of manual_domain_type * manual_type * manual_type
   | MTypeVar     of type_variable_name
   | MModProjType of untyped_module * type_name ranged * manual_type list
+  | MPackType    of untyped_signature
 
 and manual_domain_type =
   manual_type list * labeled_manual_type list * manual_row
@@ -190,6 +191,7 @@ and untyped_ast_main =
   | FreezeUpdate of untyped_ast * untyped_ast list * Range.t list
   | ModProjVal   of (module_name ranged) list * identifier ranged
   | ModProjCtor  of (module_name ranged) list * constructor_name ranged * untyped_ast list
+  | Pack         of module_name_chain * untyped_signature
 
 and untyped_parameters =
   binder list * labeled_binder list * labeled_optional_binder list
@@ -374,89 +376,6 @@ module BoundBothID = struct
 end
 
 
-type ('a, 'b) typ =
-  (('a, 'b) typ_main) ranged
-
-and ('a, 'b) typ_main =
-  | BaseType    of base_type
-  | FuncType    of ('a, 'b) domain_type * ('a, 'b) typ
-  | PidType     of ('a, 'b) pid_type
-  | EffType     of ('a, 'b) domain_type * ('a, 'b) effect * ('a, 'b) typ
-  | TypeVar     of 'a
-  | ProductType of (('a, 'b) typ) TupleList.t
-  | DataType    of TypeID.t * (('a, 'b) typ) list
-  | RecordType  of (('a, 'b) typ) LabelAssoc.t
-
-and ('a, 'b) domain_type = {
-  ordered   : (('a, 'b) typ) list;
-  mandatory : (('a, 'b) typ) LabelAssoc.t;
-  optional  : ('a, 'b) row;
-}
-
-and ('a, 'b) effect =
-  | Effect of ('a, 'b) typ
-
-and ('a, 'b) pid_type =
-  | Pid of ('a, 'b) typ
-
-and ('a, 'b) row =
-  | FixedRow of (('a, 'b) typ) LabelAssoc.t
-  | RowVar   of 'b
-
-and ('a, 'b) base_kind =
-  | UniversalKind
-  | RecordKind    of (('a, 'b) typ) LabelAssoc.t
-
-type ('a, 'b) kind =
-  | Kind of (('a, 'b) base_kind) list * ('a, 'b) base_kind
-      (* Handles order-0 or order-1 kind only, *)
-
-type mono_type_var_updatable =
-  | Free of FreeID.t
-  | Link of mono_type
-
-and mono_type_var =
-  | Updatable   of mono_type_var_updatable ref
-  | MustBeBound of MustBeBoundID.t
-
-and mono_row_var_updatable =
-  | FreeRow of FreeRowID.t
-  | LinkRow of mono_type LabelAssoc.t
-
-and mono_row_var =
-  | UpdatableRow   of mono_row_var_updatable ref
-  | MustBeBoundRow of MustBeBoundRowID.t
-
-and mono_type = (mono_type_var, mono_row_var) typ
-
-type mono_row = (mono_type_var, mono_row_var) row
-
-type mono_kind = (mono_type_var, mono_row_var) kind
-
-type mono_base_kind = (mono_type_var, mono_row_var) base_kind
-
-type mono_effect = (mono_type_var, mono_row_var) effect
-
-type mono_domain_type = (mono_type_var, mono_row_var) domain_type
-
-type poly_type_var =
-  | Mono  of mono_type_var
-  | Bound of BoundID.t
-
-type poly_row_var =
-  | MonoRow  of mono_row_var
-  | BoundRow of BoundRowID.t
-
-and poly_type = (poly_type_var, poly_row_var) typ
-
-type poly_row = (poly_type_var, poly_row_var) row
-
-type poly_kind = (poly_type_var, poly_row_var) kind
-
-type poly_base_kind = (poly_type_var, poly_row_var) base_kind
-
-type poly_domain_type = (poly_type_var, poly_row_var) domain_type
-
 module FreeIDHashTable = Hashtbl.Make(FreeID)
 
 module FreeRowIDHashTable = Hashtbl.Make(FreeRowID)
@@ -484,8 +403,6 @@ type name = OutputIdentifier.t
 
 module ConstructorMap = Map.Make(String)
 
-type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorMap.t
-
 module TypeParameterAssoc = AssocList.Make(String)
 
 type type_parameter_assoc = MustBeBoundID.t TypeParameterAssoc.t
@@ -495,8 +412,6 @@ module TypeParameterMap = Map.Make(String)
 type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
 module RowParameterMap = Map.Make(String)
-
-type local_row_parameter_map = (MustBeBoundRowID.t * poly_type LabelAssoc.t) RowParameterMap.t
 
 module SynonymIDSet = Set.Make(TypeID.Synonym)
 
@@ -532,166 +447,3 @@ module TypeNameMap = Map.Make(String)
 module ModuleNameMap = Map.Make(String)
 
 module SignatureNameMap = Map.Make(String)
-
-type pattern =
-  | IPUnit
-  | IPBool        of bool
-  | IPInt         of int
-  | IPChar        of Uchar.t
-      [@printer (fun ppf uchar -> Format.fprintf ppf "IPChar(%a)" pp_uchar uchar)]
-  | IPVar         of local_name
-  | IPWildCard
-  | IPListNil
-  | IPListCons    of pattern * pattern
-  | IPTuple       of pattern TupleList.t
-  | IPConstructor of ConstructorID.t * pattern list
-[@@deriving show { with_path = false; } ]
-
-type type_opacity = TypeID.t * poly_kind
-
-type 'a abstracted = OpaqueIDSet.t * 'a
-
-type constructor_entry = {
-  belongs         : TypeID.Variant.t;
-  constructor_id  : ConstructorID.t;
-  type_variables  : BoundID.t list;
-  parameter_types : poly_type list;
-}
-
-type val_binding =
-  | INonRec   of (identifier * global_name * poly_type * ast)
-  | IRec      of (identifier * global_name * poly_type * ast) list
-  | IExternal of global_name * string
-
-and binding =
-  | IBindVal     of val_binding
-  | IBindModule  of space_name * binding list
-
-and ast =
-  | IBaseConst   of base_constant
-  | IVar         of name
-  | ILambda      of local_name option * local_name list * local_name LabelAssoc.t * (local_name * ast option) LabelAssoc.t * ast
-  | IApply       of name * mono_row * ast list * ast LabelAssoc.t * ast LabelAssoc.t
-  | ILetIn       of local_name * ast * ast
-  | ICase        of ast * branch list
-  | IReceive     of branch list
-  | ITuple       of ast TupleList.t
-  | IListNil
-  | IListCons    of ast * ast
-  | IConstructor of ConstructorID.t * ast list
-  | IRecord      of ast LabelAssoc.t
-  | IRecordAccess of ast * label
-  | IRecordUpdate of ast * label * ast
-  | IFreeze       of global_name * ast list
-  | IFreezeUpdate of ast * ast list
-
-and branch =
-  | IBranch of pattern * ast
-
-
-let pp_sep_comma ppf () =
-  Format.fprintf ppf ",@ "
-
-
-let rec pp_val_binding_sub ppf (gname, e) =
-  Format.fprintf ppf "%a =@[<hov>@ %a@]@,"
-    OutputIdentifier.pp_global gname
-    pp_ast e
-
-
-and pp_val_binding ppf = function
-  | INonRec(_, gname, _, e) ->
-      Format.fprintf ppf "val %a"
-        pp_val_binding_sub (gname, e)
-
-  | IRec(recbinds) ->
-      let pairs = recbinds |> List.map (fun (_, gname, _, e) -> (gname, e)) in
-      Format.fprintf ppf "val %a"
-        (Format.pp_print_list ~pp_sep:pp_sep_comma pp_val_binding_sub) pairs
-
-  | IExternal(gname, code) ->
-      Format.fprintf ppf "val %a = external@ \"%s\"@,"
-        OutputIdentifier.pp_global gname
-        code
-
-
-and pp_binding ppf = function
-  | IBindVal(valbind) ->
-      pp_val_binding ppf valbind
-
-  | IBindModule(sname, ibinds) ->
-      Format.fprintf ppf "module %a = @[<v2>{%a}@]@,"
-        OutputIdentifier.pp_space sname
-        (Format.pp_print_list pp_binding) ibinds
-
-
-and pp_ast ppf = function
-  | IBaseConst(bc) ->
-      pp_base_constant ppf bc
-
-  | IVar(name) ->
-      OutputIdentifier.pp ppf name
-
-  | ILambda(lnamerecopt, lnameparams, mndnamemap, optnamemap, e) ->
-      let snamerec =
-        match lnamerecopt with
-        | Some(lnamerec) -> Format.asprintf "%a" OutputIdentifier.pp_local lnamerec
-        | None           -> ""
-      in
-      Format.fprintf ppf "\\%s(%a -{%a} ?{%a}) ->@[<hov2>@ %a@]"
-        snamerec
-        (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameparams
-        (LabelAssoc.pp OutputIdentifier.pp_local) mndnamemap
-        (LabelAssoc.pp (fun ppf (lname, astopt) ->
-          match astopt with
-          | None ->
-              Format.fprintf ppf "%a"
-                OutputIdentifier.pp_local lname
-
-          | Some(ast) ->
-              Format.fprintf ppf "%a = %a"
-                OutputIdentifier.pp_local lname
-                pp_ast ast
-        )) optnamemap
-        pp_ast e
-
-  | IApply(name, _, eargs, mndargmap, optargmap) ->
-      Format.fprintf ppf "%a@[<hov2>(%a -{%a} ?{%a})@]"
-        OutputIdentifier.pp name
-        (Format.pp_print_list ~pp_sep:pp_sep_comma pp_ast) eargs
-        (LabelAssoc.pp pp_ast) mndargmap
-        (LabelAssoc.pp pp_ast) optargmap
-
-  | ILetIn(lname, e1, e2) ->
-      Format.fprintf ppf "(let %a =@[<hov2>@ %a@]@ in@ %a)"
-        OutputIdentifier.pp_local lname
-        pp_ast e1
-        pp_ast e2
-
-  | ICase(e0, ibrs) ->
-      Format.fprintf ppf "(case@[<hov2>@ %a@]@ of@[<hov2>@ %a@]@ end)"
-        pp_ast e0
-        (Format.pp_print_list pp_branch) ibrs
-
-  | ITuple(es) ->
-      Format.fprintf ppf "{%a}"
-        (Format.pp_print_list ~pp_sep:pp_sep_comma pp_ast) (es |> TupleList.to_list)
-
-  | _ ->
-      Format.fprintf ppf "..."
-
-
-and pp_branch ppf = function
-  | IBranch(ipat, e) ->
-      Format.fprintf ppf "%a ->@[<hov2>@ %a@];@ "
-        pp_pattern ipat
-        pp_ast e
-
-
-module GlobalNameMap = Map.Make(OutputIdentifier.Global)
-
-type global_name_map = string GlobalNameMap.t
-(* The type for maps tracking which module every global name belongs to.
-   This is used by 'Primitives' and 'OutputErlangCode'. *)
-
-type address = module_name Alist.t

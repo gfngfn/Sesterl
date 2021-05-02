@@ -1,0 +1,18 @@
+module TestFirstClassModule = struct
+  module Sub = struct
+    type t = int
+    val compare(n1, n2) = n2 - n1
+  end
+
+  signature Ord = sig
+    type t
+    val compare : fun(t, t) -> int
+  end
+
+  val f(x : pack Ord) =
+    x
+
+  val main(args) =
+    print_debug(f(pack Sub : Ord))
+
+end

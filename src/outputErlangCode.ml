@@ -1,6 +1,7 @@
 
 open MyUtil
 open Syntax
+open IntermediateSyntax
 
 
 let fresh_local_symbol () =
@@ -8,17 +9,17 @@ let fresh_local_symbol () =
 
 
 type val_binding_output =
-  | OBindVal         of global_name * local_name list * local_name LabelAssoc.t * (local_name * ast option) LabelAssoc.t * global_name_map * ast
+  | OBindVal         of global_name * local_name list * local_name LabelAssoc.t * (local_name * ast option) LabelAssoc.t * name_map * ast
   | OBindValExternal of global_name * string
 
 type module_binding_output =
   | OBindModule of string * val_binding_output list
 
 
-let traverse_val_single (gmap : global_name_map) (_, gnamefun, _, ast) : val_binding_output =
+let traverse_val_single (nmap : name_map) (_, gnamefun, _, ast) : val_binding_output =
   match ast with
   | ILambda(None, lnames, mndnamemap, optnamemap, ast0) ->
-      OBindVal(gnamefun, lnames, mndnamemap, optnamemap, gmap, ast0)
+      OBindVal(gnamefun, lnames, mndnamemap, optnamemap, nmap, ast0)
 
   | _ ->
       assert false
@@ -28,9 +29,11 @@ let make_module_string (spacepath : space_name Alist.t) : string =
   spacepath |> Alist.to_list |> List.map OutputIdentifier.output_space |> String.concat "_"
 
 
-let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name Alist.t) (ibinds : binding list) : module_binding_output list * global_name_map =
+let rec traverse_binding_list (sname : space_name) ((gmap, smap) : name_map) (spacepath : space_name Alist.t) (ibinds : binding list) : module_binding_output list * name_map =
 
   let smod = make_module_string spacepath in
+
+  let smap = smap |> SpaceNameMap.add sname smod in
 
   (* Associates value identifiers in the current space with `spacepath` beforehand. *)
   let gmap =
@@ -54,21 +57,23 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
     ) gmap
   in
 
+  let nmap = (gmap, smap) in
+
   (* Traverses all the submodules. *)
-  let (omodbindacc, gmap) =
-    ibinds |> List.fold_left (fun ((omodbindacc, gmap) as original) ibind ->
+  let (omodbindacc, nmap) =
+    ibinds |> List.fold_left (fun ((omodbindacc, nmap) as original) ibind ->
       match ibind with
       | IBindVal(_) ->
           original
 
-      | IBindModule(sname, ibindssub) ->
-          let (omodbindssub, gmap) =
-            let spacepathsub = Alist.extend spacepath sname in
-            traverse_binding_list gmap spacepathsub ibindssub
+      | IBindModule(snamesub, ibindssub) ->
+          let (omodbindssub, nmap) =
+            let spacepathsub = Alist.extend spacepath snamesub in
+            traverse_binding_list snamesub nmap spacepathsub ibindssub
           in
-          (Alist.append omodbindacc omodbindssub, gmap)
+          (Alist.append omodbindacc omodbindssub, nmap)
 
-    ) (Alist.empty, gmap)
+    ) (Alist.empty, nmap)
   in
 
   (* Constructs the output module corresponding to the current space (if not empty). *)
@@ -76,8 +81,8 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
     let ovalbinds =
       ibinds |> List.map (fun ibind ->
         match ibind with
-        | IBindVal(INonRec(valbind))       -> [ traverse_val_single gmap valbind ]
-        | IBindVal(IRec(valbinds))         -> valbinds |> List.map (traverse_val_single gmap)
+        | IBindVal(INonRec(valbind))       -> [ traverse_val_single nmap valbind ]
+        | IBindVal(IRec(valbinds))         -> valbinds |> List.map (traverse_val_single nmap)
         | IBindVal(IExternal(gname, code)) -> [ OBindValExternal(gname, code) ]
         | IBindModule(_)                   -> []
       ) |> List.concat
@@ -91,7 +96,7 @@ let rec traverse_binding_list (gmap : global_name_map) (spacepath : space_name A
         Alist.extend omodbindacc omodbind
   in
 
-  (Alist.to_list omodbindacc, gmap)
+  (Alist.to_list omodbindacc, nmap)
 
 
 let unit_atom = "ok"
@@ -152,19 +157,19 @@ let stringify_base_constant (bc : base_constant) =
       Printf.sprintf "{\"%s\", %d}" s arity
 
 
-let get_module_string (gmap : global_name_map) (gname : global_name) : string =
+let get_module_string ((gmap, _) : name_map) (gname : global_name) : string =
   match gmap |> GlobalNameMap.find_opt gname with
   | None       -> assert false
   | Some(smod) -> smod
 
 
-let stringify_single (gmap : global_name_map) = function
+let stringify_single (nmap : name_map) = function
   | OutputIdentifier.Local(lname) ->
       OutputIdentifier.output_local lname
 
   | OutputIdentifier.Global(gname) ->
       let r = OutputIdentifier.output_global gname in
-      let smod = get_module_string gmap gname in
+      let smod = get_module_string nmap gname in
       let arity = if r.has_option then r.arity + 1 else r.arity in
       Printf.sprintf "(fun %s:%s/%d)"
         smod
@@ -189,7 +194,7 @@ let make_mandatory_parameters (ordlnames : local_name list) (mndnamemap : local_
   List.append ordlnames mndlnames
 
 
-let rec stringify_option_decoding_operation (gmap : global_name_map) (sname_map : string) (optnamemap : (local_name * ast option) LabelAssoc.t) : string =
+let rec stringify_option_decoding_operation (nmap : name_map) (sname_map : string) (optnamemap : (local_name * ast option) LabelAssoc.t) : string =
   LabelAssoc.fold (fun label (lname, default) acc ->
     let sname = OutputIdentifier.output_local lname in
     let s =
@@ -209,14 +214,14 @@ let rec stringify_option_decoding_operation (gmap : global_name_map) (sname_map 
             Primitives.decode_option_function_with_default
             sname_map
             label
-            (stringify_ast gmap ast)
+            (stringify_ast nmap ast)
     in
     Alist.extend acc s
   ) optnamemap Alist.empty |> Alist.to_list |> String.concat ""
 
 
-and stringify_arguments gmap mrow ordastargs mndargmap optargmap =
-  let iter = stringify_ast gmap in
+and stringify_arguments (nmap : name_map) mrow ordastargs mndargmap optargmap =
+  let iter = stringify_ast nmap in
   let astargs =
     let mndastargs =
       mndargmap |> LabelAssoc.bindings |> List.map (fun (_, ast) -> ast)
@@ -225,17 +230,17 @@ and stringify_arguments gmap mrow ordastargs mndargmap optargmap =
     List.append ordastargs mndastargs
   in
   let sargs = astargs |> List.map iter in
-  let soptmap = mapify_label_assoc gmap optargmap in
+  let soptmap = mapify_label_assoc nmap optargmap in
   let can_take_optional = TypeConv.can_row_take_optional mrow in
   let no_mandatory_argument = (List.length astargs = 0) in
   (sargs, soptmap, can_take_optional, no_mandatory_argument)
 
 
-and stringify_ast (gmap : global_name_map) (ast : ast) =
-  let iter = stringify_ast gmap in
+and stringify_ast (nmap : name_map) (ast : ast) =
+  let iter = stringify_ast nmap in
   match ast with
   | IVar(name) ->
-      stringify_single gmap name
+      stringify_single nmap name
 
   | IBaseConst(bc) ->
       stringify_base_constant bc
@@ -260,7 +265,7 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
       else
         let sparamscatcomma = snames |> List.map (fun s -> s ^ ", ") |> String.concat "" in
         let sname_map = fresh_local_symbol () in
-        let sgetopts = stringify_option_decoding_operation gmap sname_map optnamemap in
+        let sgetopts = stringify_option_decoding_operation nmap sname_map optnamemap in
         Printf.sprintf "fun%s(%s%s) -> %s%s end"
           srec
           sparamscatcomma
@@ -270,7 +275,7 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
 
   | IApply(name, mrow, ordastargs, mndargmap, optargmap) ->
       let (sargs, soptmap, can_take_optional, no_mandatory_argument) =
-        stringify_arguments gmap mrow ordastargs mndargmap optargmap
+        stringify_arguments nmap mrow ordastargs mndargmap optargmap
       in
       begin
         match (name, sargs) with
@@ -294,7 +299,7 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
 
         | (OutputIdentifier.Global(gname), _) ->
             let r = OutputIdentifier.output_global gname in
-            let smod = get_module_string gmap gname in
+            let smod = get_module_string nmap gname in
             let sfun = r.function_name in
             let sopts =
               if LabelAssoc.cardinal optargmap = 0 then
@@ -326,7 +331,7 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
   | IFreeze(gname, astargs) ->
       let sargs = List.map iter astargs in
       let r = OutputIdentifier.output_global gname in
-      let smod = get_module_string gmap gname in
+      let smod = get_module_string nmap gname in
       let sfun = r.function_name in
       Printf.sprintf "{%s, %s, [%s]}"
         smod
@@ -350,7 +355,7 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
         (String.concat ", " sargs)
 
   | IRecord(emap) ->
-      let s = mapify_label_assoc gmap emap in
+      let s = mapify_label_assoc nmap emap in
       Printf.sprintf "#{%s}" s
 
   | IRecordAccess(ast1, label) ->
@@ -377,11 +382,11 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
 
   | ICase(ast0, branches) ->
       let s0 = iter ast0 in
-      let sbrs = branches |> List.map (stringify_branch gmap) in
+      let sbrs = branches |> List.map (stringify_branch nmap) in
       Printf.sprintf "case %s of %s end" s0 (String.concat "; " sbrs)
 
   | IReceive(branches) ->
-      let sbrs = branches |> List.map (stringify_branch gmap) in
+      let sbrs = branches |> List.map (stringify_branch nmap) in
       Printf.sprintf "receive %s end" (String.concat "; " sbrs)
 
   | ITuple(es) ->
@@ -408,20 +413,28 @@ and stringify_ast (gmap : global_name_map) (ast : ast) =
             Printf.sprintf "{%s, %s}" sctor (String.concat ", " ss)
       end
 
+  | IPack(sname) ->
+      let (_, smap) = nmap in
+      begin
+        match smap |> SpaceNameMap.find_opt sname with
+        | None       -> assert false
+        | Some(smod) -> smod
+      end
 
-and mapify_label_assoc (gmap : global_name_map) (emap : ast LabelAssoc.t) =
+
+and mapify_label_assoc (nmap : name_map) (emap : ast LabelAssoc.t) =
   LabelAssoc.fold (fun label ast acc ->
-    let sarg = stringify_ast gmap ast in
+    let sarg = stringify_ast nmap ast in
     let s = Printf.sprintf "%s => %s" label sarg in
     Alist.extend acc s
   ) emap Alist.empty |> Alist.to_list |> String.concat ", "
 
 
-and stringify_branch (gmap : global_name_map) (br : branch) =
+and stringify_branch (nmap : name_map) (br : branch) =
   match br with
   | IBranch(pat, ast1) ->
       let spat = stringify_pattern pat in
-      let s1 = stringify_ast gmap ast1 in
+      let s1 = stringify_ast nmap ast1 in
       Printf.sprintf "%s -> %s" spat s1
 
 
@@ -573,21 +586,21 @@ let write_primitive_module (dir_out : string) : unit =
   write_file dir_out smod lines
 
 
-let main (dir_out : string) (gmap : global_name_map) ~package_name:(pkgnameopt : space_name option) ~module_name:(sname : space_name) (ibinds : binding list) : global_name_map =
+let main (dir_out : string) (nmap : name_map) ~package_name:(pkgnameopt : space_name option) ~module_name:(sname : space_name) (ibinds : binding list) : name_map =
 (*
   Format.printf "OutputErlangCode | package: %a, module: %a\n"
     OutputIdentifier.pp_space pkgname
     OutputIdentifier.pp_space sname;  (* for debug *)
 *)
-  let (omodbinds, gmap_after) =
+  let (omodbinds, nmap_after) =
     let spacepath =
       match pkgnameopt with
       | Some(pkgname) -> Alist.extend (Alist.extend Alist.empty pkgname) sname
       | None          -> Alist.extend Alist.empty sname
     in
-    traverse_binding_list gmap spacepath ibinds
+    traverse_binding_list sname nmap spacepath ibinds
   in
   omodbinds |> List.iter (fun omodbind ->
     write_module_to_file dir_out omodbind
   );
-  gmap_after
+  nmap_after

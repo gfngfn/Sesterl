@@ -1,5 +1,9 @@
 
-type space = IdentifierScheme.t
+type space =
+  | ReprSpace of {
+      number : int;
+      main   : IdentifierScheme.t;
+    }
 
 type local =
   | ReprLocal of {
@@ -34,19 +38,31 @@ type global_answer = {
 }
 
 
-let space_of_module_name : string -> space option =
-  IdentifierScheme.from_upper_camel_case
-
-
-let space_of_package_name : string -> space option =
-  IdentifierScheme.from_snake_case
-
-
 let fresh_number : unit -> int =
   let current_max = ref 0 in
   (fun () ->
     incr current_max;
     !current_max
+  )
+
+
+let space_of_module_name (s : string) : space option =
+  let n = fresh_number () in
+  IdentifierScheme.from_upper_camel_case s |> Option.map (fun space ->
+    ReprSpace{
+      number = n;
+      main   = space;
+    }
+  )
+
+
+let space_of_package_name (s : string) : space option =
+  let n = fresh_number () in
+  IdentifierScheme.from_snake_case s |> Option.map (fun space ->
+    ReprSpace{
+      number = n;
+      main   = space;
+    }
   )
 
 
@@ -88,6 +104,17 @@ let unused : local =
   ReprUnused
 
 
+module Space = struct
+
+  type t = space
+
+
+  let compare (ReprSpace(sname1)) (ReprSpace(sname2)) =
+    Int.compare sname2.number sname1.number
+
+end
+
+
 module Local = struct
 
   type t = local
@@ -118,8 +145,8 @@ module Global = struct
 end
 
 
-let output_space =
-  IdentifierScheme.to_snake_case
+let output_space (ReprSpace(sname) : space) =
+  IdentifierScheme.to_snake_case sname.main
 
 
 let output_local = function
@@ -154,8 +181,8 @@ let output_operator = function
       s
 
 
-let pp_space =
-  IdentifierScheme.pp
+let pp_space ppf (ReprSpace(sname) : space) =
+  Format.fprintf ppf "%a" IdentifierScheme.pp sname.main
 
 
 let pp_local ppf = function

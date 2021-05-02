@@ -88,7 +88,7 @@
     (rng, DeclInclude((dr, SigWith((dr, SigDecls(decls)), [], tybinds))))
 %}
 
-%token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE ACT END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE
+%token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE ACT END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE PACK
 %token<Range.t> LPAREN RPAREN LSQUARE RSQUARE LBRACE RBRACE
 %token<Range.t> DEFEQ COMMA ARROW REVARROW BAR UNDERSCORE CONS COLON COERCE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
@@ -552,6 +552,10 @@ exprapp:
       let rng = make_range (Ranged(efun)) (Token(tokR)) in
       (rng, Apply(efun, (ordargs, mndargs, optargs)))
     }
+  | tokL=PACK; modchain=modchainraw; COLON; utsig=sigexprbot {
+      let rng = make_range (Token(tokL)) (Ranged(utsig)) in
+      (rng, Pack(modchain, utsig))
+    }
   | tokL=FREEZE; modchain=modchainraw; ident=DOTLOWER; LPAREN; args=freezeargs; tokR=RPAREN {
       let (ordargs, rngs) = args in
       let ((rng1, _), _) = modchain in
@@ -844,6 +848,10 @@ tybot:
   | tokL=LBRACE; tyrecord=tyrecord; tokR=RBRACE {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
       (rng, MRecordType(tyrecord))
+    }
+  | tokL=PACK; utsig=sigexprbot {
+      let rng = make_range (Token(tokL)) (Ranged(utsig)) in
+      (rng, MPackType(utsig))
     }
 ;
 tycod:

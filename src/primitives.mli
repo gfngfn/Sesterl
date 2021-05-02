@@ -1,5 +1,6 @@
 
 open Syntax
+open IntermediateSyntax
 open Env
 
 val primitive_module_name : string
@@ -34,4 +35,4 @@ val format_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ
 
 val frozen_type : Range.t -> rest:('a, 'b) typ -> receive:('a, 'b) typ -> return:('a, 'b) typ -> ('a, 'b) typ
 
-val initial_environment : Typeenv.t * global_name_map
+val initial_environment : Typeenv.t * name_map

@@ -1,5 +1,6 @@
 
 open Syntax
+open Env
 
 val find_synonym_type : TypeID.Synonym.t -> BoundID.t list * poly_type
 

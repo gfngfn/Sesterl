@@ -1,8 +1,9 @@
 
 open MyUtil
 open Syntax
-open Errors
+open IntermediateSyntax
 open Env
+open Errors
 
 
 module SigRecordMap = Map.Make(String)

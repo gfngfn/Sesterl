@@ -11,4 +11,4 @@ val hash : t -> int
 
 val compare : t -> t -> int
 
-val pp_raw : Format.formatter -> t -> unit
+val pp : Format.formatter -> t -> unit
