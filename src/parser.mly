@@ -849,6 +849,10 @@ tybot:
       let rng = make_range (Token(tokL)) (Token(tokR)) in
       (rng, MRecordType(tyrecord))
     }
+  | tokL=PACK; utsig=sigexprbot {
+      let rng = make_range (Token(tokL)) (Ranged(utsig)) in
+      (rng, MPackType(utsig))
+    }
 ;
 tycod:
   | mtycod=ty {

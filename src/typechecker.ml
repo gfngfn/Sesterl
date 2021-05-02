@@ -1145,6 +1145,10 @@ and decode_manual_type_scheme (k : TypeID.t -> unit) (pre : pre) (mty : manual_t
                         raise_error (InvalidNumberOfTypeArguments(rng, tynm2, arity_expected, arity_actual))
                 end
           end
+
+      | MPackType(utsig) ->
+          let absmodsig = typecheck_signature Alist.empty tyenv utsig in
+          PackType(absmodsig)
     in
     (rng, tymain)
 

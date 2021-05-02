@@ -148,6 +148,7 @@ and manual_type_main =
   | MEffType     of manual_domain_type * manual_type * manual_type
   | MTypeVar     of type_variable_name
   | MModProjType of untyped_module * type_name ranged * manual_type list
+  | MPackType    of untyped_signature
 
 and manual_domain_type =
   manual_type list * labeled_manual_type list * manual_row
