@@ -131,6 +131,13 @@ let report_package_error (e : package_error) : unit =
       Format.printf "package directory '%s' not found\n"
         absdir
 
+  | NotFoundInExternalMap(pkgname, external_map) ->
+      let knowns = external_map |> ExternalMap.bindings in
+      Format.printf "package '%s' not found in:\n" pkgname;
+      knowns |> List.iter (fun (name, path) ->
+        Format.printf "  - %s (%s)\n" name path
+      )
+
 
 let pp_type_parameter_list dispmap ppf bids =
   match bids with

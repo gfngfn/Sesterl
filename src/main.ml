@@ -51,7 +51,7 @@ let build (fpath_in : string) (dir_out : string) (is_verbose : bool) (externals 
       let dir = Sys.getcwd () in
       make_absolute_path dir fpath_in
     in
-    let _external_map =
+    let external_map =
       externals |> List.fold_left (fun map s ->
         match String.split_on_char ':' s with
         | [pkgname; path] -> map |> ExternalMap.add pkgname path
@@ -72,7 +72,7 @@ let build (fpath_in : string) (dir_out : string) (is_verbose : bool) (externals 
             assert (is_existing_directory abspath_in);
               (* The existence of given directories has been checked by 'cmdliner'. *)
             let absdir_in = abspath_in in
-            let pkgconfigs = PackageLoader.main absdir_in in
+            let pkgconfigs = PackageLoader.main external_map absdir_in in
             pkgconfigs |> List.map (fun (_, config) ->
               let pkg = SourceLoader.main config in
               (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.submodules, pkg.SourceLoader.main_module)
