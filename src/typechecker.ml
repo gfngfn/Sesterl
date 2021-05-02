@@ -2267,6 +2267,15 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
     | (RecordType(plabmap1), RecordType(plabmap2)) ->
         aux_label_assoc plabmap1 plabmap2
 
+    | (PackType(absmodsig1), PackType(absmodsig2)) ->
+        begin
+          try
+            subtype_abstract_with_abstract Alist.empty (Range.dummy "subtype_poly_type") absmodsig1 absmodsig2;
+            true
+          with
+          | _ -> false
+        end
+
     | (TypeVar(Bound(bid1)), _) ->
         let b =
           match ptymain2 with
