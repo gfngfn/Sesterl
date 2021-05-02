@@ -1,7 +1,11 @@
 {"1.1.0",
 [{<<"cowboy">>,{pkg,<<"cowboy">>,<<"2.8.0">>},0},
  {<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.9.1">>},1},
- {<<"ranch">>,{pkg,<<"ranch">>,<<"1.7.1">>},1}]}.
+ {<<"ranch">>,{pkg,<<"ranch">>,<<"1.7.1">>},1},
+ {<<"sesterl_stdlib">>,
+  {git,"https://github.com/gfngfn/sesterl_stdlib",
+       {ref,"e3d82406fa96d15523c4b33e52f3b647da897809"}},
+  0}]}.
 [
 {pkg_hash,[
  {<<"cowboy">>, <<"F3DC62E35797ECD9AC1B50DB74611193C29815401E53BAC9A5C0577BD7BC667D">>},
