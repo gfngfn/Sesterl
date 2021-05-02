@@ -8,7 +8,7 @@
 * ADTs and pattern matching
 * The standard *Damas–Milner polymorphism* (i.e. so-called the *let-polymorphism*) and *Hindley–Milner type inference* \[Hindley 1969\]\[Milner 1978\]
 * Type-level distinction between pure calculations and concurrent computations by a kind of monads \[Fowler 2019\]
-* A module system equipped with functors based on *F-ing modules* \[Rossberg, Russo & Dreyer 2014\]
+* A module system equipped with functors and first-class modules based on *F-ing modules* \[Rossberg, Russo & Dreyer 2014\]
 
 
 ## Table of contents
@@ -105,23 +105,23 @@ $ sesterl outer/foo -o _generated
 After executing the command above, resulting Erlang source files will be found in `_generated`.
 
 
-### Building with rebar3
+### Building with Rebar3
 
-[*rebar3*](https://github.com/erlang/rebar3) is a popular build system for Erlang programs. Sesterl can collaborate with rebar3.
+[*Rebar3*](https://github.com/erlang/rebar3) is a popular build system for Erlang programs. Sesterl can collaborate with Rebar3.
 
 Based on a configuration file (i.e., `package.yaml`), the following command will generate `rebar.config`:
 
 ```console
-$ sesterl config .
+$ sesterl config ./
 ```
 
-Then you can invoke the following command to compile Sesterl programs before rebar3 compiles Erlang code:
+Then you can invoke the following command to compile Sesterl programs before Rebar3 compiles Erlang code:
 
 ```console
 $ rebar3 sesterl compile
 ```
 
-Here, `sesterl` is a name space of rebar3 commands for compiling Sesterl programs, and is introduced by a plugin [`rebar_sesterl`](https://github.com/gfngfn/rebar_sesterl_plugin).
+Here, `sesterl` is a name space of Rebar3 commands for compiling Sesterl programs, and is introduced by plugin [`rebar_sesterl`](https://github.com/gfngfn/rebar_sesterl_plugin).
 
 
 ## Example code
@@ -660,7 +660,6 @@ Also, though not supporting them currently, we want to add features like the fol
   - The formalization of such a type system and a type inference algorithm will probably be based on *choice types* \[Chen & Erwig 2016\].
 * Support (multiparty) session types.
   - Type checking based on session types may well be optional or something like gradual types. This is because message passing is quite frequent in typical uses of Erlang-style concurrency and thereby strict assertion for sessions may rather complicate in the short term how to program concurrent computations.
-* Connection with [rebar3](https://github.com/erlang/rebar3).
 
 
 ### TODO list
@@ -698,15 +697,15 @@ Also, though not supporting them currently, we want to add features like the fol
   * [x] `case`-expressions
   * [x] Generalized `let`-expressions
   * [ ] Exhaustiveness check
-* [ ] Module system
+* [x] Module system
   * [x] Support for F-ing modules
   * [x] Compilation using the static interpretation
-  * [ ] First-class modules
+  * [x] First-class modules
 * [x] Configuration
   * [x] Loading external modules by `require`
   * [x] Package system
   * [x] Embedding external modules as submodules
-  * [x] Connection with rebar3
+  * [x] Connection with Rebar3
 * [ ] (Multiparty) session types
 
 
@@ -729,8 +728,8 @@ How to read:
 
 ```
 n ::= (a decimal or hexadecimal integer literal)
-float ::= (a floating-point number liteal)
-bin ::= (a string literal enclosed by double quotation marks)
+float-lit ::= (a floating-point number liteal)
+bin-lit ::= (a string literal enclosed by double quotation marks)
 X, C ::= (a capitalized identifier)
 x, t, k, l ::= (a lowercased identifier other than keywords)
 $a ::= (a lowercased identifier preceded by a dollar sign)
@@ -762,11 +761,12 @@ E ::=
   | '{' E '|' l '=' E (',' l '=' E)* (',')? '}'     # a record update
   | 'freeze' (X '.')* x '(' freeze-args ')'         # so-called a (possibly partial) mfargs() in Erlang
   | 'freeze' '(' E ')' 'with' '(' freeze-args ')'   # addition of arguments to a partial mfargs()
+  | 'pack' M ':' S                                  # a packed first-class module
   | E '::' E                                        # so-called a cons
   | '[' ']'                                         # so-called a nil
   | n
-  | float
-  | bin
+  | float-lit
+  | bin-lit
   | 'true'
   | 'false'
   | ...
@@ -822,6 +822,7 @@ T ::=
   | 'fun' '(' ty-doms ')' '->' '[' T ']' T   # an action type
   | '{' T (',' T)* (',')? '}'                # a product type
   | '{' l '=' T (',' l '=' T)* (',')? '}'    # a record type
+  | 'pack' S                                 # a type for first-class modules
 
 # a sequence of domain types:
 ty-doms ::=
