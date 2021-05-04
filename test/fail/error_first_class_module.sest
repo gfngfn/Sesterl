@@ -1,0 +1,6 @@
+module ErrorFirstClassModule :> sig
+  val f : fun(pack sig end) -> int
+end = struct
+  val f(x : pack sig val n : int end) = 3
+end
+/* Unsoundness reported by `@elpinal` https://twitter.com/elpin1al/status/1389366123246673921?s=20 */

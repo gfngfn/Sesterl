@@ -2270,7 +2270,8 @@ and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> po
     | (PackType(absmodsig1), PackType(absmodsig2)) ->
         begin
           try
-            subtype_abstract_with_abstract Alist.empty (Range.dummy "subtype_poly_type") absmodsig1 absmodsig2;
+            subtype_abstract_with_abstract Alist.empty (Range.dummy "subtype_poly_type1") absmodsig1 absmodsig2;
+            subtype_abstract_with_abstract Alist.empty (Range.dummy "subtype_poly_type2") absmodsig2 absmodsig1;
             true
           with
           | _ -> false
