@@ -2,7 +2,7 @@
     {description, "An example echo server written in Sesterl"},
     {vsn, "0.1.0"},
     {registered, []},
-    {mod, {echo_server_app, []}},
+    {mod, {'EchoServer.App', []}},
     {applications, [
         kernel,
         stdlib,
