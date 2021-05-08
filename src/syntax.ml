@@ -3,6 +3,14 @@ open MyUtil
 
 module TupleList = List1
 
+type module_name_output_spec =
+  | SingleSnake
+  | DottedCamels
+
+type output_spec = {
+  module_name_output_spec : module_name_output_spec;
+}
+
 type package_name = string
 
 module ExternalMap = Map.Make(String)

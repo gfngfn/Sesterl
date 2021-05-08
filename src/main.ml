@@ -94,12 +94,18 @@ let build (fpath_in : string) (dir_out : string) (is_verbose : bool) (externals 
       ) (tyenv, Alist.empty)
     in
 
+    let spec =
+      {
+        module_name_output_spec = DottedCamels;
+      }
+    in
+
     (* Generate and output code corresponding to each package. *)
     Core.Unix.mkdir_p dir_out;
     let (_, gmap) = Primitives.initial_environment in
     pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, outs) ->
       outs |> List.fold_left (fun gmap (sname, binds) ->
-        OutputErlangCode.main dir_out gmap ~package_name:pkgnameopt ~module_name:sname binds
+        OutputErlangCode.main spec dir_out gmap ~package_name:pkgnameopt ~module_name:sname binds
       ) gmap
     ) gmap |> ignore;
     OutputErlangCode.write_primitive_module dir_out
