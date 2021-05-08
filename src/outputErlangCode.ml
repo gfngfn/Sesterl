@@ -13,7 +13,7 @@ type val_binding_output =
   | OBindValExternal of global_name * string
 
 type module_binding_output =
-  | OBindModule of string * val_binding_output list
+  | OBindModule of { basename : string; atom : string; bindings : val_binding_output list }
 
 
 let traverse_val_single (nmap : name_map) (_, gnamefun, _, ast) : val_binding_output =
@@ -39,7 +39,7 @@ let make_module_string (spec : output_spec) (spacepath : space_name Alist.t) : s
 
 let rec traverse_binding_list (spec : output_spec) (sname : space_name) ((gmap, smap) : name_map) (spacepath : space_name Alist.t) (ibinds : binding list) : module_binding_output list * name_map =
 
-  let (smod, smod_atom) = make_module_string spec spacepath in
+  let (smod_basename, smod_atom) = make_module_string spec spacepath in
 
   let smap = smap |> SpaceNameMap.add sname smod_atom in
 
@@ -49,16 +49,16 @@ let rec traverse_binding_list (spec : output_spec) (sname : space_name) ((gmap, 
       match ibind with
       | IBindVal(INonRec(valbind)) ->
           let (_, gnamefun, _, _) = valbind in
-          gmap |> GlobalNameMap.add gnamefun smod
+          gmap |> GlobalNameMap.add gnamefun smod_atom
 
       | IBindVal(IRec(valbinds)) ->
           valbinds |> List.fold_left (fun gmap valbind ->
             let (_, gnamefun, _, _) = valbind in
-            gmap |> GlobalNameMap.add gnamefun smod
+            gmap |> GlobalNameMap.add gnamefun smod_atom
           ) gmap
 
       | IBindVal(IExternal(gnamefun, _)) ->
-          gmap |> GlobalNameMap.add gnamefun smod
+          gmap |> GlobalNameMap.add gnamefun smod_atom
 
       | IBindModule(_) ->
           gmap
@@ -100,7 +100,7 @@ let rec traverse_binding_list (spec : output_spec) (sname : space_name) ((gmap, 
         omodbindacc
 
     | _ :: _ ->
-        let omodbind = OBindModule(smod, ovalbinds) in
+        let omodbind = OBindModule{basename = smod_basename; atom = smod_atom; bindings = ovalbinds} in
         Alist.extend omodbindacc omodbind
   in
 
@@ -523,7 +523,7 @@ let stringify_val_binding_output : val_binding_output -> string list = function
 
 let stringify_module_binding_output (omodbind : module_binding_output) : string list =
   match omodbind with
-  | OBindModule(smod, ovalbinds) ->
+  | OBindModule{atom = smod_atom; bindings = ovalbinds} ->
       let exports =
         ovalbinds |> List.map (function
         | OBindVal(gnamefun, _, _, _, _, _)
@@ -542,14 +542,14 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
       in
       let ss = ovalbinds |> List.map stringify_val_binding_output |> List.concat in
       List.concat [
-        [ Printf.sprintf "-module(%s)." smod ];
+        [ Printf.sprintf "-module(%s)." smod_atom ];
         [ Printf.sprintf "-export([%s])." (String.concat ", " exports) ];
         ss;
       ]
 
 
-let write_file (dir_out : string) (smod : string) (lines : string list) : unit =
-  let fpath_out = Core.Filename.concat dir_out (Printf.sprintf "%s.erl" smod) in
+let write_file (dir_out : string) (smod_basename : string) (lines : string list) : unit =
+  let fpath_out = Core.Filename.concat dir_out (Printf.sprintf "%s.erl" smod_basename) in
   let fout = open_out fpath_out in
   lines |> List.iter (fun line ->
     output_string fout (line ^ "\n")
@@ -559,9 +559,9 @@ let write_file (dir_out : string) (smod : string) (lines : string list) : unit =
 
 
 let write_module_to_file (dir_out : string) (omodbind : module_binding_output) : unit =
-  let smod = match omodbind with OBindModule(smod, _) -> smod in
+  let smod_basename = match omodbind with OBindModule(r) -> r.basename in
   let lines = stringify_module_binding_output omodbind in
-  write_file dir_out smod lines
+  write_file dir_out smod_basename lines
 
 
 let write_primitive_module (dir_out : string) : unit =
