@@ -25,22 +25,23 @@ let traverse_val_single (nmap : name_map) (_, gnamefun, _, ast) : val_binding_ou
       assert false
 
 
-let make_module_string (spec : output_spec) (spacepath : space_name Alist.t) : string =
+let make_module_string (spec : output_spec) (spacepath : space_name Alist.t) : string * string =
   let spaces = spacepath |> Alist.to_list in
   match spec.module_name_output_spec with
   | SingleSnake ->
-      spaces |> List.map OutputIdentifier.output_space_to_snake |> String.concat "_"
+      let s = spaces |> List.map OutputIdentifier.output_space_to_snake |> String.concat "_" in
+      (s, s)
 
   | DottedCamels ->
       let s = spaces |> List.map OutputIdentifier.output_space_to_camel |> String.concat "." in
-      Printf.sprintf "'%s'" s
+      (s, Printf.sprintf "'%s'" s)
 
 
 let rec traverse_binding_list (spec : output_spec) (sname : space_name) ((gmap, smap) : name_map) (spacepath : space_name Alist.t) (ibinds : binding list) : module_binding_output list * name_map =
 
-  let smod = make_module_string spec spacepath in
+  let (smod, smod_atom) = make_module_string spec spacepath in
 
-  let smap = smap |> SpaceNameMap.add sname smod in
+  let smap = smap |> SpaceNameMap.add sname smod_atom in
 
   (* Associates value identifiers in the current space with `spacepath` beforehand. *)
   let gmap =
