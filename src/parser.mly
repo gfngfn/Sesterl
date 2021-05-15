@@ -729,14 +729,17 @@ patbot:
       let rng = make_range (Token(tokL)) (Token(tokR)) in
       (rng, PTuple(TupleList.make p1 pats))
     }
-  | ctor=UPPER {
-      let (rng, ctornm) = ctor in
-      (rng, PConstructor(ctornm, []))
+  | modchain=modchainraw {
+      let (tokL, modidents, ctor) = chop_last modchain in
+      let rng = make_range (Token(tokL)) (Ranged(ctor)) in
+      let (_, ctornm) = ctor in
+      (rng, PConstructor(modidents, ctornm, []))
     }
-  | ctor=UPPER; LPAREN; pats=pats; tokR=RPAREN {
-      let (tokL, ctornm) = ctor in
+  | modchain=modchainraw; LPAREN; pats=pats; tokR=RPAREN {
+      let (tokL, modidents, ctor) = chop_last modchain in
       let rng = make_range (Token(tokL)) (Token(tokR)) in
-      (rng, PConstructor(ctornm, pats))
+      let (_, ctornm) = ctor in
+      (rng, PConstructor(modidents, ctornm, pats))
     }
 ;
 pats:

@@ -282,7 +282,7 @@ and untyped_pattern_main =
   | PListNil
   | PListCons    of untyped_pattern * untyped_pattern
   | PTuple       of untyped_pattern TupleList.t
-  | PConstructor of constructor_name * untyped_pattern list
+  | PConstructor of (module_name ranged) list * constructor_name * untyped_pattern list
 [@@deriving show { with_path = false; } ]
 
 and untyped_module =
