@@ -1563,63 +1563,26 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       ) bindmap;
       (ty2, iletpatin ipat e1 e2)
 
-  | Constructor(modidents1, ctornm, utastargs) ->
+  | Constructor(modidents, ctornm, utastargs) ->
+      let (vid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng modidents ctornm in
       begin
-        match modidents1 with
-        | [] ->
-              let (vid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng ctornm in
-              begin
-                try
-                  let es =
-                    List.fold_left2 (fun acc ty_expected utast ->
-                      let (ty, e) = typecheck pre utast in
-                      unify ty ty_expected;
-                      Alist.extend acc e
-                    ) Alist.empty tys_expected utastargs |> Alist.to_list
-                  in
-                  let ty = (rng, DataType(TypeID.Variant(vid), tyargs)) in
-                  let e = IConstructor(ctorid, es) in
-                  (ty, e)
-                with
-                | Invalid_argument(_) ->
-                    let len_expected = List.length tys_expected in
-                    let len_actual = List.length utastargs in
-                    raise_error (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
-              end
+        match List.combine utastargs tys_expected with
+        | exception Invalid_argument(_) ->
+            let len_expected = List.length tys_expected in
+            let len_actual = List.length utastargs in
+            raise_error (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
 
-        | modident :: projs ->
-            let sigr1 = get_structure_signature pre.tyenv modident projs in
-            begin
-              match sigr1 |> SigRecord.find_constructor TypeDefinitionStore.find_variant_type ctornm with
-              | None ->
-                  raise_error (UndefinedConstructor(rng, ctornm))
-
-              | Some(ctorentry) ->
-                  let vid = ctorentry.belongs in
-                  let ctorid = ctorentry.constructor_id in
-                  let bids = ctorentry.type_variables in
-                  let ptys = ctorentry.parameter_types in
-                  let (tyargs, tys_expected) = TypeConv.instantiate_type_arguments pre.level bids ptys in
-                  begin
-                    match List.combine utastargs tys_expected with
-                    | exception Invalid_argument(_) ->
-                        let len_expected = List.length tys_expected in
-                        let len_actual = List.length utastargs in
-                        raise_error (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
-
-                    | zipped ->
-                        let eacc =
-                          zipped |> List.fold_left (fun eacc (utast, ty_expected) ->
-                            let (ty, e) = typecheck pre utast in
-                            unify ty ty_expected;
-                            Alist.extend eacc e
-                          ) Alist.empty
-                        in
-                        let ty = (rng, DataType(TypeID.Variant(vid), tyargs)) in
-                        let e = IConstructor(ctorid, Alist.to_list eacc) in
-                        (ty, e)
-                  end
-            end
+        | zipped ->
+            let eacc =
+              zipped |> List.fold_left (fun eacc (utast, ty_expected) ->
+                let (ty, e) = typecheck pre utast in
+                unify ty ty_expected;
+                Alist.extend eacc e
+              ) Alist.empty
+            in
+            let ty = (rng, DataType(TypeID.Variant(vid), tyargs)) in
+            let e = IConstructor(ctorid, Alist.to_list eacc) in
+            (ty, e)
       end
 
   | BinaryByList(nrs) ->
@@ -1937,14 +1900,34 @@ and typecheck_arguments_against_domain (pre : pre) (rng : Range.t) ((utastargs, 
   (eargs, mndargmap, optargmap)
 
 
-and typecheck_constructor (pre : pre) (rng : Range.t) (ctornm : constructor_name) =
-  match pre.tyenv |> Typeenv.find_constructor ctornm with
-  | None ->
-      raise_error (UndefinedConstructor(rng, ctornm))
+and typecheck_constructor (pre : pre) (rng : Range.t) (modidents : (module_name ranged) list) (ctornm : constructor_name) =
+  match modidents with
+  | [] ->
+      begin
+        match pre.tyenv |> Typeenv.find_constructor ctornm with
+        | None ->
+            raise_error (UndefinedConstructor(rng, ctornm))
 
-  | Some(tyid, ctorid, bids, ptys) ->
-      let (tyargs, tys_expected) = TypeConv.instantiate_type_arguments pre.level bids ptys in
-      (tyid, ctorid, tyargs, tys_expected)
+        | Some(vid, ctorid, bids, ptys) ->
+            let (tyargs, tys_expected) = TypeConv.instantiate_type_arguments pre.level bids ptys in
+            (vid, ctorid, tyargs, tys_expected)
+      end
+
+  | modident :: projs ->
+      let sigr1 = get_structure_signature pre.tyenv modident projs in
+      begin
+        match sigr1 |> SigRecord.find_constructor TypeDefinitionStore.find_variant_type ctornm with
+        | None ->
+            raise_error (UndefinedConstructor(rng, ctornm))
+
+        | Some(ctorentry) ->
+            let vid = ctorentry.belongs in
+            let ctorid = ctorentry.constructor_id in
+            let bids = ctorentry.type_variables in
+            let ptys = ctorentry.parameter_types in
+            let (tyargs, tys_expected) = TypeConv.instantiate_type_arguments pre.level bids ptys in
+            (vid, ctorid, tyargs, tys_expected)
+      end
 
 
 and typecheck_pure_case_branch (pre : pre) ~pattern:typatexp ~return:tyret (CaseBranch(pat, utast1)) =
@@ -2042,8 +2025,8 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
       let ty = (rng, ProductType(tys)) in
       (ty, IPTuple(ipats), bindmap)
 
-  | PConstructor(ctornm, pats) ->
-      let (vid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng ctornm in
+  | PConstructor(modidents, ctornm, pats) ->
+      let (vid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng modidents ctornm in
       begin
         try
           let (ipatacc, bindmap) =

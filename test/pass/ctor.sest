@@ -1,0 +1,22 @@
+module Ctor = struct
+
+  module Sub = struct
+    type t =
+      | Foo
+      | Bar(int)
+  end
+
+  val to_int(x) =
+    case x of
+    | Sub.Foo    -> 0
+    | Sub.Bar(n) -> n
+    end
+
+  val main(args) =
+    print_debug([
+      to_int(Sub.Bar(42)),
+      to_int(Sub.Bar(0)),
+      to_int(Sub.Foo),
+    ])
+
+end
