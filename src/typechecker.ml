@@ -1534,25 +1534,63 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       ) bindmap;
       (ty2, iletpatin ipat e1 e2)
 
-  | Constructor(ctornm, utastargs) ->
-      let (vid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng ctornm in
+  | Constructor(modidents1, ctornm, utastargs) ->
       begin
-        try
-          let es =
-            List.fold_left2 (fun acc ty_expected utast ->
-              let (ty, e) = typecheck pre utast in
-              unify ty ty_expected;
-              Alist.extend acc e
-            ) Alist.empty tys_expected utastargs |> Alist.to_list
-          in
-          let ty = (rng, DataType(TypeID.Variant(vid), tyargs)) in
-          let e = IConstructor(ctorid, es) in
-          (ty, e)
-        with
-        | Invalid_argument(_) ->
-            let len_expected = List.length tys_expected in
-            let len_actual = List.length utastargs in
-            raise_error (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
+        match modidents1 with
+        | [] ->
+              let (vid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng ctornm in
+              begin
+                try
+                  let es =
+                    List.fold_left2 (fun acc ty_expected utast ->
+                      let (ty, e) = typecheck pre utast in
+                      unify ty ty_expected;
+                      Alist.extend acc e
+                    ) Alist.empty tys_expected utastargs |> Alist.to_list
+                  in
+                  let ty = (rng, DataType(TypeID.Variant(vid), tyargs)) in
+                  let e = IConstructor(ctorid, es) in
+                  (ty, e)
+                with
+                | Invalid_argument(_) ->
+                    let len_expected = List.length tys_expected in
+                    let len_actual = List.length utastargs in
+                    raise_error (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
+              end
+
+        | modident :: projs ->
+            let sigr1 = get_structure_signature pre.tyenv modident projs in
+            begin
+              match sigr1 |> SigRecord.find_constructor TypeDefinitionStore.find_variant_type ctornm with
+              | None ->
+                  raise_error (UndefinedConstructor(rng, ctornm))
+
+              | Some(ctorentry) ->
+                  let vid = ctorentry.belongs in
+                  let ctorid = ctorentry.constructor_id in
+                  let bids = ctorentry.type_variables in
+                  let ptys = ctorentry.parameter_types in
+                  let (tyargs, tys_expected) = TypeConv.instantiate_type_arguments pre.level bids ptys in
+                  begin
+                    match List.combine utastargs tys_expected with
+                    | exception Invalid_argument(_) ->
+                        let len_expected = List.length tys_expected in
+                        let len_actual = List.length utastargs in
+                        raise_error (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
+
+                    | zipped ->
+                        let eacc =
+                          zipped |> List.fold_left (fun eacc (utast, ty_expected) ->
+                            let (ty, e) = typecheck pre utast in
+                            unify ty ty_expected;
+                            Alist.extend eacc e
+                          ) Alist.empty
+                        in
+                        let ty = (rng, DataType(TypeID.Variant(vid), tyargs)) in
+                        let e = IConstructor(ctorid, Alist.to_list eacc) in
+                        (ty, e)
+                  end
+            end
       end
 
   | BinaryByList(nrs) ->
@@ -1600,61 +1638,34 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       (ty1, IRecordUpdate(e1, label, e2))
 
   | ModProjVal(modidents1, (rng2, x2)) ->
-      let sigr1 = get_structure_signature pre.tyenv modidents1 in
-(*
-      let (oidset1, modsig1) = absmodsig1 in
-*)
       begin
-        match sigr1 |> SigRecord.find_val x2 with
-        | None ->
-            raise_error (UnboundVariable(rng2, x2))
+        match modidents1 with
+        | [] ->
+            assert false
 
-        | Some((_, ptymain2), gname2) ->
-            let pty2 = (rng, ptymain2) in
+        | modident :: projs ->
+            let sigr1 = get_structure_signature pre.tyenv modident projs in
 (*
-            if opaque_occurs_in_poly_type oidset1 pty2 then
-            (* Combining (E-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
-               in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
-               we must assert that opaque type variables do not extrude their scope.
-            *)
-              raise_error (OpaqueIDExtrudesScopeViaValue(rng, pty2))
-            else
+            let (oidset1, modsig1) = absmodsig1 in
 *)
-              let ty = TypeConv.instantiate pre.level pty2 in
-              (ty, IVar(OutputIdentifier.Global(gname2)))
-      end
-
-  | ModProjCtor(modidents1, (rng2, ctornm2), utasts) ->
-      let sigr1 = get_structure_signature pre.tyenv modidents1 in
-      begin
-        match sigr1 |> SigRecord.find_constructor TypeDefinitionStore.find_variant_type ctornm2 with
-        | None ->
-            raise_error (UndefinedConstructor(rng2, ctornm2))
-
-        | Some(ctorentry) ->
-            let vid = ctorentry.belongs in
-            let ctorid = ctorentry.constructor_id in
-            let bids = ctorentry.type_variables in
-            let ptys = ctorentry.parameter_types in
-            let (tyargs, tys_expected) = TypeConv.instantiate_type_arguments pre.level bids ptys in
             begin
-              match List.combine utasts tys_expected with
-              | exception Invalid_argument(_) ->
-                  let len_expected = List.length tys_expected in
-                  let len_actual = List.length utasts in
-                  raise_error (InvalidNumberOfConstructorArguments(rng2, ctornm2, len_expected, len_actual))
+              match sigr1 |> SigRecord.find_val x2 with
+              | None ->
+                  raise_error (UnboundVariable(rng2, x2))
 
-              | zipped ->
-                  let eacc =
-                    zipped |> List.fold_left (fun eacc (utast, ty_expected) ->
-                      let (ty, e) = typecheck pre utast in
-                      unify ty ty_expected;
-                      Alist.extend eacc e
-                    ) Alist.empty
-                  in
-                  let ty = (rng, DataType(TypeID.Variant(vid), tyargs)) in
-                  let e = IConstructor(ctorid, Alist.to_list eacc) in
-                  (ty, e)
+              | Some((_, ptymain2), gname2) ->
+                  let pty2 = (rng, ptymain2) in
+(*
+                  if opaque_occurs_in_poly_type oidset1 pty2 then
+                  (* Combining (E-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
+                     in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
+                     we must assert that opaque type variables do not extrude their scope.
+                  *)
+                    raise_error (OpaqueIDExtrudesScopeViaValue(rng, pty2))
+                  else
+*)
+                    let ty = TypeConv.instantiate pre.level pty2 in
+                    (ty, IVar(OutputIdentifier.Global(gname2)))
             end
       end
 
@@ -1772,34 +1783,29 @@ and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono
       ((eff, tyret), iapply efun optrow iargs)
 
 
-and get_structure_signature (tyenv : Typeenv.t) (modidents : (module_name ranged) list) : SigRecord.t =
-  match modidents with
-  | [] ->
-      assert false
+and get_structure_signature (tyenv : Typeenv.t) (modident : module_name ranged) (projs : (module_name ranged) list) : SigRecord.t =
+  let (rnginit, _) = modident in
+  let (modsig, _) = find_module tyenv modident in
+  let (modsig, rnglast) =
+    projs |> List.fold_left (fun (modsig, rnglast) proj ->
+      match modsig with
+      | ConcFunctor(_) ->
+          raise_error (NotOfStructureType(rnglast, modsig))
 
-  | modident :: projs ->
-      let (rnginit, _) = modident in
-      let (modsig, _) = find_module tyenv modident in
-      let (modsig, rnglast) =
-        projs |> List.fold_left (fun (modsig, rnglast) proj ->
-          match modsig with
-          | ConcFunctor(_) ->
-              raise_error (NotOfStructureType(rnglast, modsig))
-
-          | ConcStructure(sigr) ->
-              let (rng, modnm) = proj in
-              begin
-                match sigr |> SigRecord.find_module modnm with
-                | None              -> raise_error (UnboundModuleName(rng, modnm))
-                | Some((modsig, _)) -> (modsig, rng)
-              end
-        ) (modsig, rnginit)
-      in
-      begin
-        match modsig with
-        | ConcFunctor(_)      -> raise_error (NotOfStructureType(rnglast, modsig))
-        | ConcStructure(sigr) -> sigr
-      end
+      | ConcStructure(sigr) ->
+          let (rng, modnm) = proj in
+          begin
+            match sigr |> SigRecord.find_module modnm with
+            | None              -> raise_error (UnboundModuleName(rng, modnm))
+            | Some((modsig, _)) -> (modsig, rng)
+          end
+    ) (modsig, rnginit)
+  in
+  begin
+    match modsig with
+    | ConcFunctor(_)      -> raise_error (NotOfStructureType(rnglast, modsig))
+    | ConcStructure(sigr) -> sigr
+  end
 
 
 and typecheck_arguments (pre : pre) (rng : Range.t) ((utastargs, mndutastargs, optutastargs) : untyped_arguments) =

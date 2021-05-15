@@ -578,17 +578,15 @@ exprapp:
       let (tokL, modidents, ctor) = chop_last modchain in
       let (ordargs, optargs) = args in
       let rng = make_range (Token(tokL)) (Token(tokR)) in
-      match modidents with
-      | []     -> let (_, ctornm) = ctor in (rng, Constructor(ctornm, ordargs))
-      | _ :: _ -> (rng, ModProjCtor(modidents, ctor, ordargs))
+      let (_, ctornm) = ctor in
+      (rng, Constructor(modidents, ctornm, ordargs))
         (* TODO: emit errors when `optargs` is not nil *)
     }
   | modchain=modchainraw {
       let (tokL, modidents, ctor) = chop_last modchain in
       let rng = make_range (Token(tokL)) (Ranged(ctor)) in
-      match modidents with
-      | []     -> let (_, ctornm) = ctor in (rng, Constructor(ctornm, []))
-      | _ :: _ -> (rng, ModProjCtor(modidents, ctor, []))
+      let (_, ctornm) = ctor in
+      (rng, Constructor(modidents, ctornm, []))
     }
   | modchain=modchainraw; ident=DOTLOWER {
       let (modident, modidents) = modchain in

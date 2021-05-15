@@ -190,7 +190,7 @@ and untyped_ast_main =
   | ListNil
   | ListCons     of untyped_ast * untyped_ast
   | Case         of untyped_ast * untyped_case_branch list
-  | Constructor  of constructor_name * untyped_ast list
+  | Constructor  of (module_name ranged) list * constructor_name * untyped_ast list
   | BinaryByList of (int ranged) list
   | Record       of labeled_untyped_ast list
   | RecordAccess of untyped_ast * label ranged
@@ -198,7 +198,6 @@ and untyped_ast_main =
   | Freeze       of Range.t * frozen_fun * untyped_ast list * Range.t list
   | FreezeUpdate of untyped_ast * untyped_ast list * Range.t list
   | ModProjVal   of (module_name ranged) list * identifier ranged
-  | ModProjCtor  of (module_name ranged) list * constructor_name ranged * untyped_ast list
   | Pack         of module_name_chain * untyped_signature
 
 and untyped_parameters =
