@@ -735,7 +735,7 @@ patbot:
       let rng = make_range (Token(tokL)) (Token(tokR)) in
       (rng, PListNil)
     }
-  | tokL=LSQUARE; p1=patcons; pats=list(pattuplesub); tokR=RBRACE {
+  | tokL=LSQUARE; p1=patcons; pats=list(pattuplesub); tokR=RSQUARE {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
       let (_, pmain) = make_list_pattern (p1 :: pats) in
       (rng, pmain)

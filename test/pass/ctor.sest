@@ -12,11 +12,24 @@ module Ctor = struct
     | Sub.Bar(n) -> n
     end
 
+  val is_foo_and_bar(xs) =
+    case xs of
+    | [Sub.Foo, Sub.Bar(_)] -> true
+    | _                     -> false
+    end
+
   val main(args) =
+    let _ =
+      print_debug([
+        to_int(Sub.Bar(42)),
+        to_int(Sub.Bar(0)),
+        to_int(Sub.Foo),
+      ])
+    in
     print_debug([
-      to_int(Sub.Bar(42)),
-      to_int(Sub.Bar(0)),
-      to_int(Sub.Foo),
+      is_foo_and_bar([]),
+      is_foo_and_bar([Sub.Foo, Sub.Bar(42)]),
+      is_foo_and_bar([Sub.Foo]),
     ])
 
 end
