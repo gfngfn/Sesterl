@@ -179,7 +179,7 @@ and untyped_ast =
 
 and untyped_ast_main =
   | BaseConst    of base_constant
-  | Var          of identifier
+  | Var          of (module_name ranged) list * identifier ranged
   | Lambda       of untyped_parameters * untyped_ast
   | LambdaEff    of untyped_parameters * untyped_computation_ast
   | Apply        of untyped_ast * untyped_arguments
@@ -197,7 +197,6 @@ and untyped_ast_main =
   | RecordUpdate of untyped_ast * label ranged * untyped_ast
   | Freeze       of Range.t * frozen_fun * untyped_ast list * Range.t list
   | FreezeUpdate of untyped_ast * untyped_ast list * Range.t list
-  | ModProjVal   of (module_name ranged) list * identifier ranged
   | Pack         of module_name_chain * untyped_signature
 
 and untyped_parameters =

@@ -1332,18 +1332,47 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let ty = type_of_base_constant pre.level rng bc in
       (ty, IBaseConst(bc))
 
-  | Var(x) ->
+  | Var(modidents1, (rng2, x2)) ->
       begin
-        match pre.tyenv |> Typeenv.find_val x with
-        | None ->
-            raise_error (UnboundVariable(rng, x))
+        match modidents1 with
+        | [] ->
+            begin
+              match pre.tyenv |> Typeenv.find_val x2 with
+              | None ->
+                  raise_error (UnboundVariable(rng2, x2))
 
-        | Some((_, ptymain), name) ->
-            let ty = TypeConv.instantiate pre.level (rng, ptymain) in
+              | Some((_, ptymain), name) ->
+                  let ty = TypeConv.instantiate pre.level (rng, ptymain) in
 (*
-            Format.printf "INST %s : L%d %a\n" x pre.level pp_mono_type ty;  (* for debug *)
+                  Format.printf "INST %s : L%d %a\n" x pre.level pp_mono_type ty;  (* for debug *)
 *)
-            (ty, IVar(name))
+                  (ty, IVar(name))
+            end
+
+        | modident :: projs ->
+            let sigr1 = get_structure_signature pre.tyenv modident projs in
+(*
+            let (oidset1, modsig1) = absmodsig1 in
+*)
+            begin
+              match sigr1 |> SigRecord.find_val x2 with
+              | None ->
+                  raise_error (UnboundVariable(rng2, x2))
+
+              | Some((_, ptymain2), gname2) ->
+                  let pty2 = (rng, ptymain2) in
+(*
+                  if opaque_occurs_in_poly_type oidset1 pty2 then
+                  (* Combining (E-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
+                     in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
+                     we must assert that opaque type variables do not extrude their scope.
+                  *)
+                    raise_error (OpaqueIDExtrudesScopeViaValue(rng, pty2))
+                  else
+*)
+                    let ty = TypeConv.instantiate pre.level pty2 in
+                    (ty, IVar(OutputIdentifier.Global(gname2)))
+            end
       end
 
   | Lambda(binders, utast0) ->
@@ -1636,38 +1665,6 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       in
       unify ty1 tyF;
       (ty1, IRecordUpdate(e1, label, e2))
-
-  | ModProjVal(modidents1, (rng2, x2)) ->
-      begin
-        match modidents1 with
-        | [] ->
-            assert false
-
-        | modident :: projs ->
-            let sigr1 = get_structure_signature pre.tyenv modident projs in
-(*
-            let (oidset1, modsig1) = absmodsig1 in
-*)
-            begin
-              match sigr1 |> SigRecord.find_val x2 with
-              | None ->
-                  raise_error (UnboundVariable(rng2, x2))
-
-              | Some((_, ptymain2), gname2) ->
-                  let pty2 = (rng, ptymain2) in
-(*
-                  if opaque_occurs_in_poly_type oidset1 pty2 then
-                  (* Combining (E-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
-                     in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
-                     we must assert that opaque type variables do not extrude their scope.
-                  *)
-                    raise_error (OpaqueIDExtrudesScopeViaValue(rng, pty2))
-                  else
-*)
-                    let ty = TypeConv.instantiate pre.level pty2 in
-                    (ty, IVar(OutputIdentifier.Global(gname2)))
-            end
-      end
 
   | Pack(modidentchain1, utsig2) ->
       let (modsig1, sname1) = find_module_from_chain pre.tyenv modidentchain1 in

@@ -41,8 +41,8 @@
 
   let binary e1 op e2 =
     let rng = make_range (Ranged(e1)) (Ranged(e2)) in
-    let (rngop, vop) = op in
-    (rng, Apply((rngop, Var(vop)), ([e1; e2], [], [])))
+    let (rngop, _) = op in
+    (rng, Apply((rngop, Var([], op)), ([e1; e2], [], [])))
 
 (*
   let syntax_sugar_module_application : Range.t -> untyped_module -> untyped_module -> untyped_module =
@@ -591,7 +591,7 @@ exprapp:
   | modchain=modchainraw; ident=DOTLOWER {
       let (modident, modidents) = modchain in
       let rng = make_range (Ranged(modident)) (Ranged(ident)) in
-      (rng, ModProjVal(modident :: modidents, ident))
+      (rng, Var(modident :: modidents, ident))
     }
   | e=exprbot { e }
 ;
@@ -636,7 +636,7 @@ exprbot:
   | tokL=LBRACE; tokR=RBRACE  { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, BaseConst(Unit)) }
   | c=INT                     { let (rng, n) = c in (rng, BaseConst(Int(n))) }
   | c=FLOAT                   { let (rng, r) = c in (rng, BaseConst(Float(r))) }
-  | ident=ident               { let (rng, x) = ident in (rng, Var(x)) }
+  | ident=ident               { let (rng, _) = ident in (rng, Var([], ident)) }
   | LPAREN; e=exprlet; RPAREN { e }
 
   | tokL=LBRACE; e1=exprlet; es=list(tuplesub); tokR=RBRACE {
