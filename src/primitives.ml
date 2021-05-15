@@ -19,6 +19,9 @@ let decode_option_function_with_default =
 let vid_option = TypeID.Variant.fresh [] "option"
 
 
+let vid_result = TypeID.Variant.fresh [] "result"
+
+
 let vid_list = TypeID.Variant.fresh [] "list"
 
 
@@ -327,7 +330,17 @@ let initial_environment =
         KindStore.register_bound_id bid UniversalKind;
         ("option", vid_option, [bid], [
           ("None", []);
-          ("Some", [(dr, TypeVar(Bound(bid)))])
+          ("Some", [(dr, TypeVar(Bound(bid)))]);
+        ])
+      end;
+      begin
+        let bid_ok = BoundID.fresh () in
+        let bid_error = BoundID.fresh () in
+        KindStore.register_bound_id bid_ok UniversalKind;
+        KindStore.register_bound_id bid_error UniversalKind;
+        ("result", vid_result, [bid_ok; bid_error], [
+          ("Ok", [(dr, TypeVar(Bound(bid_ok)))]);
+          ("Error", [(dr, TypeVar(Bound(bid_error)))]);
         ])
       end;
       begin

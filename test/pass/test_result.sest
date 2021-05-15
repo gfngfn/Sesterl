@@ -1,0 +1,15 @@
+module TestResult = struct
+
+  val f(res) =
+    case res of
+    | Ok(n)         -> n
+    | Error({a, b}) -> a + b
+    end
+
+  val main(args) =
+    print_debug([
+      f(Ok(4423)),
+      f(Error({42, 57})),
+    ])
+
+end
