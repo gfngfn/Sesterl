@@ -59,7 +59,9 @@ module Global : sig
 
 end
 
-val output_space : space -> string
+val output_space_to_snake : space -> string
+
+val output_space_to_camel : space -> string
 
 val output_local : local -> string
 

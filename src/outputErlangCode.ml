@@ -13,7 +13,7 @@ type val_binding_output =
   | OBindValExternal of global_name * string
 
 type module_binding_output =
-  | OBindModule of string * val_binding_output list
+  | OBindModule of { basename : string; atom : string; bindings : val_binding_output list }
 
 
 let traverse_val_single (nmap : name_map) (_, gnamefun, _, ast) : val_binding_output =
@@ -25,15 +25,23 @@ let traverse_val_single (nmap : name_map) (_, gnamefun, _, ast) : val_binding_ou
       assert false
 
 
-let make_module_string (spacepath : space_name Alist.t) : string =
-  spacepath |> Alist.to_list |> List.map OutputIdentifier.output_space |> String.concat "_"
+let make_module_string (spec : output_spec) (spacepath : space_name Alist.t) : string * string =
+  let spaces = spacepath |> Alist.to_list in
+  match spec.module_name_output_spec with
+  | SingleSnake ->
+      let s = spaces |> List.map OutputIdentifier.output_space_to_snake |> String.concat "_" in
+      (s, s)
+
+  | DottedCamels ->
+      let s = spaces |> List.map OutputIdentifier.output_space_to_camel |> String.concat "." in
+      (s, Printf.sprintf "'%s'" s)
 
 
-let rec traverse_binding_list (sname : space_name) ((gmap, smap) : name_map) (spacepath : space_name Alist.t) (ibinds : binding list) : module_binding_output list * name_map =
+let rec traverse_binding_list (spec : output_spec) (sname : space_name) ((gmap, smap) : name_map) (spacepath : space_name Alist.t) (ibinds : binding list) : module_binding_output list * name_map =
 
-  let smod = make_module_string spacepath in
+  let (smod_basename, smod_atom) = make_module_string spec spacepath in
 
-  let smap = smap |> SpaceNameMap.add sname smod in
+  let smap = smap |> SpaceNameMap.add sname smod_atom in
 
   (* Associates value identifiers in the current space with `spacepath` beforehand. *)
   let gmap =
@@ -41,16 +49,16 @@ let rec traverse_binding_list (sname : space_name) ((gmap, smap) : name_map) (sp
       match ibind with
       | IBindVal(INonRec(valbind)) ->
           let (_, gnamefun, _, _) = valbind in
-          gmap |> GlobalNameMap.add gnamefun smod
+          gmap |> GlobalNameMap.add gnamefun smod_atom
 
       | IBindVal(IRec(valbinds)) ->
           valbinds |> List.fold_left (fun gmap valbind ->
             let (_, gnamefun, _, _) = valbind in
-            gmap |> GlobalNameMap.add gnamefun smod
+            gmap |> GlobalNameMap.add gnamefun smod_atom
           ) gmap
 
       | IBindVal(IExternal(gnamefun, _)) ->
-          gmap |> GlobalNameMap.add gnamefun smod
+          gmap |> GlobalNameMap.add gnamefun smod_atom
 
       | IBindModule(_) ->
           gmap
@@ -69,7 +77,7 @@ let rec traverse_binding_list (sname : space_name) ((gmap, smap) : name_map) (sp
       | IBindModule(snamesub, ibindssub) ->
           let (omodbindssub, nmap) =
             let spacepathsub = Alist.extend spacepath snamesub in
-            traverse_binding_list snamesub nmap spacepathsub ibindssub
+            traverse_binding_list spec snamesub nmap spacepathsub ibindssub
           in
           (Alist.append omodbindacc omodbindssub, nmap)
 
@@ -92,7 +100,7 @@ let rec traverse_binding_list (sname : space_name) ((gmap, smap) : name_map) (sp
         omodbindacc
 
     | _ :: _ ->
-        let omodbind = OBindModule(smod, ovalbinds) in
+        let omodbind = OBindModule{basename = smod_basename; atom = smod_atom; bindings = ovalbinds} in
         Alist.extend omodbindacc omodbind
   in
 
@@ -515,7 +523,7 @@ let stringify_val_binding_output : val_binding_output -> string list = function
 
 let stringify_module_binding_output (omodbind : module_binding_output) : string list =
   match omodbind with
-  | OBindModule(smod, ovalbinds) ->
+  | OBindModule{atom = smod_atom; bindings = ovalbinds} ->
       let exports =
         ovalbinds |> List.map (function
         | OBindVal(gnamefun, _, _, _, _, _)
@@ -534,14 +542,14 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
       in
       let ss = ovalbinds |> List.map stringify_val_binding_output |> List.concat in
       List.concat [
-        [ Printf.sprintf "-module(%s)." smod ];
+        [ Printf.sprintf "-module(%s)." smod_atom ];
         [ Printf.sprintf "-export([%s])." (String.concat ", " exports) ];
         ss;
       ]
 
 
-let write_file (dir_out : string) (smod : string) (lines : string list) : unit =
-  let fpath_out = Core.Filename.concat dir_out (Printf.sprintf "%s.erl" smod) in
+let write_file (dir_out : string) (smod_basename : string) (lines : string list) : unit =
+  let fpath_out = Core.Filename.concat dir_out (Printf.sprintf "%s.erl" smod_basename) in
   let fout = open_out fpath_out in
   lines |> List.iter (fun line ->
     output_string fout (line ^ "\n")
@@ -551,9 +559,9 @@ let write_file (dir_out : string) (smod : string) (lines : string list) : unit =
 
 
 let write_module_to_file (dir_out : string) (omodbind : module_binding_output) : unit =
-  let smod = match omodbind with OBindModule(smod, _) -> smod in
+  let smod_basename = match omodbind with OBindModule(r) -> r.basename in
   let lines = stringify_module_binding_output omodbind in
-  write_file dir_out smod lines
+  write_file dir_out smod_basename lines
 
 
 let write_primitive_module (dir_out : string) : unit =
@@ -586,7 +594,7 @@ let write_primitive_module (dir_out : string) : unit =
   write_file dir_out smod lines
 
 
-let main (dir_out : string) (nmap : name_map) ~package_name:(pkgnameopt : space_name option) ~module_name:(sname : space_name) (ibinds : binding list) : name_map =
+let main (spec : output_spec) (dir_out : string) (nmap : name_map) ~package_name:(pkgnameopt : space_name option) ~module_name:(sname : space_name) (ibinds : binding list) : name_map =
 (*
   Format.printf "OutputErlangCode | package: %a, module: %a\n"
     OutputIdentifier.pp_space pkgname
@@ -598,7 +606,7 @@ let main (dir_out : string) (nmap : name_map) ~package_name:(pkgnameopt : space_
       | Some(pkgname) -> Alist.extend (Alist.extend Alist.empty pkgname) sname
       | None          -> Alist.extend Alist.empty sname
     in
-    traverse_binding_list sname nmap spacepath ibinds
+    traverse_binding_list spec sname nmap spacepath ibinds
   in
   omodbinds |> List.iter (fun omodbind ->
     write_module_to_file dir_out omodbind

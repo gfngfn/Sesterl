@@ -145,8 +145,12 @@ module Global = struct
 end
 
 
-let output_space (ReprSpace(sname) : space) =
+let output_space_to_snake (ReprSpace(sname) : space) =
   IdentifierScheme.to_snake_case sname.main
+
+
+let output_space_to_camel (ReprSpace(sname) : space) =
+  IdentifierScheme.to_upper_camel_case sname.main
 
 
 let output_local = function
@@ -165,7 +169,7 @@ let output_local = function
 let output_global = function
   | ReprGlobal(r) ->
       {
-        function_name = r.function_name |> IdentifierScheme.to_snake_case;
+        function_name = Printf.sprintf "'%s'" (r.function_name |> IdentifierScheme.to_snake_case);
         arity         = r.arity;
         has_option    = r.has_option;
       }
