@@ -1522,7 +1522,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
   | Case(utast0, branches) ->
       let (ty0, e0) = typecheck pre utast0 in
-      let tyret = fresh_type_variable pre.level UniversalKind (Range.dummy "case-ret") in
+      let tyret = fresh_type_variable pre.level UniversalKind rng in
       let ibrs = branches |> List.map (typecheck_pure_case_branch pre ~pattern:ty0 ~return:tyret) in
       (tyret, ICase(e0, ibrs))
 
