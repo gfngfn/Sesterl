@@ -39,6 +39,13 @@
     ) utmod
 
 
+  let make_list_pattern pats =
+    List.fold_right
+      (fun pat patacc -> (Range.dummy "pattern-cons", PListCons(pat, patacc)))
+      pats
+      (Range.dummy "pattern-nil",  PListNil)
+
+
   let binary e1 op e2 =
     let rng = make_range (Ranged(e1)) (Ranged(e2)) in
     let (rngop, _) = op in
@@ -723,7 +730,16 @@ patbot:
   | charlit=CHAR               { let (rng, uchar) = charlit in (rng, PChar(uchar)) }
   | ident=ident                { let (rng, x) = ident in (rng, PVar(x)) }
   | rng=UNDERSCORE             { (rng, PWildCard) }
-  | tokL=LSQUARE; tokR=RSQUARE { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, PListNil) }
+
+  | tokL=LSQUARE; tokR=RSQUARE {
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      (rng, PListNil)
+    }
+  | tokL=LSQUARE; p1=patcons; pats=list(pattuplesub); tokR=RBRACE {
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      let (_, pmain) = make_list_pattern (p1 :: pats) in
+      (rng, pmain)
+    }
 
   | tokL=LBRACE; p1=patcons; pats=list(pattuplesub); tokR=RBRACE {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
