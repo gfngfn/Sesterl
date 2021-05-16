@@ -725,7 +725,7 @@ patcons:
 patbot:
   | rng=TRUE                   { (rng, PBool(true)) }
   | rng=FALSE                  { (rng, PBool(false)) }
-  | tokL=LPAREN; tokR=RPAREN   { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, PUnit) }
+  | tokL=LBRACE; tokR=RBRACE   { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, PUnit) }
   | c=INT                      { let (rng, n) = c in (rng, PInt(n)) }
   | charlit=CHAR               { let (rng, uchar) = charlit in (rng, PChar(uchar)) }
   | ident=ident                { let (rng, x) = ident in (rng, PVar(x)) }
