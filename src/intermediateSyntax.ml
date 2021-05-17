@@ -25,7 +25,7 @@ type val_binding =
 
 and binding =
   | IBindVal     of val_binding
-  | IBindModule  of space_name * binding list
+  | IBindModule  of space_name * attribute list * binding list
 
 and ast =
   | IBaseConst   of base_constant
@@ -80,7 +80,7 @@ and pp_binding ppf = function
   | IBindVal(valbind) ->
       pp_val_binding ppf valbind
 
-  | IBindModule(sname, ibinds) ->
+  | IBindModule(sname, _attrs, ibinds) ->
       Format.fprintf ppf "module %a = @[<v2>{%a}@]@,"
         OutputIdentifier.pp_space sname
         (Format.pp_print_list pp_binding) ibinds

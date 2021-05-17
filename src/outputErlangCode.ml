@@ -13,7 +13,12 @@ type val_binding_output =
   | OBindValExternal of global_name * string
 
 type module_binding_output =
-  | OBindModule of { basename : string; atom : string; bindings : val_binding_output list }
+  | OBindModule of {
+      basename   : string;
+      atom       : string;
+      attributes : attribute list;
+      bindings   : val_binding_output list;
+    }
 
 
 let traverse_val_single (nmap : name_map) (_, gnamefun, _, ast) : val_binding_output =
@@ -37,7 +42,7 @@ let make_module_string (spec : output_spec) (spacepath : space_name Alist.t) : s
       (s, Printf.sprintf "'%s'" s)
 
 
-let rec traverse_binding_list (spec : output_spec) (sname : space_name) ((gmap, smap) : name_map) (spacepath : space_name Alist.t) (ibinds : binding list) : module_binding_output list * name_map =
+let rec traverse_binding_list (spec : output_spec) (sname : space_name) ((gmap, smap) : name_map) (spacepath : space_name Alist.t) (attrs : attribute list) (ibinds : binding list) : module_binding_output list * name_map =
 
   let (smod_basename, smod_atom) = make_module_string spec spacepath in
 
@@ -74,10 +79,10 @@ let rec traverse_binding_list (spec : output_spec) (sname : space_name) ((gmap, 
       | IBindVal(_) ->
           original
 
-      | IBindModule(snamesub, ibindssub) ->
+      | IBindModule(snamesub, attrssub, ibindssub) ->
           let (omodbindssub, nmap) =
             let spacepathsub = Alist.extend spacepath snamesub in
-            traverse_binding_list spec snamesub nmap spacepathsub ibindssub
+            traverse_binding_list spec snamesub nmap spacepathsub attrssub ibindssub
           in
           (Alist.append omodbindacc omodbindssub, nmap)
 
@@ -100,7 +105,14 @@ let rec traverse_binding_list (spec : output_spec) (sname : space_name) ((gmap, 
         omodbindacc
 
     | _ :: _ ->
-        let omodbind = OBindModule{basename = smod_basename; atom = smod_atom; bindings = ovalbinds} in
+        let omodbind =
+          OBindModule{
+            basename   = smod_basename;
+            atom       = smod_atom;
+            attributes = attrs;
+            bindings   = ovalbinds;
+          }
+        in
         Alist.extend omodbindacc omodbind
   in
 
@@ -523,7 +535,33 @@ let stringify_val_binding_output : val_binding_output -> string list = function
 
 let stringify_module_binding_output (omodbind : module_binding_output) : string list =
   match omodbind with
-  | OBindModule{atom = smod_atom; bindings = ovalbinds} ->
+  | OBindModule{
+      atom       = smod_atom;
+      attributes = attrs;
+      bindings   = ovalbinds;
+    } ->
+      let behaviours : string list =
+        attrs |> List.filter_map (function Attribute((rng, attr)) ->
+          match attr with
+          | (("behaviour" | "behavior"), utast_opt) ->
+              begin
+                match utast_opt with
+                | Some((_, BaseConst(BinaryByString(s)))) ->
+                    Some(s)
+                | _ ->
+                    Logging.warn_invalid_attribute
+                      rng
+                      "argument should be a string literal for attribute 'behaviour'/'bihavior'";
+                    None
+              end
+
+          | (attr_name, _) ->
+              Logging.warn_invalid_attribute
+                rng
+                (Printf.sprintf "unsupported attribute '%s'" attr_name);
+              None
+        )
+      in
       let exports =
         ovalbinds |> List.map (function
         | OBindVal(gnamefun, _, _, _, _, _)
@@ -543,6 +581,7 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
       let ss = ovalbinds |> List.map stringify_val_binding_output |> List.concat in
       List.concat [
         [ Printf.sprintf "-module(%s)." smod_atom ];
+        behaviours |> List.map (fun s -> Printf.sprintf "-behaviour(%s)" s);
         [ Printf.sprintf "-export([%s])." (String.concat ", " exports) ];
         ss;
       ]
@@ -594,7 +633,7 @@ let write_primitive_module (dir_out : string) : unit =
   write_file dir_out smod lines
 
 
-let main (spec : output_spec) (dir_out : string) (nmap : name_map) ~package_name:(pkgnameopt : space_name option) ~module_name:(sname : space_name) (ibinds : binding list) : name_map =
+let main (spec : output_spec) (dir_out : string) (nmap : name_map) ~package_name:(pkgnameopt : space_name option) ~module_name:(sname : space_name) ((attrs, ibinds) : attribute list * binding list) : name_map =
 (*
   Format.printf "OutputErlangCode | package: %a, module: %a\n"
     OutputIdentifier.pp_space pkgname
@@ -606,7 +645,7 @@ let main (spec : output_spec) (dir_out : string) (nmap : name_map) ~package_name
       | Some(pkgname) -> Alist.extend (Alist.extend Alist.empty pkgname) sname
       | None          -> Alist.extend Alist.empty sname
     in
-    traverse_binding_list spec sname nmap spacepath ibinds
+    traverse_binding_list spec sname nmap spacepath attrs ibinds
   in
   omodbinds |> List.iter (fun omodbind ->
     write_module_to_file dir_out omodbind

@@ -96,7 +96,7 @@
 %}
 
 %token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE ACT END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE PACK
-%token<Range.t> LPAREN RPAREN LSQUARE RSQUARE LBRACE RBRACE
+%token<Range.t> LPAREN RPAREN LSQUARE RSQUARE LBRACE RBRACE ATTRIBUTE
 %token<Range.t> DEFEQ COMMA ARROW REVARROW BAR UNDERSCORE CONS COLON COERCE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
 %token<Range.t * string> LOWER DOTLOWER UPPER DOTUPPER TYPARAM ROWPARAM MNDLABEL OPTLABEL
@@ -383,9 +383,9 @@ modexprbot:
   | utmod=modchain    { utmod }
 ;
 modexprunit:
-  | tokL=STRUCT; utbinds=list(bindtop); tokR=END {
+  | attrs=list(attr); tokL=STRUCT; utbinds=list(bindtop); tokR=END {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
-      (rng, ModBinds(utbinds))
+      (rng, ModBinds(attrs, utbinds))
     }
   | tokL=LPAREN; utmod=modexpr; tokR=RPAREN {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
@@ -398,6 +398,18 @@ modchain:
 ;
 modchainraw:
   | modident=UPPER; projs=list(DOTUPPER) { (modident, projs) }
+;
+attr:
+  | tokL=ATTRIBUTE; ident=LOWER; LPAREN; utast=exprlet; RPAREN; tokR=RSQUARE {
+      let (_, attr_name) = ident in
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      Attribute((rng, (attr_name, Some(utast))))
+    }
+  | tokL=ATTRIBUTE; ident=LOWER; tokR=RSQUARE {
+      let (_, attr_name) = ident in
+      let rng = make_range (Token(tokL)) (Token(tokR)) in
+      Attribute((rng, (attr_name, None)))
+    }
 ;
 sigexpr:
   | tokL=LAMBDA; LPAREN; sigident=UPPER; COLON; utsig1=sigexpr; RPAREN; ARROW; utsig2=sigexpr {

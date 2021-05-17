@@ -153,6 +153,8 @@ rule token = parse
   | "{" { LBRACE(Range.from_lexbuf lexbuf) }
   | "}" { RBRACE(Range.from_lexbuf lexbuf) }
 
+  | "#[" { ATTRIBUTE(Range.from_lexbuf lexbuf) }
+
   | "::" { CONS(Range.from_lexbuf lexbuf) }
   | ":"  { COLON(Range.from_lexbuf lexbuf) }
   | ":>" { COERCE(Range.from_lexbuf lexbuf) }

@@ -104,8 +104,8 @@ let build (fpath_in : string) (dir_out : string) (is_verbose : bool) (externals 
     Core.Unix.mkdir_p dir_out;
     let (_, gmap) = Primitives.initial_environment in
     pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, outs) ->
-      outs |> List.fold_left (fun gmap (sname, binds) ->
-        OutputErlangCode.main spec dir_out gmap ~package_name:pkgnameopt ~module_name:sname binds
+      outs |> List.fold_left (fun gmap (sname, imod) ->
+        OutputErlangCode.main spec dir_out gmap ~package_name:pkgnameopt ~module_name:sname imod
       ) gmap
     ) gmap |> ignore;
     OutputErlangCode.write_primitive_module dir_out
