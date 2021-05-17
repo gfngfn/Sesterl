@@ -581,7 +581,7 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
       let ss = ovalbinds |> List.map stringify_val_binding_output |> List.concat in
       List.concat [
         [ Printf.sprintf "-module(%s)." smod_atom ];
-        behaviours |> List.map (fun s -> Printf.sprintf "-behaviour(%s)" s);
+        behaviours |> List.map (fun s -> Printf.sprintf "-behaviour(%s)." s);
         [ Printf.sprintf "-export([%s])." (String.concat ", " exports) ];
         ss;
       ]
