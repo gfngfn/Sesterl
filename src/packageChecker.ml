@@ -11,7 +11,7 @@ module SigRecordMap = Map.Make(String)
 type sig_record_map = (SigRecord.t abstracted * space_name) SigRecordMap.t
 
 
-let check_single (is_verbose : bool) ~check_public_signature:(check_public_signature : bool) (sigrmap : sig_record_map) (tyenv_before : Typeenv.t) (source : SourceLoader.loaded_module) : SigRecord.t abstracted * (space_name * binding list) =
+let check_single (is_verbose : bool) ~check_public_signature:(check_public_signature : bool) (sigrmap : sig_record_map) (tyenv_before : Typeenv.t) (source : SourceLoader.loaded_module) : SigRecord.t abstracted * (space_name * (attribute list * binding list)) =
   let abspath  = source.SourceLoader.source_path in
   let modident = source.SourceLoader.module_identifier in
   let utsigopt = source.SourceLoader.signature in
@@ -36,12 +36,12 @@ let check_single (is_verbose : bool) ~check_public_signature:(check_public_signa
     let tyenv_for_sig = if check_public_signature then tyenv_before else tyenv_for_mod in
     utsigopt |> Option.map (Typechecker.typecheck_signature Alist.empty tyenv_for_sig)
   in
-  let (_, abssigr, sname, binds) = Typechecker.main tyenv_for_mod modident absmodsigopt utmod in
+  let (_, abssigr, sname, imod) = Typechecker.main tyenv_for_mod modident absmodsigopt utmod in
 (*
   let (_, sigr) = abssigr in
   if is_verbose then display_top_structure modident sigr;
 *)
-  let out = (sname, binds) in
+  let out = (sname, imod) in
   (abssigr, out)
 
 

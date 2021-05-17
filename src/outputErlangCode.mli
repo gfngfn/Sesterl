@@ -4,7 +4,7 @@ open Syntax
 open IntermediateSyntax
 
 
-val main : output_spec -> string -> name_map -> package_name:(space_name option) -> module_name:space_name -> binding list -> name_map
+val main : output_spec -> string -> name_map -> package_name:(space_name option) -> module_name:space_name -> attribute list * binding list -> name_map
 (** [main spec dir_out nmap ~package_name:pkgopt ~module_name:sname binds]
     produces Erlang source files corresponding to [binds] in the directory [dir_out].
     The name of the resulting module is determined by [pkgopt] and [sname].

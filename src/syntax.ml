@@ -290,7 +290,7 @@ and untyped_module =
 
 and untyped_module_main =
   | ModVar     of module_name
-  | ModBinds   of untyped_binding list
+  | ModBinds   of attribute list * untyped_binding list
   | ModProjMod of untyped_module * module_name ranged
   | ModFunctor of module_name ranged * untyped_signature * untyped_module
   | ModApply   of module_name_chain * module_name_chain
@@ -341,6 +341,10 @@ and labeled_untyped_ast =
 and labeled_manual_type =
   label ranged * manual_type
 [@@deriving show { with_path = false; } ]
+
+and attribute =
+  Attribute of (string * untyped_ast option) ranged
+
 
 module FreeRowID = struct
   include FreeID

@@ -5,9 +5,15 @@ open Errors
 
 
 let warn_val_not_used (rng : Range.t) (x : identifier) =
-  Format.printf "* [Warning] %a: variable '%s' is unused.\n"
+  Format.printf "* [Warning] %a: variable '%s' is unused\n"
     Range.pp rng
     x
+
+
+let warn_invalid_attribute (rng : Range.t) (msg : string) =
+  Format.printf "* [Warning] %a: %s\n"
+    Range.pp rng
+    msg
 
 
 let output_written (fpath : string) =
