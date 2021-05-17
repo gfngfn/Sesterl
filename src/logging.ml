@@ -10,10 +10,11 @@ let warn_val_not_used (rng : Range.t) (x : identifier) =
     x
 
 
-let warn_invalid_attribute (rng : Range.t) (msg : string) =
-  Format.printf "* [Warning] %a: %s\n"
-    Range.pp rng
-    msg
+let warn_invalid_module_attribute (warning : ModuleAttribute.warning) =
+  Format.printf "* [Warning] %a: tag '%s': %s\n"
+    Range.pp warning.position
+    warning.tag
+    warning.message
 
 
 let output_written (fpath : string) =

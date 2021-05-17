@@ -533,35 +533,18 @@ let stringify_val_binding_output : val_binding_output -> string list = function
       [code]
 
 
-let stringify_module_binding_output (omodbind : module_binding_output) : string list =
+let stringify_module_binding_output (omodbind : module_binding_output) : string * string list =
   match omodbind with
   | OBindModule{
+      basename   = smod_basename;
       atom       = smod_atom;
       attributes = attrs;
       bindings   = ovalbinds;
     } ->
-      let behaviours : string list =
-        attrs |> List.filter_map (function Attribute((rng, attr)) ->
-          match attr with
-          | (("behaviour" | "behavior"), utast_opt) ->
-              begin
-                match utast_opt with
-                | Some((_, BaseConst(BinaryByString(s)))) ->
-                    Some(s)
-                | _ ->
-                    Logging.warn_invalid_attribute
-                      rng
-                      "argument should be a string literal for attribute 'behaviour'/'behavior'";
-                    None
-              end
-
-          | (attr_name, _) ->
-              Logging.warn_invalid_attribute
-                rng
-                (Printf.sprintf "unsupported attribute '%s'" attr_name);
-              None
-        )
-      in
+      let (mod_attrs, warnings) = ModuleAttribute.decode attrs in
+      warnings |> List.iter (fun warning ->
+        Logging.warn_invalid_module_attribute warning
+      );
       let exports =
         ovalbinds |> List.map (function
         | OBindVal(gnamefun, _, _, _, _, _)
@@ -579,12 +562,15 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
         ) |> List.concat
       in
       let ss = ovalbinds |> List.map stringify_val_binding_output |> List.concat in
-      List.concat [
-        [ Printf.sprintf "-module(%s)." smod_atom ];
-        behaviours |> List.map (fun s -> Printf.sprintf "-behaviour(%s)." s);
-        [ Printf.sprintf "-export([%s])." (String.concat ", " exports) ];
-        ss;
-      ]
+      let lines =
+        List.concat [
+          [ Printf.sprintf "-module(%s)." smod_atom ];
+          mod_attrs.behaviours |> List.map (fun s -> Printf.sprintf "-behaviour(%s)." s);
+          [ Printf.sprintf "-export([%s])." (String.concat ", " exports) ];
+          ss;
+        ]
+      in
+      (smod_basename, lines)
 
 
 let write_file (dir_out : string) (smod_basename : string) (lines : string list) : unit =
@@ -598,8 +584,7 @@ let write_file (dir_out : string) (smod_basename : string) (lines : string list)
 
 
 let write_module_to_file (dir_out : string) (omodbind : module_binding_output) : unit =
-  let smod_basename = match omodbind with OBindModule(r) -> r.basename in
-  let lines = stringify_module_binding_output omodbind in
+  let (smod_basename, lines) = stringify_module_binding_output omodbind in
   write_file dir_out smod_basename lines
 
 
