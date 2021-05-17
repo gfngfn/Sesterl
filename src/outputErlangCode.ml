@@ -551,7 +551,7 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
                 | _ ->
                     Logging.warn_invalid_attribute
                       rng
-                      "argument should be a string literal for attribute 'behaviour'/'bihavior'";
+                      "argument should be a string literal for attribute 'behaviour'/'behavior'";
                     None
               end
 
