@@ -16,6 +16,7 @@ type global =
   | ReprGlobal of {
       number        : int;
       function_name : IdentifierScheme.t;
+      suffix        : string;
       arity         : int;
       has_option    : bool;
     }
@@ -84,12 +85,13 @@ let generate_local (s : string) : local option =
   )
 
 
-let generate_global (s : string) ~arity:(arity : int) ~has_option:(has_option : bool) : global option =
+let generate_global (s : string) ~(suffix : string) ~(arity : int) ~(has_option : bool) : global option =
   IdentifierScheme.from_snake_case s |> Option.map (fun ident ->
     let n = fresh_number () in
     ReprGlobal{
       number        = n;
       function_name = ident;
+      suffix        = suffix;
       arity         = arity;
       has_option    = has_option;
     }
@@ -169,7 +171,7 @@ let output_local = function
 let output_global = function
   | ReprGlobal(r) ->
       {
-        function_name = Printf.sprintf "'%s'" (r.function_name |> IdentifierScheme.to_snake_case);
+        function_name = Printf.sprintf "'%s%s'" (r.function_name |> IdentifierScheme.to_snake_case) r.suffix;
         arity         = r.arity;
         has_option    = r.has_option;
       }

@@ -1,5 +1,6 @@
 module TestTesting = #[test] struct
 
+  #[test]
   val f(x, y) =
     x == y
 

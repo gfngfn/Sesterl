@@ -10,7 +10,7 @@ let warn_val_not_used (rng : Range.t) (x : identifier) =
     x
 
 
-let warn_invalid_module_attribute (warning : ModuleAttribute.warning) =
+let warn_invalid_attribute (warning : attribute_warning) =
   Format.printf "* [Warning] %a: tag '%s': %s\n"
     Range.pp warning.position
     warning.tag
