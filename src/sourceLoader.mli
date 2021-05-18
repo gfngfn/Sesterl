@@ -6,6 +6,7 @@ open Errors
 exception SyntaxError of syntax_error
 
 type loaded_module = {
+  is_in_test_dirs   : bool;
   source_path       : absolute_path;
   module_identifier : module_name ranged;
   signature         : untyped_signature option;

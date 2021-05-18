@@ -45,7 +45,7 @@ let catch_error (k : unit -> unit) =
       exit 1
 
 
-let build (fpath_in : string) (dir_out : string) (is_verbose : bool) (externals : string list) =
+let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool) (externals : string list) =
   catch_error (fun () ->
     let current_directory = Sys.getcwd () in
     let abspath_in =
@@ -63,12 +63,18 @@ let build (fpath_in : string) (dir_out : string) (is_verbose : bool) (externals 
 
       ) ExternalMap.empty
     in
-    let pkgs =
+    let (pkgs, reldir_out, reldir_test_out) =
         let (_, extopt) = Core.Filename.split_extension abspath_in in
         match extopt with
         | Some("sest") ->
             let source = SourceLoader.single abspath_in in
-            [ (None, [], source) ]
+            let pkgs = [ (None, [], source) ] in
+            let reldir_out =
+              match dir_out_spec with
+              | None          -> raise (ConfigError(NoOutputSpecForSingleSource))
+              | Some(dir_out) -> RelativeDir(dir_out)
+            in
+            (pkgs, reldir_out, reldir_out)
 
         | Some(ext) ->
             raise (ConfigError(UnrecognizableExtension(ext)))
@@ -77,12 +83,19 @@ let build (fpath_in : string) (dir_out : string) (is_verbose : bool) (externals 
             assert (is_existing_directory abspath_in);
               (* The existence of given directories has been checked by 'cmdliner'. *)
             let absdir_in = abspath_in in
-            let pkgconfigs = PackageLoader.main external_map absdir_in in
-            pkgconfigs |> List.map (fun (_, config) ->
-              let pkg = SourceLoader.main config in
-              (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.submodules, pkg.SourceLoader.main_module)
-            )
+            let (pkgconfigs, main_config) = PackageLoader.main external_map absdir_in in
+            let pkgs =
+              pkgconfigs |> List.map (fun (_, config) ->
+                let pkg = SourceLoader.main config in
+                (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.submodules, pkg.SourceLoader.main_module)
+              )
+            in
+            (pkgs,
+             main_config.erlang_config.output_directory,
+             main_config.erlang_config.test_output_directory)
     in
+    let RelativeDir(dir_out) = reldir_out in
+    let RelativeDir(dir_test_out) = reldir_test_out in
 
     (* Typecheck each package. *)
     let (tyenv, _) = Primitives.initial_environment in
@@ -104,8 +117,11 @@ let build (fpath_in : string) (dir_out : string) (is_verbose : bool) (externals 
     Core.Unix.mkdir_p dir_out;
     let (_, gmap) = Primitives.initial_environment in
     pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, outs) ->
-      outs |> List.fold_left (fun gmap (sname, imod) ->
-        OutputErlangCode.main spec dir_out gmap ~package_name:pkgnameopt ~module_name:sname imod
+      outs |> List.fold_left (fun gmap out ->
+        let sname = out.PackageChecker.space_name in
+        let imod = (out.PackageChecker.attribute, out.PackageChecker.bindings) in
+        let dir = if out.PackageChecker.is_for_test then dir_test_out else dir_out in
+        OutputErlangCode.main spec dir gmap ~package_name:pkgnameopt ~module_name:sname imod
       ) gmap
     ) gmap |> ignore;
     OutputErlangCode.write_primitive_module dir_out
@@ -124,10 +140,10 @@ let config (fpath_in : string) =
   )
 
 
-let flag_output : string Cmdliner.Term.t =
+let flag_output : (string option) Cmdliner.Term.t =
   let open Cmdliner in
   let doc = "Specify output path." in
-  Arg.(required (opt (some string) None (info [ "o"; "output" ] ~docv:"OUTPUT" ~doc)))
+  Arg.(value (opt (some string) None (info [ "o"; "output" ] ~docv:"OUTPUT" ~doc)))
 
 
 let flag_verbose : bool Cmdliner.Term.t =
