@@ -95,7 +95,7 @@
     (rng, DeclInclude((dr, SigWith((dr, SigDecls(decls)), [], tybinds))))
 %}
 
-%token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE ACT END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE PACK
+%token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE ACT END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE PACK ASSERT
 %token<Range.t> LPAREN RPAREN LSQUARE RSQUARE LBRACE RBRACE ATTRIBUTE
 %token<Range.t> DEFEQ COMMA ARROW REVARROW BAR UNDERSCORE CONS COLON COERCE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
@@ -503,6 +503,10 @@ exprlet:
   | tokL=IF; e0=exprlet; THEN; e1=exprlet; ELSE; e2=exprlet {
       let rng = make_range (Token(tokL)) (Ranged(e2)) in
       (rng, If(e0, e1, e2))
+    }
+  | tokL=ASSERT; e0=exprlet {
+      let rng = make_range (Token(tokL)) (Ranged(e0)) in
+      (rng, Assert(e0))
     }
   | e=exprfun { e }
 ;

@@ -35,4 +35,6 @@ val format_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ
 
 val frozen_type : Range.t -> rest:('a, 'b) typ -> receive:('a, 'b) typ -> return:('a, 'b) typ -> ('a, 'b) typ
 
+val assertion_function_type : mono_type
+
 val initial_environment : Typeenv.t * name_map

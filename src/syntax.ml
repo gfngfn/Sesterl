@@ -198,6 +198,7 @@ and untyped_ast_main =
   | Freeze       of Range.t * frozen_fun * untyped_ast list * Range.t list
   | FreezeUpdate of untyped_ast * untyped_ast list * Range.t list
   | Pack         of module_name_chain * untyped_signature
+  | Assert       of untyped_ast
 
 and untyped_parameters =
   binder list * labeled_binder list * labeled_optional_binder list

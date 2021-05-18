@@ -10,3 +10,7 @@ val from_positions : Lexing.position * Lexing.position -> t
 val dummy : string -> t
 
 val unite : t -> t -> t
+
+val get_file_name : t -> string
+
+val get_start_line : t -> int

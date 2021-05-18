@@ -1636,6 +1636,11 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let absmodsig = coerce_signature Alist.empty rng modsig1 absmodsig2 in
       ((rng, PackType(absmodsig)), IPack(sname1))
 
+  | Assert(utast0) ->
+      let (ty0, e0) = typecheck pre utast0 in
+      unify ty0 Primitives.assertion_function_type;
+      ((rng, BaseType(UnitType)), IAssert(rng, e0))
+
 
 and typecheck_let_pattern (pre : pre) (rng : Range.t) (utpat : untyped_pattern) (utast1 : untyped_ast) =
   let (ty1, e1) = typecheck { pre with level = pre.level + 1 } utast1 in

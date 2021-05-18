@@ -45,6 +45,7 @@ and ast =
   | IFreeze       of global_name * ast list
   | IFreezeUpdate of ast * ast list
   | IPack         of space_name
+  | IAssert       of Range.t * ast
 
 and branch =
   | IBranch of pattern * ast
