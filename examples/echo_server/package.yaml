@@ -3,6 +3,9 @@ package: "echo_server"
 source_directories:
   - "./src"
 
+test_directories:
+  - "./test"
+
 main_module: "App"
 
 dependencies:
