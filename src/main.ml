@@ -115,6 +115,7 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
 
     (* Generate and output code corresponding to each package. *)
     Core.Unix.mkdir_p dir_out;
+    Core.Unix.mkdir_p dir_test_out;
     let (_, gmap) = Primitives.initial_environment in
     pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, outs) ->
       outs |> List.fold_left (fun gmap out ->
