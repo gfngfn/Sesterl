@@ -68,9 +68,14 @@ let make (config : ConfigLoader.config) : assoc =
     ]
   in
   let reldir_out = config.erlang_config.output_directory in
+  let reldir_test_out = config.erlang_config.test_output_directory in
   let entry_src_dirs =
     let reldirs = (reldir_out :: config.source_directories) in
     "src_dirs" ==> List(reldirs |> List.map relative_dir_to_string)
+  in
+  let entry_eunit_tests =
+    let reldirs = (reldir_test_out :: config.test_directories) in
+    "eunit_tests" ==> List(reldirs |> List.map (fun reldir -> Keyed("dir", [ relative_dir_to_string reldir ])))
   in
   let entry_deps =
     let deps_sesterl =
@@ -134,6 +139,7 @@ let make (config : ConfigLoader.config) : assoc =
       entry_plugins;
       entry_src_dirs;
       entry_deps;
+      entry_eunit_tests;
     ];
     entries_relx;
     [
