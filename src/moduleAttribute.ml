@@ -3,16 +3,13 @@ open MyUtil
 open Syntax
 
 
-module StringSet = Set.Make(String)
-
-
 type accumulator = {
   acc_behaviours : StringSet.t;
   acc_for_test   : bool;
 }
 
 type t = {
-  behaviours : string list;
+  behaviours : StringSet.t;
   for_test   : bool;
 }
 
@@ -21,6 +18,20 @@ type warning = {
   tag      : string;
   message  : string;
 }
+
+
+let empty : t =
+  {
+    behaviours = StringSet.empty;
+    for_test   = false;
+  }
+
+
+let merge (modattr1 : t) (modattr2 : t) : t =
+  {
+    behaviours = StringSet.union modattr1.behaviours modattr2.behaviours;
+    for_test   = modattr1.for_test || modattr2.for_test;
+  }
 
 
 let decode (attrs : attribute list) : t * warning list =
@@ -84,7 +95,7 @@ let decode (attrs : attribute list) : t * warning list =
   in
   let t =
     {
-      behaviours = r.acc_behaviours |> StringSet.elements;
+      behaviours = r.acc_behaviours;
       for_test   = r.acc_for_test;
     }
   in

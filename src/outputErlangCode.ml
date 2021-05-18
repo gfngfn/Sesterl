@@ -16,7 +16,7 @@ type module_binding_output =
   | OBindModule of {
       basename   : string;
       atom       : string;
-      attributes : attribute list;
+      attributes : ModuleAttribute.t;
       bindings   : val_binding_output list;
     }
 
@@ -42,7 +42,7 @@ let make_module_string (spec : output_spec) (spacepath : space_name Alist.t) : s
       (s, Printf.sprintf "'%s'" s)
 
 
-let rec traverse_binding_list (spec : output_spec) (sname : space_name) ((gmap, smap) : name_map) (spacepath : space_name Alist.t) (attrs : attribute list) (ibinds : binding list) : module_binding_output list * name_map =
+let rec traverse_binding_list (spec : output_spec) (sname : space_name) ((gmap, smap) : name_map) (spacepath : space_name Alist.t) (modattr : ModuleAttribute.t) (ibinds : binding list) : module_binding_output list * name_map =
 
   let (smod_basename, smod_atom) = make_module_string spec spacepath in
 
@@ -109,7 +109,7 @@ let rec traverse_binding_list (spec : output_spec) (sname : space_name) ((gmap, 
           OBindModule{
             basename   = smod_basename;
             atom       = smod_atom;
-            attributes = attrs;
+            attributes = modattr;
             bindings   = ovalbinds;
           }
         in
@@ -538,13 +538,9 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
   | OBindModule{
       basename   = smod_basename;
       atom       = smod_atom;
-      attributes = attrs;
+      attributes = modattr;
       bindings   = ovalbinds;
     } ->
-      let (mod_attrs, warnings) = ModuleAttribute.decode attrs in
-      warnings |> List.iter (fun warning ->
-        Logging.warn_invalid_module_attribute warning
-      );
       let exports =
         ovalbinds |> List.map (function
         | OBindVal(gnamefun, _, _, _, _, _)
@@ -565,7 +561,7 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
       let lines =
         List.concat [
           [ Printf.sprintf "-module(%s)." smod_atom ];
-          mod_attrs.behaviours |> List.map (fun s -> Printf.sprintf "-behaviour(%s)." s);
+          modattr.behaviours |> StringSet.elements |> List.map (fun s -> Printf.sprintf "-behaviour(%s)." s);
           [ Printf.sprintf "-export([%s])." (String.concat ", " exports) ];
           ss;
         ]
@@ -618,7 +614,7 @@ let write_primitive_module (dir_out : string) : unit =
   write_file dir_out smod lines
 
 
-let main (spec : output_spec) (dir_out : string) (nmap : name_map) ~package_name:(pkgnameopt : space_name option) ~module_name:(sname : space_name) ((attrs, ibinds) : attribute list * binding list) : name_map =
+let main (spec : output_spec) (dir_out : string) (nmap : name_map) ~package_name:(pkgnameopt : space_name option) ~module_name:(sname : space_name) ((modattr, ibinds) : ModuleAttribute.t * binding list) : name_map =
 (*
   Format.printf "OutputErlangCode | package: %a, module: %a\n"
     OutputIdentifier.pp_space pkgname
@@ -630,7 +626,7 @@ let main (spec : output_spec) (dir_out : string) (nmap : name_map) ~package_name
       | Some(pkgname) -> Alist.extend (Alist.extend Alist.empty pkgname) sname
       | None          -> Alist.extend Alist.empty sname
     in
-    traverse_binding_list spec sname nmap spacepath attrs ibinds
+    traverse_binding_list spec sname nmap spacepath modattr ibinds
   in
   omodbinds |> List.iter (fun omodbind ->
     write_module_to_file dir_out omodbind
