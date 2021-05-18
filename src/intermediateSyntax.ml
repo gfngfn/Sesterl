@@ -25,7 +25,7 @@ type val_binding =
 
 and binding =
   | IBindVal     of val_binding
-  | IBindModule  of space_name * attribute list * binding list
+  | IBindModule  of space_name * ModuleAttribute.t * binding list
 
 and ast =
   | IBaseConst   of base_constant

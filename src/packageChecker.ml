@@ -11,7 +11,7 @@ module SigRecordMap = Map.Make(String)
 type sig_record_map = (SigRecord.t abstracted * space_name) SigRecordMap.t
 
 
-let check_single (is_verbose : bool) ~check_public_signature:(check_public_signature : bool) (sigrmap : sig_record_map) (tyenv_before : Typeenv.t) (source : SourceLoader.loaded_module) : SigRecord.t abstracted * (space_name * (attribute list * binding list)) =
+let check_single (is_verbose : bool) ~check_public_signature:(check_public_signature : bool) (sigrmap : sig_record_map) (tyenv_before : Typeenv.t) (source : SourceLoader.loaded_module) : SigRecord.t abstracted * (space_name * (ModuleAttribute.t * binding list)) =
   let abspath  = source.SourceLoader.source_path in
   let modident = source.SourceLoader.module_identifier in
   let utsigopt = source.SourceLoader.signature in

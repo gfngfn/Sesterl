@@ -1,4 +1,7 @@
 
+module StringSet = Set.Make(String)
+
+
 module Alist : sig
   type 'a t
   val empty : 'a t
