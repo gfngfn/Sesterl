@@ -300,7 +300,7 @@ and untyped_binding =
   untyped_binding_main ranged
 
 and untyped_binding_main =
-  | BindVal     of internal_or_external
+  | BindVal     of attribute list * internal_or_external
   | BindType    of type_binding list
   | BindModule  of module_name ranged * untyped_signature option * untyped_module
   | BindSig     of signature_name ranged * untyped_signature
@@ -345,6 +345,11 @@ and labeled_manual_type =
 and attribute =
   Attribute of (string * untyped_ast option) ranged
 
+type attribute_warning = {
+  position : Range.t;
+  tag      : string;
+  message  : string;
+}
 
 module FreeRowID = struct
   include FreeID

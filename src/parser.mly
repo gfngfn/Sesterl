@@ -147,10 +147,10 @@ bindtop:
       let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
       (rng, BindType(tybind :: tybinds))
     }
-  | bindval=bindvaltop {
+  | attrs=list(attr); bindval=bindvaltop {
       let rng = Range.dummy "bindtop-1" in  (* TODO: give appropriate code range *)
       let (_, valbinding) = bindval in
-      (rng, BindVal(valbinding))
+      (rng, BindVal(attrs, valbinding))
     }
   | bindmod=bindmod {
       let (rng, modident, utsigopt, utmod) = bindmod in

@@ -13,12 +13,6 @@ type t = {
   for_test   : bool;
 }
 
-type warning = {
-  position : Range.t;
-  tag      : string;
-  message  : string;
-}
-
 
 let empty : t =
   {
@@ -34,7 +28,7 @@ let merge (modattr1 : t) (modattr2 : t) : t =
   }
 
 
-let decode (attrs : attribute list) : t * warning list =
+let decode (attrs : attribute list) : t * attribute_warning list =
   let r =
     {
       acc_behaviours = StringSet.empty;

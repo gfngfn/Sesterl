@@ -29,7 +29,7 @@ val fresh_global_dummy : unit -> global
 
 val generate_local : string -> local option
 
-val generate_global : string -> arity:int -> has_option:bool -> global option
+val generate_global : string -> suffix:string -> arity:int -> has_option:bool -> global option
 
 val operator : string -> operator
 

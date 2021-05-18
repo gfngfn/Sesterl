@@ -80,7 +80,7 @@ and pp_binding ppf = function
   | IBindVal(valbind) ->
       pp_val_binding ppf valbind
 
-  | IBindModule(sname, _attrs, ibinds) ->
+  | IBindModule(sname, _modattr, ibinds) ->
       Format.fprintf ppf "module %a = @[<v2>{%a}@]@,"
         OutputIdentifier.pp_space sname
         (Format.pp_print_list pp_binding) ibinds

@@ -604,8 +604,9 @@ let generate_local_name (rng : Range.t) (x : identifier) : local_name =
   | Some(lname) -> lname
 
 
-let generate_global_name ~arity:(arity : int) ~has_option:(has_option : bool) (rng : Range.t) (x : identifier) : global_name =
-  match OutputIdentifier.generate_global x ~arity:arity ~has_option:has_option with
+let generate_global_name ~(is_test_suite : bool) ~(arity : int) ~(has_option : bool) (rng : Range.t) (x : identifier) : global_name =
+  let suffix = if is_test_suite then "_test_" else "" in
+  match OutputIdentifier.generate_global x ~suffix:suffix ~arity:arity ~has_option:has_option with
   | None        -> raise_error (InvalidIdentifier(rng, x))
   | Some(gname) -> gname
 
@@ -617,11 +618,11 @@ let local_name_scheme letbind =
   (lname_inner, lname_outer)
 
 
-let global_name_scheme valbind =
+let global_name_scheme (is_test_suite : bool) valbind =
   let arity = List.length valbind.vb_parameters + List.length valbind.vb_mandatories in
   let has_option = (List.length valbind.vb_optionals > 0) in
   let (rngv, x) = valbind.vb_identifier in
-  let gname = generate_global_name ~arity:arity ~has_option:has_option rngv x in
+  let gname = generate_global_name ~is_test_suite ~arity:arity ~has_option:has_option rngv x in
   (gname, gname)
 
 
@@ -3394,7 +3395,9 @@ and base_kind_equal (bkd1 : poly_base_kind) (bkd2 : poly_base_kind) =
 and typecheck_binding (address : address) (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * (ModuleAttribute.t * binding list) =
   let (_, utbindmain) = utbind in
   match utbindmain with
-  | BindVal(External(extbind)) ->
+  | BindVal(attrs, External(extbind)) ->
+      let (valattr, warnings) = ValueAttribute.decode attrs in
+      warnings |> List.iter Logging.warn_invalid_attribute;
       let mty = extbind.ext_type_annot in
       let (rngv, x) = extbind.ext_identifier in
       let arity = extbind.ext_arity in
@@ -3418,12 +3421,18 @@ and typecheck_binding (address : address) (tyenv : Typeenv.t) (utbind : untyped_
             (* Type parameters occurring in handwritten types cannot be cyclic. *)
       in
       let has_option = extbind.ext_has_option in
-      let gname = generate_global_name ~arity:arity ~has_option:has_option rngv x in
+      let gname =
+        let is_test_suite = valattr.is_test_suite in
+        generate_global_name ~is_test_suite ~arity:arity ~has_option:has_option rngv x
+      in
       let sigr = SigRecord.empty |> SigRecord.add_val x pty gname in
       let ibinds = [ IBindVal(IExternal(gname, extbind.ext_code)) ] in
       ((OpaqueIDSet.empty, sigr), (ModuleAttribute.empty, ibinds))
 
-  | BindVal(Internal(rec_or_nonrec)) ->
+  | BindVal(attrs, Internal(rec_or_nonrec)) ->
+      let (valattr, warnings) = ValueAttribute.decode attrs in
+      warnings |> List.iter Logging.warn_invalid_attribute;
+      let is_test_suite = valattr.is_test_suite in
       let pre_init =
         {
           level                 = 0;
@@ -3439,7 +3448,7 @@ and typecheck_binding (address : address) (tyenv : Typeenv.t) (utbind : untyped_
 
         | Rec(valbinds) ->
             let proj gname = OutputIdentifier.Global(gname) in
-            let recbinds = typecheck_letrec_mutual global_name_scheme proj pre_init valbinds in
+            let recbinds = typecheck_letrec_mutual (global_name_scheme is_test_suite) proj pre_init valbinds in
             let (sigr, irecbindacc) =
               recbinds |> List.fold_left (fun (sigr, irecbindacc) (x, pty, gname_outer, _, e) ->
                 let sigr = sigr |> SigRecord.add_val x pty gname_outer in
@@ -3453,7 +3462,7 @@ and typecheck_binding (address : address) (tyenv : Typeenv.t) (utbind : untyped_
             let (pty, gname, e) =
               let arity = List.length valbind.vb_parameters + List.length valbind.vb_mandatories in
               let has_option = (List.length valbind.vb_optionals > 0) in
-              let gnamef = generate_global_name ~arity:arity ~has_option:has_option in
+              let gnamef = generate_global_name ~is_test_suite ~arity:arity ~has_option:has_option in
               typecheck_let gnamef pre_init valbind
             in
             let (_, x) = valbind.vb_identifier in
@@ -3614,7 +3623,7 @@ and typecheck_module (address : address) (tyenv : Typeenv.t) (utmod : untyped_mo
 
   | ModBinds(attrs, utbinds) ->
       let (modattr, warnings) = ModuleAttribute.decode attrs in
-      warnings |> List.iter Logging.warn_invalid_module_attribute;
+      warnings |> List.iter Logging.warn_invalid_attribute;
       let (abssigr, (modattr_included, ibinds)) = typecheck_binding_list address tyenv utbinds in
       let (oidset, sigr) = abssigr in
       let absmodsig = (oidset, ConcStructure(sigr)) in
