@@ -1,10 +1,10 @@
 module TestTesting = #[test] struct
 
-  #[test]
-  val f(x, y) =
+  val sub(x, y) =
     x == y
 
-  val main(args) =
-    f(42, 42)
+  #[test]
+  val main() =
+    sub(42, 42)
 
 end
