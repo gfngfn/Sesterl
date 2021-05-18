@@ -3754,9 +3754,9 @@ and coerce_signature (address : address) (rng : Range.t) (modsig1 : module_signa
 
 let main (tyenv : Typeenv.t) (modident : module_name ranged) (absmodsigopt2 : (module_signature abstracted) option) (utmod1 : untyped_module) : Typeenv.t * SigRecord.t abstracted * space_name * (ModuleAttribute.t * binding list) =
   let (rng, modnm) = modident in
-  let sname = get_space_name rng modnm in
   let address = Alist.extend Alist.empty modnm in
   let (absmodsig1, imod) = typecheck_module address tyenv utmod1 in
+  let sname = get_space_name rng modnm in
   let (oidset, modsig) =
     match absmodsigopt2 with
     | None             -> absmodsig1

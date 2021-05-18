@@ -38,7 +38,7 @@ let decode (attrs : attribute list) : t * warning list =
   let r =
     {
       acc_behaviours = StringSet.empty;
-      acc_for_test   = true;
+      acc_for_test   = false;
     }
   in
   let (r, warn_acc) =

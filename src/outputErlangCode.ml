@@ -30,7 +30,7 @@ let traverse_val_single (nmap : name_map) (_, gnamefun, _, ast) : val_binding_ou
       assert false
 
 
-let make_module_string (spec : output_spec) (spacepath : space_name Alist.t) : string * string =
+let make_module_string ~(suffix : string) (spec : output_spec) (spacepath : space_name Alist.t) : string * string =
   let spaces = spacepath |> Alist.to_list in
   match spec.module_name_output_spec with
   | SingleSnake ->
@@ -39,12 +39,14 @@ let make_module_string (spec : output_spec) (spacepath : space_name Alist.t) : s
 
   | DottedCamels ->
       let s = spaces |> List.map OutputIdentifier.output_space_to_camel |> String.concat "." in
+      let s = s ^ suffix in
       (s, Printf.sprintf "'%s'" s)
 
 
 let rec traverse_binding_list (spec : output_spec) (sname : space_name) ((gmap, smap) : name_map) (spacepath : space_name Alist.t) (modattr : ModuleAttribute.t) (ibinds : binding list) : module_binding_output list * name_map =
 
-  let (smod_basename, smod_atom) = make_module_string spec spacepath in
+  let suffix = if modattr.for_test then "_tests" else "" in
+  let (smod_basename, smod_atom) = make_module_string ~suffix spec spacepath in
 
   let smap = smap |> SpaceNameMap.add sname smod_atom in
 
