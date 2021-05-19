@@ -25,6 +25,7 @@ dependencies:
         type: "branch"
         value: "master"
 
+test_dependencies:
   - name: "sesterl_testing"
     source:
       type: "git"
