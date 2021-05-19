@@ -9,6 +9,10 @@
  {<<"sesterl_stdlib">>,
   {git,"https://github.com/gfngfn/sesterl_stdlib",
        {ref,"d98544529f4eb20b606d525916175bcbdc49ff74"}},
+  0},
+ {<<"sesterl_testing">>,
+  {git,"https://github.com/gfngfn/sesterl_testing",
+       {ref,"9be38ac2b9ae50d9138cf467297ee0da97c0ab0e"}},
   0}]}.
 [
 {pkg_hash,[

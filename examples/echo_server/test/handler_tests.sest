@@ -2,29 +2,11 @@ import Handler
 
 module HandlerTests = #[test] struct
 
-  val test_equal<$a> : fun(-expect $a, -got $a) -> fun(binary, int) -> unit = external 2 ```
-    test_equal(Expect, Got) ->
-        fun(FileName, LineNumber) ->
-            case Got of
-                Expect ->
-                    ok;
-                _ ->
-                    Msg = lists:flatten(io_lib:format("('~s' at line ~w)", [FileName, LineNumber])),
-                    erlang:error({assertEqual_failed, [
-                        {module, erlang:binary_to_atom(FileName)},
-                        {line, LineNumber},
-                        {expression, Msg},
-                        {expected, Expect},
-                        {value, Got}]})
-            end
-        end.
-  ```
-
   #[test]
   val status_code_test() =
     {Stdlib.Binary.to_list("status code test"),
      fun() ->
-       assert test_equal(
+       assert Testing.equal(
          -expect 200,
          -got  Handler.status_code())
      end}

@@ -25,6 +25,14 @@ dependencies:
         type: "branch"
         value: "master"
 
+  - name: "sesterl_testing"
+    source:
+      type: "git"
+      repository: "https://github.com/gfngfn/sesterl_testing"
+      spec:
+        type: "branch"
+        value: "master"
+
 erlang:
   output_directory: "./_generated"
   test_output_directory: "./_generated_test"
