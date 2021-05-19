@@ -27,6 +27,7 @@ dependencies:
 
 erlang:
   output_directory: "./_generated"
+  test_output_directory: "./_generated_test"
   erlang_dependencies:
     - name: "cowboy"
       source:
