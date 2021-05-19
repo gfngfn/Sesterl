@@ -9,10 +9,11 @@ module HandlerTests = #[test] struct
                 Expect ->
                     ok;
                 _ ->
+                    Msg = lists:flatten(io_lib:format("('~s' at line ~w)", [FileName, LineNumber])),
                     erlang:error({assertEqual_failed, [
                         {module, erlang:binary_to_atom(FileName)},
                         {line, LineNumber},
-                        {expression, lists:flatten(io_lib:format("~w", [Got]))},
+                        {expression, Msg},
                         {expected, Expect},
                         {value, Got}]})
             end
