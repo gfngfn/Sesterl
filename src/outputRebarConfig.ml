@@ -108,6 +108,26 @@ let make (config : ConfigLoader.config) : assoc =
     in
     "deps" ==> Assoc(List.append deps_sesterl deps_erlang)
   in
+  let entry_profile =
+    let test_deps_sesterl =
+      config.ConfigLoader.test_dependencies |> List.fold_left (fun acc dep ->
+        let name = dep.ConfigLoader.dependency_name in
+        match dep.ConfigLoader.dependency_source with
+        | Local(_) ->
+            acc
+
+        | Git{ repository = uri; git_spec = git_spec } ->
+            let v_git_spec = make_git_spec git_spec in
+            let v_dep = keyed "git" [ String(uri); v_git_spec ] in
+            Alist.extend acc (name, v_dep)
+      ) Alist.empty |> Alist.to_list
+    in
+    "profiles" ==> Assoc[
+      "test" ==> Assoc[
+        "deps" ==> Assoc(test_deps_sesterl)
+      ]
+    ]
+  in
   let entries_relx =
     let open ConfigLoader in
     match config.erlang_config.relx with
@@ -131,7 +151,8 @@ let make (config : ConfigLoader.config) : assoc =
   in
   let entry_sesterl_opts =
     "sesterl_opts" ==> Assoc[
-      "output_dir" ==> relative_dir_to_string reldir_out
+      "output_dir" ==> relative_dir_to_string reldir_out;
+      "test_output_dir" ==> relative_dir_to_string reldir_test_out;
     ]
   in
   List.concat [
@@ -139,6 +160,7 @@ let make (config : ConfigLoader.config) : assoc =
       entry_plugins;
       entry_src_dirs;
       entry_deps;
+      entry_profile;
       entry_eunit_tests;
     ];
     entries_relx;

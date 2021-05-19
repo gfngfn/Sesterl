@@ -37,7 +37,13 @@ let main (external_map : external_map) (absdir : absolute_dir) : ((absolute_dir 
         let loaded_names = state.loaded_names |> PackageNameMap.add pkgname absdir in
         let state = { state with loaded_dirs = loaded_dirs; loaded_names = loaded_names } in
         let state =
-          config.ConfigLoader.dependencies |> List.fold_left (fun state dependency ->
+          let deps =
+            List.append
+              config.ConfigLoader.dependencies
+              config.ConfigLoader.test_dependencies
+                (* TODO: distinguish packages only for tests from those for the source *)
+          in
+          deps |> List.fold_left (fun state dependency ->
             let graph = state.graph in
             let pkgname_sub = dependency.ConfigLoader.dependency_name in
             let absdir_sub =
