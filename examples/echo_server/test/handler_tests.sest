@@ -4,11 +4,10 @@ module HandlerTests = #[test] struct
 
   #[test]
   val status_code_test() =
-    {Stdlib.Binary.to_list("status code test"),
-     fun() ->
-       assert Testing.equal(
-         -expect 200,
-         -got  Handler.status_code())
-     end}
+    Testing.it("status code test", fun() ->
+      assert Testing.equal(
+        -expect 200,
+        -got  Handler.status_code())
+    end)
 
 end

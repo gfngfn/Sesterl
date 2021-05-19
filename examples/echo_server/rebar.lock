@@ -12,7 +12,7 @@
   0},
  {<<"sesterl_testing">>,
   {git,"https://github.com/gfngfn/sesterl_testing",
-       {ref,"9be38ac2b9ae50d9138cf467297ee0da97c0ab0e"}},
+       {ref,"3322cacfe560ea3ebbd16f3b6c86bd6511d082e6"}},
   0}]}.
 [
 {pkg_hash,[
