@@ -30,9 +30,10 @@ type relx = {
 }
 
 type erlang_config = {
-  output_directory    : relative_dir;
-  erlang_dependencies : erlang_library list;
-  relx                : relx option;
+  output_directory      : relative_dir;
+  test_output_directory : relative_dir;
+  erlang_dependencies   : erlang_library list;
+  relx                  : relx option;
 }
 
 type dependency_source =
@@ -47,9 +48,10 @@ type dependency = {
 
 let default_erlang_config : erlang_config =
   {
-    output_directory    = RelativeDir(Constants.default_output_directory);
-    erlang_dependencies = [];
-    relx                = None;
+    output_directory      = RelativeDir(Constants.default_output_directory);
+    test_output_directory = RelativeDir(Constants.default_test_output_directory);
+    erlang_dependencies   = [];
+    relx                  = None;
   }
 
 
@@ -58,7 +60,9 @@ type config = {
   package_name       : package_name;
   main_module_name   : module_name;
   source_directories : relative_dir list;
+  test_directories   : relative_dir list;
   dependencies       : dependency list;
+  test_dependencies  : dependency list;
   erlang_config      : erlang_config;
 }
 
@@ -140,12 +144,14 @@ let relx_decoder : relx YamlDecoder.t =
 let erlang_config_decoder : erlang_config YamlDecoder.t =
   let open YamlDecoder in
   get_or_else "output_directory" string Constants.default_output_directory >>= fun reldir_out ->
+  get_or_else "test_output_directory" string Constants.default_test_output_directory >>= fun reldir_test_out ->
   get_or_else "erlang_dependencies" (list erlang_dependency_decoder) [] >>= fun erldeps ->
   get_opt "relx" relx_decoder >>= fun relx_opt ->
   succeed {
-    output_directory    = RelativeDir(reldir_out);
-    erlang_dependencies = erldeps;
-    relx                = relx_opt;
+    output_directory      = RelativeDir(reldir_out);
+    test_output_directory = RelativeDir(reldir_test_out);
+    erlang_dependencies   = erldeps;
+    relx                  = relx_opt;
   }
 
 
@@ -182,15 +188,19 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.t =
   get "package" string >>= fun package_name ->
   get "source_directories" (list string) >>= fun srcdirs ->
   get "main_module" string >>= fun main_module_name ->
+  get_or_else "test_directories" (list string) [] >>= fun testdirs ->
   get_or_else "dependencies" (list (dependency_decoder confdir)) [] >>= fun dependencies ->
+  get_or_else "test_dependencies" (list (dependency_decoder confdir)) [] >>= fun test_dependencies ->
   get_or_else "erlang" erlang_config_decoder default_erlang_config >>= fun erlang_config ->
   let config =
     {
       config_directory   = confdir;
       package_name       = package_name;
       main_module_name   = main_module_name;
-      source_directories = List.map (fun srcdir -> RelativeDir(srcdir)) srcdirs;
+      source_directories = srcdirs |> List.map (fun srcdir -> RelativeDir(srcdir));
+      test_directories   = testdirs |> List.map (fun testdir -> RelativeDir(testdir));
       dependencies       = dependencies;
+      test_dependencies  = test_dependencies;
       erlang_config      = erlang_config;
     }
   in

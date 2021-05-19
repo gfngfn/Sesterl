@@ -7,6 +7,7 @@ exception SyntaxError of syntax_error
 
 
 type loaded_module = {
+  is_in_test_dirs   : bool;
   source_path       : absolute_path;
   module_identifier : module_name ranged;
   signature         : untyped_signature option;
@@ -31,7 +32,7 @@ let listup_sources_in_directory (dir : absolute_dir) : absolute_path list =
   )
 
 
-let read_source (abspath_in : absolute_path) : (loaded_module, syntax_error) result =
+let read_source ~(is_in_test_dirs : bool) (abspath_in : absolute_path) : (loaded_module, syntax_error) result =
   Logging.begin_to_parse abspath_in;
   let inc = open_in abspath_in in
   let lexbuf = Lexing.from_channel inc in
@@ -40,6 +41,7 @@ let read_source (abspath_in : absolute_path) : (loaded_module, syntax_error) res
     let open ResultMonad in
     ParserInterface.process ~fname:fname lexbuf >>= fun (deps, modident, utsigopt, utmod) ->
     return {
+      is_in_test_dirs   = is_in_test_dirs;
       source_path       = abspath_in;
       module_identifier = modident;
       signature         = utsigopt;
@@ -81,9 +83,15 @@ let resolve_dependency (baremods : loaded_module list) : loaded_module list =
         | None ->
             raise (ConfigError(ModuleNotFound(rng, modnm_dep)))
 
-        | Some((vertex_dep, _)) ->
-            graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_dep
+        | Some((vertex_dep, baremod_dep)) ->
+            begin
+              match (baremod.is_in_test_dirs, baremod_dep.is_in_test_dirs) with
+              | (false, true) ->
+                  raise (ConfigError(SourceFileDependsOnTestFile(modnm, modnm_dep)))
 
+              | _ ->
+                  graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_dep
+            end
       ) graph
     ) nmmap
   in
@@ -102,7 +110,7 @@ let resolve_dependency (baremods : loaded_module list) : loaded_module list =
 
 
 let single (abspath_in : absolute_path) : loaded_module =
-  match read_source abspath_in with
+  match read_source ~is_in_test_dirs:false abspath_in with
   | Error(e) ->
       raise (SyntaxError(e))
 
@@ -120,12 +128,22 @@ let main (config : ConfigLoader.config) : loaded_package =
     let confdir = config.ConfigLoader.config_directory in
     srcreldirs |> List.map (function RelativeDir(reldir) -> Core.Filename.concat confdir reldir)
   in
+  let testdirs =
+    let testreldirs = config.ConfigLoader.test_directories in
+    let confdir = config.ConfigLoader.config_directory in
+    testreldirs |> List.map (function RelativeDir(reldir) -> Core.Filename.concat confdir reldir)
+  in
   let main_module_name = config.ConfigLoader.main_module_name in
-  let abspaths =
-    srcdirs |> List.map listup_sources_in_directory |> List.concat in
+  let abspaths_src = srcdirs |> List.map listup_sources_in_directory |> List.concat in
+  let abspaths_test = testdirs |> List.map listup_sources_in_directory |> List.concat in
   let baremods =
-    abspaths |> List.map (fun abspath ->
-      match read_source abspath with
+    let inputs =
+      List.append
+        (abspaths_src |> List.map (fun abspath -> (abspath, false)))
+        (abspaths_test |> List.map (fun abspath -> (abspath, true)))
+    in
+    inputs |> List.map (fun (abspath, is_in_test_dirs) ->
+      match read_source ~is_in_test_dirs abspath with
       | Ok(baremod) -> baremod
       | Error(e)    -> raise (SyntaxError(e))
     )

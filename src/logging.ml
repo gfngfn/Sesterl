@@ -126,6 +126,14 @@ let report_config_error (e : config_error) : unit =
       Format.printf "config file '%s' not found\n"
         abspath
 
+  | SourceFileDependsOnTestFile(mod_src, mod_test) ->
+      Format.printf "source module '%s' depends on test module '%s'\n"
+        mod_src
+        mod_test
+
+  | NoOutputSpecForSingleSource ->
+      Format.printf "no output spec ('--output' or '-o') for single source file\n"
+
 
 let report_package_error (e : package_error) : unit =
   Format.printf "! [Build error] ";

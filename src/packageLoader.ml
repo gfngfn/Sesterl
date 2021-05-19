@@ -24,8 +24,8 @@ type reading_state = {
 }
 
 
-let main (external_map : external_map) (absdir : absolute_dir) : (absolute_dir * ConfigLoader.config) list =
-  let rec aux (state : reading_state) (vertex : FileDependencyGraph.vertex) (absdir : absolute_dir) : reading_state =
+let main (external_map : external_map) (absdir : absolute_dir) : ((absolute_dir * ConfigLoader.config) list * ConfigLoader.config) =
+  let rec aux (state : reading_state) (vertex : FileDependencyGraph.vertex) (absdir : absolute_dir) : ConfigLoader.config * reading_state =
     let config = load_config absdir in
     let pkgname = config.ConfigLoader.package_name in
     match state.loaded_names |> PackageNameMap.find_opt pkgname with
@@ -36,40 +36,50 @@ let main (external_map : external_map) (absdir : absolute_dir) : (absolute_dir *
         let loaded_dirs = state.loaded_dirs |> PackageDirMap.add absdir config in
         let loaded_names = state.loaded_names |> PackageNameMap.add pkgname absdir in
         let state = { state with loaded_dirs = loaded_dirs; loaded_names = loaded_names } in
-        config.ConfigLoader.dependencies |> List.fold_left (fun state dependency ->
-          let graph = state.graph in
-          let pkgname_sub = dependency.ConfigLoader.dependency_name in
-          let absdir_sub =
-            match dependency.ConfigLoader.dependency_source with
-            | ConfigLoader.Local(absdir_sub) ->
-                absdir_sub
-
-            | ConfigLoader.Git(_git_spec) ->
-                begin
-                  match external_map |> ExternalMap.find_opt pkgname_sub with
-                  | None             -> raise (PackageError(NotFoundInExternalMap(pkgname_sub, external_map)))
-                  | Some(absdir_sub) -> absdir_sub
-                end
+        let state =
+          let deps =
+            List.append
+              config.ConfigLoader.dependencies
+              config.ConfigLoader.test_dependencies
+                (* TODO: distinguish packages only for tests from those for the source *)
           in
-          let absdir_sub =
-            match canonicalize_path absdir_sub with
-            | None         -> raise (PackageError(PackageDirNotFound(absdir_sub)))
-            | Some(absdir) -> absdir
-          in
-          match graph |> FileDependencyGraph.find_vertex absdir_sub with
-          | Some(vertex_sub) ->
-            (* If the depended source file has already been parsed *)
-              let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
-              { state with graph = graph }
+          deps |> List.fold_left (fun state dependency ->
+            let graph = state.graph in
+            let pkgname_sub = dependency.ConfigLoader.dependency_name in
+            let absdir_sub =
+              match dependency.ConfigLoader.dependency_source with
+              | ConfigLoader.Local(absdir_sub) ->
+                  absdir_sub
 
-          | None ->
-            (* If the depended source file has not been parsed yet *)
-              let (graph, vertex_sub) = graph |> FileDependencyGraph.add_vertex absdir_sub in
-              let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
-              aux { state with graph = graph } vertex_sub absdir_sub
-        ) state
+              | ConfigLoader.Git(_git_spec) ->
+                  begin
+                    match external_map |> ExternalMap.find_opt pkgname_sub with
+                    | None             -> raise (PackageError(NotFoundInExternalMap(pkgname_sub, external_map)))
+                    | Some(absdir_sub) -> absdir_sub
+                  end
+            in
+            let absdir_sub =
+              match canonicalize_path absdir_sub with
+              | None         -> raise (PackageError(PackageDirNotFound(absdir_sub)))
+              | Some(absdir) -> absdir
+            in
+            match graph |> FileDependencyGraph.find_vertex absdir_sub with
+            | Some(vertex_sub) ->
+              (* If the depended source file has already been parsed *)
+                let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
+                { state with graph = graph }
+
+            | None ->
+              (* If the depended source file has not been parsed yet *)
+                let (graph, vertex_sub) = graph |> FileDependencyGraph.add_vertex absdir_sub in
+                let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
+                let (_, state) = aux { state with graph = graph } vertex_sub absdir_sub in
+                state
+          ) state
+        in
+        (config, state)
   in
-  let state =
+  let (config, state) =
     let (graph, vertex) = FileDependencyGraph.empty |> FileDependencyGraph.add_vertex absdir in
     let state =
       {
@@ -85,8 +95,11 @@ let main (external_map : external_map) (absdir : absolute_dir) : (absolute_dir *
       raise (ConfigError(CyclicFileDependencyFound(cycle)))
 
   | Ok(absdirs) ->
-      absdirs |> List.map (fun absdir ->
-        match state.loaded_dirs |> PackageDirMap.find_opt absdir with
-        | None         -> assert false
-        | Some(config) -> (absdir, config)
-      )
+      let pkgconfigs =
+        absdirs |> List.map (fun absdir ->
+          match state.loaded_dirs |> PackageDirMap.find_opt absdir with
+          | None         -> assert false
+          | Some(config) -> (absdir, config)
+        )
+      in
+      (pkgconfigs, config)

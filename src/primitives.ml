@@ -50,6 +50,18 @@ let frozen_type (rng : Range.t)
   (rng, DataType(TypeID.Variant(vid_frozen), [tyrest; tyrecv; tycod]))
 
 
+let assertion_function_type : mono_type =
+  let dr = Range.dummy "assertion_function_type" in
+  let domty =
+    {
+      ordered   = [(dr, BaseType(BinaryType)); (dr, BaseType(IntType))];
+      mandatory = LabelAssoc.empty;
+      optional  = FixedRow(LabelAssoc.empty);
+    }
+  in
+  (dr, FuncType(domty, (dr, BaseType(UnitType))))
+
+
 let fresh_bound () =
   let bid = BoundID.fresh () in
   KindStore.register_bound_id bid UniversalKind;

@@ -63,3 +63,15 @@ let unite r1 r2 =
         last_line = x2.last_line;
         last_column = x2.last_column;
       }
+
+
+let get_file_name (rng : t) =
+  match rng with
+  | Dummy(s) -> Printf.sprintf "(%s)" s
+  | Real(r)  -> r.file_name
+
+
+let get_start_line (rng : t) =
+  match rng with
+  | Dummy(_) -> 0
+  | Real(r)  -> r.start_line

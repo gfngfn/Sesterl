@@ -443,6 +443,16 @@ and stringify_ast (nmap : name_map) (ast : ast) =
         | Some(smod) -> smod
       end
 
+  | IAssert(rng, e0) ->
+      let s0 = iter e0 in
+      let var = fresh_local_symbol () in
+      Printf.sprintf "begin %s = %s, %s(<<\"%s\">>, %d) end"
+        var
+        s0
+        var
+        (Range.get_file_name rng)
+        (Range.get_start_line rng)
+
 
 and mapify_label_assoc (nmap : name_map) (emap : ast LabelAssoc.t) =
   LabelAssoc.fold (fun label ast acc ->

@@ -5,3 +5,4 @@ _build/
 sesterl
 _generated/
 *.install
+_generated_test/

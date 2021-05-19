@@ -7,6 +7,10 @@ let default_output_directory =
   "_generated"
 
 
+let default_test_output_directory =
+  "_generated_test"
+
+
 let plugin_name =
   "rebar_sesterl"
 

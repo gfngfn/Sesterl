@@ -1,5 +1,8 @@
 module Handler = struct
 
+  val status_code() =
+    200
+
   val init(req, state) = act
     let bs = Cowboy.bindings(req) in
     let body =
@@ -18,7 +21,7 @@ module Handler = struct
     let header = Stdlib.RawMap.put("content-type", "text/plain", Stdlib.RawMap.new()) in
     do req <-
       Cowboy.reply(
-        200,
+        status_code(),
         header,
         body,
         req,

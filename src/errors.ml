@@ -13,6 +13,8 @@ type config_error =
   | MainModuleNotFound          of package_name * module_name
   | UnrecognizableExtension     of string
   | ConfigFileNotFound          of absolute_dir
+  | SourceFileDependsOnTestFile of module_name * module_name
+  | NoOutputSpecForSingleSource
 
 exception ConfigError of config_error
 
