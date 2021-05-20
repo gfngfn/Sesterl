@@ -316,7 +316,7 @@ and untyped_signature =
 and untyped_signature_main =
   | SigVar     of signature_name
   | SigPath    of untyped_module * signature_name ranged
-  | SigDecls   of untyped_declaration list
+  | SigDecls   of module_name_chain list * untyped_declaration list
   | SigFunctor of module_name ranged * untyped_signature * untyped_signature
   | SigWith    of untyped_signature * (module_name ranged) list * type_binding list
 

@@ -92,7 +92,7 @@
         (dr, DeclTypeOpaque(tyident, Some(mnkd)))
       )
     in
-    (rng, DeclInclude((dr, SigWith((dr, SigDecls(decls)), [], tybinds))))
+    (rng, DeclInclude((dr, SigWith((dr, SigDecls([], decls)), [], tybinds))))
 %}
 
 %token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE ACT END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE PACK ASSERT OPEN
@@ -449,9 +449,9 @@ sigexprbot:
           let utmod = fold_module_chain (modident, projs) in
           (rng, SigPath(utmod, sigident))
     }
-  | tokL=SIG; utdecls=list(decl); tokR=END {
+  | tokL=SIG; openspecs=list(openspec); utdecls=list(decl); tokR=END {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
-      (rng, SigDecls(utdecls))
+      (rng, SigDecls(openspecs, utdecls))
     }
   | tokL=LPAREN; utsig=sigexpr; tokR=RPAREN {
       let rng = make_range (Token(tokL)) (Token(tokR)) in

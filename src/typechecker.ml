@@ -223,6 +223,19 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
     tyenv
 
 
+let add_open_specs_to_type_environment (openspecs : module_name_chain list) (tyenv : Typeenv.t) : Typeenv.t =
+  openspecs |> List.fold_left (fun tyenv openspec ->
+    let (modsig, _) = find_module_from_chain tyenv openspec in
+    match modsig with
+    | ConcFunctor(_) ->
+        let rng0 = get_module_name_chain_position openspec in
+        raise_error (NotOfStructureType(rng0, modsig))
+
+    | ConcStructure(sigr) ->
+        tyenv |> update_type_environment_by_signature_record sigr
+  ) tyenv
+
+
 module SynonymIDHashSet = Hashtbl.Make(TypeID.Synonym)
 
 
@@ -3295,7 +3308,8 @@ and typecheck_signature (address : address) (tyenv : Typeenv.t) (utsig : untyped
             end
       end
 
-  | SigDecls(utdecls) ->
+  | SigDecls(openspecs, utdecls) ->
+      let tyenv = tyenv |> add_open_specs_to_type_environment openspecs in
       let (oidset, sigr) = typecheck_declaration_list address tyenv utdecls in
       (oidset, ConcStructure(sigr))
 
@@ -3636,18 +3650,7 @@ and typecheck_module (address : address) (tyenv : Typeenv.t) (utmod : untyped_mo
   | ModBinds(attrs, openspecs, utbinds) ->
       let (modattr, warnings) = ModuleAttribute.decode attrs in
       warnings |> List.iter Logging.warn_invalid_attribute;
-      let tyenv =
-        openspecs |> List.fold_left (fun tyenv openspec ->
-          let (modsig, _) = find_module_from_chain tyenv openspec in
-          match modsig with
-          | ConcFunctor(_) ->
-              let rng0 = get_module_name_chain_position openspec in
-              raise_error (NotOfStructureType(rng0, modsig))
-
-          | ConcStructure(sigr) ->
-              tyenv |> update_type_environment_by_signature_record sigr
-        ) tyenv
-      in
+      let tyenv = tyenv |> add_open_specs_to_type_environment openspecs in
       let (abssigr, (modattr_included, ibinds)) = typecheck_binding_list address tyenv utbinds in
       let (oidset, sigr) = abssigr in
       let absmodsig = (oidset, ConcStructure(sigr)) in
