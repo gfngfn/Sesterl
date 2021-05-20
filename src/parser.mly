@@ -92,10 +92,10 @@
         (dr, DeclTypeOpaque(tyident, Some(mnkd)))
       )
     in
-    (rng, DeclInclude((dr, SigWith((dr, SigDecls(decls)), [], tybinds))))
+    (rng, DeclInclude((dr, SigWith((dr, SigDecls([], decls)), [], tybinds))))
 %}
 
-%token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE ACT END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE PACK ASSERT
+%token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE ACT END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE PACK ASSERT OPEN
 %token<Range.t> LPAREN RPAREN LSQUARE RSQUARE LBRACE RBRACE ATTRIBUTE
 %token<Range.t> DEFEQ COMMA ARROW REVARROW BAR UNDERSCORE CONS COLON COERCE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
@@ -383,9 +383,9 @@ modexprbot:
   | utmod=modchain    { utmod }
 ;
 modexprunit:
-  | attrs=list(attr); tokL=STRUCT; utbinds=list(bindtop); tokR=END {
+  | attrs=list(attr); tokL=STRUCT; openspecs=list(openspec) utbinds=list(bindtop); tokR=END {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
-      (rng, ModBinds(attrs, utbinds))
+      (rng, ModBinds(attrs, openspecs, utbinds))
     }
   | tokL=LPAREN; utmod=modexpr; tokR=RPAREN {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
@@ -398,6 +398,9 @@ modchain:
 ;
 modchainraw:
   | modident=UPPER; projs=list(DOTUPPER) { (modident, projs) }
+;
+openspec:
+  | OPEN; modchain=modchainraw { modchain }
 ;
 attr:
   | tokL=ATTRIBUTE; ident=LOWER; LPAREN; utast=exprlet; RPAREN; tokR=RSQUARE {
@@ -446,9 +449,9 @@ sigexprbot:
           let utmod = fold_module_chain (modident, projs) in
           (rng, SigPath(utmod, sigident))
     }
-  | tokL=SIG; utdecls=list(decl); tokR=END {
+  | tokL=SIG; openspecs=list(openspec); utdecls=list(decl); tokR=END {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
-      (rng, SigDecls(utdecls))
+      (rng, SigDecls(openspecs, utdecls))
     }
   | tokL=LPAREN; utsig=sigexpr; tokR=RPAREN {
       let rng = make_range (Token(tokL)) (Token(tokR)) in

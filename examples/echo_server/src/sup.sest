@@ -1,6 +1,7 @@
 module Sup = struct
+  open Stdlib
 
-  module S = Stdlib.Supervisor.Static
+  module S = Supervisor.Static
 
   module Callback = struct
     type child_id = unit

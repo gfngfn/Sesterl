@@ -87,6 +87,7 @@ rule token = parse
         | "freeze"    -> FREEZE(pos)
         | "pack"      -> PACK(pos)
         | "assert"    -> ASSERT(pos)
+        | "open"      -> OPEN(pos)
         | _           -> LOWER(pos, s)
     }
 

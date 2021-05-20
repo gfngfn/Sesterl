@@ -291,7 +291,7 @@ and untyped_module =
 
 and untyped_module_main =
   | ModVar     of module_name
-  | ModBinds   of attribute list * untyped_binding list
+  | ModBinds   of attribute list * module_name_chain list * untyped_binding list
   | ModProjMod of untyped_module * module_name ranged
   | ModFunctor of module_name ranged * untyped_signature * untyped_module
   | ModApply   of module_name_chain * module_name_chain
@@ -316,7 +316,7 @@ and untyped_signature =
 and untyped_signature_main =
   | SigVar     of signature_name
   | SigPath    of untyped_module * signature_name ranged
-  | SigDecls   of untyped_declaration list
+  | SigDecls   of module_name_chain list * untyped_declaration list
   | SigFunctor of module_name ranged * untyped_signature * untyped_signature
   | SigWith    of untyped_signature * (module_name ranged) list * type_binding list
 
