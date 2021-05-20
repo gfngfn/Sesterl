@@ -1,4 +1,5 @@
 module Handler = struct
+  open Stdlib
 
   val status_code() =
     200
@@ -6,19 +7,19 @@ module Handler = struct
   val init(req, state) = act
     let bs = Cowboy.bindings(req) in
     let body =
-      case Stdlib.RawMap.find("user_name", bs) of
+      case RawMap.find("user_name", bs) of
       | Some(user_name) ->
           user_name
       | None ->
           let qs = Cowboy.parse_qs(req) in
-          case Stdlib.RawMap.find("text", qs) of
+          case RawMap.find("text", qs) of
           | Some(Some(text)) -> text
           | Some(None)       -> "Hello, Sesterl! ('text' was given but no content)"
           | None             -> "Hello, Sesterl! ('text' was not given)"
           end
       end
     in
-    let header = Stdlib.RawMap.put("content-type", "text/plain", Stdlib.RawMap.new()) in
+    let header = RawMap.put("content-type", "text/plain", RawMap.new()) in
     do req <-
       Cowboy.reply(
         status_code(),
