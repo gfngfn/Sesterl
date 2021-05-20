@@ -1,12 +1,13 @@
 module SampleSupUsage = struct
+  open Stdlib
 
   module Sup :> sig
     type proc
     val start_link<$a> : fun(unit) -> [$a]option<proc>
   end = struct
 
-    module G = Stdlib.GenServer
-    module S = Stdlib.Supervisor.Static
+    module G = GenServer
+    module S = Supervisor.Static
 
     module Child1 = struct
 
@@ -50,7 +51,7 @@ module SampleSupUsage = struct
       val start_child1(n) = act
         S.make_child_proc(fun() -> act
           do res <- Child1.start_link(n) in
-          return(Stdlib.Option.map(Child1.as_pid, res))
+          return(Option.map(Child1.as_pid, res))
         end)
 
       val init(init_arg) = act

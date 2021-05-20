@@ -1,4 +1,5 @@
 module SampleProject = struct
+  open Stdlib
 
   module Server :> sig
     type proc
@@ -32,23 +33,23 @@ module SampleProject = struct
 
       val init(state) = act
         let _ = print_debug({"init", state}) in
-        Stdlib.GenServer.init_ok(state)
+        GenServer.init_ok(state)
 
       val handle_call(req, pid, state) = act
         let _ = print_debug({"handle_call", req}) in
         case req of
-        | GetNumber -> Stdlib.GenServer.reply(Number(state.number), state)
-        | GetName   -> Stdlib.GenServer.reply(Name(state.name), state)
+        | GetNumber -> GenServer.reply(Number(state.number), state)
+        | GetName   -> GenServer.reply(Name(state.name), state)
         end
 
       val handle_cast(msg, state) = act
         let _ = print_debug({"handle_cast", msg}) in
         case msg of
-        | SetNumber(m) -> Stdlib.GenServer.no_reply({ number = m, name = state.name })
+        | SetNumber(m) -> GenServer.no_reply({ number = m, name = state.name })
         end
 
       val handle_info(info, state) = act
-        Stdlib.GenServer.no_reply(state)
+        GenServer.no_reply(state)
 
       val terminate(state) = act
         let _ = print_debug("terminate") in
@@ -56,7 +57,7 @@ module SampleProject = struct
 
     end
 
-    include Stdlib.GenServer.Make(Callback)
+    include GenServer.Make(Callback)
 
     val set_number<$a>(pid : proc, m : int) : [$a]unit = act
       cast(pid, SetNumber(m))
