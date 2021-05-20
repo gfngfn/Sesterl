@@ -291,7 +291,7 @@ and untyped_module =
 
 and untyped_module_main =
   | ModVar     of module_name
-  | ModBinds   of attribute list * untyped_binding list
+  | ModBinds   of attribute list * module_name_chain list * untyped_binding list
   | ModProjMod of untyped_module * module_name ranged
   | ModFunctor of module_name ranged * untyped_signature * untyped_module
   | ModApply   of module_name_chain * module_name_chain

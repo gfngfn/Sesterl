@@ -13,6 +13,13 @@ let raise_error e =
   raise (Error(e))
 
 
+let get_module_name_chain_position (modchain : module_name_chain) : Range.t =
+  let ((rngL, _), projs) = modchain in
+  match List.rev projs with
+  | []             -> rngL
+  | (rngR, _) :: _ -> Range.unite rngL rngR
+
+
 module BindingMap = Map.Make(String)
 
 
@@ -3626,9 +3633,21 @@ and typecheck_module (address : address) (tyenv : Typeenv.t) (utmod : untyped_mo
       let absmodsig = (OpaqueIDSet.empty, modsig) in
       (absmodsig, (ModuleAttribute.empty, []))
 
-  | ModBinds(attrs, utbinds) ->
+  | ModBinds(attrs, openspecs, utbinds) ->
       let (modattr, warnings) = ModuleAttribute.decode attrs in
       warnings |> List.iter Logging.warn_invalid_attribute;
+      let tyenv =
+        openspecs |> List.fold_left (fun tyenv openspec ->
+          let (modsig, _) = find_module_from_chain tyenv openspec in
+          match modsig with
+          | ConcFunctor(_) ->
+              let rng0 = get_module_name_chain_position openspec in
+              raise_error (NotOfStructureType(rng0, modsig))
+
+          | ConcStructure(sigr) ->
+              tyenv |> update_type_environment_by_signature_record sigr
+        ) tyenv
+      in
       let (abssigr, (modattr_included, ibinds)) = typecheck_binding_list address tyenv utbinds in
       let (oidset, sigr) = abssigr in
       let absmodsig = (oidset, ConcStructure(sigr)) in
@@ -3695,7 +3714,7 @@ and typecheck_module (address : address) (tyenv : Typeenv.t) (utmod : untyped_mo
       begin
         match modsig1 with
         | ConcStructure(_) ->
-            let ((rng1, _), _) = modidentchain1 in
+            let rng1 = get_module_name_chain_position modidentchain1 in
             raise_error (NotOfFunctorType(rng1, modsig1))
 
         | ConcFunctor(sigftor1) ->
