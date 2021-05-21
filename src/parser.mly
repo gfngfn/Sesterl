@@ -282,15 +282,11 @@ bindvalret:
     }
 ;
 ctorbranches:
-  | ctorbr=ctorbranchtop; ctorbrs=list(ctorbranchsub) { ctorbr :: ctorbrs }
-  | ctorbrs=nonempty_list(ctorbranchsub)              { ctorbrs }
+  | ctorbrs=nonempty_list(ctorbranch) { ctorbrs }
 ;
-ctorbranchsub:
-  | BAR; ctorbr=ctorbranchtop { ctorbr }
-;
-ctorbranchtop:
-  | ctor=UPPER                               { ConstructorBranch(ctor, []) }
-  | ctor=UPPER; LPAREN; paramtys=tys; RPAREN { ConstructorBranch(ctor, paramtys) }
+ctorbranch:
+  | BAR; attrs=list(attr); ctor=UPPER                               { ConstructorBranch(attrs, ctor, []) }
+  | BAR; attrs=list(attr); ctor=UPPER; LPAREN; paramtys=tys; RPAREN { ConstructorBranch(attrs, ctor, paramtys) }
 ;
 params:
   | labparams=labparams {

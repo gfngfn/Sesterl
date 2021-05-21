@@ -2,8 +2,12 @@
 type t = IdentifierScheme.t
 
 
-let make : string -> t option =
+let from_upper_camel_case : string -> t option =
   IdentifierScheme.from_upper_camel_case
+
+
+let from_snake_case : string -> t option =
+  IdentifierScheme.from_snake_case
 
 
 let pp ppf ctorid =

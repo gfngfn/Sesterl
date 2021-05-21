@@ -268,7 +268,7 @@ let primitive_definitions = [
 
 
 let make_constructor_id ctor =
-  match ConstructorID.make ctor with
+  match ConstructorID.from_upper_camel_case ctor with
   | None         -> assert false
   | Some(ctorid) -> ctorid
 

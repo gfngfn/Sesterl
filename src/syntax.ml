@@ -168,7 +168,7 @@ and manual_row =
 and binder = identifier ranged * manual_type option
 
 and constructor_branch =
-  | ConstructorBranch of constructor_name ranged * manual_type list
+  | ConstructorBranch of attribute list * constructor_name ranged * manual_type list
 
 and synonym_or_variant =
   | BindSynonym of manual_type
