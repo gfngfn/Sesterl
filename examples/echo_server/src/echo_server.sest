@@ -3,31 +3,23 @@ import Handler
 
 module App = struct
 
-  val start_impl(start_type, start_args) = act
+  val start(start_type, start_args) = act
     case
         Cowboy.make_dispatch_table(pack Handler : Cowboy.Handler, [
             {"/",                 {}},
             {"/users/:user_name", {}},
         ])
     of
-    | None ->
+    | Error(_) ->
         return(None)
 
-    | Some(dispatch) ->
+    | Ok(dispatch) ->
         do res <- Cowboy.start_clear(-name "echo_server", -port 8080, -dispatch dispatch) in
         case res of
-        | None    -> return(None)
-        | Some(_) -> Sup.start_link({})
+        | Error(_) -> return(None)
+        | Ok(_)    -> Sup.start_link({})
         end
     end
-
-  val start<$a> : $a = external 2 ```
-    start(Type, Args) ->
-        case start_impl(Type, Args) of
-            none           -> error;
-            {some, SupPid} -> {ok, SupPid}
-        end.
-  ```
 
   val stop(state) = act
     Cowboy.stop_listener("echo_server")
