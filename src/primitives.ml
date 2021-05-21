@@ -253,7 +253,7 @@ let primitive_definitions = [
     target = {
       target_name = decode_option_function;
       parameters  = ["Options"; "Key"];
-      code        = "case maps:find(Key, Options) of error -> none; {ok, Value} -> {some, Value} end";
+      code        = "maps:find(Key, Options)";
     };
   };
   {
@@ -267,10 +267,21 @@ let primitive_definitions = [
 ]
 
 
-let make_constructor_id ctor =
-  match ConstructorID.from_upper_camel_case ctor with
-  | None         -> assert false
-  | Some(ctorid) -> ctorid
+let make_constructor_id (ctor : string) (atom_opt : string option) =
+  match atom_opt with
+  | None ->
+      begin
+        match ConstructorID.from_upper_camel_case ctor with
+        | None         -> assert false
+        | Some(ctorid) -> ctorid
+      end
+
+  | Some(atom) ->
+      begin
+        match ConstructorID.from_snake_case atom with
+        | None         -> assert false
+        | Some(ctorid) -> ctorid
+      end
 
 
 let add_variant_types vntdefs (tyenv, gmap) =
@@ -281,8 +292,8 @@ let add_variant_types vntdefs (tyenv, gmap) =
       let tyenv = tyenv |> Typeenv.add_variant_type tynm vid pkd in
       let (tyenv, ctorbrs) =
         ctordefs |> List.fold_left (fun (tyenv, ctorbrs) ctordef ->
-          let (ctor, paramtys) = ctordef in
-          let ctorid = make_constructor_id ctor in
+          let (ctor, atom_opt, paramtys) = ctordef in
+          let ctorid = make_constructor_id ctor atom_opt in
           let ctorentry =
             {
               belongs         = vid;
@@ -347,8 +358,8 @@ let initial_environment =
         let bid = BoundID.fresh () in
         KindStore.register_bound_id bid UniversalKind;
         ("option", vid_option, [bid], [
-          ("None", []);
-          ("Some", [(dr, TypeVar(Bound(bid)))]);
+          ("None", Some("error"), []);
+          ("Some", Some("ok"),    [(dr, TypeVar(Bound(bid)))]);
         ])
       end;
       begin
@@ -357,8 +368,8 @@ let initial_environment =
         KindStore.register_bound_id bid_ok UniversalKind;
         KindStore.register_bound_id bid_error UniversalKind;
         ("result", vid_result, [bid_ok; bid_error], [
-          ("Ok", [(dr, TypeVar(Bound(bid_ok)))]);
-          ("Error", [(dr, TypeVar(Bound(bid_error)))]);
+          ("Ok",    None, [(dr, TypeVar(Bound(bid_ok)))]);
+          ("Error", None, [(dr, TypeVar(Bound(bid_error)))]);
         ])
       end;
       begin
