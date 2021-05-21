@@ -2204,7 +2204,9 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
 and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) : constructor_branch_map =
   ctorbrs |> List.fold_left (fun ctormap ctorbr ->
     match ctorbr with
-    | ConstructorBranch((rng, ctornm), mtyargs) ->
+    | ConstructorBranch(attrs, (rng, ctornm), mtyargs) ->
+        let (ctorattr, warnings) = ConstructorAttribute.decode attrs in
+        warnings |> List.iter Logging.warn_invalid_attribute;
         let tyargs = mtyargs |> List.map (decode_manual_type pre) in
         let ptyargs =
           tyargs |> List.map (fun ty ->
@@ -2215,9 +2217,20 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
           )
         in
         let ctorid =
-          match ConstructorID.make ctornm with
-          | Some(ctorid) -> ctorid
-          | None         -> raise_error (InvalidIdentifier(rng, ctornm))
+          match ctorattr.target_atom with
+          | None ->
+              begin
+                match ConstructorID.from_upper_camel_case ctornm with
+                | Some(ctorid) -> ctorid
+                | None         -> raise_error (InvalidIdentifier(rng, ctornm))
+              end
+
+          | Some((rng_atom, target_atom)) ->
+              begin
+                match ConstructorID.from_snake_case target_atom with
+                | Some(ctorid) -> ctorid
+                | None         -> raise_error (InvalidIdentifier(rng_atom, target_atom))
+              end
         in
         ctormap |> ConstructorMap.add ctornm (ctorid, ptyargs)
   ) ConstructorMap.empty

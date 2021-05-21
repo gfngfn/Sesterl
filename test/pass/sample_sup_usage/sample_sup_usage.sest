@@ -13,9 +13,12 @@ module SampleSupUsage = struct
 
       module Callback = struct
         type init_arg = int
-        type request = Get
-        type response = Got(int)
-        type cast_message = Set(int)
+        type request =
+          | Get
+        type response =
+          | Got(int)
+        type cast_message =
+          | Set(int)
         type info = unit
         type state = int
 

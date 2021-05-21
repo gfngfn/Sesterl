@@ -1,0 +1,17 @@
+module CtorAttr = struct
+
+  type t =
+    | #[atom("bar")] Foo(int)
+
+  val f(n) =
+    Foo(n)
+
+  val main<$a> : $a = external 1 ```
+    main(_) ->
+       case f(42) of
+           {bar, 42} -> ok;
+           Other     -> erlang:error({unexpected, Other})
+       end.
+  ```
+
+end
