@@ -727,44 +727,44 @@ How to read:
   - equals `((empty) | DESCR)`
 
 ```
-n ::= (a decimal or hexadecimal integer literal)
-float-lit ::= (a floating-point number liteal)
-bin-lit ::= (a string literal enclosed by double quotation marks)
-X, C ::= (a capitalized identifier)
-x, t, k, l ::= (a lowercased identifier other than keywords)
-$a ::= (a lowercased identifier preceded by a dollar sign)
-?$a ::= (a lowercased identifier preceded by a question mark and a dollar sign)
--l ::= (a lowercased identifier preceded by a hyphen)
-?l ::= (a lowercased identifier preceded by a question mark)
+n ::= (decimal or hexadecimal integer literals)
+float-lit ::= (floating-point number literals)
+bin-lit ::= (string literals enclosed by double quotation marks)
+X, C ::= (capitalized identifiers)
+x, t, k, l ::= (lowercased identifiers other than keywords)
+$a ::= (lowercased identifiers preceded by a dollar sign)
+?$a ::= (lowercased identifiers preceded by a question mark and a dollar sign)
+-l ::= (lowercased identifiers preceded by a hyphen)
+?l ::= (lowercased identifiers preceded by a question mark)
 
-# a single source file:
+# source files:
 source-file ::=
   | ('import' X)* 'module' X (':>' S) '=' 'struct' (open-spec)* (bind)* 'end'
 
-# a value expression:
+# value expressions:
 E ::=
   | '(' E ')'
   | E binary-operator E
   | (X '.')* x
-  | (X '.')* C                                      # a variant constructor
-  | E '(' val-args ')'                              # a function application
-  | 'let' bind-val-local 'in' E                     # local binding(s)
-  | 'let' pattern '=' E 'in' E                      # local binding(s) by the pattern matching
-  | 'fun' '(' val-params ')' '->' E 'end'           # a pure abstraction
-  | 'fun' '(' val-params ')' '->' 'act' K 'end'     # an effectful abstraction
-  | 'if' E 'then' E 'else' E                        # a conditional branching
-  | 'case' E 'of' pure-cases 'end'                  # a pattern-matching expression
-  | '{' '}'                                         # a unit value
-  | '{' E (',' E)* (',')? '}'                       # a tuple
-  | '{' l '=' E (',' l '=' E)* (',')? '}'           # a record
-  | E '.' l                                         # a record access
-  | '{' E '|' l '=' E (',' l '=' E)* (',')? '}'     # a record update
-  | 'freeze' (X '.')* x '(' freeze-args ')'         # so-called a (possibly partial) mfargs() in Erlang
-  | 'freeze' '(' E ')' 'with' '(' freeze-args ')'   # addition of arguments to a partial mfargs()
-  | 'pack' M ':' S                                  # a packed first-class module
+  | (X '.')* C                                      # variant constructors
+  | E '(' val-args ')'                              # function applications
+  | 'let' bind-val-local 'in' E                     # local bindings
+  | 'let' pattern '=' E 'in' E                      # local bindings by the pattern matching
+  | 'fun' '(' val-params ')' '->' E 'end'           # pure abstractions
+  | 'fun' '(' val-params ')' '->' 'act' K 'end'     # effectful abstractions
+  | 'if' E 'then' E 'else' E                        # conditionals
+  | 'case' E 'of' pure-cases 'end'                  # pattern-matching expressions
+  | '{' '}'                                         # the unit value
+  | '{' E (',' E)* (',')? '}'                       # tuples
+  | '{' l '=' E (',' l '=' E)* (',')? '}'           # records
+  | E '.' l                                         # record access
+  | '{' E '|' l '=' E (',' l '=' E)* (',')? '}'     # record update
+  | 'freeze' (X '.')* x '(' freeze-args ')'         # so-called (possibly partial) mfargs() in Erlang
+  | 'freeze' '(' E ')' 'with' '(' freeze-args ')'   # addition of arguments to partial mfargs()
+  | 'pack' M ':' S                                  # packed first-class modules
   | 'assert' E                                      # assertion for tests
-  | E '::' E                                        # so-called a cons
-  | '[' ']'                                         # so-called a nil
+  | E '::' E                                        # cons
+  | '[' ']'                                         # nil
   | n
   | float-lit
   | bin-lit
@@ -775,18 +775,18 @@ E ::=
 pure-cases ::=
   | ('|')? pattern '->' E ('|' pattern '->' E)*
 
-# an effectful computation:
+# effectful computations:
 K ::=
-  | 'do' x '<-' K 'in' K                  # a sequential composition (i.e. so-called a bind in a monadic sense)
-  | 'receive' effectful-cases 'end'       # a selective receive
-  | E '(' val-args ')'                    # a function application
-  | 'if' E 'then' K 'else' K
-  | 'case' E 'of' effectful-cases 'end'
+  | 'do' x '<-' K 'in' K                  # sequential compositions (i.e. so-called a bind in a monadic sense)
+  | 'receive' effectful-cases 'end'       # selective receive
+  | E '(' val-args ')'                    # function applications
+  | 'if' E 'then' K 'else' K              # conditionals
+  | 'case' E 'of' effectful-cases 'end'   # pattern-matching expressions
 
 effectful-cases ::=
   | ('|')? pattern '->' K ('|' pattern '->' K)*
 
-# a sequence of arguments for function applications:
+# sequences of arguments for function applications:
 val-args ::=
   | E (',' val-args)?
   | val-labeled-args
@@ -799,33 +799,41 @@ val-optional-args ::=
   | ?l E (',' val-optional-args)?
   | (empty)
 
-# a pattern for the pattern matching:
+# patterns for the pattern matching:
 pattern ::=
-  | '_'
-  | x
-  | C
-  | C '(' pattern (',' pattern)* (',')? ')'
-  | '{' '}'
-  | '{' pattern (',' pattern)* (',')? '}'
-  | pattern '::' pattern
-  | '[' ']'
+  | '_'                                     # wildcard
+  | x                                       # variable binding
+  | C                                       # constructors with no argument
+  | C '(' pattern (',' pattern)* (',')? ')' # constructors with arguments
+  | '{' '}'                                 # the unit pattern
+  | '{' pattern (',' pattern)* (',')? '}'   # tuples
+  | pattern '::' pattern                    # cons
+  | '[' ']'                                 # nil
   | n
   | bin
   | 'true'
   | 'false'
   | ...
 
-# a type:
+# types:
 T ::=
-  | $a
-  | (X '.')* t ty-quant
-  | 'fun' '(' ty-doms ')' '->' T             # a function type
-  | 'fun' '(' ty-doms ')' '->' '[' T ']' T   # an action type
-  | '{' T (',' T)* (',')? '}'                # a product type
-  | '{' l '=' T (',' l '=' T)* (',')? '}'    # a record type
-  | 'pack' S                                 # a type for first-class modules
+  | $a                                       # type variables
+  | (X '.')* t ty-args                       # applications of type constructors
+  | 'fun' '(' ty-doms ')' '->' T             # function types
+  | 'fun' '(' ty-doms ')' '->' '[' T ']' T   # action types
+  | '{' T (',' T)* (',')? '}'                # product types
+  | '{' l '=' T (',' l '=' T)* (',')? '}'    # record types
+  | 'pack' S                                 # types for first-class modules
 
-# a sequence of domain types:
+# sequences of type arguments:
+ty-args ::=
+  | ('<' ty-args-sub '>')?
+
+ty-args-sub ::=
+  | T (',' ty-args-sub)?
+  | (empty)
+
+# sequences of domain types:
 ty-doms ::=
   | T (',' ty-doms)?
   | ty-labeled-doms
@@ -841,12 +849,12 @@ ty-optinal-doms ::=
 
 # a kind:
 K ::=
-  | kd-base                                              # a base kind (i.e. an order-0 kind)
-  | '(' kd-base (',' kd-base)* (',')? ')' '->' kd-base   # an order-1 kind
+  | kd-base                                              # base kinds (i.e. order-0 kinds)
+  | '(' kd-base (',' kd-base)* (',')? ')' '->' kd-base   # order-1 kinds
 
 kd-base ::=
-  | k                                       # a named base kind (currently only 'o' is provided)
-  | '{' l '=' T (',' l '=' T)* (',')? '}'   # a record kind
+  | k                                       # named base kinds (currently only 'o' is provided)
+  | '{' l '=' T (',' l '=' T)* (',')? '}'   # record kinds
 
 kd-row ::=
   | '(' ty-optional-doms ')'
@@ -854,15 +862,16 @@ kd-row ::=
 open-spec ::=
   | 'open' (X '.')* X
 
-# a module expression:
+# module expressions:
 M ::=
   | '(' M ')'
   | (X '.')* X
-  | 'struct' (open-spec)* (bind)* 'end' # a structure
-  | 'fun' '(' X ':' S ')' '->' M        # a functor abstraction
-  | (X '.')* X '( M )'                  # a functor application
-  | X ':>' S                            # a coercion
+  | 'struct' (open-spec)* (bind)* 'end' # structures
+  | 'fun' '(' X ':' S ')' '->' M        # functor abstractions
+  | (X '.')* X '( M )'                  # functor applications
+  | X ':>' S                            # coercion
 
+# bindings (i.e. members of structures):
 bind ::=
   | 'val' (bind-val-local | bind-val-ffi)
   | 'type' bind-ty
@@ -870,14 +879,15 @@ bind ::=
   | 'signature' X '=' S
   | 'include' M
 
-# a signature expression:
+# signature expressions:
 S ::=
   | '(' S ')'
   | (X '.')* X
-  | 'sig' (open-spec)* (decl)* 'end'
-  | 'fun' '(' X ':' S ')' '->' S     # a functor signature
+  | 'sig' (open-spec)* (decl)* 'end' # structure signatures
+  | 'fun' '(' X ':' S ')' '->' S     # functor signatures
   | S 'with' 'type' bind-ty
 
+# declarations (i.e. members of structure signatures):
 decl ::=
   | 'val' x ty-quant ':' T
   | 'type' t ('::' K)?
@@ -886,12 +896,12 @@ decl ::=
   | 'signature' X '=' S
 
 bind-val-local ::=
-  | bind-val-single                                  # a non-recursive definition
-  | 'rec' bind-val-single ('and' bind-val-single)*   # (mutually) recursive definition(s)
+  | bind-val-single                                  # non-recursive definitions
+  | 'rec' bind-val-single ('and' bind-val-single)*   # (mutually) recursive definitions
 
 bind-val-single ::=
-  | x ty-quant '(' val-params ')' (':' T)? '=' E                   # a function definition
-  | x ty-quant '(' val-params ')' (':' '[' T ']' T)? '=' 'act' K   # an action definition
+  | x ty-quant '(' val-params ')' (':' T)? '=' E                   # function definitions
+  | x ty-quant '(' val-params ')' (':' '[' T ']' T)? '=' 'act' K   # action definitions
 
 bind-val-ffi ::=
   | x ty-quant ':' T '=' 'external' n ('+')? string-block  # FFI
@@ -900,28 +910,28 @@ bind-ty ::=
   | bind-ty-single ('and' bind-ty-single)*
 
 bind-ty-single ::=
-  | t ty-quant '=' ('|')? ctor-branch ('|' ctor-branch)*   # a variant type definition
-  | t ty-quant '=' T                                       # a type synonym definition
+  | t ty-quant '=' ('|')? ctor-branch ('|' ctor-branch)*   # variant type definitions
+  | t ty-quant '=' T                                       # type synonym definitions
 
 ctor-branch ::=
   | C ('(' T (',' T)* ')')?   # a definition of a constructor and its parameter types
 
-# a comma-separated sequence of value parameters (for function definitions):
+# comma-separated sequences of value parameters (for function definitions):
 val-params ::=
   | x (':' T)? (',' val-params)?
   | val-labeled-params
 
-# a comma-separated labeled parameters:
+# comma-separated labeled parameters:
 val-labeled-params ::=
   | -l x (':' T)? (',' val-labeled-params)?
   | val-optional-params
 
-# a comma-separated labeled optional parameters (possibly with a default expression):
+# comma-separated labeled optional parameters (possibly with default expressions):
 val-optional-params ::=
   | ?l x (':' T)? ('=' E)? (',' val-optional-params)?
   | (empty)
 
-# a sequence of universal quantifiers for type parameters and row parameters
+# sequences of universal quantifiers for type parameters and row parameters
 ty-quant ::=
   | ('<' ty-params '>')?
 
