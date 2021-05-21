@@ -14,16 +14,16 @@ dependencies:
       type: "git"
       repository: "https://github.com/gfngfn/sesterl_stdlib"
       spec:
-        type: "tag"
-        value: "v0.1.1"
+        type: "branch"
+        value: "master"
 
   - name: "sesterl_cowboy"
     source:
       type: "git"
       repository: "https://github.com/gfngfn/sesterl_cowboy"
       spec:
-        type: "tag"
-        value: "v0.0.1"
+        type: "branch"
+        value: "master"
 
 test_dependencies:
   - name: "sesterl_testing"
