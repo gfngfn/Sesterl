@@ -8,8 +8,11 @@ $ sesterl config ./
 # Compile sources
 $ rebar3 sesterl compile
 
-# Run
+# Run (after compiling sources)
 $ rebar3 shell
+
+# Test (after compiling sources)
+$ rebar3 eunit
 ```
 
 Then you can see `http://localhost:8080` on your browser or some CLI tool:
