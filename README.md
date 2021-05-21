@@ -739,7 +739,7 @@ $a ::= (a lowercased identifier preceded by a dollar sign)
 
 # a single source file:
 source-file ::=
-  | ('import' X)* 'module' X (':>' S) '=' 'struct' (bind)* 'end'
+  | ('import' X)* 'module' X (':>' S) '=' 'struct' (open-spec)* (bind)* 'end'
 
 # a value expression:
 E ::=
@@ -762,6 +762,7 @@ E ::=
   | 'freeze' (X '.')* x '(' freeze-args ')'         # so-called a (possibly partial) mfargs() in Erlang
   | 'freeze' '(' E ')' 'with' '(' freeze-args ')'   # addition of arguments to a partial mfargs()
   | 'pack' M ':' S                                  # a packed first-class module
+  | 'assert' E                                      # assertion for tests
   | E '::' E                                        # so-called a cons
   | '[' ']'                                         # so-called a nil
   | n
@@ -850,14 +851,17 @@ kd-base ::=
 kd-row ::=
   | '(' ty-optional-doms ')'
 
+open-spec ::=
+  | 'open' (X '.')* X
+
 # a module expression:
 M ::=
   | '(' M ')'
   | (X '.')* X
-  | 'struct' (bind)* 'end'         # a structure
-  | 'fun' '(' X ':' S ')' '->' M   # a functor abstraction
-  | (X '.')* X '( M )'             # a functor application
-  | X ':>' S                       # a coercion
+  | 'struct' (open-spec)* (bind)* 'end' # a structure
+  | 'fun' '(' X ':' S ')' '->' M        # a functor abstraction
+  | (X '.')* X '( M )'                  # a functor application
+  | X ':>' S                            # a coercion
 
 bind ::=
   | 'val' (bind-val-local | bind-val-ffi)
@@ -870,8 +874,8 @@ bind ::=
 S ::=
   | '(' S ')'
   | (X '.')* X
-  | 'sig' (decl)* 'end'
-  | 'fun' '(' X ':' S ')' '->' S   # a functor signature
+  | 'sig' (open-spec)* (decl)* 'end'
+  | 'fun' '(' X ':' S ')' '->' S     # a functor signature
   | S 'with' 'type' bind-ty
 
 decl ::=
