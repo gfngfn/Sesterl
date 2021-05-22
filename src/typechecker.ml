@@ -2246,12 +2246,12 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
 *)
 and subtype_poly_type_scheme (wtmap : WitnessMap.t) (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
   let rec aux pty1 pty2 =
-(*
-  let (sbt1, sbr1, sty1) = TypeConv.show_poly_type pty1 in
-  let (sbt2, sbr2, sty2) = TypeConv.show_poly_type pty2 in
+
+  let (sbt1, sbr1, sty1) = TypeConv.show_poly_type TypeConv.DisplayMap.empty pty1 in
+  let (sbt2, sbr2, sty2) = TypeConv.show_poly_type TypeConv.DisplayMap.empty pty2 in
   Format.printf "subtype_poly_type_scheme> aux: %s <?= %s\n" sty1 sty2;  (* for debug *)
   Format.printf "%a\n" (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf ",@ ") Format.pp_print_string) (List.concat [sbt1; sbr1; sbt2; sbr2]);
-*)
+
 
     let (_, ptymain1) = pty1 in
     let (_, ptymain2) = pty2 in
