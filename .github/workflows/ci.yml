@@ -23,7 +23,10 @@ jobs:
           ocaml-version: ${{ matrix.ocaml-version }}
 
       - name: Build Sesterl
-        run: opam exec -- make all
+        run: |
+          opam pin add sesterl . --no-action
+          opam install . --deps-only --with-doc --with-test
+          opam exec -- make all
 
       - name: Run positive blackbox tests
         run: opam exec -- make test-blackbox-positive
