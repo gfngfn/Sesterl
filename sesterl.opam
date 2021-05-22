@@ -17,6 +17,7 @@ depends: [
   "core" {>= "0.13.0"}
   "uutf" {>= "1.0.2"}
   "yaml" {>= "2.1.0"}
+  "ppx_deriving" {>= "4.4.1"}
 ]
 build: [
   ["dune" "subst"] {pinned}
