@@ -1,3 +1,4 @@
+.PHONY: all
 all:
 	dune build -p sesterl
 	cp _build/default/src/main.exe ./sesterl
@@ -11,12 +12,16 @@ test-unit:
 	dune exec test/testIdentifierScheme.exe
 
 .PHONY: test-blackbox-positive
-test-blackbox-positive:
+test-blackbox-positive: submodule
 	./run-positive-blackbox-tests.sh
 
 .PHONY: test-blackbox-negative
-test-blackbox-negative:
+test-blackbox-negative: submodule
 	./run-negative-blackbox-tests.sh
+
+.PHONY: submodule
+submodule:
+	git submodule update --init --recursive
 
 .PHONY: clean
 clean:
