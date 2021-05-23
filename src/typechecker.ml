@@ -46,6 +46,10 @@ let raise_error e =
   raise (Error(e))
 
 
+let add_dummy_fold (tynm : type_name) (bids : BoundID.t list) (ctorbrmap : constructor_branch_map) (sigr : SigRecord.t) : SigRecord.t =
+  failwith "TODO: add_dummy_fold"
+
+
 let get_module_name_chain_position (modchain : module_name_chain) : Range.t =
   let ((rngL, _), projs) = modchain in
   match List.rev projs with
@@ -3521,14 +3525,33 @@ and typecheck_binding (address : address) (tyenv : Typeenv.t) (utbind : untyped_
   | BindType([]) ->
       assert false
 
-  | BindType((_ :: _) as _tybinds) ->
-      failwith "TODO: BindType"
-(*
-      let (tydefs, _ctordefs) = bind_types address tyenv tybinds in
-      let tydefs = tydefs |> List.map (fun ((_, tynm), tyopac) -> (tynm, tyopac)) in
-      let sigr = SigRecord.empty |> SigRecord.add_types tydefs in
+  | BindType((_ :: _) as tybinds) ->
+      let (tydefs, ctordefs) = bind_types address tyenv tybinds in
+      let sigr =
+        tydefs |> List.fold_left (fun sigr (tynm, tentry) ->
+          sigr |> SigRecord.add_type tynm tentry
+        ) SigRecord.empty
+      in
+      let sigr =
+        ctordefs |> List.fold_left (fun sigr ctordef ->
+          let (tynm, tyid, bids, ctorbrmap) = ctordef in
+          let sigr =
+            ConstructorMap.fold (fun ctornm (ctorid, ptyargs) sigr ->
+              let centry =
+                {
+                  belongs         = tyid;
+                  constructor_id  = ctorid;
+                  type_variables  = bids;
+                  parameter_types = ptyargs;
+                }
+              in
+              sigr |> SigRecord.add_constructor ctornm centry
+            ) ctorbrmap sigr
+          in
+          sigr |> add_dummy_fold tynm bids ctorbrmap
+        ) sigr
+      in
       ((OpaqueIDSet.empty, sigr), (ModuleAttribute.empty, []))
-*)
 
   | BindModule(modident, utsigopt2, utmod1) ->
       let (rngm, m) = modident in
@@ -3572,7 +3595,7 @@ and typecheck_binding (address : address) (tyenv : Typeenv.t) (utbind : untyped_
       ((OpaqueIDSet.empty, sigr), (ModuleAttribute.empty, []))
 
 
-and bind_types (address : address) (tyenv : Typeenv.t) (tybinds : type_binding list) : (type_name * type_entry) list * (TypeID.t * BoundID.t list * constructor_branch_map) list =
+and bind_types (address : address) (tyenv : Typeenv.t) (tybinds : type_binding list) : (type_name * type_entry) list * (type_name * TypeID.t * BoundID.t list * constructor_branch_map) list =
   let pre_init =
     {
       level                 = 0;
@@ -3681,13 +3704,13 @@ and bind_types (address : address) (tyenv : Typeenv.t) (tybinds : type_binding l
   (* Traverse the definition of each variant type. *)
   let (tydefacc, ctordefacc) =
     vntacc |> Alist.to_list |> List.fold_left (fun (tydefacc, ctordefacc) vnt ->
-      let (tyident, tyvars, ctorbrs, vid, pkd, tentry) = vnt in
+      let (tyident, tyvars, ctorbrs, tyid, pkd, tentry) = vnt in
       let (_, tynm) = tyident in
       let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
       let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
       let ctorbrmap = make_constructor_branch_map pre ctorbrs in
       let tydefacc = Alist.extend tydefacc (tynm, tentry) in
-      let ctordefacc = Alist.extend ctordefacc (vid, typarams, ctorbrmap) in
+      let ctordefacc = Alist.extend ctordefacc (tynm, tyid, typarams, ctorbrmap) in
       (tydefacc, ctordefacc)
     ) (tydefacc, Alist.empty)
   in
