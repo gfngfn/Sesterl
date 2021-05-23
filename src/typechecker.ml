@@ -2936,26 +2936,25 @@ and copy_closure (modsig1 : module_signature) (modsig2 : module_signature) : mod
 
 
 and copy_closure_in_structure (sigr1 : SigRecord.t) (sigr2 : SigRecord.t) : SigRecord.t =
-  failwith "TODO: copy_closure_in_structure"
-(*
   sigr2 |> SigRecord.map
-    ~v:(fun x (pty2, gname2) ->
-      match sigr1 |> SigRecord.find_val x with
+    ~v:(fun x ventry2 ->
+      match sigr1 |> SigRecord.find_value x with
       | None              -> assert false
-      | Some((_, gname1)) -> (pty2, gname1)
+      | Some(ventry1)     -> { ventry2 with val_global = ventry1.val_global }
     )
-    ~t:(fun tydefs -> tydefs |> List.map (fun (_, tyopac) -> tyopac))
-    ~s:(fun _ sentry -> sentry)
-    ~m:(fun modnm (modsig2, _) ->
+    ~c:(fun _ctornm centry2 -> centry2)
+    ~t:(fun _tynm tentry2 -> tentry2)
+    ~m:(fun modnm mentry2 ->
       match sigr1 |> SigRecord.find_module modnm with
       | None ->
           assert false
 
-      | Some((modsig1, sname1)) ->
-          let modsig2new = copy_closure modsig1 modsig2 in
-          (modsig2new, sname1)
+      | Some(mentry1) ->
+          let modsig2 = copy_closure mentry1.mod_signature mentry2.mod_signature in
+          { mod_signature = modsig2; mod_name = mentry1.mod_name }
     )
-*)
+    ~s:(fun _signm sentry -> sentry)
+
 (*
 and substitute_structure (address : address) (wtmap : WitnessMap.t) (sigr : SigRecord.t) =
     sigr |> SigRecord.map_and_fold
