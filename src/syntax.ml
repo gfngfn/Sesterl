@@ -429,22 +429,12 @@ type local_type_parameter_map = MustBeBoundID.t TypeParameterMap.t
 
 module RowParameterMap = Map.Make(String)
 
-module SynonymIDSet = Set.Make(TypeID.Synonym)
-
-module SynonymIDMap = Map.Make(TypeID.Synonym)
-
-module SynonymIDHashTable = Hashtbl.Make(TypeID.Synonym)
-
-module VariantIDMap = Map.Make(TypeID.Variant)
-
-module VariantIDHashTable = Hashtbl.Make(TypeID.Variant)
-
-module OpaqueIDSet = Set.Make(TypeID.Opaque)
+module OpaqueIDSet = Set.Make(TypeID)
 
 
 let stringify_opaque_id_set oidset =
   OpaqueIDSet.fold (fun oid acc ->
-    Alist.extend acc (Format.asprintf "%a" TypeID.Opaque.pp oid)
+    Alist.extend acc (Format.asprintf "%a" TypeID.pp oid)
   ) oidset Alist.empty |> Alist.to_list |> List.map (fun s -> " " ^ s) |> String.concat ","
 
 
@@ -452,9 +442,9 @@ let pp_opaque_id_set ppf oidset =
   Format.fprintf ppf "%s" (stringify_opaque_id_set oidset)
 
 
-module OpaqueIDMap = Map.Make(TypeID.Opaque)
+module OpaqueIDMap = Map.Make(TypeID)
 
-module OpaqueIDHashTable = Hashtbl.Make(TypeID.Opaque)
+module OpaqueIDHashTable = Hashtbl.Make(TypeID)
 
 module ValNameMap = Map.Make(String)
 

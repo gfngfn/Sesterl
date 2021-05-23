@@ -17,7 +17,7 @@ and ('a, 'b) typ_main =
   | EffType     of ('a, 'b) domain_type * ('a, 'b) effect * ('a, 'b) typ
   | TypeVar     of 'a
   | ProductType of (('a, 'b) typ) TupleList.t
-  | DataType    of TypeID.t * (('a, 'b) typ) list
+  | TypeApp     of TypeID.t * (('a, 'b) typ) list
   | RecordType  of (('a, 'b) typ) LabelAssoc.t
   | PackType    of module_signature abstracted
 
@@ -107,10 +107,23 @@ type poly_base_kind = (poly_type_var, poly_row_var) base_kind
 
 type poly_domain_type = (poly_type_var, poly_row_var) domain_type
 
-type type_opacity = TypeID.t * poly_kind
+type value_entry = {
+  val_type   : poly_type;
+  val_global : global_name;
+}
+
+type type_entry = {
+  type_scheme : BoundID.t list * poly_type;
+  type_kind   : poly_kind;
+}
+
+type module_entry = {
+  mod_signature : module_signature;
+  mod_name      : space_name;
+}
 
 type constructor_entry = {
-  belongs         : TypeID.Variant.t;
+  belongs         : TypeID.t;
   constructor_id  : ConstructorID.t;
   type_variables  : BoundID.t list;
   parameter_types : poly_type list;
@@ -131,31 +144,29 @@ module Typeenv : sig
     m:(module_signature * space_name -> module_signature * space_name) ->
     t -> t
 
-  val add_val : identifier -> poly_type -> name -> t -> t
+  val add_value : identifier -> poly_type -> name -> t -> t
 
-  val find_val : identifier -> t -> (poly_type * name) option
+  val find_value : identifier -> t -> (poly_type * name) option
 
   val is_val_properly_used : identifier -> t -> bool option
 
-  val fold_val : (identifier -> poly_type -> 'a -> 'a) -> t -> 'a -> 'a
-
-  val add_variant_type : type_name -> TypeID.Variant.t -> poly_kind -> t -> t
+  val fold_value : (identifier -> poly_type -> 'a -> 'a) -> t -> 'a -> 'a
 
   val add_constructor : constructor_name -> constructor_entry -> t -> t
 
-  val add_synonym_type : type_name -> TypeID.Synonym.t -> poly_kind -> t -> t
+  val find_constructor : constructor_name -> t -> constructor_entry option
 
-  val add_opaque_type : type_name -> TypeID.Opaque.t -> poly_kind -> t -> t
+  val add_type : type_name -> type_entry -> t -> t
 
-  val add_type_for_recursion : type_name -> TypeID.t -> poly_kind -> t -> t
+  val add_opaque_id : type_name -> TypeID.t -> poly_kind -> t -> t
 
-  val find_constructor : constructor_name -> t -> (TypeID.Variant.t * ConstructorID.t * BoundID.t list * poly_type list) option
+  val add_type_for_recursion : type_name -> poly_kind -> t -> t
 
-  val find_type : type_name -> t -> (TypeID.t * poly_kind) option
+  val find_type : type_name -> t -> poly_kind option
 
-  val add_module : module_name -> module_signature -> space_name -> t -> t
+  val add_module : module_name -> module_entry -> t -> t
 
-  val find_module : module_name -> t -> (module_signature * space_name) option
+  val find_module : module_name -> t -> module_entry option
 
   val add_signature : signature_name -> module_signature abstracted -> t -> t
 
@@ -169,44 +180,47 @@ module SigRecord : sig
 
   val empty : t
 
-  val add_val : identifier -> poly_type -> global_name -> t -> t
+  val add_value : identifier -> value_entry -> t -> t
 
-  val find_val : identifier -> t -> (poly_type * global_name) option
+  val find_value : identifier -> t -> value_entry option
 
-  val add_types : (type_name * type_opacity) list -> t -> t
+  val add_constructor : constructor_name -> constructor_entry -> t -> t
 
-  val find_constructor : (TypeID.Variant.t -> BoundID.t list * constructor_branch_map) -> constructor_name -> t -> constructor_entry option
+  val find_constructor : constructor_name -> t -> constructor_entry option
 
-  val find_type : type_name -> t -> type_opacity option
+  val add_type : type_name -> type_entry -> t -> t
 
-  val add_opaque_type : type_name -> TypeID.Opaque.t -> poly_kind -> t -> t
+  val find_type : type_name -> t -> type_entry option
 
-  val add_module : module_name -> module_signature -> space_name -> t -> t
+  val add_module : module_name -> module_entry -> t -> t
 
-  val find_module : module_name -> t -> (module_signature * space_name) option
+  val find_module : module_name -> t -> module_entry option
 
   val add_signature : signature_name -> module_signature abstracted -> t -> t
 
   val find_signature : signature_name -> t -> (module_signature abstracted) option
 
   val fold :
-    v:(identifier -> poly_type * global_name -> 'a -> 'a) ->
-    t:((type_name * type_opacity) list -> 'a -> 'a) ->
-    m:(module_name -> module_signature * space_name -> 'a -> 'a) ->
+    v:(identifier -> value_entry -> 'a -> 'a) ->
+    c:(constructor_name -> constructor_entry -> 'a -> 'a) ->
+    t:(type_name -> type_entry -> 'a -> 'a) ->
+    m:(module_name -> module_entry -> 'a -> 'a) ->
     s:(signature_name -> module_signature abstracted -> 'a -> 'a) ->
     'a -> t -> 'a
 
   val map_and_fold :
-    v:(identifier -> poly_type * global_name -> 'a -> (poly_type * global_name) * 'a) ->
-    t:((type_name * type_opacity) list -> 'a -> type_opacity list * 'a) ->
-    m:(module_name -> module_signature * space_name -> 'a -> (module_signature * space_name) * 'a) ->
+    v:(identifier -> value_entry -> 'a -> value_entry * 'a) ->
+    c:(constructor_name -> constructor_entry -> 'a -> constructor_entry * 'a) ->
+    t:(type_name -> type_entry -> 'a -> type_entry * 'a) ->
+    m:(module_name -> module_entry -> 'a -> module_entry * 'a) ->
     s:(signature_name -> module_signature abstracted -> 'a -> module_signature abstracted * 'a) ->
     'a -> t -> t * 'a
 
   val map :
-    v:(identifier -> poly_type * global_name -> poly_type * global_name) ->
-    t:((type_name * type_opacity) list -> type_opacity list) ->
-    m:(module_name -> module_signature * space_name -> module_signature * space_name) ->
+    v:(identifier -> value_entry -> value_entry) ->
+    c:(constructor_name -> constructor_entry -> constructor_entry) ->
+    t:(type_name -> type_entry -> type_entry) ->
+    m:(module_name -> module_entry -> module_entry) ->
     s:(signature_name -> module_signature abstracted -> module_signature abstracted) ->
     t -> t
 

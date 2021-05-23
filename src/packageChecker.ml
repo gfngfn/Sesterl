@@ -36,7 +36,7 @@ let check_single (is_verbose : bool) ~check_public_signature:(check_public_signa
           raise (ConfigError(ModuleNotFound(rng, depmodnm)))
 
       | Some(((_, sigr), sname)) ->
-          tyenv |> Typeenv.add_module depmodnm (ConcStructure(sigr)) sname
+          tyenv |> Typeenv.add_module depmodnm { mod_signature = ConcStructure(sigr); mod_name = sname }
     ) tyenv_before
   in
   let absmodsigopt =
@@ -79,7 +79,7 @@ let main (is_verbose : bool) (tyenv_before : Typeenv.t) (submods : SourceLoader.
   let tyenv =
     let (_, mainmod) = mainmod.SourceLoader.module_identifier in
     let mainsname = mainout.space_name in
-    tyenv_before |> Typeenv.add_module mainmod (ConcStructure(mainsigr)) mainsname
+    tyenv_before |> Typeenv.add_module mainmod { mod_signature = ConcStructure(mainsigr); mod_name = mainsname }
   in
   let outs = Alist.to_list (Alist.extend suboutacc mainout) in
   (tyenv, outs)

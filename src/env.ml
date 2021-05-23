@@ -15,7 +15,7 @@ and ('a, 'b) typ_main =
   | EffType     of ('a, 'b) domain_type * ('a, 'b) effect * ('a, 'b) typ
   | TypeVar     of 'a
   | ProductType of (('a, 'b) typ) TupleList.t
-  | DataType    of TypeID.t * (('a, 'b) typ) list
+  | TypeApp     of TypeID.t * (('a, 'b) typ) list
   | RecordType  of (('a, 'b) typ) LabelAssoc.t
   | PackType    of module_signature abstracted
       [@printer (fun ppf (oidset, modsig) -> Format.fprintf ppf "PackType(%a, _)" pp_opaque_id_set oidset)]
@@ -56,53 +56,54 @@ and functor_signature = {
 and functor_domain =
   | Domain of record_signature
 
-and val_entry = {
+and env_value_entry = {
   typ  : poly_type;
   name : name;
   mutable is_used : bool;
 }
 
-and type_entry =
-  | Defining       of TypeID.t
-  | DefinedVariant of TypeID.Variant.t
-  | DefinedSynonym of TypeID.Synonym.t
-  | DefinedOpaque  of TypeID.Opaque.t
+and value_entry = {
+  val_type   : poly_type;
+  val_global : global_name;
+}
+
+and type_entry_pre =
+  | Defining of poly_kind
+  | Defined  of type_entry
+
+and type_entry = {
+  type_scheme : BoundID.t list * poly_type;
+  type_kind   : poly_kind;
+}
 
 and module_entry = {
-  mod_name      : space_name;
   mod_signature : module_signature;
-}
-
-and signature_entry = {
-  sig_signature : module_signature abstracted;
-    [@printer (fun ppf (oidset, _) -> Format.fprintf ppf "(%a, _)" pp_opaque_id_set oidset)]
-}
-
-and opaque_entry = {
-  o_kind : poly_kind;
+  mod_name      : space_name;
 }
 
 and constructor_entry = {
-  belongs         : TypeID.Variant.t;
+  belongs         : TypeID.t;
   constructor_id  : ConstructorID.t;
   type_variables  : BoundID.t list;
   parameter_types : poly_type list;
 }
 
-and type_opacity = TypeID.t * poly_kind
+and opaque_entry = {
+  opaque_kind : poly_kind;
+}
 
 and environment = {
-  vals         : val_entry ValNameMap.t;
-    [@printer (fun ppf _ -> Format.fprintf ppf "<vals>")]
-  type_names   : (type_entry * poly_kind) TypeNameMap.t;
-    [@printer (fun ppf _ -> Format.fprintf ppf "<type_names>")]
-  opaques      : opaque_entry OpaqueIDMap.t;
-    [@printer (fun ppf _ -> Format.fprintf ppf "<opaques>")]
+  values       : env_value_entry ValNameMap.t;
+    [@printer (fun ppf _ -> Format.fprintf ppf "<values>")]
   constructors : constructor_entry ConstructorMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<constructors>")]
+  types        : type_entry_pre TypeNameMap.t;
+    [@printer (fun ppf _ -> Format.fprintf ppf "<types>")]
+  opaques      : poly_kind OpaqueIDMap.t;
+    [@printer (fun ppf _ -> Format.fprintf ppf "<opaques>")]
   modules      : module_entry ModuleNameMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<modules>")]
-  signatures   : signature_entry SignatureNameMap.t;
+  signatures   : (module_signature abstracted) SignatureNameMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<signatures>")]
 }
 
@@ -113,11 +114,13 @@ and record_signature =
 )]
 
 and record_signature_entry =
-  | SRVal      of identifier * (poly_type * global_name)
+  | SRVal      of identifier * value_entry
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRVal>")]
-  | SRRecTypes of (type_name * type_opacity) list
-      [@printer (fun ppf _ -> Format.fprintf ppf "<SRRecTypes>")]
-  | SRModule   of module_name * (module_signature * space_name)
+  | SRCtor     of constructor_name * constructor_entry
+      [@printer (fun ppf _ -> Format.fprintf ppf "<SRCtor>")]
+  | SRType     of type_name * type_entry
+      [@printer (fun ppf _ -> Format.fprintf ppf "<SRType>")]
+  | SRModule   of module_name * module_entry
   | SRSig      of signature_name * module_signature abstracted
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRSig>")]
 [@@deriving show { with_path = false }]
@@ -188,8 +191,8 @@ module Typeenv = struct
 
 
   let empty = {
-    vals         = ValNameMap.empty;
-    type_names   = TypeNameMap.empty;
+    values       = ValNameMap.empty;
+    types        = TypeNameMap.empty;
     opaques      = OpaqueIDMap.empty;
     constructors = ConstructorMap.empty;
     modules      = ModuleNameMap.empty;
@@ -201,8 +204,8 @@ module Typeenv = struct
       ~v:(fv : poly_type * name -> poly_type * name)
       ~m:(fm : module_signature * space_name -> module_signature * space_name)
       (tyenv : t) : t =
-    let vals =
-      tyenv.vals |> ValNameMap.map (fun ventry ->
+    let values =
+      tyenv.values |> ValNameMap.map (fun ventry ->
         let (typ, name) = fv (ventry.typ, ventry.name) in
         { ventry with typ = typ; name = name }
       )
@@ -213,10 +216,10 @@ module Typeenv = struct
         { mod_signature = modsig; mod_name = sname }
       )
     in
-    { tyenv with vals = vals; modules = modules }
+    { tyenv with values = values; modules = modules }
 
 
-  let add_val x pty name tyenv =
+  let add_value (x : identifier) (pty : poly_type) (name : name) (tyenv : t) : t =
     let entry =
       {
         typ  = pty;
@@ -225,31 +228,25 @@ module Typeenv = struct
         is_used = false;
       }
     in
-    let vals = tyenv.vals |> ValNameMap.add x entry in
-    { tyenv with vals = vals; }
+    let values = tyenv.values |> ValNameMap.add x entry in
+    { tyenv with values = values; }
 
 
-  let find_val x tyenv =
-    tyenv.vals |> ValNameMap.find_opt x |> Option.map (fun entry ->
+  let find_value (x : identifier) (tyenv : t) =
+    tyenv.values |> ValNameMap.find_opt x |> Option.map (fun entry ->
       entry.is_used <- true;
       (entry.typ, entry.name)
     )
 
 
-  let is_val_properly_used x tyenv =
-    tyenv.vals |> ValNameMap.find_opt x |> Option.map (fun entry ->
+  let is_val_properly_used (x : identifier) (tyenv : t) : bool option =
+    tyenv.values |> ValNameMap.find_opt x |> Option.map (fun entry ->
       entry.is_used
     )
 
 
-  let fold_val f tyenv acc =
-    ValNameMap.fold (fun x entry acc -> f x entry.typ acc) tyenv.vals acc
-
-
-  let add_variant_type (tynm : type_name) (vid : TypeID.Variant.t) (pkd : poly_kind) (tyenv : t) : t =
-    { tyenv with
-      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedVariant(vid), pkd);
-    }
+  let fold_value f tyenv acc =
+    ValNameMap.fold (fun x entry acc -> f x entry.typ acc) tyenv.values acc
 
 
   let add_constructor (ctornm : constructor_name) (ctorentry : constructor_entry) (tyenv : t) : t =
@@ -258,79 +255,54 @@ module Typeenv = struct
     }
 
 
-  let add_synonym_type (tynm : type_name) (sid : TypeID.Synonym.t) (pkd : poly_kind) (tyenv : t) : t =
-    { tyenv with
-      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedSynonym(sid), pkd);
-    }
-
-
-  let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (pkd : poly_kind) (tyenv : t) : t =
-    let oentry =
-      {
-        o_kind = pkd;
-      }
-    in
-    { tyenv with
-      type_names = tyenv.type_names |> TypeNameMap.add tynm (DefinedOpaque(oid), pkd);
-      opaques    = tyenv.opaques |> OpaqueIDMap.add oid oentry;
-    }
-
-
-  let add_type_for_recursion (tynm : type_name) (tyid : TypeID.t) (pkd : poly_kind) (tyenv : t) : t =
-    { tyenv with
-      type_names = tyenv.type_names |> TypeNameMap.add tynm (Defining(tyid), pkd);
-    }
-
-
   let find_constructor (ctornm : constructor_name) (tyenv : t) =
-    tyenv.constructors |> ConstructorMap.find_opt ctornm |> Option.map (fun entry ->
-      (entry.belongs, entry.constructor_id, entry.type_variables, entry.parameter_types)
-    )
+    tyenv.constructors |> ConstructorMap.find_opt ctornm
 
 
-  let find_type (tynm : type_name) (tyenv : t) : (TypeID.t * poly_kind) option =
-    tyenv.type_names |> TypeNameMap.find_opt tynm |> Option.map (fun (tyentry, pkd) ->
-      match tyentry with
-      | Defining(tyid)      -> (tyid, pkd)
-      | DefinedVariant(vid) -> (TypeID.Variant(vid), pkd)
-      | DefinedSynonym(sid) -> (TypeID.Synonym(sid), pkd)
-      | DefinedOpaque(oid)  -> (TypeID.Opaque(oid), pkd)
-    )
-
-
-  let add_module (modnm : module_name) (modsig : module_signature) (sname : space_name) (tyenv : t) : t =
-    let modentry =
-      {
-        mod_name      = sname;
-        mod_signature = modsig;
-      }
-    in
+  let add_type (tynm : type_name) (tentry : type_entry) (tyenv : t) : t =
     { tyenv with
-      modules = tyenv.modules |> ModuleNameMap.add modnm modentry;
+      types = tyenv.types |> TypeNameMap.add tynm (Defined(tentry));
     }
 
 
-  let find_module (modnm : module_name) (tyenv : t) : (module_signature * space_name) option =
-    tyenv.modules |> ModuleNameMap.find_opt modnm |> Option.map (fun modentry ->
-      (modentry.mod_signature, modentry.mod_name)
+  let add_opaque_id (tynm : type_name) (oid : TypeID.t) (pkd : poly_kind) (tyenv : t) : t =
+    { tyenv with
+      opaques = tyenv.opaques |> OpaqueIDMap.add oid pkd;
+    }
+
+
+  let add_type_for_recursion (tynm : type_name) (pkd : poly_kind) (tyenv : t) : t =
+    { tyenv with
+      types = tyenv.types |> TypeNameMap.add tynm (Defining(pkd));
+    }
+
+
+  let find_type (tynm : type_name) (tyenv : t) : poly_kind option =
+    tyenv.types |> TypeNameMap.find_opt tynm |> Option.map (fun tentry_pre ->
+      match tentry_pre with
+      | Defining(pkd)   -> pkd
+      | Defined(tentry) -> tentry.type_kind
     )
+
+
+  let add_module (modnm : module_name) (mentry : module_entry) (tyenv : t) : t =
+    { tyenv with
+      modules = tyenv.modules |> ModuleNameMap.add modnm mentry;
+    }
+
+
+  let find_module (modnm : module_name) (tyenv : t) : module_entry option =
+    tyenv.modules |> ModuleNameMap.find_opt modnm
 
 
   let add_signature (signm : signature_name) (absmodsig : module_signature abstracted) (tyenv : t) : t =
-    let sigentry =
-      {
-        sig_signature = absmodsig;
-      }
-    in
     { tyenv with
-      signatures = tyenv.signatures |> SignatureNameMap.add signm sigentry;
+      signatures = tyenv.signatures |> SignatureNameMap.add signm absmodsig;
     }
 
 
   let find_signature (signm : signature_name) (tyenv : t) : (module_signature abstracted) option =
-    tyenv.signatures |> SignatureNameMap.find_opt signm |> Option.map (fun sigentry ->
-      sigentry.sig_signature
-    )
+    tyenv.signatures |> SignatureNameMap.find_opt signm
 
 end
 
@@ -343,67 +315,44 @@ module SigRecord = struct
     Alist.empty
 
 
-  let add_val (x : identifier) (pty : poly_type) (gname : global_name) (sigr : t) : t =
-    Alist.extend sigr (SRVal(x, (pty, gname)))
+  let add_value (x : identifier) (ventry : value_entry) (sigr : t) : t =
+    Alist.extend sigr (SRVal(x, ventry))
 
 
-  let find_val (x0 : identifier) (sigr : t) : (poly_type * global_name) option =
+  let find_value (x0 : identifier) (sigr : t) : value_entry option =
     sigr |> Alist.to_rev_list |> List.find_map (function
     | SRVal(x, ventry) -> if String.equal x x0 then Some(ventry) else None
     | _                -> None
     )
 
 
-  let add_types (tydefs : (type_name * type_opacity) list) (sigr : t) : t =
-    Alist.extend sigr (SRRecTypes(tydefs))
+  let add_type (tynm : type_name) (tentry : type_entry) (sigr : t) : t =
+    Alist.extend sigr (SRType(tynm, tentry))
 
 
-  let find_constructor (vidf : TypeID.Variant.t -> BoundID.t list * constructor_branch_map) (ctornm : constructor_name) (sigr : t) : constructor_entry option =
+  let find_type (tynm0 : type_name) (sigr : t) : type_entry option =
     sigr |> Alist.to_rev_list |> List.find_map (function
-    | SRRecTypes(tydefs) ->
-        tydefs |> List.find_map (fun (tynm, (tyid, pkd)) ->
-          match tyid with
-          | TypeID.Variant(vid) ->
-              let (bids, ctorbrs) = vidf vid in
-              ctorbrs |> ConstructorMap.find_opt ctornm |> Option.map (fun (ctorid, ptyparams) ->
-                {
-                  belongs         = vid;
-                  constructor_id  = ctorid;
-                  type_variables  = bids;
-                  parameter_types = ptyparams;
-                }
-              )
-
-          | _ ->
-              None
-        )
-
-    | _ ->
-        None
+    | SRType(tynm, tentry) -> if String.equal tynm tynm0 then Some(tentry) else None
+    | _                    -> None
     )
 
 
-  let find_type (tynm0 : type_name) (sigr : t) : type_opacity option =
-    sigr |> Alist.to_rev_list |> List.find_map (function
-    | SRRecTypes(tydefs) ->
-        tydefs |> List.find_map (fun (tynm, tyopac) ->
-          if String.equal tynm tynm0 then Some(tyopac) else None
-        )
+  let add_constructor (ctornm : constructor_name) (centry : constructor_entry) (sigr : t) : t =
+    Alist.extend sigr (SRCtor(ctornm, centry))
 
-    | _ ->
-        None
+
+  let find_constructor (ctornm : constructor_name) (sigr : t) : constructor_entry option =
+    sigr |> Alist.to_rev_list |> List.find_map (function
+    | SRCtor(ctornm, centry) -> Some(centry)
+    | _                      -> None
     )
 
 
-  let add_opaque_type (tynm : type_name) (oid : TypeID.Opaque.t) (pkd : poly_kind) (sigr : t) : t =
-    Alist.extend sigr (SRRecTypes[ (tynm, (TypeID.Opaque(oid), pkd)) ])
+  let add_module (modnm : module_name) (mentry : module_entry) (sigr : t) : t =
+    Alist.extend sigr (SRModule(modnm, mentry))
 
 
-  let add_module (modnm : module_name) (modsig : module_signature) (sname : space_name) (sigr : t) : t =
-    Alist.extend sigr (SRModule(modnm, (modsig, sname)))
-
-
-  let find_module (modnm0 : module_name) (sigr : t) : (module_signature * space_name) option =
+  let find_module (modnm0 : module_name) (sigr : t) : module_entry option =
     sigr |> Alist.to_list |> List.find_map (function
     | SRModule(modnm, mentry) -> if String.equal modnm modnm0 then Some(mentry) else None
     | _                       -> None
@@ -422,24 +371,27 @@ module SigRecord = struct
 
 
   let fold (type a)
-      ~v:(fv : identifier -> poly_type * global_name -> a -> a)
-      ~t:(ft : (type_name * type_opacity) list -> a -> a)
-      ~m:(fm : module_name -> module_signature * space_name -> a -> a)
+      ~v:(fv : identifier -> value_entry -> a -> a)
+      ~c:(fc : constructor_name -> constructor_entry -> a -> a)
+      ~t:(ft : type_name -> type_entry -> a -> a)
+      ~m:(fm : module_name -> module_entry -> a -> a)
       ~s:(fs : signature_name -> module_signature abstracted -> a -> a)
       (init : a) (sigr : t) : a =
     sigr |> Alist.to_list |> List.fold_left (fun acc entry ->
       match entry with
       | SRVal(x, ventry)        -> fv x ventry acc
-      | SRRecTypes(tydefs)      -> ft tydefs acc
+      | SRCtor(ctornm, centry)  -> fc ctornm centry acc
+      | SRType(tynm, tentry)    -> ft tynm tentry acc
       | SRModule(modnm, mentry) -> fm modnm mentry acc
       | SRSig(signm, absmodsig) -> fs signm absmodsig acc
     ) init
 
 
   let map_and_fold (type a)
-      ~v:(fv : identifier -> poly_type * global_name -> a -> (poly_type * global_name) * a)
-      ~t:(ft : (type_name * type_opacity) list -> a -> type_opacity list * a)
-      ~m:(fm : module_name -> module_signature * space_name -> a -> (module_signature * space_name) * a)
+      ~v:(fv : identifier -> value_entry -> a -> value_entry * a)
+      ~c:(fc : constructor_name -> constructor_entry -> a -> constructor_entry * a)
+      ~t:(ft : type_name -> type_entry -> a -> type_entry * a)
+      ~m:(fm : module_name -> module_entry -> a -> module_entry * a)
       ~s:(fs : signature_name -> module_signature abstracted -> a -> module_signature abstracted * a)
       (init : a) (sigr : t) : t * a =
       sigr |> Alist.to_list |> List.fold_left (fun (sigracc, acc) entry ->
@@ -448,10 +400,13 @@ module SigRecord = struct
             let (ventry, acc) = fv x ventry acc in
             (Alist.extend sigracc (SRVal(x, ventry)), acc)
 
-        | SRRecTypes(tydefs) ->
-            let tynms = tydefs |> List.map fst in
-            let (tyopacs, acc) = ft tydefs acc in
-            (Alist.extend sigracc (SRRecTypes(List.combine tynms tyopacs)), acc)
+        | SRCtor(ctornm, centry) ->
+            let (centry, acc) = fc ctornm centry acc in
+            (Alist.extend sigracc (SRCtor(ctornm, centry)), acc)
+
+        | SRType(tynm, tentry) ->
+            let (tentry, acc) = ft tynm tentry acc in
+            (Alist.extend sigracc (SRType(tynm, tentry)), acc)
 
         | SRModule(modnm, mentry) ->
             let (mentry, acc) = fm modnm mentry acc in
@@ -465,15 +420,17 @@ module SigRecord = struct
 
 
   let map (type a)
-      ~v:(fv : identifier -> poly_type * global_name -> poly_type * global_name)
-      ~t:(ft : (type_name * type_opacity) list -> type_opacity list)
-      ~m:(fm : module_name -> module_signature * space_name -> module_signature * space_name)
+      ~v:(fv : identifier -> value_entry -> value_entry)
+      ~c:(fc : constructor_name -> constructor_entry -> constructor_entry)
+      ~t:(ft : type_name -> type_entry -> type_entry)
+      ~m:(fm : module_name -> module_entry -> module_entry)
       ~s:(fs : signature_name -> module_signature abstracted -> module_signature abstracted)
       (sigr : t) : t =
     let (sigr, ()) =
       sigr |> map_and_fold
           ~v:(fun x ventry () -> (fv x ventry, ()))
-          ~t:(fun tydefs () -> (ft tydefs, ()))
+          ~c:(fun ctornm centry () -> (fc ctornm centry, ()))
+          ~t:(fun tynm tentry () -> (ft tynm tentry, ()))
           ~m:(fun modnm mentry () -> (fm modnm mentry, ()))
           ~s:(fun signm sentry () -> (fs signm sentry, ()))
           ()
@@ -505,8 +462,9 @@ module SigRecord = struct
         sigr2 |> Alist.to_list |> List.fold_left (fun sigracc entry ->
           let () =
             match entry with
-            | SRVal(x, _)        -> check_none x (find_val x sigr1)
-            | SRRecTypes(tydefs) -> tydefs |> List.iter (fun (tynm, _) -> check_none tynm (find_type tynm sigr1))
+            | SRVal(x, _)        -> check_none x (find_value x sigr1)
+            | SRCtor(ctornm, _)  -> check_none ctornm (find_constructor ctornm sigr1)
+            | SRType(tynm, _)    -> check_none tynm (find_type tynm sigr1)
             | SRModule(modnm, _) -> check_none modnm (find_module modnm sigr1)
             | SRSig(signm, _)    -> check_none signm (find_signature signm sigr1)
           in

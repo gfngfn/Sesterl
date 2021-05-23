@@ -1,9 +1,9 @@
 
 open Syntax
 
-module IDMap = Map.Make(TypeID.Synonym)
+module IDMap = Map.Make(TypeID)
 
-module GraphImpl = Graph.Persistent.Digraph.Abstract(TypeID.Synonym)
+module GraphImpl = Graph.Persistent.Digraph.Abstract(TypeID)
 
 module ComponentImpl = Graph.Components.Make(GraphImpl)
 
@@ -20,7 +20,7 @@ let empty : t =
   }
 
 
-let add_vertex (sid : TypeID.Synonym.t) (tyident : type_name ranged) (graph : t) : t =
+let add_vertex (sid : TypeID.t) (tyident : type_name ranged) (graph : t) : t =
   let vertex = GraphImpl.V.create sid in
   {
     labels = graph.labels |> IDMap.add sid (tyident, vertex);
@@ -28,13 +28,13 @@ let add_vertex (sid : TypeID.Synonym.t) (tyident : type_name ranged) (graph : t)
   }
 
 
-let get_vertex_token map (sid : TypeID.Synonym.t) : GraphImpl.V.t =
+let get_vertex_token map (sid : TypeID.t) : GraphImpl.V.t =
   match map |> IDMap.find_opt sid with
   | None            -> assert false
   | Some(_, vertex) -> vertex
 
 
-let add_edge (sid1 : TypeID.Synonym.t) (sid2 : TypeID.Synonym.t) (graph : t) : t =
+let add_edge (sid1 : TypeID.t) (sid2 : TypeID.t) (graph : t) : t =
   let map = graph.labels in
   let vertex1 = get_vertex_token map sid1 in
   let vertex2 = get_vertex_token map sid2 in
@@ -56,7 +56,7 @@ let find_loop g =
   ) g None
 
 
-let find_cycle (graph : t) : ((TypeID.Synonym.t * type_name ranged) cycle) option =
+let find_cycle (graph : t) : ((TypeID.t * type_name ranged) cycle) option =
   match find_loop graph.main with
   | Some(v) ->
       Some(Loop(extract_vertex_info graph v))

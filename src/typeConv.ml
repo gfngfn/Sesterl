@@ -281,7 +281,7 @@ let collect_ids_scheme
     | RecordType(labmap) ->
         aux_mono_label_assoc labmap
 
-    | DataType(tyid, tyargs) ->
+    | TypeApp(tyid, tyargs) ->
         tyargs |> List.iter aux_mono
 
     | PackType(_absmodsig) ->
@@ -332,7 +332,7 @@ let collect_ids_scheme
     | RecordType(plabmap) ->
         aux_poly_label_assoc plabmap
 
-    | DataType(tyid, ptyargs) ->
+    | TypeApp(tyid, ptyargs) ->
         ptyargs |> List.iter aux_poly
 
     | PackType(_absmodsig) ->
@@ -583,9 +583,9 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let pty = (rngf rng, RecordType(plabmap)) in
         (bbidset, pty)
 
-    | DataType(tyid, tyargs) ->
+    | TypeApp(tyid, tyargs) ->
         let (bbidset, ptyargs) = aux_list tyargs in
-        let pty = (rngf rng, DataType(tyid, ptyargs)) in
+        let pty = (rngf rng, TypeApp(tyid, ptyargs)) in
         (bbidset, pty)
 
     | PackType(absmodsig) ->
@@ -703,8 +703,8 @@ fun intern intern_row pty ->
         let labmap = plabmap |> LabelAssoc.map aux in
         (rng, RecordType(labmap))
 
-    | DataType(tyid, ptyargs) ->
-        (rng, DataType(tyid, ptyargs |> List.map aux))
+    | TypeApp(tyid, ptyargs) ->
+        (rng, TypeApp(tyid, ptyargs |> List.map aux))
 
     | PackType(absmodsig) ->
         (rng, PackType(absmodsig))
@@ -962,34 +962,9 @@ let rec arity_of_kind = function
   Kind(bkddoms, _) -> List.length bkddoms
 
 
-let get_real_type_scheme : 'a 'b. ((('a, 'b) typ) BoundIDMap.t -> poly_type -> ('a, 'b) typ) -> TypeID.Synonym.t -> (('a, 'b) typ) list -> ('a, 'b) typ =
-fun substf sid tyargs ->
-  let (typarams, ptyreal) = TypeDefinitionStore.find_synonym_type sid in
-  try
-    let substmap =
-      List.fold_left2 (fun substmap typaram tyarg ->
-        substmap |> BoundIDMap.add typaram tyarg
-      ) BoundIDMap.empty typarams tyargs
-    in
-    substf substmap ptyreal
-  with
-  | Invalid_argument(_) -> assert false
-
-
-let get_real_mono_type : TypeID.Synonym.t -> mono_type list -> mono_type =
-  get_real_type_scheme substitute_mono_type
-
-let get_real_poly_type : TypeID.Synonym.t -> poly_type list -> poly_type =
-  get_real_type_scheme substitute_poly_type
-
-
 (* Omit redundant structures of the given type. *)
 let rec canonicalize_root = function
   | (_, TypeVar(Updatable({contents = Link(ty)}))) ->
-      canonicalize_root ty
-
-  | (_, DataType(TypeID.Synonym(sid), tyargs)) ->
-      let ty = get_real_mono_type sid tyargs in
       canonicalize_root ty
 
   | ty ->
@@ -1088,7 +1063,7 @@ fun showtv showrv ty ->
           | Some(s) -> Printf.sprintf "{%s}" s
         end
 
-    | DataType(tyid, tyargs) ->
+    | TypeApp(tyid, tyargs) ->
         begin
           match tyargs with
           | [] ->

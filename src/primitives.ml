@@ -16,38 +16,38 @@ let decode_option_function_with_default =
   "decode_option_with_default"
 
 
-let vid_option = TypeID.Variant.fresh [] "option"
+let vid_option = TypeID.fresh [] "option"
 
 
-let vid_result = TypeID.Variant.fresh [] "result"
+let vid_result = TypeID.fresh [] "result"
 
 
-let vid_list = TypeID.Variant.fresh [] "list"
+let vid_list = TypeID.fresh [] "list"
 
 
-let vid_format = TypeID.Variant.fresh [] "format"
+let vid_format = TypeID.fresh [] "format"
 
 
-let vid_frozen = TypeID.Variant.fresh [] "frozen"
+let vid_frozen = TypeID.fresh [] "frozen"
 
 
 let option_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
-  (rng, DataType(TypeID.Variant(vid_option), [ty]))
+  (rng, TypeApp(vid_option, [ty]))
 
 
 let list_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
-  (rng, DataType(TypeID.Variant(vid_list), [ty]))
+  (rng, TypeApp(vid_list, [ty]))
 
 
 let format_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
-  (rng, DataType(TypeID.Variant(vid_format), [ty]))
+  (rng, TypeApp(vid_format, [ty]))
 
 
 let frozen_type (rng : Range.t)
     ~rest:(tyrest : ('a, 'b) typ)
     ~receive:(tyrecv : ('a, 'b) typ)
     ~return:(tycod : ('a, 'b) typ) : ('a, 'b) typ =
-  (rng, DataType(TypeID.Variant(vid_frozen), [tyrest; tyrecv; tycod]))
+  (rng, TypeApp(vid_frozen, [tyrest; tyrecv; tycod]))
 
 
 let assertion_function_type : mono_type =
@@ -284,12 +284,23 @@ let make_constructor_id (ctor : string) (atom_opt : string option) =
       end
 
 
+let make_variant_scheme (bids : BoundID.t list) (vid : TypeID.t) : BoundID.t list * poly_type =
+  let tyargs = bids |> List.map (fun bid -> (Range.dummy "make_variant_scheme 1", TypeVar(Bound(bid)))) in
+  (bids, (Range.dummy "make_variant_scheme 2", TypeApp(vid, tyargs)))
+
+
 let add_variant_types vntdefs (tyenv, gmap) =
   let tyenv : Typeenv.t =
     vntdefs |> List.fold_left (fun tyenv vntdef ->
       let (tynm, vid, bids, ctordefs) = vntdef in
       let pkd = TypeConv.kind_of_arity (List.length bids) in
-      let tyenv = tyenv |> Typeenv.add_variant_type tynm vid pkd in
+      let tentry =
+        {
+          type_scheme = make_variant_scheme bids vid;
+          type_kind   = pkd;
+        }
+      in
+      let tyenv = tyenv |> Typeenv.add_type tynm tentry in
       let (tyenv, ctorbrs) =
         ctordefs |> List.fold_left (fun (tyenv, ctorbrs) ctordef ->
           let (ctor, atom_opt, paramtys) = ctordef in
@@ -307,7 +318,6 @@ let add_variant_types vntdefs (tyenv, gmap) =
           (tyenv, ctorbrs)
         ) (tyenv, ConstructorMap.empty)
       in
-      TypeDefinitionStore.add_variant_type vid bids ctorbrs;
       tyenv
     ) tyenv
   in
@@ -318,7 +328,7 @@ let add_operators (ops : (string * poly_type * string) list) ((tyenv, nmap) : Ty
   let tyenv =
     ops |> List.fold_left (fun tyenv (x, pty, target) ->
       let name = OutputIdentifier.Operator(OutputIdentifier.operator target) in
-      tyenv |> Typeenv.add_val x pty name
+      tyenv |> Typeenv.add_value x pty name
     ) tyenv
   in
   (tyenv, nmap)
@@ -345,7 +355,7 @@ let add_primitives (prims : primitive_definition list) ((tyenv, nmap) : Typeenv.
           | None        -> assert false
           | Some(gname) -> gname
         in
-        let tyenv = tyenv |> Typeenv.add_val srcdef.identifier srcdef.typ (OutputIdentifier.Global(gname)) in
+        let tyenv = tyenv |> Typeenv.add_value srcdef.identifier srcdef.typ (OutputIdentifier.Global(gname)) in
         let gmap = gmap |> GlobalNameMap.add gname primitive_module_name in
         (tyenv, (gmap, smap))
   ) (tyenv, nmap)
