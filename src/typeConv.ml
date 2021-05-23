@@ -882,6 +882,18 @@ let substitute_poly_type (substmap : poly_type BoundIDMap.t) : poly_type -> poly
   instantiate_scheme intern intern_row
 
 
+let substitute_type_scheme ((bids, ptyreal) : BoundID.t list * poly_type) (tyargs : mono_type list) : mono_type option =
+  try
+    let substmap =
+      List.fold_left2 (fun substmap bid tyarg ->
+        substmap |> BoundIDMap.add bid tyarg
+      ) BoundIDMap.empty bids tyargs
+    in
+    Some(substitute_mono_type substmap ptyreal)
+  with
+  | _ -> None
+
+
 let overwrite_range_of_type (rng : Range.t) (_, tymain) =
   (rng, tymain)
 

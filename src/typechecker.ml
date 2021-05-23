@@ -1091,13 +1091,13 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
     let tymain =
       match mtymain with
       | MTypeName(tynm, mtyargs) ->
-          let ptyargs = mtyargs |> List.map aux in
-          let len_actual = List.length ptyargs in
+          let tyargs = mtyargs |> List.map aux in
+          let len_actual = List.length tyargs in
           begin
             match tyenv |> Typeenv.find_type tynm with
             | None ->
                 begin
-                  match (tynm, ptyargs) with
+                  match (tynm, tyargs) with
                   | ("unit", [])    -> BaseType(UnitType)
                   | ("unit", _)     -> invalid rng "unit" ~expect:0 ~actual:len_actual
                   | ("bool", [])    -> BaseType(BoolType)
@@ -1115,18 +1115,16 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                   | _               -> raise_error (UndefinedTypeName(rng, tynm))
                 end
 
-            | Some(pkd) ->
-                failwith "TODO: use type_entry here"
-(*
-                let len_expected = TypeConv.arity_of_kind pkd in
-                if len_actual = len_expected then
-                  begin
-                    k tyid;
-                    DataType(tyid, ptyargs)
-                  end
-                else
-                  invalid rng tynm ~expect:len_expected ~actual:len_actual
-*)
+            | Some(tentry) ->
+                begin
+                  match TypeConv.substitute_type_scheme tentry.type_scheme tyargs with
+                  | Some((_, tymain)) ->
+                      tymain
+
+                  | None ->
+                      let len_expected = TypeConv.arity_of_kind tentry.type_kind in
+                      invalid rng tynm ~expect:len_expected ~actual:len_actual
+                end
           end
 
       | MFuncType((mtydoms, mndlabmtys, mrow), mtycod) ->
@@ -1174,25 +1172,23 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                       raise_error (UndefinedTypeName(rng2, tynm2))
 
                   | Some(tentry2) ->
-                      failwith "TODO: use type_entry here"
-(*
                       let tyargs = mtyargs |> List.map aux in
-                      let (tyid2, pkd2) = tyopac2 in
-                      let arity_expected = TypeConv.arity_of_kind pkd2 in
-                      let arity_actual = List.length tyargs in
-                      if arity_actual = arity_expected then
-                        if opaque_occurs_in_type_id oidset1 tyid2 then
-                        (* Combining (T-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
-                           in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
-                           we must assert that opaque type variables do not extrude their scope.
-                        *)
-                          raise_error (OpaqueIDExtrudesScopeViaType(rng, tentry2))
-                        else
-                          TypeApp(tyid2, tyargs)
-                      else
-                        let (_, tynm2) = tyident2 in
-                        raise_error (InvalidNumberOfTypeArguments(rng, tynm2, arity_expected, arity_actual))
-*)
+                      begin
+                        match TypeConv.substitute_type_scheme tentry2.type_scheme tyargs with
+                        | Some((_, tymain) as ty) ->
+                            if opaque_occurs_in_mono_type oidset1 ty then
+                              (* Combining (T-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
+                                 in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
+                                 we must assert that opaque type variables do not extrude their scope. *)
+                              raise_error (OpaqueIDExtrudesScopeViaType(rng, tentry2))
+                            else
+                              tymain
+
+                        | None ->
+                            let len_actual = List.length tyargs in
+                            let len_expected = TypeConv.arity_of_kind tentry2.type_kind in
+                            invalid rng tynm2 ~expect:len_expected ~actual:len_actual
+                      end
                 end
           end
 
