@@ -1579,9 +1579,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       (ty2, iletpatin ipat e1 e2)
 
   | Constructor(modidents, ctornm, utastargs) ->
-      failwith "TODO: Constructor"
-(*
-      let (vid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng modidents ctornm in
+      let (tyid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng modidents ctornm in
       begin
         match List.combine utastargs tys_expected with
         | exception Invalid_argument(_) ->
@@ -1597,11 +1595,10 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
                 Alist.extend eacc e
               ) Alist.empty
             in
-            let ty = (rng, DataType(TypeID.Variant(vid), tyargs)) in
+            let ty = (rng, TypeApp(tyid, tyargs)) in
             let e = IConstructor(ctorid, Alist.to_list eacc) in
             (ty, e)
       end
-*)
 
   | BinaryByList(nrs) ->
       let ns =
@@ -1935,12 +1932,12 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (modidents : (module_name 
             raise_error (UndefinedConstructor(rng, ctornm))
 
         | Some(centry) ->
-            let vid = centry.belongs in
+            let tyid = centry.belongs in
             let ctorid = centry.constructor_id in
             let bids = centry.type_variables in
             let ptys = centry.parameter_types in
             let (tyargs, tys_expected) = TypeConv.instantiate_type_arguments pre.level bids ptys in
-            (vid, ctorid, tyargs, tys_expected)
+            (tyid, ctorid, tyargs, tys_expected)
       end
 
   | modident :: projs ->
@@ -2056,9 +2053,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
       (ty, IPTuple(ipats), bindmap)
 
   | PConstructor(modidents, ctornm, pats) ->
-      failwith "TODO: PConstructor"
-(*
-      let (vid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng modidents ctornm in
+      let (tyid, ctorid, tyargs, tys_expected) = typecheck_constructor pre rng modidents ctornm in
       begin
         try
           let (ipatacc, bindmap) =
@@ -2068,7 +2063,7 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
               (Alist.extend ipatacc ipat, binding_map_union rng bindmapacc bindmap)
             ) (Alist.empty, BindingMap.empty) tys_expected pats
           in
-          let ty = (rng, DataType(TypeID.Variant(vid), tyargs)) in
+          let ty = (rng, TypeApp(tyid, tyargs)) in
           (ty, IPConstructor(ctorid, Alist.to_list ipatacc), bindmap)
         with
         | Invalid_argument(_) ->
@@ -2076,7 +2071,6 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
             let len_actual = List.length pats in
             raise_error (InvalidNumberOfConstructorArguments(rng, ctornm, len_expected, len_actual))
       end
-*)
 
 
 and typecheck_let : 'n. (Range.t -> identifier -> 'n) -> pre -> untyped_let_binding -> poly_type * 'n * ast =
