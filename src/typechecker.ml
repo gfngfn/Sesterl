@@ -9,31 +9,11 @@ open Errors
 exception Error of type_error
 
 
-let raise_error e =
-  raise (Error(e))
-
-
-let get_module_name_chain_position (modchain : module_name_chain) : Range.t =
-  let ((rngL, _), projs) = modchain in
-  match List.rev projs with
-  | []             -> rngL
-  | (rngR, _) :: _ -> Range.unite rngL rngR
-
-
 module BindingMap = Map.Make(String)
-
 
 type subtyping_error = unit
 
-
 type binding_map = (mono_type * local_name * Range.t) BindingMap.t
-
-
-let binding_map_union rng =
-  BindingMap.union (fun x _ _ ->
-    raise_error (BoundMoreThanOnceInPattern(rng, x))
-  )
-
 
 type unification_result =
   | Consistent
@@ -60,6 +40,83 @@ module SynonymNameHashSet =
       let equal = String.equal
       let hash = Hashtbl.hash
     end)
+
+
+let raise_error e =
+  raise (Error(e))
+
+
+let get_module_name_chain_position (modchain : module_name_chain) : Range.t =
+  let ((rngL, _), projs) = modchain in
+  match List.rev projs with
+  | []             -> rngL
+  | (rngR, _) :: _ -> Range.unite rngL rngR
+
+
+let binding_map_union rng =
+  BindingMap.union (fun x _ _ ->
+    raise_error (BoundMoreThanOnceInPattern(rng, x))
+  )
+
+
+let get_dependency_on_synonym_types (vertices : SynonymNameSet.t) (pre : pre) (mty : manual_type) : SynonymNameSet.t =
+  let hashset = SynonymNameHashSet.create 32 in
+    (* A hash set is created on every (non-partial) call. *)
+  let register_if_needed (tynm : type_name) : unit =
+    if vertices |> SynonymNameSet.mem tynm then
+      SynonymNameHashSet.add hashset tynm ()
+    else
+      ()
+  in
+  let rec aux ((_, mtymain) : manual_type) : unit =
+    match mtymain with
+    | MTypeName(tynm, mtyargs) ->
+        List.iter aux mtyargs;
+        register_if_needed tynm
+
+    | MFuncType((mtydoms, mndlabmtys, mrow), mtycod) ->
+        aux_labeled_list mndlabmtys;
+        aux_row mrow;
+        aux mtycod
+
+    | MProductType(mtys) ->
+        mtys |> TupleList.to_list |> List.iter aux
+
+    | MRecordType(labmtys) ->
+        aux_labeled_list labmtys
+
+    | MEffType((mtydoms, mndlabmtys, mrow), mty1, mty2) ->
+        aux_labeled_list mndlabmtys;
+        aux_row mrow;
+        List.iter aux mtydoms;
+        aux mty1;
+        aux mty2
+
+    | MTypeVar(typaram) ->
+        ()
+
+    | MModProjType(utmod1, tyident2, mtyargs) ->
+        ()
+
+    | MPackType(utsig) ->
+        aux_signature utsig
+
+  and aux_labeled_list (labmtys : labeled_manual_type list) : unit =
+    labmtys |> List.iter (fun (_, mty) -> aux mty)
+
+  and aux_row (mrow : manual_row) : unit =
+    match mrow with
+    | MFixedRow(optlabmtys) -> aux_labeled_list optlabmtys
+    | MRowVar(_)            -> ()
+
+  and aux_signature (utsig : untyped_signature) : unit =
+    () (* TODO: implement this or restrict the syntax of `pack` *)
+  in
+  aux mty;
+  SynonymNameHashSet.fold (fun sid () set ->
+    set |> SynonymNameSet.add sid
+  ) hashset SynonymNameSet.empty
+
 
 (*
 module WitnessMap : sig
@@ -989,7 +1046,7 @@ and make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder list)
 and decode_manual_base_kind (pre : pre) (mnbkd : manual_base_kind) : mono_base_kind =
 
   let aux_labeled_list =
-    decode_manual_record_type_scheme (fun _ -> ()) pre
+    decode_manual_record_type pre
   in
 
   let rec aux (rng, mnbkdmain) =
@@ -1016,7 +1073,7 @@ and decode_manual_kind (pre : pre) (mnkd : manual_kind) : mono_kind =
       Kind(bkddoms, bkdcod)
 
 
-and decode_manual_type_scheme (k : type_name -> unit) (pre : pre) (mty : manual_type) : mono_type =
+and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
 
   let tyenv = pre.tyenv in
   let typarams = pre.local_type_parameters in
@@ -1027,7 +1084,7 @@ and decode_manual_type_scheme (k : type_name -> unit) (pre : pre) (mty : manual_
   in
 
   let aux_labeled_list =
-    decode_manual_record_type_scheme k pre
+    decode_manual_record_type pre
   in
 
   let rec aux (rng, mtymain) =
@@ -1163,8 +1220,8 @@ and decode_manual_type_scheme (k : type_name -> unit) (pre : pre) (mty : manual_
   aux mty
 
 
-and decode_manual_record_type_scheme (k : type_name -> unit) (pre : pre) (labmtys : labeled_manual_type list) : mono_type LabelAssoc.t =
-  let aux = decode_manual_type_scheme k pre in
+and decode_manual_record_type (pre : pre) (labmtys : labeled_manual_type list) : mono_type LabelAssoc.t =
+  let aux = decode_manual_type pre in
   labmtys |> List.fold_left (fun labmap (rlabel, mty) ->
     let (rnglabel, label) = rlabel in
     if labmap |> LabelAssoc.mem label then
@@ -1173,28 +1230,6 @@ and decode_manual_record_type_scheme (k : type_name -> unit) (pre : pre) (labmty
       let ty = aux mty in
       labmap |> LabelAssoc.add label ty
   ) LabelAssoc.empty
-
-
-and decode_manual_type (pre : pre) : manual_type -> mono_type =
-  decode_manual_type_scheme (fun _ -> ()) pre
-
-
-and decode_manual_type_and_get_dependency (vertices : SynonymNameSet.t) (pre : pre) (mty : manual_type) =
-  let hashset = SynonymNameHashSet.create 32 in
-    (* A hash set is created on every (non-partial) call. *)
-  let k (tynm : type_name) =
-    if vertices |> SynonymNameSet.mem tynm then
-      SynonymNameHashSet.add hashset tynm ()
-    else
-      failwith "TODO: emit an error"
-  in
-  let ty = decode_manual_type_scheme k pre mty in
-  let dependencies =
-    SynonymNameHashSet.fold (fun sid () set ->
-      set |> SynonymNameSet.add sid
-    ) hashset SynonymNameSet.empty
-  in
-  (ty, dependencies)
 
 
 and add_local_row_parameter (rowvars : (row_variable_name ranged * (label ranged * manual_type) list) list) (pre : pre) : pre =

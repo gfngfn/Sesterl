@@ -160,9 +160,7 @@ module Typeenv : sig
 
   val add_opaque_id : type_name -> TypeID.t -> poly_kind -> t -> t
 
-  val add_type_for_recursion : type_name -> poly_kind -> t -> t
-
-  val find_type : type_name -> t -> poly_kind option
+  val find_type : type_name -> t -> type_entry option
 
   val add_module : module_name -> module_entry -> t -> t
 

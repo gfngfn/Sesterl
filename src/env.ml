@@ -67,10 +67,6 @@ and value_entry = {
   val_global : global_name;
 }
 
-and type_entry_pre =
-  | Defining of poly_kind
-  | Defined  of type_entry
-
 and type_entry = {
   type_scheme : BoundID.t list * poly_type;
   type_kind   : poly_kind;
@@ -97,7 +93,7 @@ and environment = {
     [@printer (fun ppf _ -> Format.fprintf ppf "<values>")]
   constructors : constructor_entry ConstructorMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<constructors>")]
-  types        : type_entry_pre TypeNameMap.t;
+  types        : type_entry TypeNameMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<types>")]
   opaques      : poly_kind OpaqueIDMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<opaques>")]
@@ -261,7 +257,7 @@ module Typeenv = struct
 
   let add_type (tynm : type_name) (tentry : type_entry) (tyenv : t) : t =
     { tyenv with
-      types = tyenv.types |> TypeNameMap.add tynm (Defined(tentry));
+      types = tyenv.types |> TypeNameMap.add tynm tentry;
     }
 
 
@@ -271,18 +267,8 @@ module Typeenv = struct
     }
 
 
-  let add_type_for_recursion (tynm : type_name) (pkd : poly_kind) (tyenv : t) : t =
-    { tyenv with
-      types = tyenv.types |> TypeNameMap.add tynm (Defining(pkd));
-    }
-
-
-  let find_type (tynm : type_name) (tyenv : t) : poly_kind option =
-    tyenv.types |> TypeNameMap.find_opt tynm |> Option.map (fun tentry_pre ->
-      match tentry_pre with
-      | Defining(pkd)   -> pkd
-      | Defined(tentry) -> tentry.type_kind
-    )
+  let find_type (tynm : type_name) (tyenv : t) : type_entry option =
+    tyenv.types |> TypeNameMap.find_opt tynm
 
 
   let add_module (modnm : module_name) (mentry : module_entry) (tyenv : t) : t =
