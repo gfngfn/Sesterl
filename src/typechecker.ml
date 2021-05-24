@@ -2643,9 +2643,11 @@ and lookup_type_opacity (tynm : type_name) (tyopac1 : type_opacity) (tyopac2 : t
 
     | _ ->
         None
+*)
 
-
-and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module_signature) =
+and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module_signature) : substitution =
+  failwith "TODO: lookup_record"
+(*
     match (modsig1, modsig2) with
     | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
         (* Performs signature matching by looking up signatures `sigr1` and `sigr2`,
@@ -2686,10 +2688,10 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
             ~s:(fun _ _ wtmapacc ->
               wtmapacc
             )
-            WitnessMap.empty
+            SubstMap.empty
 
     | _ ->
-        WitnessMap.empty
+        SubstMap.empty
 *)
 
 
@@ -2756,16 +2758,13 @@ and subtype_concrete_with_concrete (address : address) (rng : Range.t) (modsig1 
       raise_error (NotASubtype(rng, modsig1, modsig2))
 *)
 
-and subtype_concrete_with_abstract (address : address) (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
-  failwith "TODO: subtype_concrete_with_abstract"
-(*
+and subtype_concrete_with_abstract (address : address) (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : substitution =
   let (oidset2, modsig2) = absmodsig2 in
-  let wtmap = lookup_record rng modsig1 modsig2 in
-  check_well_formedness_of_witness_map rng wtmap;
-  let (modsig2, wtmap) = modsig2 |> substitute_concrete address wtmap in
-  subtype_concrete_with_concrete address rng wtmap modsig1 modsig2;
-  wtmap
-*)
+  let subst = lookup_record rng modsig1 modsig2 in
+  let modsig2 = modsig2 |> substitute_concrete address subst in
+  subtype_concrete_with_concrete address rng modsig1 modsig2;
+  subst
+
 
 and subtype_signature (address : address) (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
   subtype_concrete_with_abstract address rng modsig1 absmodsig2
