@@ -440,10 +440,11 @@ let report_type_error (e : type_error) : unit =
       Format.printf "  unbound signature name '%s'\n"
         signm
 
-  | CannotRestrictTransparentType(rng, _) ->
+  | CannotRestrictTransparentType(rng, tynm, _) ->
       Format.printf "%a:\n"
         Range.pp rng;
-      Format.printf "  the specified type is already transparent\n"
+      Format.printf "  the specified type '%s' is already transparent\n"
+        tynm
 
   | PolymorphicContradiction(rng, x, pty1, pty2) ->
       let dispmap = make_display_map_from_poly_types [pty1; pty2] in

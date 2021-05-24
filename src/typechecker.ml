@@ -11,6 +11,10 @@ exception Error of type_error
 
 module BindingMap = Map.Make(String)
 
+module SubstMap = Map.Make(TypeID)
+
+type substitution = type_scheme SubstMap.t
+
 type subtyping_error = unit
 
 type binding_map = (mono_type * local_name * Range.t) BindingMap.t
@@ -2919,13 +2923,13 @@ and subtype_concrete_with_abstract (address : address) (rng : Range.t) (modsig1 
 and subtype_signature (address : address) (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
   subtype_concrete_with_abstract address rng modsig1 absmodsig2
 
-(*
-and substitute_concrete (address : address) (wtmap : WitnessMap.t) (modsig : module_signature) =
+
+and substitute_concrete (address : address) (subst : substitution) (modsig : module_signature) =
   match modsig with
   | ConcFunctor(sigftor) ->
       let (oidset, Domain(sigr), absmodsigcod) = (sigftor.opaques, sigftor.domain, sigftor.codomain) in
-      let (sigr, wtmap) = sigr |> substitute_structure address wtmap in
-      let (absmodsigcod, wtmap) = absmodsigcod |> substitute_abstract address wtmap in
+      let sigr = sigr |> substitute_structure address subst in
+      let absmodsigcod = absmodsigcod |> substitute_abstract address subst in
       let sigftor =
         { sigftor with
           opaques  = oidset;
@@ -2933,13 +2937,13 @@ and substitute_concrete (address : address) (wtmap : WitnessMap.t) (modsig : mod
           codomain = absmodsigcod;
         }
       in
-      (ConcFunctor(sigftor), wtmap)
+      ConcFunctor(sigftor)
         (* Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. *)
 
   | ConcStructure(sigr) ->
-      let (sigr, wtmap) = sigr |> substitute_structure address wtmap in
-      (ConcStructure(sigr), wtmap)
-*)
+      let sigr = sigr |> substitute_structure address subst in
+      ConcStructure(sigr)
+
 
 (* Given `modsig1` and `modsig2` which are already known to satisfy `modsig1 <= modsig2`,
    `copy_closure` copies every closure and every global name occurred in `modsig1`
@@ -2988,8 +2992,10 @@ and copy_closure_in_structure (sigr1 : SigRecord.t) (sigr2 : SigRecord.t) : SigR
     )
     ~s:(fun _signm sentry -> sentry)
 
+
+and substitute_structure (address : address) (subst : substitution) (sigr : SigRecord.t) : SigRecord.t =
+  failwith "TODO: substitute_structure"
 (*
-and substitute_structure (address : address) (wtmap : WitnessMap.t) (sigr : SigRecord.t) =
     sigr |> SigRecord.map_and_fold
         ~v:(fun _ (pty, gname) wtmap ->
           let ventry = (substitute_poly_type wtmap pty, gname) in
@@ -3097,16 +3103,18 @@ and substitute_structure (address : address) (wtmap : WitnessMap.t) (sigr : SigR
           (absmodsig, wtmap)
         )
         wtmap
+*)
 
-
-and substitute_abstract (address : address) (wtmap : WitnessMap.t) (absmodsig : module_signature abstracted) =
+and substitute_abstract (address : address) (subst : substitution) (absmodsig : module_signature abstracted) : module_signature abstracted =
   let (oidset, modsig) = absmodsig in
-  let (modsig, wtmap) = substitute_concrete address wtmap modsig in
-  ((oidset, modsig), wtmap)
+  let modsig = substitute_concrete address subst modsig in
+  (oidset, modsig)
     (* Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. *)
 
 
-and substitute_poly_type (wtmap : WitnessMap.t) (pty : poly_type) : poly_type =
+and substitute_poly_type (subst : substitution) (pty : poly_type) : poly_type =
+  failwith "TODO: substitute_poly_type"
+(*
   let rec aux (rng, ptymain) =
     let ptymain =
       match ptymain with
@@ -3392,13 +3400,11 @@ and typecheck_signature (address : address) (tyenv : Typeenv.t) (utsig : untyped
       end
 
   | SigWith(utsig0, modidents, tybinds) ->
-      failwith "TODO: SigWith"
-(*
       let (rng0, _) = utsig0 in
       let absmodsig0 = typecheck_signature address tyenv utsig0 in
       let (oidset0, modsig0) = absmodsig0 in
-      let sigrlast =
-        let (rnglast, modsiglast) =
+      let sigr_last =
+        let (rng_last, modsig_last) =
           modidents |> List.fold_left (fun (rngpre, modsig) (rng, modnm) ->
             match modsig with
             | ConcFunctor(_) ->
@@ -3412,41 +3418,50 @@ and typecheck_signature (address : address) (tyenv : Typeenv.t) (utsig : untyped
                 end
           ) (rng0, modsig0)
         in
-        match modsiglast with
-        | ConcFunctor(_)          -> raise_error (NotAStructureSignature(rnglast, modsiglast))
-        | ConcStructure(sigrlast) -> sigrlast
+        match modsig_last with
+        | ConcFunctor(_)           -> raise_error (NotAStructureSignature(rng_last, modsig_last))
+        | ConcStructure(sigr_last) -> sigr_last
       in
-      let (tydefs, _ctordefs) = bind_types address tyenv tybinds in
-      let (wtmap, oidset) =
-        tydefs |> List.fold_left (fun (wtmap, oidset) (tyident1, (tyid, pkd_actual)) ->
-          let (rng1, tynm1) = tyident1 in
-          let (oid, pkd_expected) =
-            match sigrlast |> SigRecord.find_type tynm1 with
+      let (tydefs, ctordefs) = bind_types address tyenv tybinds in
+      begin
+        match ctordefs with
+        | _ :: _ -> failwith "TODO: report errors for variants"
+        | []     -> ()
+      end;
+      let (subst, oidset) =
+        tydefs |> List.fold_left (fun (subst, oidset) (tynm1, tentry1) ->
+          let (tyid0, pkd_expected) =
+            match sigr_last |> SigRecord.find_type tynm1 with
             | None ->
-                raise_error (UndefinedTypeName(rng1, tynm1))
+                raise_error (UndefinedTypeName(rng, tynm1))
 
-            | Some(TypeID.Opaque(oid), pkd) ->
-                assert (oidset0 |> OpaqueIDSet.mem oid);
+            | Some(tentry0) ->
+                begin
+                  match TypeConv.get_opaque_type tentry0.type_scheme with
+                  | Some(tyid0) ->
+                      assert (oidset0 |> OpaqueIDSet.mem tyid0);
 (*
                 Format.printf "SigWith> %a --> %a\n"
                   TypeID.Opaque.pp oid
                   TypeID.pp tyid;  (* for debug *)
 *)
-                (oid, pkd)
+                      (tyid0, tentry0.type_kind)
 
-            | Some(tyopac) ->
-                raise_error (CannotRestrictTransparentType(rng1, tyopac))
+                  | None ->
+                      raise_error (CannotRestrictTransparentType(rng, tynm1, tentry1))
+                end
           in
-          unify_kind rng1 tynm1 ~actual:pkd_actual ~expected:pkd_expected;
-          let wtmap = wtmap |> WitnessMap.add_opaque oid tyid in
-          let oidset = oidset |> OpaqueIDSet.remove oid in
-          (wtmap, oidset)
+          let pkd_actual = tentry1.type_kind in
+          unify_kind rng tynm1 ~actual:pkd_actual ~expected:pkd_expected;
+          let subst = subst |> SubstMap.add tyid0 tentry1.type_scheme in
+          let oidset = oidset |> OpaqueIDSet.remove tyid0 in
+          (subst, oidset)
 
-        ) (WitnessMap.empty, oidset0)
+        ) (SubstMap.empty, oidset0)
       in
-      let (modsigret, _) = substitute_concrete address wtmap modsig0 in
+      let modsigret = substitute_concrete address subst modsig0 in
       (oidset, modsigret)
-*)
+
 
 (* Checks that `pkd1` and `pkd2` is the same kind. *)
 and unify_kind (rng : Range.t) (tynm : type_name) ~actual:(pkd1 : poly_kind) ~expected:(pkd2 : poly_kind) : unit =

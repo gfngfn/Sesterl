@@ -911,6 +911,31 @@ let make_opaque_type_scheme_from_base_kinds (pbkds : poly_base_kind list) (tyid 
   make_opaque_type_scheme bids tyid
 
 
+let get_opaque_type ((bids, pty_body) : type_scheme) : TypeID.t option =
+  match pty_body with
+  | (_, TypeApp(tyid, ptyargs)) ->
+      begin
+        match List.combine bids ptyargs with
+        | exception Invalid_argument(_) ->
+            None
+
+        | zipped ->
+            if
+              zipped |> List.for_all (fun (bid, ptyarg) ->
+                match ptyarg with
+                | (_, TypeVar(Bound(bid0))) -> BoundID.equal bid bid0
+                | _                         -> false
+              )
+            then
+              Some(tyid)
+            else
+              None
+      end
+
+  | _ ->
+      None
+
+
 let overwrite_range_of_type (rng : Range.t) (_, tymain) =
   (rng, tymain)
 

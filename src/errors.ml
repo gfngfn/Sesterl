@@ -61,7 +61,7 @@ type type_error =
   | NotAFunctorSignature                of Range.t * module_signature
   | NotAStructureSignature              of Range.t * module_signature
   | UnboundSignatureName                of Range.t * signature_name
-  | CannotRestrictTransparentType       of Range.t * type_entry
+  | CannotRestrictTransparentType       of Range.t * type_name * type_entry
   | PolymorphicContradiction            of Range.t * identifier * poly_type * poly_type
   | PolymorphicInclusion                of Range.t * FreeID.t * poly_type * poly_type
   | MissingRequiredValName              of Range.t * identifier * poly_type
