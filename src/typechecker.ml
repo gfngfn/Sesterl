@@ -2865,122 +2865,40 @@ and copy_closure_in_structure (sigr1 : SigRecord.t) (sigr2 : SigRecord.t) : SigR
 
 
 and substitute_structure (address : address) (subst : substitution) (sigr : SigRecord.t) : SigRecord.t =
-  failwith "TODO: substitute_structure"
-(*
-    sigr |> SigRecord.map_and_fold
-        ~v:(fun _ (pty, gname) wtmap ->
-          let ventry = (substitute_poly_type wtmap pty, gname) in
-          (ventry, wtmap)
-        )
-        ~t:(fun tydefs_from wtmap ->
+  sigr |> SigRecord.map
+      ~v:(fun _x ventry ->
+        { ventry with val_type = ventry.val_type |> substitute_poly_type subst }
+      )
+      ~c:(fun _ctornm centry ->
+        { centry with parameter_types = centry.parameter_types |> List.map (substitute_poly_type subst) }
+      )
+      ~f:(fun _tynm pty ->
+        pty |> substitute_poly_type subst
+      )
+      ~t:(fun _tynm tentry ->
+        let (bids, pty_body) = tentry.type_scheme in
+        {
+          type_scheme = (bids, pty_body |> substitute_poly_type subst);
+          type_kind   = tentry.type_kind |> substitute_poly_kind subst;
+        }
+      )
+      ~m:(fun _ mentry ->
+        { mentry with mod_signature = mentry.mod_signature |> substitute_concrete address subst }
+      )
+      ~s:(fun _ absmodsig ->
+        absmodsig |> substitute_abstract address subst
+      )
 
-          (* Apply the substitution `wtmap` or else
-             generate new type IDs that will be used after substitution. *)
-          let wtmap =
-            tydefs_from |> List.fold_left (fun wtmap (_, (tyid_from, arity)) ->
-              match tyid_from with
-              | TypeID.Synonym(sid_from) ->
-                  let sid_to =
-                    match wtmap |> WitnessMap.find_synonym sid_from with
-                    | Some(sid_to) ->
-                        sid_to
-
-                    | None ->
-                        let s = TypeID.Synonym.name sid_from in
-                        TypeID.Synonym.fresh (Alist.to_list address) s
-                  in
-(*
-                  Format.printf "substitute_structure> %a --> %a\n"
-                    TypeID.Synonym.pp sid_from
-                    TypeID.Synonym.pp sid_to;  (* for debug *)
-*)
-                  wtmap |> WitnessMap.add_synonym sid_from sid_to
-
-              | TypeID.Variant(vid_from) ->
-                  let vid_to =
-                    match wtmap |> WitnessMap.find_variant vid_from with
-                    | Some(vid_from) ->
-                        vid_from
-
-                    | None ->
-                        let s = TypeID.Variant.name vid_from in
-                        TypeID.Variant.fresh (Alist.to_list address) s
-                  in
-(*
-                  Format.printf "substitute_structure> %a --> %a\n"
-                    TypeID.Variant.pp vid_from
-                    TypeID.Variant.pp vid_to;  (* for debug *)
-*)
-                  wtmap |> WitnessMap.add_variant vid_from vid_to
-
-              | TypeID.Opaque(_) ->
-                  wtmap
-            ) wtmap
-          in
-
-          (* Replace all occurrences of the old type IDs *)
-          let tyopacs_to =
-            tydefs_from |> List.map (fun (_, (tyid_from, arity)) ->
-              match tyid_from with
-              | TypeID.Synonym(sid_from) ->
-                  let (typarams, ptyreal_from) = TypeDefinitionStore.find_synonym_type sid_from in
-                  let ptyreal_to = ptyreal_from |> substitute_poly_type wtmap in
-                  begin
-                    match wtmap |> WitnessMap.find_synonym sid_from with
-                    | None ->
-                        assert false
-
-                    | Some(sid_to) ->
-                        TypeDefinitionStore.add_synonym_type sid_to typarams ptyreal_to;
-                        (TypeID.Synonym(sid_to), arity)
-                  end
-
-              | TypeID.Variant(vid_from) ->
-                  begin
-                    match wtmap |> WitnessMap.find_variant vid_from with
-                    | None ->
-                        assert false
-
-                    | Some(vid_to) ->
-                        let (typarams, ctorbrs_from) = TypeDefinitionStore.find_variant_type vid_from in
-                        let ctorbrs_to =
-                          ConstructorMap.fold (fun ctornm (ctorid_from, ptyargs_from) ctorbrs_to ->
-                            let ptyargs_to = ptyargs_from |> List.map (substitute_poly_type wtmap) in
-                            let ctorid_to = ctorid_from in
-                            ctorbrs_to |> ConstructorMap.add ctornm (ctorid_to, ptyargs_to)
-                          ) ctorbrs_from ConstructorMap.empty
-                        in
-                        TypeDefinitionStore.add_variant_type vid_to typarams ctorbrs_to;
-                        (TypeID.Variant(vid_to), arity)
-                  end
-
-              | TypeID.Opaque(oid) ->
-                  begin
-                    match wtmap |> WitnessMap.find_opaque oid with
-                    | None          -> (tyid_from, arity)
-                    | Some(tyid_to) -> (tyid_to, arity)
-                  end
-            )
-          in
-          (tyopacs_to, wtmap)
-        )
-        ~m:(fun _ (modsig, name) wtmap ->
-          let (modsig, wtmap) = substitute_concrete address wtmap modsig in
-          let mentry = (modsig, name) in
-          (mentry, wtmap)
-        )
-        ~s:(fun _ absmodsig wtmap ->
-          let (absmodsig, wtmap) = substitute_abstract address wtmap absmodsig in
-          (absmodsig, wtmap)
-        )
-        wtmap
-*)
 
 and substitute_abstract (address : address) (subst : substitution) (absmodsig : module_signature abstracted) : module_signature abstracted =
   let (oidset, modsig) = absmodsig in
   let modsig = substitute_concrete address subst modsig in
   (oidset, modsig)
     (* Strictly speaking, we should assert that `oidset` and the domain of `wtmap` be disjoint. *)
+
+
+and substitute_poly_kind (subst : substitution) (pkd : poly_kind) : poly_kind =
+  failwith "TODO: substitute_poly_kind"
 
 
 and substitute_poly_type (subst : substitution) (pty : poly_type) : poly_type =
