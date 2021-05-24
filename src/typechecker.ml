@@ -645,9 +645,8 @@ and opaque_occurs_in_structure (oidset : OpaqueIDSet.t) (sigr : SigRecord.t) : b
         b
       )
       ~t:(fun _tynm tentry b ->
-        match tentry.type_scheme with
-        | Opaque(_)                    -> b
-        | Transparent(_bids, pty_body) -> b || opaque_occurs_in_poly_type oidset pty_body
+        let (_bids, pty_body) = tentry.type_scheme in
+        b || opaque_occurs_in_poly_type oidset pty_body
       )
       ~m:(fun _modnm mentry b ->
         let modsig = mentry.mod_signature in
@@ -1151,23 +1150,11 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
 
             | Some(tentry) ->
                 let len_expected = TypeConv.arity_of_kind tentry.type_kind in
+                let tyscheme = tentry.type_scheme in
                 begin
-                  match tentry.type_scheme with
-                  | Opaque(tyid) ->
-                      if len_actual = len_expected then
-                        TypeApp(tyid, tyargs)
-                      else
-                        invalid rng tynm ~expect:len_expected ~actual:len_actual
-
-                  | Transparent(bids, ptyreal) ->
-                      begin
-                        match TypeConv.substitute_type_scheme (bids, ptyreal) tyargs with
-                        | Some((_, tymain)) ->
-                            tymain
-
-                        | None ->
-                            invalid rng tynm ~expect:len_expected ~actual:len_actual
-                      end
+                  match TypeConv.substitute_type_scheme tyscheme tyargs with
+                  | Some((_, tymain)) -> tymain
+                  | None              -> invalid rng tynm ~expect:len_expected ~actual:len_actual
                 end
           end
 
@@ -1219,29 +1206,20 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                       let tyargs = mtyargs |> List.map aux in
                       let len_actual = List.length tyargs in
                       let len_expected = TypeConv.arity_of_kind tentry2.type_kind in
+                      let tyscheme = tentry2.type_scheme in
                       begin
-                        match tentry2.type_scheme with
-                        | Opaque(tyid) ->
-                            if len_actual = len_expected then
-                              TypeApp(tyid, tyargs)
+                        match TypeConv.substitute_type_scheme tyscheme tyargs with
+                        | Some((_, tymain) as ty) ->
+                            if opaque_occurs_in_mono_type oidset1 ty then
+                              (* Combining (T-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
+                                 in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
+                                 we must assert that opaque type variables do not extrude their scope. *)
+                              raise_error (OpaqueIDExtrudesScopeViaType(rng, tentry2))
                             else
-                              invalid rng tynm2 ~expect:len_expected ~actual:len_actual
+                              tymain
 
-                        | Transparent(bids, ptyreal) ->
-                            begin
-                              match TypeConv.substitute_type_scheme (bids, ptyreal) tyargs with
-                              | Some((_, tymain) as ty) ->
-                                  if opaque_occurs_in_mono_type oidset1 ty then
-                                    (* Combining (T-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
-                                       in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
-                                       we must assert that opaque type variables do not extrude their scope. *)
-                                    raise_error (OpaqueIDExtrudesScopeViaType(rng, tentry2))
-                                  else
-                                    tymain
-
-                              | None ->
-                                  invalid rng tynm2 ~expect:len_expected ~actual:len_actual
-                            end
+                        | None ->
+                            invalid rng tynm2 ~expect:len_expected ~actual:len_actual
                       end
                 end
           end
@@ -3244,10 +3222,12 @@ and typecheck_declaration (address : address) (tyenv : Typeenv.t) (utdecl : unty
         | Some(mnkd) -> decode_manual_kind pre_init mnkd
       in
       let oid = TypeID.fresh (Alist.to_list address) tynm in
+      let pkd = TypeConv.lift_kind mkd in
+      let Kind(pbkds, _) = pkd in
       let tentry =
         {
-          type_scheme = Opaque(oid);
-          type_kind   = TypeConv.lift_kind mkd;
+          type_scheme = TypeConv.make_opaque_type_scheme_from_base_kinds pbkds oid;
+          type_kind   = pkd;
         }
       in
       let sigr = SigRecord.empty |> SigRecord.add_type tynm tentry in
@@ -3688,10 +3668,11 @@ and bind_types (address : address) (tyenv : Typeenv.t) (tybinds : type_binding l
           (synacc, vntacc, vertices, graph, tyenv)
 
       | BindVariant(vntbind) ->
+          let Kind(pbkds, _) = pkd in
           let tyid = TypeID.fresh (Alist.to_list address) tynm in
           let tentry =
             {
-              type_scheme = Opaque(tyid);
+              type_scheme = TypeConv.make_opaque_type_scheme_from_base_kinds pbkds tyid;
               type_kind   = pkd;
             }
           in
@@ -3737,14 +3718,14 @@ and bind_types (address : address) (tyenv : Typeenv.t) (tybinds : type_binding l
       in
       let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
       let bids = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
-      let tyreal = decode_manual_type pre mtyreal in
-      let ptyreal =
-        match TypeConv.generalize 0 tyreal with
-        | Ok(ptyreal) -> ptyreal
-        | Error(_)    -> assert false
-            (* Type parameters occurring in handwritten types cannot be cyclic. *)
+      let ty_body = decode_manual_type pre mtyreal in
+      let pty_body =
+        match TypeConv.generalize 0 ty_body with
+        | Ok(pty_body) -> pty_body
+        | Error(_)     -> assert false
+          (* Type parameters occurring in handwritten types cannot be cyclic. *)
       in
-      let tentry = { type_scheme = Transparent(bids, ptyreal); type_kind = pkd } in
+      let tentry = { type_scheme = (bids, pty_body); type_kind = pkd } in
       let tyenv = tyenv |> Typeenv.add_type tynm tentry in
       let tydefacc = Alist.extend tydefacc (tynm, tentry) in
       (tyenv, tydefacc)

@@ -112,9 +112,7 @@ type value_entry = {
   val_global : global_name;
 }
 
-type type_scheme =
-  | Transparent of BoundID.t list * poly_type
-  | Opaque      of TypeID.t
+type type_scheme = BoundID.t list * poly_type
 
 type type_entry = {
   type_scheme : type_scheme;

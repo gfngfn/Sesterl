@@ -291,7 +291,7 @@ let add_variant_types vntdefs (tyenv, gmap) =
       let pkd = TypeConv.kind_of_arity (List.length bids) in
       let tentry =
         {
-          type_scheme = Opaque(vid);
+          type_scheme = TypeConv.make_opaque_type_scheme bids vid;
           type_kind   = pkd;
         }
       in

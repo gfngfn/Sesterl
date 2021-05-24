@@ -894,6 +894,23 @@ let substitute_type_scheme ((bids, ptyreal) : BoundID.t list * poly_type) (tyarg
   | _ -> None
 
 
+let make_opaque_type_scheme (bids : BoundID.t list) (tyid : TypeID.t) : type_scheme =
+  let dr = Range.dummy "make_opaque_type_scheme" in
+  let ptyargs = bids |> List.map (fun bid -> (dr, TypeVar(Bound(bid)))) in
+  (bids, (dr, TypeApp(tyid, ptyargs)))
+
+
+let make_opaque_type_scheme_from_base_kinds (pbkds : poly_base_kind list) (tyid : TypeID.t) : type_scheme =
+  let bids =
+    pbkds |> List.map (fun pbkd ->
+      let bid = BoundID.fresh () in
+      KindStore.register_bound_id bid pbkd;
+      bid
+    )
+  in
+  make_opaque_type_scheme bids tyid
+
+
 let overwrite_range_of_type (rng : Range.t) (_, tymain) =
   (rng, tymain)
 
