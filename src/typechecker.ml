@@ -2818,6 +2818,7 @@ and substitute_structure (address : address) (subst : substitution) (sigr : SigR
       )
       ~c:(fun _ctornm centry ->
         { centry with parameter_types = centry.parameter_types |> List.map (substitute_poly_type subst) }
+          (* TODO: should substitute `belongs` here. *)
       )
       ~f:(fun _tynm pty ->
         pty |> substitute_poly_type subst
@@ -3155,7 +3156,7 @@ and typecheck_signature (address : address) (tyenv : Typeenv.t) (utsig : untyped
       let (tydefs, ctordefs) = bind_types address tyenv tybinds in
       begin
         match ctordefs with
-        | _ :: _ -> failwith "TODO: report errors for variants"
+        | _ :: _ -> failwith "TODO: variants"
         | []     -> ()
       end;
       let (subst, oidset) =
