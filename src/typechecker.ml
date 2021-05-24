@@ -2615,88 +2615,65 @@ and subtype_type_abstraction (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : B
       in
       subtype_poly_type_scheme internbid internbrid pty1 pty2
 
-(*
-and lookup_type_opacity (tynm : type_name) (tyopac1 : type_opacity) (tyopac2 : type_opacity) : WitnessMap.t option =
-  let (tyid1, arity1) = tyopac1 in
-  let (tyid2, arity2) = tyopac2 in
-  if arity1 <> arity2 then
+
+and lookup_type_entry (tynm : type_name) (tentry1 : type_entry) (tentry2 : type_entry) : substitution option =
+  let Kind(pbkds1, _) = tentry1.type_kind in
+  let Kind(pbkds2, _) = tentry2.type_kind in
+  if List.length pbkds1 = List.length pbkds2 then
     None
   else
-    match (tyid1, tyid2) with
-    | (_, TypeID.Opaque(oid2)) ->
-(*
-        Format.printf "lookup_type_opacity> %a <= %a\n" TypeID.pp tyid1 TypeID.pp tyid2;  (* for debug *)
-*)
-        Some(WitnessMap.empty |> WitnessMap.add_opaque oid2 tyid1)
+    let subst =
+      match TypeConv.get_opaque_type tentry2.type_scheme with
+      | None        -> SubstMap.empty
+      | Some(tyid2) -> SubstMap.empty |> SubstMap.add tyid2 (ToTypeScheme(tentry1.type_scheme))
+    in
+    Some(subst)
 
-    | (TypeID.Variant(vid1), TypeID.Variant(vid2)) ->
-(*
-        Format.printf "lookup_type_opacity> %a --> %a\n"
-          TypeID.Variant.pp vid1
-          TypeID.Variant.pp vid2;  (* for debug *)
-*)
-        Some(WitnessMap.empty |> WitnessMap.add_variant vid2 vid1)
-
-    | (TypeID.Synonym(sid1), TypeID.Synonym(sid2)) ->
-(*
-        Format.printf "lookup_type_opacity> %a --> %a\n"
-          TypeID.Synonym.pp sid1
-          TypeID.Synonym.pp sid2;  (* for debug *)
-*)
-        Some(WitnessMap.empty |> WitnessMap.add_synonym sid2 sid1)
-
-    | _ ->
-        None
-*)
 
 and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module_signature) : substitution =
-  failwith "TODO: lookup_record"
-(*
-    match (modsig1, modsig2) with
-    | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
-        (* Performs signature matching by looking up signatures `sigr1` and `sigr2`,
-           and associate type IDs in them
-           so that we can check whether subtyping relation `sigr1 <= sigr2` holds.
-           Here we do not check each type IDs indeed form a subtyping relation;
-           it will be done by `check_well_formedness_of_witness_map` afterwards.
-        *)
-        sigr2 |> SigRecord.fold
-            ~v:(fun x2 (pty2, gname2) wtmapacc ->
-              match sigr1 |> SigRecord.find_val x2 with
-              | None    -> raise_error (MissingRequiredValName(rng, x2, pty2))
-              | Some(_) -> wtmapacc
-            )
-            ~t:(fun tydefs2 wtmapacc ->
-              tydefs2 |> List.fold_left (fun wtmapacc (tynm2, tyopac2) ->
-                match sigr1 |> SigRecord.find_type tynm2 with
-                | None ->
-                    raise_error (MissingRequiredTypeName(rng, tynm2, tyopac2))
+  let take_left = (fun _tyid to1 _to2 -> Some(to1)) in
+  match (modsig1, modsig2) with
+  | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
+      sigr2 |> SigRecord.fold
+          ~v:(fun _x2 _ventry2 subst ->
+            subst
+          )
+          ~c:(fun ctornm2 _centry2 subst ->
+            subst
+          )
+          ~f:(fun tynm2 _pty2 subst ->
+            subst
+          )
+          ~t:(fun tynm2 tentry2 subst ->
+            match sigr1 |> SigRecord.find_type tynm2 with
+            | None ->
+                raise_error (MissingRequiredTypeName(rng, tynm2, tentry2))
 
-                | Some(tyopac1) ->
-                    begin
-                      match lookup_type_opacity tynm2 tyopac1 tyopac2 with
-                      | None        -> raise_error (NotASubtypeTypeOpacity(rng, tynm2, tyopac1, tyopac2))
-                      | Some(wtmap) -> WitnessMap.union wtmapacc wtmap
-                    end
-              ) wtmapacc
-            )
-            ~m:(fun modnm2 (modsig2, _) wtmapacc ->
-              match sigr1 |> SigRecord.find_module modnm2 with
-              | None ->
-                  raise_error (MissingRequiredModuleName(rng, modnm2, modsig2))
+            | Some(tentry1) ->
+                begin
+                  match lookup_type_entry tynm2 tentry1 tentry2 with
+                  | None         -> raise_error (NotASubtypeTypeOpacity(rng, tynm2, tentry1, tentry2))
+                  | Some(subst0) -> SubstMap.union take_left subst0 subst
+                end
+          )
+          ~m:(fun modnm2 mentry2 subst ->
+            let modsig2 = mentry2.mod_signature in
+            match sigr1 |> SigRecord.find_module modnm2 with
+            | None ->
+                raise_error (MissingRequiredModuleName(rng, modnm2, modsig2))
 
-              | Some(modsig1, _) ->
-                  let wtmap = lookup_record rng modsig1 modsig2 in
-                  WitnessMap.union wtmapacc wtmap
-            )
-            ~s:(fun _ _ wtmapacc ->
-              wtmapacc
-            )
-            SubstMap.empty
+            | Some(mentry1) ->
+                let modsig1 = mentry1.mod_signature in
+                let subst0 = lookup_record rng modsig1 modsig2 in
+                SubstMap.union take_left subst0 subst
+          )
+          ~s:(fun _ _ wtmapacc ->
+            wtmapacc
+          )
+          SubstMap.empty
 
-    | _ ->
-        SubstMap.empty
-*)
+  | _ ->
+      SubstMap.empty
 
 
 and subtype_abstract_with_abstract (address : address) (rng : Range.t) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : unit =
