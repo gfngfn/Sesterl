@@ -882,17 +882,28 @@ let substitute_poly_type (substmap : poly_type BoundIDMap.t) : poly_type -> poly
   instantiate_scheme intern intern_row
 
 
-let substitute_type_scheme ((bids, ptyreal) : BoundID.t list * poly_type) (tyargs : mono_type list) : mono_type option =
+let apply_type_scheme_mono ((bids, pty_body) : type_scheme) (tyargs : mono_type list) : mono_type option =
   try
     let substmap =
       List.fold_left2 (fun substmap bid tyarg ->
         substmap |> BoundIDMap.add bid tyarg
       ) BoundIDMap.empty bids tyargs
     in
-    Some(substitute_mono_type substmap ptyreal)
+    Some(substitute_mono_type substmap pty_body)
   with
   | _ -> None
 
+
+let apply_type_scheme_poly ((bids, pty_body) : type_scheme) (ptyargs : poly_type list) : poly_type option =
+  try
+    let substmap =
+      List.fold_left2 (fun substmap bid ptyarg ->
+        substmap |> BoundIDMap.add bid ptyarg
+      ) BoundIDMap.empty bids ptyargs
+    in
+    Some(substitute_poly_type substmap pty_body)
+  with
+  | _ -> None
 
 let make_opaque_type_scheme (bids : BoundID.t list) (tyid : TypeID.t) : type_scheme =
   let dr = Range.dummy "make_opaque_type_scheme" in

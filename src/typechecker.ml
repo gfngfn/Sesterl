@@ -1060,7 +1060,7 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                 let len_expected = TypeConv.arity_of_kind tentry.type_kind in
                 let tyscheme = tentry.type_scheme in
                 begin
-                  match TypeConv.substitute_type_scheme tyscheme tyargs with
+                  match TypeConv.apply_type_scheme_mono tyscheme tyargs with
                   | Some((_, tymain)) -> tymain
                   | None              -> invalid rng tynm ~expect:len_expected ~actual:len_actual
                 end
@@ -1116,7 +1116,7 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                       let len_expected = TypeConv.arity_of_kind tentry2.type_kind in
                       let tyscheme = tentry2.type_scheme in
                       begin
-                        match TypeConv.substitute_type_scheme tyscheme tyargs with
+                        match TypeConv.apply_type_scheme_mono tyscheme tyargs with
                         | Some((_, tymain) as ty) ->
                             if opaque_occurs_in_mono_type oidset1 ty then
                               (* Combining (T-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
@@ -2984,8 +2984,6 @@ and substitute_abstract (address : address) (subst : substitution) (absmodsig : 
 
 
 and substitute_poly_type (subst : substitution) (pty : poly_type) : poly_type =
-  failwith "TODO: substitute_poly_type"
-(*
   let rec aux (rng, ptymain) =
     let ptymain =
       match ptymain with
@@ -3003,34 +3001,23 @@ and substitute_poly_type (subst : substitution) (pty : poly_type) : poly_type =
       | RecordType(labmap) ->
           RecordType(labmap |> LabelAssoc.map aux)
 
-      | DataType(TypeID.Opaque(oid_from), ptyargs) ->
+      | TypeApp(tyid_from, ptyargs) ->
           begin
-            match wtmap |> WitnessMap.find_opaque oid_from with
-            | None          -> DataType(TypeID.Opaque(oid_from), ptyargs |> List.map aux)
-            | Some(tyid_to) -> DataType(tyid_to, ptyargs |> List.map aux)
-          end
+            match subst |> SubstMap.find_opt tyid_from with
+            | None ->
+                TypeApp(tyid_from, ptyargs |> List.map aux)
 
-      | DataType(TypeID.Synonym(sid_from), ptyargs) ->
-          begin
-            match wtmap |> WitnessMap.find_synonym sid_from with
-            | None         -> DataType(TypeID.Synonym(sid_from), ptyargs |> List.map aux)
-                (* TODO: DOUBTFUL; maybe we must traverse the definition of type synonyms beforehand.
-                   → The replacement probably has been properly done by `substitute_structure`. *)
-            | Some(sid_to) -> DataType(TypeID.Synonym(sid_to), ptyargs |> List.map aux)
-          end
+            | Some(tyscheme) ->
+                begin
+                  match TypeConv.apply_type_scheme_poly tyscheme (ptyargs |> List.map aux) with
+                  | None               -> assert false
+                  | Some((_, ptymain)) -> ptymain
+                end
 
-      | DataType(TypeID.Variant(vid_from), ptyargs) ->
-          begin
-            match wtmap |> WitnessMap.find_variant vid_from with
-            | None         -> DataType(TypeID.Variant(vid_from), ptyargs |> List.map aux)
-                (* TODO: DOUBTFUL; maybe we must traverse the definition of variant types beforehand.
-                   → The replacement probably has been properly done by `substitute_structure`. *)
-            | Some(vid_to) -> DataType(TypeID.Variant(vid_to), ptyargs |> List.map aux)
           end
 
       | PackType(absmodsig) ->
-          let (absmodsig, _wtmap) = substitute_abstract Alist.empty wtmap absmodsig in
-            (* TODO: DOUBTFUL; maybe we cannot discard `_wtmap` *)
+          let absmodsig = substitute_abstract Alist.empty subst absmodsig in
           PackType(absmodsig)
     in
     (rng, ptymain)
@@ -3055,7 +3042,7 @@ and substitute_poly_type (subst : substitution) (pty : poly_type) : poly_type =
     | FixedRow(plabmap) -> FixedRow(plabmap |> LabelAssoc.map aux)
   in
   aux pty
-*)
+
 
 and typecheck_declaration (address : address) (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
   let (_, utdeclmain) = utdecl in
