@@ -13,7 +13,11 @@ module BindingMap = Map.Make(String)
 
 module SubstMap = Map.Make(TypeID)
 
-type substitution = type_scheme SubstMap.t
+type substitution_target =
+  | ToTypeID     of TypeID.t
+  | ToTypeScheme of type_scheme
+
+type substitution = substitution_target SubstMap.t
 
 type subtyping_error = unit
 
@@ -2925,7 +2929,10 @@ and substitute_poly_type (subst : substitution) (pty : poly_type) : poly_type =
             | None ->
                 TypeApp(tyid_from, ptyargs |> List.map aux)
 
-            | Some(tyscheme) ->
+            | Some(ToTypeID(tyid_to)) ->
+                TypeApp(tyid_to, ptyargs |> List.map aux)
+
+            | Some(ToTypeScheme(tyscheme)) ->
                 begin
                   match TypeConv.apply_type_scheme_poly tyscheme (ptyargs |> List.map aux) with
                   | None               -> assert false
@@ -3062,24 +3069,22 @@ and typecheck_declaration_list (address : address) (tyenv : Typeenv.t) (utdecls 
   in
   (oidsetacc, sigracc)
 
-and copy_abstract_signature (address : address) (absmodsig_from : module_signature abstracted) =
-  failwith "TODO: copy_abstract_signature"
-(*
+and copy_abstract_signature (address : address) (absmodsig_from : module_signature abstracted) : module_signature abstracted =
   let (oidset_from, modsig_from) = absmodsig_from in
-  let (oidset_to, wtmap) =
-    OpaqueIDSet.fold (fun oid_from (oidset_to, wtmap) ->
+  let (oidset_to, subst) =
+    OpaqueIDSet.fold (fun oid_from (oidset_to, subst) ->
       let oid_to =
         let s = TypeID.name oid_from in
         TypeID.fresh (Alist.to_list address) s
       in
       let oidset_to = oidset_to |> OpaqueIDSet.add oid_to in
-      let wtmap = wtmap |> WitnessMap.add_opaque oid_from (TypeID.Opaque(oid_to)) in
-      (oidset_to, wtmap)
-    ) oidset_from (OpaqueIDSet.empty, WitnessMap.empty)
+      let subst = subst |> SubstMap.add oid_from (ToTypeID(oid_to)) in
+      (oidset_to, subst)
+    ) oidset_from (OpaqueIDSet.empty, SubstMap.empty)
   in
-  let (modsig_to, wtmap) = substitute_concrete address wtmap modsig_from in
-  ((oidset_to, modsig_to), wtmap)
-*)
+  let modsig_to = modsig_from |> substitute_concrete address subst in
+  (oidset_to, modsig_to)
+
 
 and typecheck_signature (address : address) (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
   let (rng, utsigmain) = utsig in
@@ -3091,8 +3096,7 @@ and typecheck_signature (address : address) (tyenv : Typeenv.t) (utsig : untyped
             raise_error (UnboundSignatureName(rng, signm))
 
         | Some(absmodsig_from) ->
-            let (absmodsig_to, _) = copy_abstract_signature address absmodsig_from in
-            absmodsig_to
+            copy_abstract_signature address absmodsig_from
               (* We need to rename opaque IDs here, since otherwise
                  we would mistakenly make the following program pass:
 
@@ -3229,13 +3233,13 @@ and typecheck_signature (address : address) (tyenv : Typeenv.t) (utsig : untyped
           in
           let pkd_actual = tentry1.type_kind in
           unify_kind rng tynm1 ~actual:pkd_actual ~expected:pkd_expected;
-          let subst = subst |> SubstMap.add tyid0 tentry1.type_scheme in
+          let subst = subst |> SubstMap.add tyid0 (ToTypeScheme(tentry1.type_scheme)) in
           let oidset = oidset |> OpaqueIDSet.remove tyid0 in
           (subst, oidset)
 
         ) (SubstMap.empty, oidset0)
       in
-      let modsigret = substitute_concrete address subst modsig0 in
+      let modsigret = modsig0 |> substitute_concrete address subst in
       (oidset, modsigret)
 
 
