@@ -2902,7 +2902,14 @@ and substitute_abstract (address : address) (subst : substitution) (absmodsig : 
 
 
 and substitute_poly_kind (subst : substitution) (pkd : poly_kind) : poly_kind =
-  failwith "TODO: substitute_poly_kind"
+  let Kind(pbkds, pbkd) = pkd in
+  Kind(pbkds |> List.map (substitute_poly_base_kind subst), pbkd |> substitute_poly_base_kind subst)
+
+
+and substitute_poly_base_kind (subst : substitution) (pbkd : poly_base_kind) : poly_base_kind =
+  match pbkd with
+  | UniversalKind       -> UniversalKind
+  | RecordKind(plabmap) -> RecordKind(plabmap |> LabelAssoc.map (substitute_poly_type subst))
 
 
 and substitute_poly_type (subst : substitution) (pty : poly_type) : poly_type =
