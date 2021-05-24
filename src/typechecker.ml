@@ -645,8 +645,9 @@ and opaque_occurs_in_structure (oidset : OpaqueIDSet.t) (sigr : SigRecord.t) : b
         b
       )
       ~t:(fun _tynm tentry b ->
-        let (_bids, pty_body) = tentry.type_scheme in
-        b || opaque_occurs_in_poly_type oidset pty_body
+        match tentry.type_scheme with
+        | Opaque(_)                    -> b
+        | Transparent(_bids, pty_body) -> b || opaque_occurs_in_poly_type oidset pty_body
       )
       ~m:(fun _modnm mentry b ->
         let modsig = mentry.mod_signature in
@@ -1149,14 +1150,24 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                 end
 
             | Some(tentry) ->
+                let len_expected = TypeConv.arity_of_kind tentry.type_kind in
                 begin
-                  match TypeConv.substitute_type_scheme tentry.type_scheme tyargs with
-                  | Some((_, tymain)) ->
-                      tymain
+                  match tentry.type_scheme with
+                  | Opaque(tyid) ->
+                      if len_actual = len_expected then
+                        TypeApp(tyid, tyargs)
+                      else
+                        invalid rng tynm ~expect:len_expected ~actual:len_actual
 
-                  | None ->
-                      let len_expected = TypeConv.arity_of_kind tentry.type_kind in
-                      invalid rng tynm ~expect:len_expected ~actual:len_actual
+                  | Transparent(bids, ptyreal) ->
+                      begin
+                        match TypeConv.substitute_type_scheme (bids, ptyreal) tyargs with
+                        | Some((_, tymain)) ->
+                            tymain
+
+                        | None ->
+                            invalid rng tynm ~expect:len_expected ~actual:len_actual
+                      end
                 end
           end
 
@@ -1206,21 +1217,31 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
 
                   | Some(tentry2) ->
                       let tyargs = mtyargs |> List.map aux in
+                      let len_actual = List.length tyargs in
+                      let len_expected = TypeConv.arity_of_kind tentry2.type_kind in
                       begin
-                        match TypeConv.substitute_type_scheme tentry2.type_scheme tyargs with
-                        | Some((_, tymain) as ty) ->
-                            if opaque_occurs_in_mono_type oidset1 ty then
-                              (* Combining (T-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
-                                 in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
-                                 we must assert that opaque type variables do not extrude their scope. *)
-                              raise_error (OpaqueIDExtrudesScopeViaType(rng, tentry2))
+                        match tentry2.type_scheme with
+                        | Opaque(tyid) ->
+                            if len_actual = len_expected then
+                              TypeApp(tyid, tyargs)
                             else
-                              tymain
+                              invalid rng tynm2 ~expect:len_expected ~actual:len_actual
 
-                        | None ->
-                            let len_actual = List.length tyargs in
-                            let len_expected = TypeConv.arity_of_kind tentry2.type_kind in
-                            invalid rng tynm2 ~expect:len_expected ~actual:len_actual
+                        | Transparent(bids, ptyreal) ->
+                            begin
+                              match TypeConv.substitute_type_scheme (bids, ptyreal) tyargs with
+                              | Some((_, tymain) as ty) ->
+                                  if opaque_occurs_in_mono_type oidset1 ty then
+                                    (* Combining (T-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
+                                       in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
+                                       we must assert that opaque type variables do not extrude their scope. *)
+                                    raise_error (OpaqueIDExtrudesScopeViaType(rng, tentry2))
+                                  else
+                                    tymain
+
+                              | None ->
+                                  invalid rng tynm2 ~expect:len_expected ~actual:len_actual
+                            end
                       end
                 end
           end
@@ -3225,7 +3246,7 @@ and typecheck_declaration (address : address) (tyenv : Typeenv.t) (utdecl : unty
       let oid = TypeID.fresh (Alist.to_list address) tynm in
       let tentry =
         {
-          type_scheme = failwith "TODO: typecheck_declaration, set eta-expanded oid";
+          type_scheme = Opaque(oid);
           type_kind   = TypeConv.lift_kind mkd;
         }
       in
@@ -3670,7 +3691,7 @@ and bind_types (address : address) (tyenv : Typeenv.t) (tybinds : type_binding l
           let tyid = TypeID.fresh (Alist.to_list address) tynm in
           let tentry =
             {
-              type_scheme = failwith "TODO: eta-expanded tyid";
+              type_scheme = Opaque(tyid);
               type_kind   = pkd;
             }
           in
@@ -3723,7 +3744,7 @@ and bind_types (address : address) (tyenv : Typeenv.t) (tybinds : type_binding l
         | Error(_)    -> assert false
             (* Type parameters occurring in handwritten types cannot be cyclic. *)
       in
-      let tentry = { type_scheme = (bids, ptyreal); type_kind = pkd } in
+      let tentry = { type_scheme = Transparent(bids, ptyreal); type_kind = pkd } in
       let tyenv = tyenv |> Typeenv.add_type tynm tentry in
       let tydefacc = Alist.extend tydefacc (tynm, tentry) in
       (tyenv, tydefacc)

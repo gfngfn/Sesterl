@@ -284,11 +284,6 @@ let make_constructor_id (ctor : string) (atom_opt : string option) =
       end
 
 
-let make_variant_scheme (bids : BoundID.t list) (vid : TypeID.t) : BoundID.t list * poly_type =
-  let tyargs = bids |> List.map (fun bid -> (Range.dummy "make_variant_scheme 1", TypeVar(Bound(bid)))) in
-  (bids, (Range.dummy "make_variant_scheme 2", TypeApp(vid, tyargs)))
-
-
 let add_variant_types vntdefs (tyenv, gmap) =
   let tyenv : Typeenv.t =
     vntdefs |> List.fold_left (fun tyenv vntdef ->
@@ -296,7 +291,7 @@ let add_variant_types vntdefs (tyenv, gmap) =
       let pkd = TypeConv.kind_of_arity (List.length bids) in
       let tentry =
         {
-          type_scheme = make_variant_scheme bids vid;
+          type_scheme = Opaque(vid);
           type_kind   = pkd;
         }
       in
