@@ -46,8 +46,31 @@ let raise_error e =
   raise (Error(e))
 
 
-let add_dummy_fold (tynm : type_name) (bids : BoundID.t list) (ctorbrmap : constructor_branch_map) (sigr : SigRecord.t) : SigRecord.t =
-  failwith "TODO: add_dummy_fold"
+let add_dummy_fold (tynm : type_name) (tyid : TypeID.t) (bids : BoundID.t list) (ctorbrmap : constructor_branch_map) (sigr : SigRecord.t) : SigRecord.t =
+  let bid = BoundID.fresh () in
+  KindStore.register_bound_id bid UniversalKind;
+  let dr = Range.dummy "add_dummy_fold" in
+  let plabmap =
+    ConstructorMap.fold (fun ctornm (_ctorid, ptyargs) plabmap ->
+      let domty =
+        {
+          ordered   = ptyargs;
+          mandatory = LabelAssoc.empty;
+          optional  = FixedRow(LabelAssoc.empty);
+        }
+      in
+      plabmap |> LabelAssoc.add ctornm (dr, FuncType(domty, (dr, TypeVar(Bound(bid)))))
+    ) ctorbrmap LabelAssoc.empty
+  in
+  let domty =
+    {
+      ordered   = [(dr, TypeApp(tyid, bids |> List.map (fun bid -> (dr, TypeVar(Bound(bid))))))];
+      mandatory = plabmap;
+      optional  = FixedRow(LabelAssoc.empty);
+    }
+  in
+  let pty = (dr, FuncType(domty, (dr, TypeVar(Bound(bid))))) in
+  sigr |> SigRecord.add_dummy_fold tynm pty
 
 
 let get_module_name_chain_position (modchain : module_name_chain) : Range.t =
@@ -259,6 +282,9 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
     )
     ~c:(fun ctornm centry tyenv ->
       tyenv |> Typeenv.add_constructor ctornm centry
+    )
+    ~f:(fun _tynm _pty tyenv ->
+      tyenv
     )
     ~t:(fun tynm tentry tyenv ->
       tyenv |> Typeenv.add_type tynm tentry
@@ -614,6 +640,9 @@ and opaque_occurs_in_structure (oidset : OpaqueIDSet.t) (sigr : SigRecord.t) : b
       ~c:(fun _ctornm centry b ->
         let ptys = centry.parameter_types in
         b || ptys |> List.exists (opaque_occurs_in_poly_type oidset)
+      )
+      ~f:(fun _tynm _pty b ->
+        b
       )
       ~t:(fun _tynm tentry b ->
         let (_bids, pty_body) = tentry.type_scheme in
@@ -2947,6 +2976,7 @@ and copy_closure_in_structure (sigr1 : SigRecord.t) (sigr2 : SigRecord.t) : SigR
       | Some(ventry1)     -> { ventry2 with val_global = ventry1.val_global }
     )
     ~c:(fun _ctornm centry2 -> centry2)
+    ~f:(fun _tynm pty2 -> pty2)
     ~t:(fun _tynm tentry2 -> tentry2)
     ~m:(fun modnm mentry2 ->
       match sigr1 |> SigRecord.find_module modnm with
@@ -3548,7 +3578,7 @@ and typecheck_binding (address : address) (tyenv : Typeenv.t) (utbind : untyped_
               sigr |> SigRecord.add_constructor ctornm centry
             ) ctorbrmap sigr
           in
-          sigr |> add_dummy_fold tynm bids ctorbrmap
+          sigr |> add_dummy_fold tynm tyid bids ctorbrmap
         ) sigr
       in
       ((OpaqueIDSet.empty, sigr), (ModuleAttribute.empty, []))

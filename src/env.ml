@@ -114,6 +114,7 @@ and record_signature_entry =
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRVal>")]
   | SRCtor     of constructor_name * constructor_entry
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRCtor>")]
+  | SRFold     of type_name * poly_type
   | SRType     of type_name * type_entry
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRType>")]
   | SRModule   of module_name * module_entry
@@ -334,6 +335,10 @@ module SigRecord = struct
     )
 
 
+  let add_dummy_fold (tynm : type_name) (pty : poly_type) (sigr : t) : t =
+    Alist.extend sigr (SRFold(tynm, pty))
+
+
   let add_module (modnm : module_name) (mentry : module_entry) (sigr : t) : t =
     Alist.extend sigr (SRModule(modnm, mentry))
 
@@ -359,6 +364,7 @@ module SigRecord = struct
   let fold (type a)
       ~v:(fv : identifier -> value_entry -> a -> a)
       ~c:(fc : constructor_name -> constructor_entry -> a -> a)
+      ~f:(ff : type_name -> poly_type -> a -> a)
       ~t:(ft : type_name -> type_entry -> a -> a)
       ~m:(fm : module_name -> module_entry -> a -> a)
       ~s:(fs : signature_name -> module_signature abstracted -> a -> a)
@@ -367,6 +373,7 @@ module SigRecord = struct
       match entry with
       | SRVal(x, ventry)        -> fv x ventry acc
       | SRCtor(ctornm, centry)  -> fc ctornm centry acc
+      | SRFold(tynm, pty)       -> ff tynm pty acc
       | SRType(tynm, tentry)    -> ft tynm tentry acc
       | SRModule(modnm, mentry) -> fm modnm mentry acc
       | SRSig(signm, absmodsig) -> fs signm absmodsig acc
@@ -376,6 +383,7 @@ module SigRecord = struct
   let map_and_fold (type a)
       ~v:(fv : identifier -> value_entry -> a -> value_entry * a)
       ~c:(fc : constructor_name -> constructor_entry -> a -> constructor_entry * a)
+      ~f:(ff : type_name -> poly_type -> a -> poly_type * a)
       ~t:(ft : type_name -> type_entry -> a -> type_entry * a)
       ~m:(fm : module_name -> module_entry -> a -> module_entry * a)
       ~s:(fs : signature_name -> module_signature abstracted -> a -> module_signature abstracted * a)
@@ -389,6 +397,10 @@ module SigRecord = struct
         | SRCtor(ctornm, centry) ->
             let (centry, acc) = fc ctornm centry acc in
             (Alist.extend sigracc (SRCtor(ctornm, centry)), acc)
+
+        | SRFold(tynm, pty) ->
+            let (pty, acc) = ff tynm pty acc in
+            (Alist.extend sigracc (SRFold(tynm, pty)), acc)
 
         | SRType(tynm, tentry) ->
             let (tentry, acc) = ft tynm tentry acc in
@@ -408,6 +420,7 @@ module SigRecord = struct
   let map (type a)
       ~v:(fv : identifier -> value_entry -> value_entry)
       ~c:(fc : constructor_name -> constructor_entry -> constructor_entry)
+      ~f:(ff : type_name -> poly_type -> poly_type)
       ~t:(ft : type_name -> type_entry -> type_entry)
       ~m:(fm : module_name -> module_entry -> module_entry)
       ~s:(fs : signature_name -> module_signature abstracted -> module_signature abstracted)
@@ -416,6 +429,7 @@ module SigRecord = struct
       sigr |> map_and_fold
           ~v:(fun x ventry () -> (fv x ventry, ()))
           ~c:(fun ctornm centry () -> (fc ctornm centry, ()))
+          ~f:(fun tynm pty () -> (ff tynm pty, ()))
           ~t:(fun tynm tentry () -> (ft tynm tentry, ()))
           ~m:(fun modnm mentry () -> (fm modnm mentry, ()))
           ~s:(fun signm sentry () -> (fs signm sentry, ()))
@@ -450,6 +464,7 @@ module SigRecord = struct
             match entry with
             | SRVal(x, _)        -> check_none x (find_value x sigr1)
             | SRCtor(ctornm, _)  -> check_none ctornm (find_constructor ctornm sigr1)
+            | SRFold(_, _)       -> ()
             | SRType(tynm, _)    -> check_none tynm (find_type tynm sigr1)
             | SRModule(modnm, _) -> check_none modnm (find_module modnm sigr1)
             | SRSig(signm, _)    -> check_none signm (find_signature signm sigr1)
