@@ -149,102 +149,6 @@ let get_dependency_on_synonym_types (vertices : SynonymNameSet.t) (pre : pre) (m
   ) hashset SynonymNameSet.empty
 
 
-(*
-module WitnessMap : sig
-  type t
-  val empty : t
-  val add_variant : TypeID.Variant.t -> TypeID.Variant.t -> t -> t
-  val add_opaque : TypeID.Opaque.t -> TypeID.t -> t -> t
-  val add_synonym : TypeID.Synonym.t -> TypeID.Synonym.t -> t -> t
-  val find_synonym : TypeID.Synonym.t -> t -> TypeID.Synonym.t option
-  val find_variant : TypeID.Variant.t -> t -> TypeID.Variant.t option
-  val find_opaque : TypeID.Opaque.t -> t -> TypeID.t option
-  val union : t -> t -> t
-  val fold :
-      variant:(TypeID.Variant.t -> TypeID.Variant.t -> 'a -> 'a) ->
-      synonym:(TypeID.Synonym.t -> TypeID.Synonym.t -> 'a -> 'a) ->
-      opaque:(TypeID.Opaque.t -> TypeID.t -> 'a -> 'a) ->
-      'a -> t -> 'a
-  (* for debug *)
-  val print : t -> unit
-end = struct
-
-  type t = {
-    variants : TypeID.Variant.t VariantIDMap.t;
-    synonyms : TypeID.Synonym.t SynonymIDMap.t;
-    opaques  : TypeID.t OpaqueIDMap.t;
-  }
-
-
-  let empty : t =
-    {
-      variants = VariantIDMap.empty;
-      synonyms = SynonymIDMap.empty;
-      opaques  = OpaqueIDMap.empty;
-    }
-
-
-  let union (wtmap1 : t) (wtmap2 : t) : t =
-    let f _ x y = Some(y) in
-    {
-      variants = VariantIDMap.union  f wtmap1.variants wtmap2.variants;
-      synonyms = SynonymIDMap.union  f wtmap1.synonyms wtmap2.synonyms;
-      opaques  = OpaqueIDMap.union   f wtmap1.opaques  wtmap2.opaques;
-    }
-
-
-  let add_variant (vid2 : TypeID.Variant.t) (vid1 : TypeID.Variant.t) (wtmap : t) : t =
-    { wtmap with variants = wtmap.variants |> VariantIDMap.add vid2 vid1 }
-
-
-  let add_synonym (sid2 : TypeID.Synonym.t) (sid1 : TypeID.Synonym.t) (wtmap : t) : t =
-    { wtmap with synonyms = wtmap.synonyms |> SynonymIDMap.add sid2 sid1 }
-
-
-  let add_opaque (oid2 : TypeID.Opaque.t) (tyid1 : TypeID.t) (wtmap : t) : t =
-    { wtmap with opaques = wtmap.opaques |> OpaqueIDMap.add oid2 tyid1 }
-
-
-  let find_variant (vid2 : TypeID.Variant.t) (wtmap : t) : TypeID.Variant.t option =
-    wtmap.variants |> VariantIDMap.find_opt vid2
-
-
-  let find_synonym (sid2 : TypeID.Synonym.t) (wtmap : t) : TypeID.Synonym.t option =
-    wtmap.synonyms |> SynonymIDMap.find_opt sid2
-
-
-  let find_opaque (oid2 : TypeID.Opaque.t) (wtmap : t) : TypeID.t option =
-    wtmap.opaques |> OpaqueIDMap.find_opt oid2
-
-
-  let fold (type a)
-      ~variant:(fv : TypeID.Variant.t -> TypeID.Variant.t -> a -> a)
-      ~synonym:(fs : TypeID.Synonym.t -> TypeID.Synonym.t -> a -> a)
-      ~opaque:(fo : TypeID.Opaque.t -> TypeID.t -> a -> a)
-      (init : a)
-      (wtmap : t)
-      : a =
-    init
-      |> VariantIDMap.fold fv wtmap.variants
-      |> SynonymIDMap.fold fs wtmap.synonyms
-      |> OpaqueIDMap.fold fo wtmap.opaques
-
-
-  (* for debug *)
-  let print (wtmap : t) : unit =
-    wtmap.variants |> VariantIDMap.iter (fun v2 v1 ->
-      Format.printf "|V %a -> %a\n" TypeID.Variant.pp v2 TypeID.Variant.pp v1
-    );
-    wtmap.opaques |> OpaqueIDMap.iter (fun o2 t1 ->
-      Format.printf "|O %a -> %a\n" TypeID.Opaque.pp o2 TypeID.pp t1
-    );
-    wtmap.synonyms |> SynonymIDMap.iter (fun s2 s1 ->
-      Format.printf "|S %a -> %a\n" TypeID.Synonym.pp s2 TypeID.Synonym.pp s1
-    );
-
-end
-*)
-
 let find_module (tyenv : Typeenv.t) ((rng, m) : module_name ranged) : module_entry =
   match tyenv |> Typeenv.find_module m with
   | None    -> raise_error (UnboundModuleName(rng, m))
@@ -2274,8 +2178,7 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
 
 
 (* `subtype_poly_type_scheme internbid pty1 pty2` checks that
-   whether `pty1` is more general than (or equal to) `[wtmap]pty2`
-   where `wtmap` is a substitution for type definitions in `pty2`.
+   whether `pty1` is more general than (or equal to) `pty2`
    Note that being more general means being smaller as polymorphic types;
    we have `pty1 <= pty2` in that if `x : pty1` holds and `pty1` is more general than `pty2`, then `x : pty2`.
    The parameter `internbid` is used for `internbid bid pty`, which returns
@@ -2787,62 +2690,6 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
 
     | _ ->
         WitnessMap.empty
-
-
-(* Given `wtmap`, which was produced by `lookup_record`, this function checks whether
-
-   - for each mapping (`vid1` ↦ `vid2`) of variant IDs in `wtmap`,
-     the definition of `vid1` is indeed more specific than that of `vid2`, and
-
-   - for each mapping (`sid1` ↦ `sid2`) of synonym IDs in `wtmap`,
-     the definition of `sid1` is indeed more specific than that of `sid2`.
-*)
-and check_well_formedness_of_witness_map (rng : Range.t) (wtmap : WitnessMap.t) : unit =
-  let mergef vid1 vid2
-      (ctor : constructor_name)
-      (opt1 : (ConstructorID.t * poly_type list) option)
-      (opt2 : (ConstructorID.t * poly_type list) option) =
-    match (opt1, opt2) with
-    | (None, _)                -> raise_error (NotASubtypeVariant(rng, vid1, vid2, ctor))
-    | (_, None)                -> raise_error (NotASubtypeVariant(rng, vid1, vid2, ctor))
-    | (Some(def1), Some(def2)) -> Some(def1, def2)
-  in
-  wtmap |> WitnessMap.fold
-      ~variant:(fun vid2 vid1 () ->
-        let (typarams1, ctorbrs1) = TypeDefinitionStore.find_variant_type vid1 in
-        let (typarams2, ctorbrs2) = TypeDefinitionStore.find_variant_type vid2 in
-        let brpairs = ConstructorMap.merge (mergef vid1 vid2) ctorbrs1 ctorbrs2 in
-        brpairs |> ConstructorMap.iter (fun ctor (def1, def2) ->
-          let (_, ptyargs1) = def1 in
-          let (_, ptyargs2) = def2 in
-          match List.combine ptyargs1 ptyargs2 with
-          | exception Invalid_argument(_) ->
-              raise_error (NotASubtypeVariant(rng, vid1, vid2, ctor))
-
-          | ptyargpairs ->
-              ptyargpairs |> List.iter (fun (ptyarg1, ptyarg2) ->
-                let ptyfun1 = (typarams1, ptyarg1) in
-                let ptyfun2 = (typarams2, ptyarg2) in
-                if subtype_type_abstraction wtmap ptyfun1 ptyfun2 then
-                  ()
-                else
-                  raise_error (NotASubtypeVariant(rng, vid1, vid2, ctor))
-              )
-        )
-      )
-      ~synonym:(fun sid2 sid1 () ->
-        let ptyfun1 = TypeDefinitionStore.find_synonym_type sid1 in
-        let ptyfun2 = TypeDefinitionStore.find_synonym_type sid2 in
-        if subtype_type_abstraction wtmap ptyfun1 ptyfun2 then
-          ()
-        else
-          raise_error (NotASubtypeSynonym(rng, sid1, sid2))
-      )
-      ~opaque:(fun oid2 tyid1 () ->
-        ()
-          (* The consistency of arity has already been checked by `lookup_record`. *)
-      )
-      ()
 *)
 
 
