@@ -81,6 +81,27 @@ let add_dummy_fold (tynm : type_name) (tyid : TypeID.t) (bids : BoundID.t list) 
   sigr |> SigRecord.add_dummy_fold tynm pty
 
 
+let make_type_scheme_from_constructor_entry (centry : constructor_entry) : type_scheme =
+  let
+    {
+      belongs         = tyid;
+      type_variables  = bids;
+      parameter_types = ptys;
+      _
+    } = centry
+  in
+  let dr = Range.dummy "make_type_scheme_from_constructor_entry" in
+  let domty =
+    {
+      ordered   = ptys;
+      mandatory = LabelAssoc.empty;
+      optional  = FixedRow(LabelAssoc.empty);
+    }
+  in
+  let ty_cod = (dr, TypeApp(tyid, bids |> List.map (fun bid -> (dr, TypeVar(Bound(bid)))))) in
+  (bids, (dr, FuncType(domty, ty_cod)))
+
+
 let get_module_name_chain_position (modchain : module_name_chain) : Range.t =
   let ((rngL, _), projs) = modchain in
   match List.rev projs with
@@ -2181,21 +2202,21 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
   ) ConstructorMap.empty
 
 
-(* `subtype_poly_type_scheme internbid pty1 pty2` checks that
+(* `subtype_poly_type_impl internbid internbrid pty1 pty2` checks that
    whether `pty1` is more general than (or equal to) `pty2`
    Note that being more general means being smaller as polymorphic types;
    we have `pty1 <= pty2` in that if `x : pty1` holds and `pty1` is more general than `pty2`, then `x : pty2`.
    The parameter `internbid` is used for `internbid bid pty`, which returns
    whether the bound ID `bid` occurring in `pty1` is mapped to a type equivalent to `pty`.
 *)
-and subtype_poly_type_scheme (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
+and subtype_poly_type_impl (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
   let rec aux pty1 pty2 =
-
+(*
   let (sbt1, sbr1, sty1) = TypeConv.show_poly_type TypeConv.DisplayMap.empty pty1 in
   let (sbt2, sbr2, sty2) = TypeConv.show_poly_type TypeConv.DisplayMap.empty pty2 in
   Format.printf "subtype_poly_type_scheme> aux: %s <?= %s\n" sty1 sty2;  (* for debug *)
   Format.printf "%a\n" (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf ",@ ") Format.pp_print_string) (List.concat [sbt1; sbr1; sbt2; sbr2]);
-
+*)
 
     let (_, ptymain1) = pty1 in
     let (_, ptymain2) = pty2 in
@@ -2383,7 +2404,7 @@ and subtype_label_assoc (internbid : BoundID.t -> poly_type -> bool) (internbrid
     else
       match plabmap2 |> LabelAssoc.find_opt label with
       | None       -> false
-      | Some(pty2) -> subtype_poly_type_scheme internbid internbrid pty1 pty2
+      | Some(pty2) -> subtype_poly_type_impl internbid internbrid pty1 pty2
   ) plabmap1 true
 
 
@@ -2455,7 +2476,7 @@ and subtype_poly_type (pty1 : poly_type) (pty2 : poly_type) : bool =
     | Some(prow) ->
         poly_row_equal prow prow2
   in
-  subtype_poly_type_scheme internbid internbrid pty1 pty2
+  subtype_poly_type_impl internbid internbrid pty1 pty2
 
 
 and poly_row_equal (prow1 : poly_row) (prow2 : poly_row) : bool =
@@ -2581,11 +2602,11 @@ and poly_label_assoc_equal plabmap1 plabmap2 =
   merged |> LabelAssoc.for_all (fun _ b -> b)
 
 
-and subtype_type_abstraction (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : BoundID.t list * poly_type) : bool =
-  let (typarams1, pty1) = ptyfun1 in
-  let (typarams2, pty2) = ptyfun2 in
+and subtype_type_scheme (tyscheme1 : type_scheme) (tyscheme2 : type_scheme) : bool =
+  let (typarams1, pty1) = tyscheme1 in
+  let (typarams2, pty2) = tyscheme2 in
 (*
-  Format.printf "subtype_type_abstraction: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
+  Format.printf "subtype_type_scheme: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
 *)
   match List.combine typarams1 typarams2 with
   | exception Invalid_argument(_) ->
@@ -2613,21 +2634,21 @@ and subtype_type_abstraction (ptyfun1 : BoundID.t list * poly_type) (ptyfun2 : B
         (* TODO: implement this when type definitions become able to take row parameters *)
         false
       in
-      subtype_poly_type_scheme internbid internbrid pty1 pty2
+      subtype_poly_type_impl internbid internbrid pty1 pty2
 
 
 and lookup_type_entry (tynm : type_name) (tentry1 : type_entry) (tentry2 : type_entry) : substitution option =
   let Kind(pbkds1, _) = tentry1.type_kind in
   let Kind(pbkds2, _) = tentry2.type_kind in
   if List.length pbkds1 = List.length pbkds2 then
-    None
-  else
     let subst =
       match TypeConv.get_opaque_type tentry2.type_scheme with
       | None        -> SubstMap.empty
       | Some(tyid2) -> SubstMap.empty |> SubstMap.add tyid2 (ToTypeScheme(tentry1.type_scheme))
     in
     Some(subst)
+  else
+    None
 
 
 and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module_signature) : substitution =
@@ -2717,7 +2738,12 @@ and subtype_concrete_with_concrete (address : address) (rng : Range.t) (modsig1 
                 failwith "TODO: error report"
 
             | Some(centry1) ->
-                failwith "TODO: check that centry1 <= centry2"
+                let tyscheme1 = make_type_scheme_from_constructor_entry centry1 in
+                let tyscheme2 = make_type_scheme_from_constructor_entry centry2 in
+                if subtype_type_scheme tyscheme1 tyscheme2 then
+                  ()
+                else
+                  failwith "TODO: error report"
           )
           ~f:(fun tynm2 pty2 () ->
             match sigr1 |> SigRecord.find_dummy_fold tynm2 with
@@ -2736,7 +2762,14 @@ and subtype_concrete_with_concrete (address : address) (rng : Range.t) (modsig1 
                 raise_error (MissingRequiredTypeName(rng, tynm2, tentry2))
 
             | Some(tentry1) ->
-                failwith "TODO: check that tentry1 == tentry2"
+                let tyscheme1 = tentry1.type_scheme in
+                let tyscheme2 = tentry2.type_scheme in
+                let b1 = subtype_type_scheme tyscheme1 tyscheme2 in
+                let b2 = subtype_type_scheme tyscheme2 tyscheme1 in
+                if b1 && b2 then
+                  ()
+                else
+                  failwith "TODO: error report"
           )
           ~m:(fun modnm2 mentry2 () ->
             let modsig2 = mentry2.mod_signature in
