@@ -2277,75 +2277,8 @@ and subtype_poly_type_impl (internbid : BoundID.t -> poly_type -> bool) (internb
         in
         if b then internbid bid1 pty2 else false
 
-    | (TypeApp(vid1, ptyargs1), TypeApp(vid2, ptyargs2)) ->
-        failwith "TODO: subtype_poly_type 1"
-(*
-        begin
-          match wtmap |> WitnessMap.find_variant vid2 with
-          | None ->
-              if TypeID.Variant.equal vid1 vid2 then
-                aux_list ptyargs1 ptyargs2
-              else
-                false
-
-          | Some(vid) ->
-              if TypeID.Variant.equal vid vid1 then
-                aux_list ptyargs1 ptyargs2
-              else
-                false
-        end
-*)
-
-    | (_, TypeApp(oid2, ptyargs2)) ->
-        failwith "TODO: subtype_poly_type 2"
-(*
-        begin
-          match wtmap |> WitnessMap.find_opaque oid2 with
-          | None ->
-            (* Existentially quantified type IDs will be not found in `wtmap`. *)
-              begin
-                match ptymain1 with
-                | DataType(TypeID.Opaque(oid1), ptyargs1) ->
-                    if TypeID.Opaque.equal oid1 oid2 then
-                      aux_list ptyargs1 ptyargs2
-                    else
-                      false
-
-                | _ ->
-                    false
-              end
-
-          | Some(TypeID.Synonym(sid)) ->
-              let pty2real = TypeConv.get_real_poly_type sid ptyargs2 in
-              aux pty1 pty2real
-
-          | Some(TypeID.Variant(vid)) ->
-              begin
-                match ptymain1 with
-                | DataType(TypeID.Variant(vid1), ptyargs1) ->
-                    if TypeID.Variant.equal vid vid1 then
-                      aux_list ptyargs1 ptyargs2
-                    else
-                      false
-
-                | _ ->
-                    false
-              end
-
-          | Some(TypeID.Opaque(oid)) ->
-              begin
-                match ptymain1 with
-                | DataType(TypeID.Opaque(oid1), ptyargs1) ->
-                    if  TypeID.Opaque.equal oid oid1 then
-                      aux_list ptyargs1 ptyargs2
-                    else
-                      false
-
-                | _ ->
-                    false
-              end
-        end
-*)
+    | (TypeApp(tyid1, ptyargs1), TypeApp(tyid2, ptyargs2)) ->
+        TypeID.equal tyid1 tyid2 && aux_list ptyargs1 ptyargs2
 
     | _ ->
         false
@@ -2735,7 +2668,7 @@ and subtype_concrete_with_concrete (address : address) (rng : Range.t) (modsig1 
           ~c:(fun ctornm2 centry2 () ->
             match sigr1 |> SigRecord.find_constructor ctornm2 with
             | None ->
-                failwith "TODO: error report"
+                failwith "TODO: error report (constructor)"
 
             | Some(centry1) ->
                 let tyscheme1 = make_type_scheme_from_constructor_entry centry1 in
@@ -2743,18 +2676,18 @@ and subtype_concrete_with_concrete (address : address) (rng : Range.t) (modsig1 
                 if subtype_type_scheme tyscheme1 tyscheme2 then
                   ()
                 else
-                  failwith "TODO: error report"
+                  failwith "TODO: error report (constructor)"
           )
           ~f:(fun tynm2 pty2 () ->
             match sigr1 |> SigRecord.find_dummy_fold tynm2 with
             | None ->
-                failwith "TODO: error report"
+                failwith "TODO: error report (dummy fold)"
 
             | Some(pty1) ->
                 if subtype_poly_type pty1 pty2 then
                   ()
                 else
-                  failwith "TODO: error report"
+                  failwith "TODO: error report (dummy fold)"
           )
           ~t:(fun tynm2 tentry2 () ->
             match sigr1 |> SigRecord.find_type tynm2 with
@@ -2769,7 +2702,7 @@ and subtype_concrete_with_concrete (address : address) (rng : Range.t) (modsig1 
                 if b1 && b2 then
                   ()
                 else
-                  failwith "TODO: error report"
+                  failwith "TODO: error report (type)"
           )
           ~m:(fun modnm2 mentry2 () ->
             let modsig2 = mentry2.mod_signature in
