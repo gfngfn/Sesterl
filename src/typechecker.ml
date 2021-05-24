@@ -2536,26 +2536,27 @@ and poly_label_assoc_equal plabmap1 plabmap2 =
 
 
 and subtype_type_scheme (tyscheme1 : type_scheme) (tyscheme2 : type_scheme) : bool =
-  let (typarams1, pty1) = tyscheme1 in
-  let (typarams2, pty2) = tyscheme2 in
+  let (bids1, pty_body1) = tyscheme1 in
+  let (bids2, pty_body2) = tyscheme2 in
 (*
   Format.printf "subtype_type_scheme: %a <?= %a\n" pp_poly_type pty1 pp_poly_type pty2;  (* for debug *)
 *)
-  match List.combine typarams1 typarams2 with
+  match List.combine bids1 bids2 with
   | exception Invalid_argument(_) ->
       false
 
-  | typarampairs ->
-      let map =
-        typarampairs |> List.fold_left (fun map (bid1, bid2) ->
-          map |> BoundIDMap.add bid2 bid1
+  | zipped ->
+      let bidmap =
+        zipped |> List.fold_left (fun map (bid1, bid2) ->
+          map |> BoundIDMap.add bid1 bid2
         ) BoundIDMap.empty
       in
       let internbid (bid1 : BoundID.t) (pty2 : poly_type) : bool =
+        Format.printf "!!! bid1: %a, pty2: %a\n" BoundID.pp bid1 (TypeConv.pp_poly_type TypeConv.DisplayMap.empty) pty2; (* for debug *)
         match pty2 with
         | (_, TypeVar(Bound(bid2))) ->
             begin
-              match map |> BoundIDMap.find_opt bid1 with
+              match bidmap |> BoundIDMap.find_opt bid1 with
               | None      -> false
               | Some(bid) -> BoundID.equal bid bid2
             end
@@ -2567,7 +2568,7 @@ and subtype_type_scheme (tyscheme1 : type_scheme) (tyscheme2 : type_scheme) : bo
         (* TODO: implement this when type definitions become able to take row parameters *)
         false
       in
-      subtype_poly_type_impl internbid internbrid pty1 pty2
+      subtype_poly_type_impl internbid internbrid pty_body1 pty_body2
 
 
 and lookup_type_entry (tynm : type_name) (tentry1 : type_entry) (tentry2 : type_entry) : substitution option =
@@ -2702,7 +2703,7 @@ and subtype_concrete_with_concrete (address : address) (rng : Range.t) (modsig1 
                 if b1 && b2 then
                   ()
                 else
-                  failwith "TODO: error report (type)"
+                  failwith (Format.asprintf "TODO: error report (type: %s,@ tentry1:@ %a,@ tentry2:@ %a)" tynm2 pp_type_entry tentry1 pp_type_entry tentry2)
           )
           ~m:(fun modnm2 mentry2 () ->
             let modsig2 = mentry2.mod_signature in

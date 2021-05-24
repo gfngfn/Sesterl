@@ -118,6 +118,7 @@ type type_entry = {
   type_scheme : type_scheme;
   type_kind   : poly_kind;
 }
+[@@deriving show { with_path = false }]
 
 type module_entry = {
   mod_signature : module_signature;
