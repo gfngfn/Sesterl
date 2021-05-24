@@ -281,6 +281,7 @@ let update_type_environment_by_signature_record (sigr : SigRecord.t) (tyenv : Ty
       tyenv |> Typeenv.add_value x pty (OutputIdentifier.Global(gname))
     )
     ~c:(fun ctornm centry tyenv ->
+      Format.printf "!!! add %s to tyenv\n" ctornm; (* for debug *)
       tyenv |> Typeenv.add_constructor ctornm centry
     )
     ~f:(fun _tynm _pty tyenv ->
@@ -3580,6 +3581,7 @@ and typecheck_binding (address : address) (tyenv : Typeenv.t) (utbind : untyped_
       let (tydefs, ctordefs) = bind_types address tyenv tybinds in
       let sigr =
         tydefs |> List.fold_left (fun sigr (tynm, tentry) ->
+          Format.printf "!!! add %s\n" tynm; (* for debug *)
           sigr |> SigRecord.add_type tynm tentry
         ) SigRecord.empty
       in
@@ -3596,6 +3598,7 @@ and typecheck_binding (address : address) (tyenv : Typeenv.t) (utbind : untyped_
                   parameter_types = ptyargs;
                 }
               in
+              Format.printf "!!! add %s (%s)\n" ctornm tynm; (* for debug *)
               sigr |> SigRecord.add_constructor ctornm centry
             ) ctorbrmap sigr
           in

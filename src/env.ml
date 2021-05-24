@@ -332,9 +332,9 @@ module SigRecord = struct
     Alist.extend sigr (SRCtor(ctornm, centry))
 
 
-  let find_constructor (ctornm : constructor_name) (sigr : t) : constructor_entry option =
+  let find_constructor (ctornm0 : constructor_name) (sigr : t) : constructor_entry option =
     sigr |> Alist.to_rev_list |> List.find_map (function
-    | SRCtor(ctornm, centry) -> Some(centry)
+    | SRCtor(ctornm, centry) -> if String.equal ctornm ctornm0 then Some(centry) else None
     | _                      -> None
     )
 
