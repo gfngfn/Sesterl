@@ -190,6 +190,8 @@ module SigRecord : sig
 
   val add_dummy_fold : type_name -> poly_type -> t -> t
 
+  val find_dummy_fold : type_name -> t -> poly_type option
+
   val add_type : type_name -> type_entry -> t -> t
 
   val find_type : type_name -> t -> type_entry option

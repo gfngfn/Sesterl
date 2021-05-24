@@ -341,6 +341,13 @@ module SigRecord = struct
     Alist.extend sigr (SRFold(tynm, pty))
 
 
+  let find_dummy_fold (tynm0 : type_name) (sigr : t) : poly_type option =
+    sigr |> Alist.to_rev_list |> List.find_map (function
+    | SRFold(tynm, pty) -> if String.equal tynm tynm0 then Some(pty) else None
+    | _                 -> None
+    )
+
+
   let add_module (modnm : module_name) (mentry : module_entry) (sigr : t) : t =
     Alist.extend sigr (SRModule(modnm, mentry))
 

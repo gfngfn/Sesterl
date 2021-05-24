@@ -2701,11 +2701,8 @@ and subtype_abstract_with_abstract (address : address) (rng : Range.t) (absmodsi
   ()
 
 
-(* `subtype_concrete_with_concrete rng wtmap modsig1 modsig2` asserts that
-   `modsig1 <= [wtmap]modsig2` holds (where `[-]-` is the application of a substitution). *)
+(* `subtype_concrete_with_concrete address rng modsig1 modsig2` asserts that `modsig1 <= modsig2` holds. *)
 and subtype_concrete_with_concrete (address : address) (rng : Range.t) (modsig1 : module_signature) (modsig2 : module_signature) : unit =
-  failwith "TODO: subtype_concrete_with_concrete"
-(*
   match (modsig1, modsig2) with
   | (ConcFunctor(sigftor1), ConcFunctor(sigftor2)) ->
       let (oidset1, Domain(sigr1), absmodsigcod1) = (sigftor1.opaques, sigftor1.domain, sigftor1.codomain) in
@@ -2715,32 +2712,60 @@ and subtype_concrete_with_concrete (address : address) (rng : Range.t) (modsig1 
         let modsigdom2 = ConcStructure(sigr2) in
         subtype_concrete_with_abstract address rng modsigdom2 (oidset1, modsigdom1)
       in
-      let (absmodsigcod1, _) = absmodsigcod1 |> substitute_abstract address wtmap in
+      let absmodsigcod1 = absmodsigcod1 |> substitute_abstract address wtmap in
       subtype_abstract_with_abstract address rng absmodsigcod1 absmodsigcod2
 
   | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
       sigr2 |> SigRecord.fold
-          ~v:(fun x2 (pty2, _) () ->
-            match sigr1 |> SigRecord.find_val x2 with
+          ~v:(fun x2 ventry2 () ->
+            let pty2 = ventry2.val_type in
+            match sigr1 |> SigRecord.find_value x2 with
             | None ->
                 raise_error (MissingRequiredValName(rng, x2, pty2))
 
-            | Some(pty1, _) ->
-               if subtype_poly_type wtmap pty1 pty2 then
+            | Some(ventry1) ->
+                let pty1 = ventry1.val_type in
+               if subtype_poly_type pty1 pty2 then
                  ()
                else
                  raise_error (PolymorphicContradiction(rng, x2, pty1, pty2))
           )
-          ~t:(fun _ () ->
-            ()
+          ~c:(fun ctornm2 centry2 () ->
+            match sigr1 |> SigRecord.find_constructor ctornm2 with
+            | None ->
+                failwith "TODO: error report"
+
+            | Some(centry1) ->
+                failwith "TODO: check that centry1 <= centry2"
           )
-          ~m:(fun modnm2 (modsig2, _) () ->
+          ~f:(fun tynm2 pty2 () ->
+            match sigr1 |> SigRecord.find_dummy_fold tynm2 with
+            | None ->
+                failwith "TODO: error report"
+
+            | Some(pty1) ->
+                if subtype_poly_type pty1 pty2 then
+                  ()
+                else
+                  failwith "TODO: error report"
+          )
+          ~t:(fun tynm2 tentry2 () ->
+            match sigr1 |> SigRecord.find_type tynm2 with
+            | None ->
+                raise_error (MissingRequiredTypeName(rng, tynm2, tentry2))
+
+            | Some(tentry1) ->
+                failwith "TODO: check that tentry1 == tentry2"
+          )
+          ~m:(fun modnm2 mentry2 () ->
+            let modsig2 = mentry2.mod_signature in
             match sigr1 |> SigRecord.find_module modnm2 with
             | None ->
                 raise_error (MissingRequiredModuleName(rng, modnm2, modsig2))
 
-            | Some(modsig1, _) ->
-                subtype_concrete_with_concrete address rng wtmap modsig1 modsig2
+            | Some(mentry1) ->
+                let modsig1 = mentry1.mod_signature in
+                subtype_concrete_with_concrete address rng modsig1 modsig2
           )
           ~s:(fun signm2 absmodsig2 () ->
             match sigr1 |> SigRecord.find_signature signm2 with
@@ -2756,7 +2781,7 @@ and subtype_concrete_with_concrete (address : address) (rng : Range.t) (modsig1 
 
   | _ ->
       raise_error (NotASubtype(rng, modsig1, modsig2))
-*)
+
 
 and subtype_concrete_with_abstract (address : address) (rng : Range.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : substitution =
   let (oidset2, modsig2) = absmodsig2 in
