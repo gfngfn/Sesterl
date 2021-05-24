@@ -3625,8 +3625,6 @@ and typecheck_module (address : address) (tyenv : Typeenv.t) (utmod : untyped_mo
       (absmodsig, (ModuleAttribute.empty, []))
 
   | ModApply(modidentchain1, modidentchain2) ->
-      failwith "TODO: ModApply"
-(*
       let mentry1 = find_module_from_chain tyenv modidentchain1 in
       let modsig1 = mentry1.mod_signature in
       let mentry2 = find_module_from_chain tyenv modidentchain2 in
@@ -3650,7 +3648,7 @@ and typecheck_module (address : address) (tyenv : Typeenv.t) (utmod : untyped_mo
               | Some(modident0, utmodC, tyenv0) ->
                   (* Check the subtype relation between the signature `modsig2` of the argument module
                      and the domain `modsigdom1` of the applied functor. *)
-                  let wtmap =
+                  let subst =
                     let ((rng2, _), _) = modidentchain2 in
                     let modsigdom1 = ConcStructure(sigrdom1) in
                     subtype_signature address rng2 modsig2 (oidset, modsigdom1)
@@ -3662,12 +3660,11 @@ and typecheck_module (address : address) (tyenv : Typeenv.t) (utmod : untyped_mo
                     in
                     typecheck_module address tyenv0 utmodC
                   in
-                  let ((oidset1subst, modsigcod1subst), _wtmap) = absmodsigcod1 |> substitute_abstract address wtmap in
+                  let (oidset1subst, modsigcod1subst) = absmodsigcod1 |> substitute_abstract address subst in
                   let absmodsig = (oidset1subst, copy_closure modsig0 modsigcod1subst) in
                   (absmodsig, ibinds)
             end
       end
-*)
 
   | ModCoerce(modident1, utsig2) ->
       let mentry1 = find_module tyenv modident1 in
