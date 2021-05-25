@@ -2799,14 +2799,32 @@ and copy_closure_in_structure (sigr1 : SigRecord.t) (sigr2 : SigRecord.t) : SigR
     ~s:(fun _signm sentry -> sentry)
 
 
+and substitute_type_id (subst : substitution) (tyid_from : TypeID.t) : TypeID.t =
+  match subst |> SubstMap.find_opt tyid_from with
+  | None ->
+      tyid_from
+
+  | Some(ToTypeScheme(tyscheme)) ->
+      begin
+        match TypeConv.get_opaque_type tyscheme with
+        | None ->
+            assert false
+
+        | Some(tyid_to) ->
+            tyid_to
+      end
+
+
 and substitute_structure (address : address) (subst : substitution) (sigr : SigRecord.t) : SigRecord.t =
   sigr |> SigRecord.map
       ~v:(fun _x ventry ->
         { ventry with val_type = ventry.val_type |> substitute_poly_type subst }
       )
       ~c:(fun _ctornm centry ->
-        { centry with parameter_types = centry.parameter_types |> List.map (substitute_poly_type subst) }
-          (* TODO: should substitute `belongs` here. *)
+        { centry with
+          belongs         = centry.belongs |> substitute_type_id subst;
+          parameter_types = centry.parameter_types |> List.map (substitute_poly_type subst);
+        }
       )
       ~f:(fun _tynm pty ->
         pty |> substitute_poly_type subst
