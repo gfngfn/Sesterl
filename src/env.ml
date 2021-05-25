@@ -2,9 +2,6 @@
 open MyUtil
 open Syntax
 
-
-type 'a abstracted = OpaqueIDSet.t * 'a
-
 type ('a, 'b) typ =
   (('a, 'b) typ_main) ranged
 
@@ -18,7 +15,7 @@ and ('a, 'b) typ_main =
   | TypeApp     of TypeID.t * (('a, 'b) typ) list
   | RecordType  of (('a, 'b) typ) LabelAssoc.t
   | PackType    of module_signature abstracted
-      [@printer (fun ppf (oidset, modsig) -> Format.fprintf ppf "PackType(%a, _)" pp_opaque_id_set oidset)]
+      [@printer (fun ppf (qt, modsig) -> Format.fprintf ppf "PackType(%a, _)" pp_opaque_id_quantifier qt)]
 
 and ('a, 'b) domain_type = {
   ordered   : (('a, 'b) typ) list;
@@ -45,11 +42,11 @@ and module_signature =
   | ConcFunctor   of functor_signature
 
 and functor_signature = {
-  opaques  : OpaqueIDSet.t;
-    [@printer pp_opaque_id_set]
+  opaques  : quantifier;
+    [@printer pp_opaque_id_quantifier]
   domain   : functor_domain;
-  codomain : OpaqueIDSet.t * module_signature;
-    [@printer (fun ppf (oidset, modsig) -> Format.fprintf ppf "(%a, _)" pp_opaque_id_set oidset)]
+  codomain : module_signature abstracted;
+    [@printer (fun ppf (qt, modsig) -> Format.fprintf ppf "(%a, _)" pp_opaque_id_quantifier qt)]
   closure  : (module_name ranged * untyped_module * environment) option;
 }
 
@@ -173,6 +170,11 @@ and poly_kind = (poly_type_var, poly_row_var) kind
 and poly_base_kind = (poly_type_var, poly_row_var) base_kind
 
 and poly_domain_type = (poly_type_var, poly_row_var) domain_type
+
+and quantifier = poly_kind OpaqueIDMap.t
+  [@printer pp_opaque_id_quantifier]
+
+and 'a abstracted = quantifier * 'a
 
 type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorMap.t
 

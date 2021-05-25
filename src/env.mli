@@ -1,8 +1,6 @@
 
 open Syntax
 
-type 'a abstracted = OpaqueIDSet.t * 'a
-
 type environment
 
 type record_signature
@@ -46,22 +44,20 @@ and module_signature =
   | ConcFunctor   of functor_signature
 
 and functor_signature = {
-  opaques  : OpaqueIDSet.t;
+  opaques  : quantifier;
   domain   : functor_domain;
-  codomain : OpaqueIDSet.t * module_signature;
+  codomain : module_signature abstracted;
   closure  : (module_name ranged * untyped_module * environment) option;
 }
 
 and functor_domain =
   | Domain of record_signature
 
-val pp_module_signature : Format.formatter -> module_signature -> unit
-
-type ('a, 'b) kind =
+and ('a, 'b) kind =
   | Kind of (('a, 'b) base_kind) list * ('a, 'b) base_kind
       (* Handles order-0 or order-1 kind only, *)
 
-type mono_type_var_updatable =
+and mono_type_var_updatable =
   | Free of FreeID.t
   | Link of mono_type
 
@@ -79,33 +75,39 @@ and mono_row_var =
 
 and mono_type = (mono_type_var, mono_row_var) typ
 
-type mono_row = (mono_type_var, mono_row_var) row
+and mono_row = (mono_type_var, mono_row_var) row
 
-type mono_kind = (mono_type_var, mono_row_var) kind
+and mono_kind = (mono_type_var, mono_row_var) kind
 
-type mono_base_kind = (mono_type_var, mono_row_var) base_kind
+and mono_base_kind = (mono_type_var, mono_row_var) base_kind
 
-type mono_effect = (mono_type_var, mono_row_var) effect
+and mono_effect = (mono_type_var, mono_row_var) effect
 
-type mono_domain_type = (mono_type_var, mono_row_var) domain_type
+and mono_domain_type = (mono_type_var, mono_row_var) domain_type
 
-type poly_type_var =
+and poly_type_var =
   | Mono  of mono_type_var
   | Bound of BoundID.t
 
-type poly_row_var =
+and poly_row_var =
   | MonoRow  of mono_row_var
   | BoundRow of BoundRowID.t
 
 and poly_type = (poly_type_var, poly_row_var) typ
 
-type poly_row = (poly_type_var, poly_row_var) row
+and poly_kind = (poly_type_var, poly_row_var) kind
 
-type poly_kind = (poly_type_var, poly_row_var) kind
+and poly_row = (poly_type_var, poly_row_var) row
 
-type poly_base_kind = (poly_type_var, poly_row_var) base_kind
+and poly_base_kind = (poly_type_var, poly_row_var) base_kind
 
-type poly_domain_type = (poly_type_var, poly_row_var) domain_type
+and poly_domain_type = (poly_type_var, poly_row_var) domain_type
+
+and quantifier = poly_kind OpaqueIDMap.t
+
+and 'a abstracted = quantifier * 'a
+
+val pp_module_signature : Format.formatter -> module_signature -> unit
 
 type value_entry = {
   val_type   : poly_type;
