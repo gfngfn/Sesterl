@@ -1,0 +1,8 @@
+module ErrorVariant :> sig
+  type t =
+    | Foo(int)
+end = struct
+  type t =
+    | Foo(int)
+    | Bar
+end

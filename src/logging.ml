@@ -374,8 +374,8 @@ let report_type_error (e : type_error) : unit =
   | CyclicSynonymTypeDefinition(cycle) ->
       let tyidents =
         match cycle with
-        | Loop((_, tyident)) -> [ tyident ]
-        | Cycle(vs)          -> vs |> List2.to_list |> List.map (fun (_, tyident) -> tyident)
+        | Loop(tyident)   -> [ tyident ]
+        | Cycle(tyidents) -> tyidents |> List2.to_list
       in
       Format.printf "cyclic type definitions:\n";
       tyidents |> List.iter (fun (rng, tynm) ->
@@ -440,10 +440,11 @@ let report_type_error (e : type_error) : unit =
       Format.printf "  unbound signature name '%s'\n"
         signm
 
-  | CannotRestrictTransparentType(rng, _) ->
+  | CannotRestrictTransparentType(rng, tynm, _) ->
       Format.printf "%a:\n"
         Range.pp rng;
-      Format.printf "  the specified type is already transparent\n"
+      Format.printf "  the specified type '%s' is already transparent\n"
+        tynm
 
   | PolymorphicContradiction(rng, x, pty1, pty2) ->
       let dispmap = make_display_map_from_poly_types [pty1; pty2] in
@@ -487,12 +488,12 @@ let report_type_error (e : type_error) : unit =
         smain;
       print_bound_ids (List.concat [sbids; sbrids])
 
-  | MissingRequiredTypeName(rng, tynm, (_, pkd)) ->
+  | MissingRequiredTypeName(rng, tynm, tentry) ->
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  missing required type name '%s' of arity %d\n"
         tynm
-        (TypeConv.arity_of_kind pkd)
+        (TypeConv.arity_of_kind tentry.type_kind)
 
   | MissingRequiredModuleName(rng, modnm, _modsign) ->
       Format.printf "%a:\n"
@@ -522,7 +523,7 @@ let report_type_error (e : type_error) : unit =
         Range.pp rng;
       Format.printf "  not a subtype about constructor '%s' (TODO: detailed explanation)\n"
         ctor
-
+(*
   | NotASubtypeSynonym(rng, sid1, sid2) ->
       let (bids1, pty1) = TypeDefinitionStore.find_synonym_type sid1 in
       let (bids2, pty2) = TypeDefinitionStore.find_synonym_type sid2 in
@@ -540,7 +541,7 @@ let report_type_error (e : type_error) : unit =
         TypeID.Synonym.pp sid2
         (pp_type_parameter_list dispmap) bids2
         (TypeConv.pp_poly_type dispmap) pty2
-
+*)
   | OpaqueIDExtrudesScopeViaValue(rng, _pty) ->
       Format.printf "%a:\n"
         Range.pp rng;

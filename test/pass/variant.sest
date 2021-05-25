@@ -1,0 +1,13 @@
+module Variant :> sig
+
+  type foo<$a> =
+    | Foo(int)
+    | Bar($a)
+
+end = struct
+
+  type foo<$a> =
+    | Foo(int)
+    | Bar($a)
+
+end

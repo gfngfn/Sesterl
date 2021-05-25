@@ -53,7 +53,7 @@ type type_error =
   | TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
   | RowParameterBoundMoreThanOnce       of Range.t * row_variable_name
   | InvalidByte                         of Range.t
-  | CyclicSynonymTypeDefinition         of (TypeID.Synonym.t * type_name ranged) cycle
+  | CyclicSynonymTypeDefinition         of (type_name ranged) cycle
   | CyclicTypeParameter                 of Range.t * BoundBothID.t cycle * poly_type
   | UnboundModuleName                   of Range.t * module_name
   | NotOfStructureType                  of Range.t * module_signature
@@ -61,19 +61,21 @@ type type_error =
   | NotAFunctorSignature                of Range.t * module_signature
   | NotAStructureSignature              of Range.t * module_signature
   | UnboundSignatureName                of Range.t * signature_name
-  | CannotRestrictTransparentType       of Range.t * type_opacity
+  | CannotRestrictTransparentType       of Range.t * type_name * type_entry
   | PolymorphicContradiction            of Range.t * identifier * poly_type * poly_type
   | PolymorphicInclusion                of Range.t * FreeID.t * poly_type * poly_type
   | MissingRequiredValName              of Range.t * identifier * poly_type
-  | MissingRequiredTypeName             of Range.t * type_name * type_opacity
+  | MissingRequiredTypeName             of Range.t * type_name * type_entry
   | MissingRequiredModuleName           of Range.t * module_name * module_signature
   | MissingRequiredSignatureName        of Range.t * signature_name * module_signature abstracted
   | NotASubtype                         of Range.t * module_signature * module_signature
-  | NotASubtypeTypeOpacity              of Range.t * type_name * type_opacity * type_opacity
-  | NotASubtypeVariant                  of Range.t * TypeID.Variant.t * TypeID.Variant.t * constructor_name
+  | NotASubtypeTypeOpacity              of Range.t * type_name * type_entry * type_entry
+  | NotASubtypeVariant                  of Range.t * TypeID.t * TypeID.t * constructor_name
+(*
   | NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t
+*)
   | OpaqueIDExtrudesScopeViaValue       of Range.t * poly_type
-  | OpaqueIDExtrudesScopeViaType        of Range.t * type_opacity
+  | OpaqueIDExtrudesScopeViaType        of Range.t * type_entry
   | OpaqueIDExtrudesScopeViaSignature   of Range.t * module_signature abstracted
   | SupportOnlyFirstOrderFunctor        of Range.t
   | RootModuleMustBeStructure           of Range.t
