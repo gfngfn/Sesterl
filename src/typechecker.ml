@@ -22,6 +22,8 @@ type subtyping_error = unit
 
 type binding_map = (mono_type * local_name * Range.t) BindingMap.t
 
+type variant_definition = type_name * TypeID.t * BoundID.t list * constructor_branch_map
+
 type unification_result =
   | Consistent
   | Contradiction
@@ -82,6 +84,26 @@ let add_dummy_fold (tynm : type_name) (tyid : TypeID.t) (bids : BoundID.t list) 
   in
   let pty = (dr, FuncType(domty, (dr, TypeVar(Bound(bid))))) in
   sigr |> SigRecord.add_dummy_fold tynm pty
+
+
+let add_constructor_definitions (ctordefs : variant_definition list) (sigr : SigRecord.t) : SigRecord.t =
+  ctordefs |> List.fold_left (fun sigr ctordef ->
+    let (tynm, tyid, bids, ctorbrmap) = ctordef in
+    let sigr =
+      ConstructorMap.fold (fun ctornm (ctorid, ptyargs) sigr ->
+        let centry =
+          {
+            belongs         = tyid;
+            constructor_id  = ctorid;
+            type_variables  = bids;
+            parameter_types = ptyargs;
+          }
+        in
+        sigr |> SigRecord.add_constructor ctornm centry
+      ) ctorbrmap sigr
+    in
+    sigr |> add_dummy_fold tynm tyid bids ctorbrmap
+  ) sigr
 
 
 let make_type_scheme_from_constructor_entry (centry : constructor_entry) : type_scheme =
@@ -2815,6 +2837,39 @@ and substitute_type_id (subst : substitution) (tyid_from : TypeID.t) : TypeID.t 
       end
 
 
+and update_subsignature (modnms : module_name list) (updater : module_signature -> module_signature) (modsig : module_signature) : module_signature =
+  match modnms with
+  | [] ->
+      updater modsig
+
+  | modnm0 :: modnms ->
+      begin
+        match modsig with
+        | ConcFunctor(_) ->
+            modsig
+
+        | ConcStructure(sigr) ->
+            begin
+              let sigr =
+                sigr |> SigRecord.map
+                  ~v:(fun _x ventry -> ventry)
+                  ~c:(fun _ctornm centry -> centry)
+                  ~f:(fun _tynm pty -> pty)
+                  ~t:(fun _tynm tentry -> tentry)
+                  ~m:(fun modnm mentry ->
+                    if String.equal modnm modnm0 then
+                      let modsig = mentry.mod_signature |> update_subsignature modnms updater in
+                      { mentry with mod_signature = modsig }
+                    else
+                      mentry
+                  )
+                  ~s:(fun _signm absmodsig -> absmodsig)
+              in
+              ConcStructure(sigr)
+            end
+      end
+
+
 and substitute_structure (address : address) (subst : substitution) (sigr : SigRecord.t) : SigRecord.t =
   sigr |> SigRecord.map
       ~v:(fun _x ventry ->
@@ -3159,11 +3214,6 @@ and typecheck_signature (address : address) (tyenv : Typeenv.t) (utsig : untyped
         | ConcStructure(sigr_last) -> sigr_last
       in
       let (tydefs, ctordefs) = bind_types address tyenv tybinds in
-      begin
-        match ctordefs with
-        | _ :: _ -> failwith "TODO: variants"
-        | []     -> ()
-      end;
       let (subst, quant) =
         tydefs |> List.fold_left (fun (subst, quant) (tynm1, tentry1) ->
           let (tyid0, pkd_expected) =
@@ -3187,11 +3237,21 @@ and typecheck_signature (address : address) (tyenv : Typeenv.t) (utsig : untyped
           let subst = subst |> SubstMap.add tyid0 (ToTypeScheme(tentry1.type_scheme)) in
           let quant = quant |> OpaqueIDMap.remove tyid0 in
           (subst, quant)
-
         ) (SubstMap.empty, quant0)
       in
-      let modsigret = modsig0 |> substitute_concrete address subst in
-      (quant, modsigret)
+      let modsig_ret = modsig0 |> substitute_concrete address subst in
+      let modsig_ret =
+        modsig_ret |> update_subsignature (modidents |> List.map snd) (fun modsig_last ->
+          match modsig_last with
+          | ConcFunctor(_) ->
+              assert false
+
+          | ConcStructure(sigr_last) ->
+              let sigr_last = sigr_last |> add_constructor_definitions ctordefs in
+              ConcStructure(sigr_last)
+        )
+      in
+      (quant, modsig_ret)
 
 
 (* Checks that `pkd1` and `pkd2` is the same kind. *)
@@ -3309,25 +3369,7 @@ and typecheck_binding (address : address) (tyenv : Typeenv.t) (utbind : untyped_
           sigr |> SigRecord.add_type tynm tentry
         ) SigRecord.empty
       in
-      let sigr =
-        ctordefs |> List.fold_left (fun sigr ctordef ->
-          let (tynm, tyid, bids, ctorbrmap) = ctordef in
-          let sigr =
-            ConstructorMap.fold (fun ctornm (ctorid, ptyargs) sigr ->
-              let centry =
-                {
-                  belongs         = tyid;
-                  constructor_id  = ctorid;
-                  type_variables  = bids;
-                  parameter_types = ptyargs;
-                }
-              in
-              sigr |> SigRecord.add_constructor ctornm centry
-            ) ctorbrmap sigr
-          in
-          sigr |> add_dummy_fold tynm tyid bids ctorbrmap
-        ) sigr
-      in
+      let sigr = sigr |> add_constructor_definitions ctordefs in
       ((OpaqueIDMap.empty, sigr), (ModuleAttribute.empty, []))
 
   | BindModule(modident, utsigopt2, utmod1) ->
@@ -3372,7 +3414,7 @@ and typecheck_binding (address : address) (tyenv : Typeenv.t) (utbind : untyped_
       ((OpaqueIDMap.empty, sigr), (ModuleAttribute.empty, []))
 
 
-and bind_types (address : address) (tyenv : Typeenv.t) (tybinds : type_binding list) : (type_name * type_entry) list * (type_name * TypeID.t * BoundID.t list * constructor_branch_map) list =
+and bind_types (address : address) (tyenv : Typeenv.t) (tybinds : type_binding list) : (type_name * type_entry) list * variant_definition list =
   let pre_init =
     {
       level                 = 0;
