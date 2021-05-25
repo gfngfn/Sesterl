@@ -882,28 +882,30 @@ let substitute_poly_type (substmap : poly_type BoundIDMap.t) : poly_type -> poly
   instantiate_scheme intern intern_row
 
 
-let apply_type_scheme_mono ((bids, pty_body) : type_scheme) (tyargs : mono_type list) : mono_type option =
+let apply_type_scheme_mono ((bids, pty_body) : type_scheme) (tyargs : mono_type list) : (mono_type, (mono_type * poly_base_kind) option) result =
   try
     let substmap =
       List.fold_left2 (fun substmap bid tyarg ->
         substmap |> BoundIDMap.add bid tyarg
+          (* TODO: check that `tyarg` can be kinded by the kind of `bid` *)
       ) BoundIDMap.empty bids tyargs
     in
-    Some(substitute_mono_type substmap pty_body)
+    Ok(substitute_mono_type substmap pty_body)
   with
-  | _ -> None
+  | _ -> Error(None)
 
 
-let apply_type_scheme_poly ((bids, pty_body) : type_scheme) (ptyargs : poly_type list) : poly_type option =
+let apply_type_scheme_poly ((bids, pty_body) : type_scheme) (ptyargs : poly_type list) : (poly_type, (poly_type * poly_base_kind) option) result =
   try
     let substmap =
       List.fold_left2 (fun substmap bid ptyarg ->
         substmap |> BoundIDMap.add bid ptyarg
+          (* TODO: check that `tyarg` can be kinded by the kind of `bid` *)
       ) BoundIDMap.empty bids ptyargs
     in
-    Some(substitute_poly_type substmap pty_body)
+    Ok(substitute_poly_type substmap pty_body)
   with
-  | _ -> None
+  | _ -> Error(None)
 
 let make_opaque_type_scheme (bids : BoundID.t list) (tyid : TypeID.t) : type_scheme =
   let dr = Range.dummy "make_opaque_type_scheme" in
