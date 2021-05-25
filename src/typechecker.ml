@@ -13,10 +13,7 @@ module BindingMap = Map.Make(String)
 
 module SubstMap = Map.Make(TypeID)
 
-type substitution_target =
-  | ToTypeScheme of type_scheme
-
-type substitution = substitution_target SubstMap.t
+type substitution = type_scheme SubstMap.t
 
 type subtyping_error = unit
 
@@ -2548,6 +2545,18 @@ and poly_label_assoc_equal plabmap1 plabmap2 =
   merged |> LabelAssoc.for_all (fun _ b -> b)
 
 
+and subtype_poly_base_kind (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (pbkd1 : poly_base_kind) (pbkd2 : poly_base_kind) =
+  match (pbkd1, pbkd2) with
+  | (_, UniversalKind) ->
+      true
+
+  | (RecordKind(plabmap1), RecordKind(plabmap2)) ->
+      subtype_label_assoc internbid internbrid plabmap1 plabmap2
+
+  | _ ->
+      false
+
+
 and subtype_type_scheme (tyscheme1 : type_scheme) (tyscheme2 : type_scheme) : bool =
   let (bids1, pty_body1) = tyscheme1 in
   let (bids2, pty_body2) = tyscheme2 in
@@ -2557,8 +2566,8 @@ and subtype_type_scheme (tyscheme1 : type_scheme) (tyscheme2 : type_scheme) : bo
 
   | zipped ->
       let bidmap =
-        zipped |> List.fold_left (fun map (bid1, bid2) ->
-          map |> BoundIDMap.add bid1 bid2
+        zipped |> List.fold_left (fun bidmap (bid1, bid2) ->
+          bidmap |> BoundIDMap.add bid1 bid2
         ) BoundIDMap.empty
       in
       let internbid (bid1 : BoundID.t) (pty2 : poly_type) : bool =
@@ -2577,6 +2586,14 @@ and subtype_type_scheme (tyscheme1 : type_scheme) (tyscheme2 : type_scheme) : bo
         (* TODO: implement this when type definitions become able to take row parameters *)
         false
       in
+      BoundIDMap.fold (fun bid1 bid2 () ->
+        let pbkd1 = KindStore.get_bound_id bid1 in
+        let pbkd2 = KindStore.get_bound_id bid2 in
+        if subtype_poly_base_kind internbid internbrid pbkd1 pbkd2 then
+          ()
+        else
+          failwith "TODO: error report (kind)"
+      ) bidmap ();
       subtype_poly_type_impl internbid internbrid pty_body1 pty_body2
 
 
@@ -2587,7 +2604,7 @@ and lookup_type_entry (tynm : type_name) (tentry1 : type_entry) (tentry2 : type_
     let subst =
       match TypeConv.get_opaque_type tentry2.type_scheme with
       | None        -> SubstMap.empty
-      | Some(tyid2) -> SubstMap.empty |> SubstMap.add tyid2 (ToTypeScheme(tentry1.type_scheme))
+      | Some(tyid2) -> SubstMap.empty |> SubstMap.add tyid2 tentry1.type_scheme
     in
     Some(subst)
   else
@@ -2826,7 +2843,7 @@ and substitute_type_id (subst : substitution) (tyid_from : TypeID.t) : TypeID.t 
   | None ->
       tyid_from
 
-  | Some(ToTypeScheme(tyscheme)) ->
+  | Some(tyscheme) ->
       begin
         match TypeConv.get_opaque_type tyscheme with
         | None ->
@@ -2941,7 +2958,7 @@ and substitute_poly_type (subst : substitution) (pty : poly_type) : poly_type =
             | None ->
                 TypeApp(tyid_from, ptyargs |> List.map aux)
 
-            | Some(ToTypeScheme(tyscheme)) ->
+            | Some(tyscheme) ->
                 begin
                   match TypeConv.apply_type_scheme_poly tyscheme (ptyargs |> List.map aux) with
                   | None               -> assert false
@@ -3089,7 +3106,7 @@ and copy_abstract_signature (address : address) (absmodsig_from : module_signatu
       let quant_to = quant_to |> OpaqueIDMap.add oid_to pkd in
       let Kind(pbkds, _) = pkd in
       let tyscheme = TypeConv.make_opaque_type_scheme_from_base_kinds pbkds oid_to in
-      let subst = subst |> SubstMap.add oid_from (ToTypeScheme(tyscheme)) in
+      let subst = subst |> SubstMap.add oid_from tyscheme in
       (quant_to, subst)
     ) quant_from (OpaqueIDMap.empty, SubstMap.empty)
   in
@@ -3234,7 +3251,7 @@ and typecheck_signature (address : address) (tyenv : Typeenv.t) (utsig : untyped
           in
           let pkd_actual = tentry1.type_kind in
           unify_kind rng tynm1 ~actual:pkd_actual ~expected:pkd_expected;
-          let subst = subst |> SubstMap.add tyid0 (ToTypeScheme(tentry1.type_scheme)) in
+          let subst = subst |> SubstMap.add tyid0 tentry1.type_scheme in
           let quant = quant |> OpaqueIDMap.remove tyid0 in
           (subst, quant)
         ) (SubstMap.empty, quant0)
