@@ -2,10 +2,14 @@ package: sample_sup_usage
 source_directories:
   - "./"
 
+main_module: "SampleSupUsage"
+
 dependencies:
   - name: "stdlib"
     source:
       type: "local"
       directory: "../../../external/stdlib"
 
-main_module: "SampleSupUsage"
+erlang:
+  output_directory: "../../_generated"
+  test_output_directory: "../../_generated_test"

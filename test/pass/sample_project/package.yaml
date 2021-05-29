@@ -15,3 +15,7 @@ test_dependencies:
     source:
       type: "local"
       directory: "../../../external/testing"
+
+erlang:
+  output_directory: "../../_generated"
+  test_output_directory: "../../_generated_test"
