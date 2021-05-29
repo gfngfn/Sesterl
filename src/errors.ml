@@ -65,11 +65,13 @@ type type_error =
   | PolymorphicContradiction            of Range.t * identifier * poly_type * poly_type
   | PolymorphicInclusion                of Range.t * FreeID.t * poly_type * poly_type
   | MissingRequiredValName              of Range.t * identifier * poly_type
+  | MissingRequiredConstructorName      of Range.t * constructor_name * constructor_entry
   | MissingRequiredTypeName             of Range.t * type_name * type_entry
   | MissingRequiredModuleName           of Range.t * module_name * module_signature
   | MissingRequiredSignatureName        of Range.t * signature_name * module_signature abstracted
   | NotASubtype                         of Range.t * module_signature * module_signature
-  | NotASubtypeTypeOpacity              of Range.t * type_name * type_entry * type_entry
+  | NotASubtypeTypeDefinition           of Range.t * type_name * type_entry * type_entry
+  | NotASubtypeConstructorDefinition    of Range.t * constructor_name * constructor_entry * constructor_entry
   | NotASubtypeVariant                  of Range.t * TypeID.t * TypeID.t * constructor_name
 (*
   | NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t

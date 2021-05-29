@@ -2594,15 +2594,17 @@ and subtype_type_scheme (tyscheme1 : type_scheme) (tyscheme2 : type_scheme) : bo
       in
       let internbid = internbidf bidmap in
       let internbrid = internbridf bidmap in
-      BoundIDMap.fold (fun bid1 bid2 () ->
-        let pbkd1 = KindStore.get_bound_id bid1 in
-        let pbkd2 = KindStore.get_bound_id bid2 in
-        if subtype_poly_base_kind internbid internbrid pbkd1 pbkd2 then
-          ()
-        else
-          failwith "TODO: error report (kind)"
-      ) bidmap ();
-      let b = subtype_poly_type_impl internbid internbrid pty_body1 pty_body2 in
+      let b =
+        BoundIDMap.fold (fun bid1 bid2 b ->
+          if b then
+            let pbkd1 = KindStore.get_bound_id bid1 in
+            let pbkd2 = KindStore.get_bound_id bid2 in
+            subtype_poly_base_kind internbid internbrid pbkd1 pbkd2
+          else
+            false
+        ) bidmap true
+      in
+      let b = if b then subtype_poly_type_impl internbid internbrid pty_body1 pty_body2 else false in
       (b, bidmap)
 
 
@@ -2642,8 +2644,11 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
             | Some(tentry1) ->
                 begin
                   match lookup_type_entry tynm2 tentry1 tentry2 with
-                  | None         -> raise_error (NotASubtypeTypeOpacity(rng, tynm2, tentry1, tentry2))
-                  | Some(subst0) -> SubstMap.union take_left subst0 subst
+                  | None ->
+                      raise_error (NotASubtypeTypeDefinition(rng, tynm2, tentry1, tentry2))
+
+                  | Some(subst0) ->
+                      SubstMap.union take_left subst0 subst
                 end
           )
           ~m:(fun modnm2 mentry2 subst ->
@@ -2704,7 +2709,7 @@ and subtype_concrete_with_concrete ~(cause : Range.t) (address : address) (modsi
           ~c:(fun ctornm2 centry2 () ->
             match sigr1 |> SigRecord.find_constructor ctornm2 with
             | None ->
-                failwith "TODO: error report (constructor)"
+                raise_error (MissingRequiredConstructorName(cause, ctornm2, centry2))
 
             | Some(centry1) ->
                 let tyscheme1 = make_type_scheme_from_constructor_entry centry1 in
@@ -2713,18 +2718,29 @@ and subtype_concrete_with_concrete ~(cause : Range.t) (address : address) (modsi
                 if b then
                   ()
                 else
-                  failwith "TODO: error report (constructor)"
+                  raise_error (NotASubtypeConstructorDefinition(cause, ctornm2, centry1, centry2))
           )
           ~f:(fun tynm2 pty2 () ->
             match sigr1 |> SigRecord.find_dummy_fold tynm2 with
             | None ->
-                failwith "TODO: error report (dummy fold)"
+                begin
+                  match sigr2 |> SigRecord.find_type tynm2 with
+                  | None          -> assert false
+                  | Some(tentry2) -> raise_error (MissingRequiredTypeName(cause, tynm2, tentry2))
+                end
 
             | Some(pty1) ->
                 if subtype_poly_type pty1 pty2 then
                   ()
                 else
-                  failwith "TODO: error report (dummy fold)"
+                  begin
+                    match (sigr1 |> SigRecord.find_type tynm2, sigr2 |> SigRecord.find_type tynm2) with
+                    | (Some(tentry1), Some(tentry2)) ->
+                        raise_error (NotASubtypeTypeDefinition(cause, tynm2, tentry1, tentry2))
+
+                    | _ ->
+                        assert false
+                  end
           )
           ~t:(fun tynm2 tentry2 () ->
             match sigr1 |> SigRecord.find_type tynm2 with
@@ -2744,7 +2760,7 @@ and subtype_concrete_with_concrete ~(cause : Range.t) (address : address) (modsi
                 if b1 && b2 && b0 then
                   ()
                 else
-                  failwith (Format.asprintf "TODO: error report (type: %s,@ tentry1:@ %a,@ tentry2:@ %a)" tynm2 pp_type_entry tentry1 pp_type_entry tentry2)
+                  raise_error (NotASubtypeTypeDefinition(cause, tynm2, tentry1, tentry2))
           )
           ~m:(fun modnm2 mentry2 () ->
             let modsig2 = mentry2.mod_signature in

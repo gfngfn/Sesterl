@@ -488,6 +488,12 @@ let report_type_error (e : type_error) : unit =
         smain;
       print_bound_ids (List.concat [sbids; sbrids])
 
+  | MissingRequiredConstructorName(rng, ctornm, _centry) ->
+      Format.printf "%a:\n"
+        Range.pp rng;
+      Format.printf "  missing required constructor '%s'\n"
+        ctornm
+
   | MissingRequiredTypeName(rng, tynm, tentry) ->
       Format.printf "%a:\n"
         Range.pp rng;
@@ -512,36 +518,24 @@ let report_type_error (e : type_error) : unit =
         Range.pp rng;
       Format.printf "  not a subtype (TODO: detailed explanation)\n"
 
-  | NotASubtypeTypeOpacity(rng, tynm, _tyopac1, _tyopac2) ->
+  | NotASubtypeTypeDefinition(rng, tynm, _tentry1, _tentry2) ->
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  not a subtype; type '%s' cannot be encapsulated (TODO: detailed explanation)\n"
         tynm
+
+  | NotASubtypeConstructorDefinition(rng, ctornm, _centry1, _centry2) ->
+      Format.printf "%a:\n"
+        Range.pp rng;
+      Format.printf "  not a subtype; constructor '%s' cannot be encapsulated (TODO: detailed explanation)\n"
+        ctornm
 
   | NotASubtypeVariant(rng, _vid1, _vid2, ctor) ->
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  not a subtype about constructor '%s' (TODO: detailed explanation)\n"
         ctor
-(*
-  | NotASubtypeSynonym(rng, sid1, sid2) ->
-      let (bids1, pty1) = TypeDefinitionStore.find_synonym_type sid1 in
-      let (bids2, pty2) = TypeDefinitionStore.find_synonym_type sid2 in
-      let dispmap = make_display_map_from_poly_types [pty1; pty2] in
-      Format.printf "%a:\n"
-        Range.pp rng;
-      Format.printf "  type %a is not a subtype of %a;\n"
-        TypeID.Synonym.pp sid1
-        TypeID.Synonym.pp sid2;
-      Format.printf "  - %a%a = %a\n"
-        TypeID.Synonym.pp sid1
-        (pp_type_parameter_list dispmap) bids1
-        (TypeConv.pp_poly_type dispmap) pty1;
-      Format.printf "  - %a%a = %a\n"
-        TypeID.Synonym.pp sid2
-        (pp_type_parameter_list dispmap) bids2
-        (TypeConv.pp_poly_type dispmap) pty2
-*)
+
   | OpaqueIDExtrudesScopeViaValue(rng, _pty) ->
       Format.printf "%a:\n"
         Range.pp rng;
