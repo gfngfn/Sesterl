@@ -27,7 +27,7 @@ ERRORS=()
 # Compiles all the packages.
 for PKG_DIR in "$SOURCE_DIR"/*/; do
     echo "Compiling package '$PKG_DIR' ..."
-    "$BIN" build "$PKG_DIR" -o "$TARGET_DIR" -p sesterl_stdlib:external/stdlib -p sesterl_testing:external/testing
+    "$BIN" build "$PKG_DIR" -p sesterl_stdlib:external/stdlib -p sesterl_testing:external/testing
     STATUS=$?
     if [ $STATUS -ne 0 ]; then
         ERRORS+=("$PKG_DIR")
