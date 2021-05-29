@@ -30,7 +30,7 @@ let name tyid =
 
 let pp ppf tyid =
   let prefix = tyid.modules |> List.map (fun s -> s ^ ".") |> String.concat "" in
-  Format.fprintf ppf "%s%s/%d" prefix tyid.name tyid.number (* TODO: remove `/%d` *)
+  Format.fprintf ppf "%s%s" prefix tyid.name
 
 let pp_raw ppf tyid =
   Format.fprintf ppf "%s/%d" tyid.name tyid.number
