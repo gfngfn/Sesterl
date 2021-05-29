@@ -1,3 +1,6 @@
 [submodule "external/stdlib"]
 	path = external/stdlib
 	url = https://github.com/gfngfn/sesterl_stdlib
+[submodule "external/testing"]
+	path = external/testing
+	url = https://github.com/gfngfn/sesterl_testing

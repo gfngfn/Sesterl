@@ -1,13 +1,16 @@
 module SampleSupUsage = struct
   open Stdlib
 
+  module G = GenServer
+  module S = Supervisor.Static
+
   module Sup :> sig
     type proc
-    val start_link<$a> : fun(unit) -> [$a]option<proc>
+    type error = S.start_link_error
+    val start_link<$a> : fun(unit) -> [$a]result<proc, error>
   end = struct
 
-    module G = GenServer
-    module S = Supervisor.Static
+    type error = S.start_link_error
 
     module Child1 = struct
 
@@ -20,6 +23,8 @@ module SampleSupUsage = struct
         type cast_message =
           | Set(int)
         type info = unit
+        type global = unit
+        type stop_reason = RawValue.t
         type state = int
 
         val init(n) = act
@@ -50,11 +55,12 @@ module SampleSupUsage = struct
       type child_id = int
       type init_arg = unit
       type info = unit
+      type global = unit
 
       val start_child1(n) = act
         S.make_child_proc(fun() -> act
           do res <- Child1.start_link(n) in
-          return(Option.map(Child1.as_pid, res))
+          return(Result.map(Child1.as_pid, res))
         end)
 
       val init(init_arg) = act
@@ -82,11 +88,11 @@ module SampleSupUsage = struct
   val main(args) = act
     do res <- Sup.start_link({}) in
     case res of
-    | None ->
-        let _ = print_debug("did not start") in
+    | Error(reason) ->
+        let _ = print_debug({"did not start", reason}) in
         return({})
 
-    | Some(proc) ->
+    | Ok(proc) ->
         let _ = print_debug("ok") in
         return({})
     end

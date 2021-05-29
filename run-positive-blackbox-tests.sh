@@ -1,5 +1,7 @@
 #!/bin/bash
 
+CURDIR=$(pwd)
+
 command -v gsed
 STATUS=$?
 if [ $STATUS -eq 0 ]; then
@@ -22,15 +24,17 @@ mkdir -p "$TARGET_DIR"
 
 ERRORS=()
 
+# Compiles all the packages.
 for PKG_DIR in "$SOURCE_DIR"/*/; do
     echo "Compiling package '$PKG_DIR' ..."
-    "$BIN" build "$PKG_DIR" -o "$TARGET_DIR"
+    "$BIN" build "$PKG_DIR" -o "$TARGET_DIR" -p sesterl_stdlib:external/stdlib -p sesterl_testing:external/testing
     STATUS=$?
     if [ $STATUS -ne 0 ]; then
         ERRORS+=("$PKG_DIR")
     fi
 done
 
+# Compiles all the single source files.
 for SOURCE in "$SOURCE_DIR"/*.sest; do
     echo "Compiling standalone file '$SOURCE' by sesterl ..."
     "$BIN" build "$SOURCE" -o "$TARGET_DIR"
@@ -40,6 +44,7 @@ for SOURCE in "$SOURCE_DIR"/*.sest; do
     fi
 done
 
+# Checks whether every generated Erlang code successfully compiles.
 for TARGET in "$TARGET_DIR"/*.erl; do
     echo "Compiling '$TARGET' by erlc ..."
     erlc -o "$TARGET_DIR" "$TARGET"
@@ -49,7 +54,7 @@ for TARGET in "$TARGET_DIR"/*.erl; do
     fi
 done
 
-CURDIR=$(pwd)
+# Runs every generated Erlang code that has `main/1`.
 cd "$TARGET_DIR" || exit
 for TARGET in *.erl; do
     NUM="$(grep -c "'main'/1" "$TARGET")"

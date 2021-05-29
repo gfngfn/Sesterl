@@ -3,11 +3,14 @@ module SampleProject = struct
 
   module Server :> sig
     type proc
-    val start_link<$a> : fun({ number : int, name : binary }) -> [$a]option<proc>
+    type error = GenServer.start_link_error
+    val start_link<$a> : fun({number : int, name : binary}) -> [$a]result<proc, error>
     val stop<$a> : fun(proc) -> [$a]unit
     val set_number<$a> : fun(proc, int) -> [$a]unit
     val get_number<$a> : fun(proc, ?timeout int) -> [$a]int
   end = struct
+
+    type error = GenServer.start_link_error
 
     type request_impl =
       | GetNumber
@@ -27,6 +30,8 @@ module SampleProject = struct
       type cast_message = cast_message_impl
       type state = { number : int,  name : binary }
       type init_arg = state
+      type global = unit
+      type stop_reason = RawValue.t
 
       type info =
         | InfoDummy
@@ -91,13 +96,13 @@ module SampleProject = struct
         loop(t - 1, pid)
 
     val main() = act
-      do pid_opt <- Server.start_link({number = 57, name = "Sample Store"}) in
-      case pid_opt of
-      | None ->
-          let _ = print_debug("failed to start a process") in
+      do res <- Server.start_link({number = 57, name = "Sample Store"}) in
+      case res of
+      | Error(reason) ->
+          let _ = print_debug({"failed to start a process", reason}) in
           return({})
 
-      | Some(pid) ->
+      | Ok(pid) ->
           do x <- Server.get_number(pid, ?timeout 1000) in
           let _ = print_debug({"first get", x}) in
           do Server.set_number(pid, 42) in

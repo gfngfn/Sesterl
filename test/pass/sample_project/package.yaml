@@ -2,10 +2,16 @@ package: sample_project
 source_directories:
   - "./"
 
+main_module: "SampleProject"
+
 dependencies:
   - name: "stdlib"
     source:
       type: "local"
       directory: "../../../external/stdlib"
 
-main_module: "SampleProject"
+test_dependencies:
+  - name: "testing"
+    source:
+      type: "local"
+      directory: "../../../external/testing"
