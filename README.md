@@ -67,7 +67,7 @@ $ make
 Invoke:
 
 ```console
-$ sesterl <source-file> -o <output-dir>
+$ sesterl build <source-file> -o <output-dir>
 ```
 
 where `<source-file>` is the path to the source file you want to build (e.g. `trial/hello_world.sest`), and `<output-dir>` is the directory where Erlang source files will be generated (e.g. `trial/_generated`).
