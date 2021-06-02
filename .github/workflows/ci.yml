@@ -47,3 +47,10 @@ jobs:
 
       - name: Run negative blackbox tests
         run: opam exec -- make test-blackbox-negative
+
+      - name: Upload compiler artifact
+        if: ${{ matrix.ocaml-compiler == '4.12.x' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: sesterl-${{matrix.os}}
+          path: sesterl
