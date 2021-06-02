@@ -52,5 +52,5 @@ jobs:
         if: ${{ matrix.ocaml-compiler == '4.12.x' }}
         uses: actions/upload-artifact@v2
         with:
-          name: sesterl-${{matrix.os}}
+          name: sesterl-${{ matrix.os }}
           path: sesterl
