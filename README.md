@@ -56,6 +56,7 @@ $ sesterl --version
 Under the condition that Dune (≥ 2.5) and Make are installed, invoke:
 
 ```
+$ opam install . --deps-only --with-test
 $ make
 ```
 
