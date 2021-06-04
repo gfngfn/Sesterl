@@ -25,7 +25,7 @@ type reading_state = {
 
 
 let main (external_map : external_map) (absdir : absolute_dir) : ((absolute_dir * ConfigLoader.config) list * ConfigLoader.config) =
-  let rec aux (state : reading_state) (vertex : FileDependencyGraph.vertex) (absdir : absolute_dir) : ConfigLoader.config * reading_state =
+  let rec aux ~(requires_test_deps : bool) (state : reading_state) (vertex : FileDependencyGraph.vertex) (absdir : absolute_dir) : ConfigLoader.config * reading_state =
     let config = load_config absdir in
     let pkgname = config.ConfigLoader.package_name in
     match state.loaded_names |> PackageNameMap.find_opt pkgname with
@@ -38,10 +38,12 @@ let main (external_map : external_map) (absdir : absolute_dir) : ((absolute_dir 
         let state = { state with loaded_dirs = loaded_dirs; loaded_names = loaded_names } in
         let state =
           let deps =
-            List.append
+            if requires_test_deps then
+              List.append
+                config.ConfigLoader.dependencies
+                config.ConfigLoader.test_dependencies
+            else
               config.ConfigLoader.dependencies
-              config.ConfigLoader.test_dependencies
-                (* TODO: distinguish packages only for tests from those for the source *)
           in
           deps |> List.fold_left (fun state dependency ->
             let graph = state.graph in
@@ -73,7 +75,7 @@ let main (external_map : external_map) (absdir : absolute_dir) : ((absolute_dir 
               (* If the depended source file has not been parsed yet *)
                 let (graph, vertex_sub) = graph |> FileDependencyGraph.add_vertex absdir_sub in
                 let graph = graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_sub in
-                let (_, state) = aux { state with graph = graph } vertex_sub absdir_sub in
+                let (_, state) = aux ~requires_test_deps:false { state with graph = graph } vertex_sub absdir_sub in
                 state
           ) state
         in
@@ -88,7 +90,7 @@ let main (external_map : external_map) (absdir : absolute_dir) : ((absolute_dir 
         loaded_names = PackageNameMap.empty;
       }
     in
-    aux state vertex absdir
+    aux ~requires_test_deps:true state vertex absdir
   in
   match FileDependencyGraph.topological_sort state.graph with
   | Error(cycle) ->

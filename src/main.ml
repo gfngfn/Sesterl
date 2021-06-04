@@ -86,7 +86,10 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
             let (pkgconfigs, main_config) = PackageLoader.main external_map absdir_in in
             let pkgs =
               pkgconfigs |> List.map (fun (_, config) ->
-                let pkg = SourceLoader.main config in
+                let requires_tests =
+                  String.equal config.ConfigLoader.package_name main_config.ConfigLoader.package_name
+                in
+                let pkg = SourceLoader.main ~requires_tests config in
                 (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.submodules, pkg.SourceLoader.main_module)
               )
             in
