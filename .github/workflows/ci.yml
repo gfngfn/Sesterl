@@ -1,40 +1,46 @@
 name: CI
 
 on:
-  [pull_request, push]
+  - pull_request
+  - push
 
 jobs:
   build:
     name: Build
+
     strategy:
+      fail-fast: false
       matrix:
-        os: [ 'ubuntu-latest', 'macos-latest' ]
-        ocaml-version:
-          - 4.10.1
-          - 4.11.1
+        os:
+          - macos-latest
+          - ubuntu-latest
+        ocaml-compiler:
+          - 4.10.x
+          - 4.11.x
+          - 4.12.x
+
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Setup OCaml ${{ matrix.ocaml-version }}
-        uses: avsm/setup-ocaml@v1
+      - name: Setup OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
         with:
-          ocaml-version: ${{ matrix.ocaml-version }}
-
-      - name: Setup GNU sed
-        if: ${{ matrix.os == 'macos-latest' }}
-        run: brew install gnu-sed
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          dune-cache: ${{ matrix.os != 'macos-latest' }}
+          opam-depext-flags: --with-test
 
       - name: Setup Erlang
         if: ${{ matrix.os == 'macos-latest' }}
         run: brew install erlang
 
+      - name: Install opam packages
+        run: opam install . --deps-only --with-test
+
       - name: Build Sesterl
-        run: |
-          opam pin add sesterl . --no-action
-          opam install . --deps-only --with-doc --with-test
-          opam exec -- make all
+        run: opam exec -- make all
 
       - name: Run positive blackbox tests
         run: opam exec -- make test-blackbox-positive

@@ -56,6 +56,7 @@ $ sesterl --version
 Under the condition that Dune (≥ 2.5) and Make are installed, invoke:
 
 ```
+$ opam install . --deps-only --with-test
 $ make
 ```
 
@@ -67,7 +68,7 @@ $ make
 Invoke:
 
 ```console
-$ sesterl <source-file> -o <output-dir>
+$ sesterl build <source-file> -o <output-dir>
 ```
 
 where `<source-file>` is the path to the source file you want to build (e.g. `trial/hello_world.sest`), and `<output-dir>` is the directory where Erlang source files will be generated (e.g. `trial/_generated`).
@@ -606,16 +607,17 @@ There have been brilliant functional languages that compile to Erlang or BEAM (i
 
 * [*Elixir*](https://elixir-lang.org/) \[Valim et. al. 2011–2020\]
   - Definitely the most well-known AltErlang language, and well-used in productions.
-  - Compiles to BEAM directly.
+  - Compiles to Erlang AST.
   - Untyped (i.e. dynamically typed).
   - Has Ruby-like syntax.
   - Supports Lisp-like meta-programming features by quoting/unquoting.
 * [*Alpaca*](https://github.com/alpaca-lang/alpaca) \[Pierre et. al. 2016–2019\]
   - Statically typed.
+  - Compiles to Core Erlang compiler IR.
   - Has static guarantee about types of messages sent or received between processes.
   - Has OCaml- or Elm-like syntax.
   - Implemented in Erlang.
-* [*Gleam*](https://github.com/gleam-lang/gleam) \[Pilfold et. al. 2019–2020\]
+* [*Gleam*](https://github.com/gleam-lang/gleam) \[Pilfold et. al. 2018–2020\]
   - Statically typed.
   - Compiles to sources in Erlang.
   - Has Rust-like syntax.
