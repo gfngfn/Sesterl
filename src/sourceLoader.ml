@@ -122,7 +122,7 @@ let single (abspath_in : absolute_path) : loaded_module =
         baremod
 
 
-let main (config : ConfigLoader.config) : loaded_package =
+let main ~(requires_tests : bool) (config : ConfigLoader.config) : loaded_package =
   let srcdirs =
     let srcreldirs = config.ConfigLoader.source_directories in
     let confdir = config.ConfigLoader.config_directory in
@@ -138,9 +138,12 @@ let main (config : ConfigLoader.config) : loaded_package =
   let abspaths_test = testdirs |> List.map listup_sources_in_directory |> List.concat in
   let baremods =
     let inputs =
-      List.append
-        (abspaths_src |> List.map (fun abspath -> (abspath, false)))
-        (abspaths_test |> List.map (fun abspath -> (abspath, true)))
+      if requires_tests then
+        List.append
+          (abspaths_src |> List.map (fun abspath -> (abspath, false)))
+          (abspaths_test |> List.map (fun abspath -> (abspath, true)))
+      else
+        abspaths_src |> List.map (fun abspath -> (abspath, false))
     in
     inputs |> List.map (fun (abspath, is_in_test_dirs) ->
       match read_source ~is_in_test_dirs abspath with

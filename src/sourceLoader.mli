@@ -26,7 +26,7 @@ val single : absolute_path -> loaded_module
     May raise [ConfigError(_)] or [SyntaxError(_)].
 *)
 
-val main : ConfigLoader.config -> loaded_package
+val main : requires_tests:bool -> ConfigLoader.config -> loaded_package
 (** Receiving a package configuration value [config],
     [main config] loads all the source files constituting the package into modules,
     and returns [pkg] where:
