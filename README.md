@@ -307,10 +307,6 @@ One of the Sesterl’s largest features is the support for a subset of *F-ing mo
 
 module Mod = struct
 
-  type option<$a> =
-    | None
-    | Some($a)
-
   signature Ord = sig
     type s :: 0
     val compare : fun(s, s) -> int
@@ -346,30 +342,30 @@ end
 The program above is compiled to the following Erlang modules (where line breaks and indentation are manually added for clarity):
 
 ```erlang
--module(mod_int).
+-module('Mod.Int').
 -export([compare/2]).
 
 compare(S13X, S14Y) -> (S14Y - S13X).
 ```
 
 ```erlang
--module(mod_int_map).
+-module('Mod.Int.Map').
 -export([find/2]).
 
 find(S17X, S18Assoc) ->
   case S18Assoc of
     [] ->
-      'none';
+      error;
 
     [{S19K, S20V} | S21Tail] ->
-      case (mod_int:compare(S19K, S17X) == 0) of
-        true  -> {'some', S20V};
-        false -> mod_int_map:find(S17X, S21Tail)
+      case ('Mod.Int':compare(S19K, S17X) == 0) of
+        true  -> {ok, S20V};
+        false -> 'Mod.Int.Map':find(S17X, S21Tail)
       end
   end.
 ```
 
-Note that nested modules are flattened and given lowercased names. This conforms to the naming convention of modules in Erlang.
+Note that nested modules are flattened and given names of the form `'<M_1>.<M_2>. ... .<M_n>'` where each `<M_i>` is a module identifier.
 
 What is more important here is that functors are eliminated *at compilation time*. This is realized by the technique of so-called the *static interpretation* \[Elsman, Henriksen, Annenkov & Oancea 2018\].
 
@@ -436,15 +432,11 @@ Functions written in Erlang can be called from Sesterl via FFI (foreign function
 ````
 module FfiExample = struct
 
-  type option<$a> =
-    | None
-    | Some($a)
-
   val assoc<$a> : fun(int, list<(int, $a)>) -> option<($a, list<(int, $a)>)> = external 2 ```
 assoc(Key, Xs) ->
     case lists:keytake(Key, 1, Xs) of
-        false                 -> none;
-        {value, {_, V}, Rest} -> {some, {V, Rest}}
+        false                 -> error;
+        {value, {_, V}, Rest} -> {ok, {V, Rest}}
     end.
   ```
 
@@ -463,17 +455,17 @@ end
 This program compiles to the following implementation:
 
 ```erlang
--module(ffi_example).
+-module('FfiExample').
 -export([assoc/2, main/0]).
 
 assoc(Key, Xs) ->
   case lists:keytake(Key, 1, Xs) of
-    false                 -> none;
-    {value, {_, V}, Rest} -> {some, {V, Rest}}
+    false                 -> error;
+    {value, {_, V}, Rest} -> {ok, {V, Rest}}
   end.
 
 main() ->
-  ffi_example:assoc(1, [
+  'FfiExample':assoc(1, [
     {3, <<"Komaba">>},
     {1, <<"Hongo">>},
     {4, <<"Yayoi">>},
