@@ -677,10 +677,14 @@ exprbot:
       let rng = make_range (Token(tokL)) (Token(tokR)) in
       (rng, BinaryByList(ns))
     }
-  | strlit=BINARY {
-      let (rng, s) = strlit in
+  | binlit=BINARY {
+      let (rng, s) = binlit in
       (rng, BaseConst(BinaryByString(s)))
     }
+  | strblock=STRING_BLOCK {
+      let (rng, s) = strblock in
+      (rng, BaseConst(String(s)))
+  }
   | strlit=STRING {
       let (rng, s) = strlit in
       (rng, BaseConst(String(s)))
