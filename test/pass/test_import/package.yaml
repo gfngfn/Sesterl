@@ -1,0 +1,5 @@
+package: test_import
+source_directories:
+  - "./"
+
+main_module: "ImportDepending"

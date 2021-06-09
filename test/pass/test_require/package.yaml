@@ -1,5 +1,0 @@
-package: test_require
-source_directories:
-  - "./"
-
-main_module: "RequireDepending"
