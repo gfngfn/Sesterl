@@ -683,7 +683,7 @@ exprbot:
     }
   | strblock=STRING_BLOCK {
       let (rng, s) = strblock in
-      (rng, BaseConst(String(s)))
+      (rng, BaseConst(BinaryByString(s)))
   }
   | strlit=STRING {
       let (rng, s) = strlit in
