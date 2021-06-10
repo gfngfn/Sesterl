@@ -308,7 +308,7 @@ One of the Sesterl’s largest features is the support for a subset of *F-ing mo
 module Mod = struct
 
   signature Ord = sig
-    type s :: 0
+    type s :: o
     val compare : fun(s, s) -> int
   end
 
