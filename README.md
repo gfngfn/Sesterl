@@ -228,7 +228,7 @@ val reverse<$a>(xs : list<$a>) : list<$a> =
   in
   aux([], xs)
 
-val rec tree_size(t : bintree<$a>) =
+val rec tree_size<$a>(t : bintree<$a>) =
   case t of
   | Empty           -> 0
   | Node(_, t1, t2) -> 1 + tree_size(t1) + tree_size(t2)
