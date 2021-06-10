@@ -349,7 +349,7 @@ compare(S13X, S14Y) -> (S14Y - S13X).
 ```
 
 ```erlang
--module('Mod.Int.Map').
+-module('Mod.IntMap').
 -export([find/2]).
 
 find(S17X, S18Assoc) ->
@@ -360,7 +360,7 @@ find(S17X, S18Assoc) ->
     [{S19K, S20V} | S21Tail] ->
       case ('Mod.Int':compare(S19K, S17X) == 0) of
         true  -> {ok, S20V};
-        false -> 'Mod.Int.Map':find(S17X, S21Tail)
+        false -> 'Mod.IntMap':find(S17X, S21Tail)
       end
   end.
 ```
