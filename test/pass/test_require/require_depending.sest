@@ -1,8 +1,0 @@
-import RequireDepended
-
-module RequireDepending = struct
-
-  val main(args) =
-    print_debug(RequireDepended.hello())
-
-end

@@ -677,7 +677,7 @@ Also, though not supporting them currently, we want to add features like the fol
   * [x] Compilation using the static interpretation
   * [x] First-class modules
 * [x] Configuration
-  * [x] Loading external modules by `require`
+  * [x] Loading external modules by `import`
   * [x] Package system
   * [x] Embedding external modules as submodules
   * [x] Connection with Rebar3
