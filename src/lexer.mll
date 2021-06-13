@@ -212,8 +212,17 @@ rule token = parse
     }
 
   | ("`"+ break) {
+      (* When first character in a string block is a line break,
+         ignore this line break *)
       let posL = Range.from_lexbuf lexbuf in
       let num_start = String.length (Lexing.lexeme lexbuf) - 1 in
+      let strbuf = Buffer.create 128 in
+      string_block num_start posL strbuf lexbuf
+    }
+
+  | ("`"+) {
+      let posL = Range.from_lexbuf lexbuf in
+      let num_start = String.length (Lexing.lexeme lexbuf) in
       let strbuf = Buffer.create 128 in
       string_block num_start posL strbuf lexbuf
     }
