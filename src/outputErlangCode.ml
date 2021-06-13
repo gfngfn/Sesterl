@@ -167,9 +167,9 @@ let stringify_base_constant (bc : base_constant) =
       else
         assert false
 
-  | BinaryByString(s) -> Printf.sprintf "<<\"%s\">>" (String.escaped s)
+  | BinaryByString(s) -> Printf.sprintf "<<\"%s\"/utf8>>" s
   | BinaryByInts(ns)  -> Printf.sprintf "<<%s>>" (ns |> List.map string_of_int |> String.concat ", ")
-  | String(s)         -> Printf.sprintf "\"%s\"" (String.escaped s)
+  | String(s)         -> Printf.sprintf "\"%s\"" s
   | Char(uchar)       -> Printf.sprintf "%d" (Uchar.to_int uchar)
 
   | FormatString(fmtelems) ->
