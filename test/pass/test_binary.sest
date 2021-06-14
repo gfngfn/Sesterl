@@ -1,11 +1,9 @@
 module TestBinary = struct
 
-  val check : fun({binary, binary, binary, binary}) -> fun(binary, int) -> unit = external 1 ```
+  val check : fun({binary, binary, binary, binary}) -> {binary, binary, binary, binary} = external 1 ```
     check(X) ->
-        fun(FileName, LineNumber) ->
-            {<<"👩‍🔬"/utf8>>,<<"\n"/utf8>>,<<33, 96, 92, 92>>,<<111, 110, 101, 10, 116, 119, 111>>} = X,
-            ok
-        end.
+        {<<"👩‍🔬"/utf8>>,<<"\n"/utf8>>,<<33, 96, 92, 92>>,<<111, 110, 101, 10, 116, 119, 111>>} = X,
+        X.
     ```
 
   val main(args) =
@@ -17,6 +15,6 @@ one
 two```
     in
     let result = {woman_scientist, newline, raw, multiline} in
-    print_debug(assert check({woman_scientist, newline, raw, multiline}))
+    print_debug(check({woman_scientist, newline, raw, multiline}))
 
 end
