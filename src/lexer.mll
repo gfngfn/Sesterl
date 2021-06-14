@@ -216,7 +216,7 @@ rule token = parse
          ignore this line break *)
       Lexing.new_line lexbuf;
       let posL = Range.from_lexbuf lexbuf in
-      let num_start = String.length (Lexing.lexeme lexbuf) - 1 in
+      let num_start = String.length (String.trim (Lexing.lexeme lexbuf)) in
       let strbuf = Buffer.create 128 in
       string_block num_start posL strbuf lexbuf
     }
