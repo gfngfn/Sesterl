@@ -199,8 +199,6 @@ rule token = parse
       let posL = Range.from_lexbuf lexbuf in
       let strbuf = Buffer.create 128 in
       let (rng, s) = binary_literal posL strbuf lexbuf in
-      (* TODO: handle multi-codepoint unicode characters e.g. 🤷🏽‍♀️
-         (raise_error NotASingleCodePoint or convert somehow) *)
       BINARY(rng, s)
     }
 
@@ -208,6 +206,8 @@ rule token = parse
       let posL = Range.from_lexbuf lexbuf in
       let strbuf = Buffer.create 128 in
       let (rng, s) = string_literal posL strbuf lexbuf in
+      (* TODO: handle multi-codepoint unicode characters e.g. 🤷🏽‍♀️
+         (raise_error NotASingleCodePoint or convert somehow) *)
       STRING(rng, s)
     }
 
