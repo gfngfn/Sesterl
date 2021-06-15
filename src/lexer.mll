@@ -233,6 +233,7 @@ rule token = parse
 and binary_literal posL strbuf = parse
   | break  { raise_error (SeeBreakInStringLiteral(posL)) }
   | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
+  | "\\\\" { Buffer.add_char strbuf '\\'; Buffer.add_char strbuf '\\'; binary_literal posL strbuf lexbuf }
   | "\\\"" { Buffer.add_char strbuf '\\'; Buffer.add_char strbuf '"'; binary_literal posL strbuf lexbuf }
   | "\""   { let posR = Range.from_lexbuf lexbuf in (Range.unite posL posR, Buffer.contents strbuf) }
   | _ as c { Buffer.add_char strbuf c; binary_literal posL strbuf lexbuf }
@@ -240,6 +241,7 @@ and binary_literal posL strbuf = parse
 and string_literal posL strbuf = parse
   | break  { raise_error (SeeBreakInStringLiteral(posL)) }
   | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
+  | "\\\\" { Buffer.add_char strbuf '\\'; Buffer.add_char strbuf '\\'; binary_literal posL strbuf lexbuf }
   | "\\\'" { Buffer.add_char strbuf '\\'; Buffer.add_char strbuf '\''; string_literal posL strbuf lexbuf }
   | "\\\"" { Buffer.add_char strbuf '\\'; Buffer.add_char strbuf '\"'; string_literal posL strbuf lexbuf }
   | "\""   { Buffer.add_char strbuf '\\'; Buffer.add_char strbuf '\"'; string_literal posL strbuf lexbuf }
