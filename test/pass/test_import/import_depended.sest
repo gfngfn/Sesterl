@@ -1,4 +1,4 @@
-module RequireDepended = struct
+module ImportDepended = struct
 
   val hello() =
     "Hello"

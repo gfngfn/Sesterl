@@ -1,0 +1,8 @@
+import ImportDepended
+
+module ImportDepending = struct
+
+  val main(args) =
+    print_debug(ImportDepended.hello())
+
+end

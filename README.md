@@ -242,7 +242,7 @@ val reverse<$a>(xs : list<$a>) : list<$a> =
   in
   aux([], xs)
 
-val rec tree_size(t : bintree<$a>) =
+val rec tree_size<$a>(t : bintree<$a>) =
   case t of
   | Empty           -> 0
   | Node(_, t1, t2) -> 1 + tree_size(t1) + tree_size(t2)
@@ -322,7 +322,7 @@ One of the Sesterl’s largest features is the support for a subset of *F-ing mo
 module Mod = struct
 
   signature Ord = sig
-    type s :: 0
+    type s :: o
     val compare : fun(s, s) -> int
   end
 
@@ -363,7 +363,7 @@ compare(S13X, S14Y) -> (S14Y - S13X).
 ```
 
 ```erlang
--module('Mod.Int.Map').
+-module('Mod.IntMap').
 -export([find/2]).
 
 find(S17X, S18Assoc) ->
@@ -374,7 +374,7 @@ find(S17X, S18Assoc) ->
     [{S19K, S20V} | S21Tail] ->
       case ('Mod.Int':compare(S19K, S17X) == 0) of
         true  -> {ok, S20V};
-        false -> 'Mod.Int.Map':find(S17X, S21Tail)
+        false -> 'Mod.IntMap':find(S17X, S21Tail)
       end
   end.
 ```
@@ -691,7 +691,7 @@ Also, though not supporting them currently, we want to add features like the fol
   * [x] Compilation using the static interpretation
   * [x] First-class modules
 * [x] Configuration
-  * [x] Loading external modules by `require`
+  * [x] Loading external modules by `import`
   * [x] Package system
   * [x] Embedding external modules as submodules
   * [x] Connection with Rebar3
