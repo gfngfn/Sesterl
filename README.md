@@ -95,23 +95,29 @@ Here, `sesterl` is a name space of Rebar3 commands for compiling Sesterl program
 
 ## Example code
 
-Example usages can be seen in the following directories:
+Example usages can be seen in the following:
 
-* [`test/pass/`](https://github.com/gfngfn/Sesterl/tree/master/test/pass)
+* [`examples/` in this repository](https://github.com/gfngfn/Sesterl/tree/master/examples)
+* [`test/pass/` in this repository](https://github.com/gfngfn/Sesterl/tree/master/test/pass)
+* [`game_tianjiupai`](https://github.com/gfngfn/game_tianjiupai)
 
 
 ## Libraries
 
-* [`stdlib`](https://github.com/gfngfn/sesterl_stdlib)
+* [`sesterl_stdlib`](https://github.com/gfngfn/sesterl_stdlib)
   - The standard library for Sesterl.
   - Contains modules for manipulating basic values and collections (e.g. `Binary`, `List`).
   - Contains modules for constructing OTP-compliant processes (e.g. `GenServer`, `Supervisor`).
-* [`testing`](https://github.com/gfngfn/sesterl_testing)
-  - A Testing library for Sesterl.
+* [`sesterl_testing`](https://github.com/gfngfn/sesterl_testing)
+  - A testing library for Sesterl.
   - Uses [*EUnit*](http://erlang.org/doc/apps/eunit/chapter.html).
   - Tests written by this module can be run by `rebar3 sesterl compile && rebar3 eunit`.
-* [`cowboy`](https://github.com/gfngfn/sesterl_cowboy)
-  - A Wrapper for [*Cowboy*](https://github.com/ninenines/cowboy).
+* [`sesterl_cowboy`](https://github.com/gfngfn/sesterl_cowboy)
+  - A small wrapper for [*Cowboy*](https://github.com/ninenines/cowboy).
+* [`sesterl_json`](https://github.com/gfngfn/sesterl_json)
+  - A JSON-handling library.
+  - Has APIs similar to those of Elm’s [`elm/json`](https://package.elm-lang.org/packages/elm/json/latest/).
+  - Uses [*jsone*](https://github.com/sile/jsone) internally.
 
 
 ## Features
@@ -196,10 +202,6 @@ type name = binary
 
 type with_number<$a> = {$a, int}
 
-type option<$a> =
-  | None
-  | Some($a)
-
 type bintree<$b> =
   | Node($b, bintree<$b>, bintree<$b>)
   | Empty
@@ -209,9 +211,21 @@ Here, `{$a, int}` is an example use of standard product types.
 
 As can be seen from the example above, type names start with a lowercase letter, constructors do with an uppercase one, and type variables are denoted by using a preceding `$`.
 
-Each application of a constructor `Ctor(e_1, …, e_n)` will be compiled to a tuple `{ctor, e_1, …, e_n}` in Erlang where `ctor` is a lowercased atom corresponding to `Ctor`.
+Each application of a constructor `Ctor(e_1, …, e_n)` will be compiled to a tuple `{ctor, e_1, …, e_n}` in Erlang where `ctor` is basically a lowercased atom corresponding to `Ctor`. You can, however, change what atoms are generated for constructors by using `#[atom(...)]` attribute:
 
-List-generating constructors, `[]` (nil) and `::` (cons), are also supported by default, of course.
+```
+type bintree<$b>
+  | #[atom("branch")] Node($b, bintree<$b>, bintree<$b>)
+  | #[atom("leaf")]   Empty
+```
+
+List-generating constructors, `[]` (nil) and `::` (cons), are also supported by default. Optionals are also provided by default as follows:
+
+```
+type option<$a> =
+  | #[atom("error")] None
+  | #[atom("ok")]    Some($a)
+```
 
 
 ### Pattern matching
