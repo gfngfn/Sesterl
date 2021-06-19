@@ -33,6 +33,14 @@
     Buffer.clear strbuf;
     FormatConst(s)
 
+
+  let escape_sequence c rngL = match c with
+    | 'n' -> '\n'
+    | 'r' -> '\r'
+    | 't' -> '\t'
+    | '\\' | '"' | '\'' -> c
+    | _ -> raise_error (UnknownEscapeSequence(rngL))
+
 }
 
 let space = [' ' '\t']
@@ -143,8 +151,6 @@ rule token = parse
       let (rng, s) = string_literal posL strbuf lexbuf in
       match MyUtil.Utf.uchar_of_utf8 s with
       | [ uchar ] -> CHAR(rng, uchar)
-      (* TODO: (?) allow escape sequences in char literal,
-         e.g. $'\n' (erlang $\n) or $'\x{10ffff}' (erlang $\x{10ffff}) *)
       | _         -> raise_error (NotASingleCodePoint(rng))
     }
 
@@ -206,8 +212,6 @@ rule token = parse
       let posL = Range.from_lexbuf lexbuf in
       let strbuf = Buffer.create 128 in
       let (rng, s) = string_literal posL strbuf lexbuf in
-      (* TODO: handle multi-codepoint unicode characters e.g. 🤷🏽‍♀️
-         (raise_error NotASingleCodePoint or convert somehow) *)
       STRING(rng, s)
     }
 
@@ -233,18 +237,18 @@ rule token = parse
 and binary_literal posL strbuf = parse
   | break  { raise_error (SeeBreakInStringLiteral(posL)) }
   | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
-  | "\\\\" { Buffer.add_char strbuf '\\'; Buffer.add_char strbuf '\\'; binary_literal posL strbuf lexbuf }
-  | "\\\"" { Buffer.add_char strbuf '\\'; Buffer.add_char strbuf '"'; binary_literal posL strbuf lexbuf }
+  | ("\\" (_ as c)) {
+      Buffer.add_char strbuf (escape_sequence c posL); binary_literal posL strbuf lexbuf
+    }
   | "\""   { let posR = Range.from_lexbuf lexbuf in (Range.unite posL posR, Buffer.contents strbuf) }
   | _ as c { Buffer.add_char strbuf c; binary_literal posL strbuf lexbuf }
 
 and string_literal posL strbuf = parse
   | break  { raise_error (SeeBreakInStringLiteral(posL)) }
   | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
-  | "\\\\" { Buffer.add_char strbuf '\\'; Buffer.add_char strbuf '\\'; binary_literal posL strbuf lexbuf }
-  | "\\\'" { Buffer.add_char strbuf '\\'; Buffer.add_char strbuf '\''; string_literal posL strbuf lexbuf }
-  | "\\\"" { Buffer.add_char strbuf '\\'; Buffer.add_char strbuf '\"'; string_literal posL strbuf lexbuf }
-  | "\""   { Buffer.add_char strbuf '\\'; Buffer.add_char strbuf '\"'; string_literal posL strbuf lexbuf }
+  | ("\\" (_ as c)) {
+      Buffer.add_char strbuf (escape_sequence c posL); binary_literal posL strbuf lexbuf
+    }
   | "\'"   { let posR = Range.from_lexbuf lexbuf in (Range.unite posL posR, Buffer.contents strbuf) }
   | _ as c { Buffer.add_char strbuf c; string_literal posL strbuf lexbuf }
 

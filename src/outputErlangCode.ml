@@ -151,6 +151,9 @@ let stringify_format_element = function
       in
       (1, Printf.sprintf "~%s%s" s ch)
 
+let escape_string s =
+  (* TODO *)
+  s
 
 let stringify_base_constant (bc : base_constant) =
   match bc with
@@ -167,9 +170,9 @@ let stringify_base_constant (bc : base_constant) =
       else
         assert false
 
-  | BinaryByString(s) -> Printf.sprintf "<<\"%s\"/utf8>>" s
+  | BinaryByString(s) -> Printf.sprintf "<<\"%s\"/utf8>>" (escape_string s)
   | BinaryByInts(ns)  -> Printf.sprintf "<<%s>>" (ns |> List.map string_of_int |> String.concat ", ")
-  | String(s)         -> Printf.sprintf "\"%s\"" s
+  | String(s)         -> Printf.sprintf "\"%s\"" (escape_string s)
   | Char(uchar)       -> Printf.sprintf "%d" (Uchar.to_int uchar)
 
   | FormatString(fmtelems) ->

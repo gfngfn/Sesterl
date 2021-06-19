@@ -76,6 +76,10 @@ let report_lexer_error (e : lexer_error) : unit =
       Format.printf "%a: not a single code point\n"
         Range.pp rng
 
+  | UnknownEscapeSequence(rngL) ->
+      Format.printf "%a: unknown escape sequence \n"
+        Range.pp rngL
+
 
 let report_config_error (e : config_error) : unit =
   Format.printf "! [Build error] ";
