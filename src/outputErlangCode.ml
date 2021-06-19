@@ -151,9 +151,21 @@ let stringify_format_element = function
       in
       (1, Printf.sprintf "~%s%s" s ch)
 
+let escape_character c =
+  match Uchar.to_int c with
+  | 10 -> [ Uchar.of_char '\\'; Uchar.of_char 'n' ]
+  | 13 -> [ Uchar.of_char '\\'; Uchar.of_char '\r' ]
+  | 9  -> [ Uchar.of_char '\\'; Uchar.of_char '\t' ]
+  | 92 -> [ Uchar.of_char '\\'; Uchar.of_char '\\' ]
+  | 34 -> [ Uchar.of_char '\\'; Uchar.of_char '"' ]
+  | 39 -> [ Uchar.of_char '\\'; Uchar.of_char '\'' ]
+  | _ -> [c]
+
 let escape_string s =
-  (* TODO *)
-  s
+  let escaped =
+    s |> MyUtil.Utf.uchar_of_utf8 |> List.map escape_character |> List.flatten
+  in
+  String.concat "" escaped (* TODO this doesnt' compile, how to fix this? *)
 
 let stringify_base_constant (bc : base_constant) =
   match bc with
