@@ -247,7 +247,7 @@ and string_literal posL strbuf = parse
   | break  { raise_error (SeeBreakInStringLiteral(posL)) }
   | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
   | ("\\" (_ as c)) {
-      Buffer.add_char strbuf (escape_sequence c posL); binary_literal posL strbuf lexbuf
+      Buffer.add_char strbuf (escape_sequence c posL); string_literal posL strbuf lexbuf
     }
   | "\'"   { let posR = Range.from_lexbuf lexbuf in (Range.unite posL posR, Buffer.contents strbuf) }
   | _ as c { Buffer.add_char strbuf c; string_literal posL strbuf lexbuf }
