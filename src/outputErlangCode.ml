@@ -162,10 +162,9 @@ let escape_character c =
   | _ -> [c]
 
 let escape_string s =
-  let escaped =
-    s |> MyUtil.Utf.uchar_of_utf8 |> List.map escape_character |> List.flatten
-  in
-  String.concat "" escaped (* TODO this doesnt' compile, how to fix this? *)
+  let buffer = Buffer.create 0 in
+  s |> MyUtil.Utf.uchar_of_utf8 |> List.map escape_character |> List.flatten |> List.iter (Buffer.add_utf_8_uchar buffer);
+  Buffer.contents buffer
 
 let stringify_base_constant (bc : base_constant) =
   match bc with
