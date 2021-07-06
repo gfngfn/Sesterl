@@ -154,8 +154,8 @@ let stringify_format_element = function
 let escape_character c =
   match Uchar.to_int c with
   | 10 -> [ Uchar.of_char '\\'; Uchar.of_char 'n' ]
-  | 13 -> [ Uchar.of_char '\\'; Uchar.of_char '\r' ]
-  | 9  -> [ Uchar.of_char '\\'; Uchar.of_char '\t' ]
+  | 13 -> [ Uchar.of_char '\\'; Uchar.of_char 'r' ]
+  | 9  -> [ Uchar.of_char '\\'; Uchar.of_char 't' ]
   | 92 -> [ Uchar.of_char '\\'; Uchar.of_char '\\' ]
   | 34 -> [ Uchar.of_char '\\'; Uchar.of_char '"' ]
   | 39 -> [ Uchar.of_char '\\'; Uchar.of_char '\'' ]
