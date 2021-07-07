@@ -33,6 +33,14 @@
     Buffer.clear strbuf;
     FormatConst(s)
 
+
+  let escape_sequence c rngL = match c with
+    | 'n' -> '\n'
+    | 'r' -> '\r'
+    | 't' -> '\t'
+    | '\\' | '"' | '\'' -> c
+    | _ -> raise_error (UnknownEscapeSequence(rngL))
+
 }
 
 let space = [' ' '\t']
@@ -207,7 +215,17 @@ rule token = parse
       STRING(rng, s)
     }
 
-  | ("`" +) {
+  | ("`"+ break) {
+      (* When first character in a string block is a line break,
+         ignore this line break *)
+      Lexing.new_line lexbuf;
+      let posL = Range.from_lexbuf lexbuf in
+      let num_start = String.length (String.trim (Lexing.lexeme lexbuf)) in
+      let strbuf = Buffer.create 128 in
+      string_block num_start posL strbuf lexbuf
+    }
+
+  | ("`"+) {
       let posL = Range.from_lexbuf lexbuf in
       let num_start = String.length (Lexing.lexeme lexbuf) in
       let strbuf = Buffer.create 128 in
@@ -219,15 +237,19 @@ rule token = parse
 and binary_literal posL strbuf = parse
   | break  { raise_error (SeeBreakInStringLiteral(posL)) }
   | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
+  | ("\\" (_ as c)) {
+      Buffer.add_char strbuf (escape_sequence c posL); binary_literal posL strbuf lexbuf
+    }
   | "\""   { let posR = Range.from_lexbuf lexbuf in (Range.unite posL posR, Buffer.contents strbuf) }
-  | "\\\"" { Buffer.add_char strbuf '"'; binary_literal posL strbuf lexbuf }
   | _ as c { Buffer.add_char strbuf c; binary_literal posL strbuf lexbuf }
 
 and string_literal posL strbuf = parse
   | break  { raise_error (SeeBreakInStringLiteral(posL)) }
   | eof    { raise_error (SeeEndOfFileInStringLiteral(posL)) }
+  | ("\\" (_ as c)) {
+      Buffer.add_char strbuf (escape_sequence c posL); string_literal posL strbuf lexbuf
+    }
   | "\'"   { let posR = Range.from_lexbuf lexbuf in (Range.unite posL posR, Buffer.contents strbuf) }
-  | "\\\'" { Buffer.add_char strbuf '\''; string_literal posL strbuf lexbuf }
   | _ as c { Buffer.add_char strbuf c; string_literal posL strbuf lexbuf }
 
 and format_literal posL strbuf acc = parse

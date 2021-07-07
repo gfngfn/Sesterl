@@ -30,6 +30,7 @@ type lexer_error =
   | BlockClosedWithTooManyBackQuotes of Range.t
   | SeeBreakInStringLiteral          of Range.t
   | NotASingleCodePoint              of Range.t
+  | UnknownEscapeSequence            of Range.t
 
 type syntax_error =
   | LexerError of lexer_error

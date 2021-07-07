@@ -151,6 +151,20 @@ let stringify_format_element = function
       in
       (1, Printf.sprintf "~%s%s" s ch)
 
+let escape_character c =
+  match Uchar.to_int c with
+  | 10 -> [ Uchar.of_char '\\'; Uchar.of_char 'n' ]
+  | 13 -> [ Uchar.of_char '\\'; Uchar.of_char 'r' ]
+  | 9  -> [ Uchar.of_char '\\'; Uchar.of_char 't' ]
+  | 92 -> [ Uchar.of_char '\\'; Uchar.of_char '\\' ]
+  | 34 -> [ Uchar.of_char '\\'; Uchar.of_char '"' ]
+  | 39 -> [ Uchar.of_char '\\'; Uchar.of_char '\'' ]
+  | _ -> [c]
+
+let escape_string s =
+  let buffer = Buffer.create 0 in
+  s |> MyUtil.Utf.uchar_of_utf8 |> List.map escape_character |> List.flatten |> List.iter (Buffer.add_utf_8_uchar buffer);
+  Buffer.contents buffer
 
 let stringify_base_constant (bc : base_constant) =
   match bc with
@@ -167,9 +181,9 @@ let stringify_base_constant (bc : base_constant) =
       else
         assert false
 
-  | BinaryByString(s) -> Printf.sprintf "<<\"%s\">>" (String.escaped s)
+  | BinaryByString(s) -> Printf.sprintf "<<\"%s\"/utf8>>" (escape_string s)
   | BinaryByInts(ns)  -> Printf.sprintf "<<%s>>" (ns |> List.map string_of_int |> String.concat ", ")
-  | String(s)         -> Printf.sprintf "\"%s\"" (String.escaped s)
+  | String(s)         -> Printf.sprintf "\"%s\"" (escape_string s)
   | Char(uchar)       -> Printf.sprintf "%d" (Uchar.to_int uchar)
 
   | FormatString(fmtelems) ->

@@ -1,0 +1,30 @@
+module TestBinary = struct
+
+  val check : fun({binary, binary, binary, binary, binary}) -> {binary, binary, binary, binary, binary} = external 1 ```
+    check({A, B, C, D, E}) ->
+      <<240,159,145,169,226,128,141,240,159,148,172>> = A,
+      <<"👩‍🔬"/utf8>> = A,
+      <<10,13,9,34,39,92>> = B,
+      <<"\n\r\t\"\'\\"/utf8>> = B,
+      <<39>> = C,
+      <<"\'"/utf8>> = C,
+      <<33,34,39,96,92,92>> = D,
+      <<"!\"\'`\\\\"/utf8>> = D,
+      <<111,110,101,10,116,119,111>> = E,
+      <<"one\ntwo"/utf8>> = E,
+      {A, B, C, D, E}.
+    ```
+
+  val main(args) =
+    let woman_scientist = "👩‍🔬" in
+    let escape_sequences = "\n\r\t\"\'\\" in
+    let single_quote = "'" in
+    let raw = ``!"'`\\`` in
+    let multiline = ```
+one
+two```
+    in
+    let examples = {woman_scientist, escape_sequences, single_quote, raw, multiline} in
+    print_debug(check(examples))
+
+end
