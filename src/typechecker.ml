@@ -2026,6 +2026,8 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
   | PBool(b) -> immediate (BaseType(BoolType)) (IPBool(b))
   | PInt(n)  -> immediate (BaseType(IntType)) (IPInt(n))
 
+  | PBinary(s) -> immediate (BaseType(BinaryType)) (IPBinary(s))
+
   | PChar(uchar) ->
       immediate (BaseType(CharType)) (IPChar(uchar))
 

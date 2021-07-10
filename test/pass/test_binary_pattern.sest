@@ -1,0 +1,13 @@
+module TestBinaryPattern = struct
+
+  val check(s) =
+    case s of
+    | "one" -> Some(1)
+    | "two" -> Some(2)
+    | _     -> None
+    end
+
+  val main(args) =
+    print_debug({check("one"), check("two"), check("other")})
+
+end
