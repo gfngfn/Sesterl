@@ -3554,7 +3554,7 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
       let (_, tynm) = tyident in
       let dependencies = get_dependency_on_synonym_types vertices pre mtyreal in
       graph |> SynonymNameSet.fold (fun tynm_dep graph ->
-        graph |> DependencyGraph.add_edge tynm tynm_dep
+        graph |> DependencyGraph.add_edge ~depended:tynm_dep ~depending:tynm
       ) dependencies
     ) graph
   in
@@ -3570,6 +3570,7 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
   (* Add the definition of the synonym types to the type environment. *)
   let (tyenv, tydefacc) =
     syns |> List.fold_left (fun (tyenv, tydefacc) syn ->
+      let pre = { pre with tyenv = tyenv } in
       let (tynm, syndata) = syn in
       let
         DependencyGraph.{

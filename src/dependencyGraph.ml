@@ -45,7 +45,7 @@ let get_vertex_token (map : (data * GraphImpl.V.t) IDMap.t) (tynm : type_name) :
   | Some(_, vertex) -> vertex
 
 
-let add_edge (tynm1 : type_name) (tynm2 : type_name) (graph : t) : t =
+let add_edge ~depended:(tynm1 : type_name) ~depending:(tynm2 : type_name) (graph : t) : t =
   let map = graph.labels in
   let vertex1 = get_vertex_token map tynm1 in
   let vertex2 = get_vertex_token map tynm2 in
