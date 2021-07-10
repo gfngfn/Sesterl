@@ -27,6 +27,10 @@ type unification_result =
   | Inclusion     of FreeID.t
   | InclusionRow  of FreeRowID.t
 
+type rec_morph =
+  | MonoRec of mono_type
+  | PolyRec of poly_type
+
 type pre = {
   level : int;
   tyenv : Typeenv.t;
@@ -1024,6 +1028,83 @@ and unify_effect (Effect(tyact) : mono_effect) (Effect(tyexp) : mono_effect) : u
   | Contradiction      -> raise_error (ContradictionError(tyact, tyexp))
   | Inclusion(fid)     -> raise_error (InclusionError(fid, tyact, tyexp))
   | InclusionRow(frid) -> raise_error (InclusionRowError(frid, tyact, tyexp))
+
+
+and make_rec_initial_type_from_annotation (pre : pre) (letbind : untyped_let_binding) : poly_type option =
+  let (rngv, _) = letbind.vb_identifier in
+  let ordparams = letbind.vb_parameters in
+  let mndparams = letbind.vb_mandatories in
+  let optparams = letbind.vb_optionals in
+
+  (* First, add local type/row parameters at level `levS`. *)
+  let pre =
+    let (pre, _assoc) = make_type_parameter_assoc pre letbind.vb_forall in
+    let levS = pre.level + 1 in
+    let pre = { pre with level = levS } in
+    pre |> add_local_row_parameter letbind.vb_forall_row
+  in
+  let open OptionMonad in
+
+  ordparams |> List.fold_left (fun opt ordparam ->
+    opt >>= fun tyacc ->
+    let (_, mtyopt) = ordparam in
+    mtyopt |> Option.map (fun mty ->
+      let ty = decode_manual_type pre mty in
+      Alist.extend tyacc ty
+    )
+  ) (Some(Alist.empty)) >>= fun ordtyacc ->
+
+  mndparams |> List.fold_left (fun opt mndparam ->
+    opt >>= fun labmap ->
+    let ((rnglabel, label), (_, mtyopt)) = mndparam in
+    if labmap |> LabelAssoc.mem label then
+      raise_error (DuplicatedLabel(rnglabel, label))
+    else
+      mtyopt |> Option.map (fun mty ->
+        let ty = decode_manual_type pre mty in
+        labmap |> LabelAssoc.add label ty
+      )
+  ) (Some(LabelAssoc.empty)) >>= fun mndlabmap ->
+
+  optparams |> List.fold_left (fun opt optparam ->
+    opt >>= fun labmap ->
+    let (((rnglabel, label), (_, mtyopt)), _) = optparam in
+    if labmap |> LabelAssoc.mem label then
+      raise_error (DuplicatedLabel(rnglabel, label))
+    else
+      mtyopt |> Option.map (fun mty ->
+        let ty = decode_manual_type pre mty in
+        labmap |> LabelAssoc.add label ty
+      )
+  ) (Some(LabelAssoc.empty)) >>= fun optlabmap ->
+
+  let domty =
+    {
+      ordered   = Alist.to_list ordtyacc;
+      mandatory = mndlabmap;
+      optional  = FixedRow(optlabmap);
+    }
+  in
+  let tyopt =
+    match letbind.vb_return with
+    | Pure((mtyopt, _)) ->
+        mtyopt |> Option.map (fun mtycod ->
+          let tycod = decode_manual_type pre mtycod in
+          (rngv, FuncType(domty, tycod))
+        )
+
+    | Effectful((mtypairopt, _)) ->
+        mtypairopt |> Option.map (fun (mtyeff, mtycod) ->
+          let tyeff = decode_manual_type pre mtyeff in
+          let tycod = decode_manual_type pre mtycod in
+          (rngv, EffType(domty, Effect(tyeff), tycod))
+        )
+  in
+  tyopt |> Option.map (fun ty ->
+    match TypeConv.generalize pre.level ty with
+    | Ok(pty)             -> pty
+    | Error((cycle, pty)) -> assert false (* Type parameters occurring in handwritten kinds cannot be cyclic. *)
+  )
 
 
 and make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder list) : pre * type_parameter_assoc =
@@ -2149,16 +2230,25 @@ fun namesf proj pre letbinds ->
       let (rngv, x) = letbind.vb_identifier in
       let (name_inner, name_outer) = namesf letbind in
       let levS = pre.level + 1 in
-      let tyf = fresh_type_variable ~name:x levS UniversalKind rngv in
-      let tyenv = tyenv |> Typeenv.add_value x (TypeConv.lift tyf) (proj name_inner) in
-      (Alist.extend tupleacc (letbind, name_inner, name_outer, tyf), tyenv)
+      let (tyenv, morph) =
+        match make_rec_initial_type_from_annotation pre letbind with
+        | Some(pty) ->
+            let tyenv = tyenv |> Typeenv.add_value x pty (proj name_inner) in
+            (tyenv, PolyRec(pty))
+
+        | None ->
+            let tyf = fresh_type_variable ~name:x levS UniversalKind rngv in
+            let tyenv = tyenv |> Typeenv.add_value x (TypeConv.lift tyf) (proj name_inner) in
+            (tyenv, MonoRec(tyf))
+      in
+      (Alist.extend tupleacc (letbind, name_inner, name_outer, morph), tyenv)
     ) (Alist.empty, pre.tyenv)
   in
 
   let pre = { pre with tyenv } in
   let bindacc =
-    tupleacc |> Alist.to_list |> List.fold_left (fun bindacc (letbind, name_inner, name_outer, tyf) ->
-      let (pty, e1) = typecheck_letrec_single pre letbind tyf in
+    tupleacc |> Alist.to_list |> List.fold_left (fun bindacc (letbind, name_inner, name_outer, morph) ->
+      let (pty, e1) = typecheck_letrec_single pre letbind morph in
       let (_, x) = letbind.vb_identifier in
       Alist.extend bindacc (x, pty, name_outer, name_inner, e1)
     ) Alist.empty
@@ -2166,8 +2256,8 @@ fun namesf proj pre letbinds ->
   bindacc |> Alist.to_list
 
 
-and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : mono_type) : poly_type * ast =
-  let (rngv, _) = letbind.vb_identifier in
+and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (morph : rec_morph) : poly_type * ast =
+  let (rngv, x) = letbind.vb_identifier in
   let ordparams = letbind.vb_parameters in
   let mndparams = letbind.vb_mandatories in
   let optparams = letbind.vb_optionals in
@@ -2175,7 +2265,7 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
   let (ty1, e0, ibinders) =
     (* First, add local type/row parameters at level `levS`. *)
     let pre =
-      let (pre, assoc) = make_type_parameter_assoc pre letbind.vb_forall in
+      let (pre, _assoc) = make_type_parameter_assoc pre letbind.vb_forall in
       let levS = pre.level + 1 in
       let pre = { pre with level = levS } in
       pre |> add_local_row_parameter letbind.vb_forall_row
@@ -2188,31 +2278,45 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (tyf : m
     match letbind.vb_return with
     | Pure((tyretopt, utast0)) ->
         let (ty0, e0) = typecheck pre utast0 in
+(*
         tyretopt |> Option.map (fun mty0 ->
           let ty0_expected = decode_manual_type pre mty0 in
           unify ty0 ty0_expected
         ) |> Option.value ~default:();
+*)
         let ty1 = (rngv, FuncType(domain, ty0)) in
         (ty1, e0, ibinders)
 
     | Effectful((tyretopt, utcomp0)) ->
         let ((eff0, ty0), e0) = typecheck_computation pre utcomp0 in
+(*
         tyretopt |> Option.map (fun (mty1, mty2) ->
           let ty1_expected = decode_manual_type pre mty1 in
           let ty2_expected = decode_manual_type pre mty2 in
           unify_effect eff0 (Effect(ty1_expected));
           unify ty0 ty2_expected
         ) |> Option.value ~default:();
+*)
         let ty1 = (rngv, EffType(domain, eff0, ty0)) in
         (ty1, e0, ibinders)
   in
   let e1 = ilambda ibinders e0 in
-  unify ty1 tyf;
   let ptyf =
     match TypeConv.generalize pre.level ty1 with
     | Ok(ptyf)             -> ptyf
     | Error((cycle, ptyf)) -> raise_error (CyclicTypeParameter(rngv, cycle, ptyf))
   in
+  begin
+    match morph with
+    | MonoRec(tyf) ->
+        unify ty1 tyf
+
+    | PolyRec(pty) ->
+        if poly_type_equal pty ptyf then
+          ()
+        else
+          raise_error (PolymorphicContradiction(rngv, x, pty, ptyf))
+  end;
   (ptyf, e1)
 
 

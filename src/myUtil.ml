@@ -61,6 +61,21 @@ end = struct
 end
 
 
+module OptionMonad : sig
+  val return : 'a -> 'a option
+  val none : 'a option
+  val ( >>= ) : 'a option -> ('a -> 'b option) -> 'b option
+end = struct
+
+  let return x = Some(x)
+
+  let none = None
+
+  let ( >>= ) = Option.bind
+
+end
+
+
 type absolute_path = string
 
 type absolute_dir = string
