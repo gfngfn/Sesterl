@@ -3525,6 +3525,7 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
               kind            = pkd;
             }
           in
+          Format.printf "!!! add S '%s' to graph\n" tynm;
           let graph = graph |> DependencyGraph.add_vertex tynm syndata in
           let synacc = Alist.extend synacc (tyident, synbind) in
           let vertices = vertices |> SynonymNameSet.add tynm in
@@ -3539,6 +3540,7 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
               type_kind   = pkd;
             }
           in
+          Format.printf "!!! add V '%s' to tyenv\n" tynm;
           let tyenv = tyenv |> Typeenv.add_type tynm tentry in
           let vntacc = Alist.extend vntacc (tyident, tyvars, vntbind, tyid, pkd, tentry) in
           (synacc, vntacc, vertices, graph, tyenv)
@@ -3552,9 +3554,11 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
     synacc |> Alist.to_list |> List.fold_left (fun graph syn ->
       let (tyident, mtyreal) = syn in
       let (_, tynm) = tyident in
+      Format.printf "!!! traverse S '%s'\n" tynm;
       let dependencies = get_dependency_on_synonym_types vertices pre mtyreal in
       graph |> SynonymNameSet.fold (fun tynm_dep graph ->
-        graph |> DependencyGraph.add_edge tynm tynm_dep
+        Format.printf "!!! add deps '%s' <--- '%s'\n" tynm_dep tynm;
+        graph |> DependencyGraph.add_edge tynm_dep tynm
       ) dependencies
     ) graph
   in
@@ -3570,7 +3574,9 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
   (* Add the definition of the synonym types to the type environment. *)
   let (tyenv, tydefacc) =
     syns |> List.fold_left (fun (tyenv, tydefacc) syn ->
+      let pre = { pre with tyenv = tyenv } in
       let (tynm, syndata) = syn in
+      Format.printf "!!! adding S '%s' to tyenv\n" tynm;
       let
         DependencyGraph.{
           type_variables  = tyvars;
@@ -3601,6 +3607,7 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
     vntacc |> Alist.to_list |> List.fold_left (fun (tydefacc, ctordefacc) vnt ->
       let (tyident, tyvars, ctorbrs, tyid, pkd, tentry) = vnt in
       let (_, tynm) = tyident in
+      Format.printf "!!! traverse V '%s'\n" tynm;
       let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
       let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
       let ctorbrmap = make_constructor_branch_map pre ctorbrs in

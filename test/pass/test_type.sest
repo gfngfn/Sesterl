@@ -1,0 +1,19 @@
+module TestType = struct
+
+  type position<$num> =
+    { x : $num, y : $num }
+
+  and geometry =
+    | Circle(circle_info<int, rational>)
+    | Rectangle(rectangle_info<int>)
+
+  and circle_info<$cnum, $rnum> =
+    { center : position<$cnum>, radius : $rnum }
+
+  and rectangle_info<$num> =
+    { lower_right : position<$num>, upper_left : position<$num> }
+
+  and rational =
+    { denominator : int, numerator : int }
+
+end
