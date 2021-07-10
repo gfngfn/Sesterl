@@ -1,5 +1,14 @@
 module TestType = struct
 
+  type t_a =
+    t_b
+
+  and t_b =
+    t_c
+
+  and t_c =
+    int
+
   type position<$num> =
     { x : $num, y : $num }
 

@@ -1,0 +1,9 @@
+module ErrorTypeCyclic = struct
+
+  type t_x =
+    t_y
+
+  and t_y =
+    t_x
+
+end
