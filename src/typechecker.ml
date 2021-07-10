@@ -2313,10 +2313,10 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (morph :
         unify ty1 tyf
 
     | PolyRec(ptyannot) ->
-        if subtype_poly_type ptyannot ptyf then
+        if subtype_poly_type ptyf ptyannot then
           ()
         else
-          raise_error (PolymorphicContradiction(rngv, x, ptyannot, ptyf))
+          raise_error (PolymorphicContradiction(rngv, x, ptyf, ptyannot))
   end;
   (ptyf, e1)
 
