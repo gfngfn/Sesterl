@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), 
 - Fix how to load test dependencies.
 - Fix how to output string/binary literals about non-ASCII characters ([PR\#22](https://github.com/gfngfn/Sesterl/pull/22) by @michallepicki).
 - Update GitHub Actions workflow ([PR\#12](https://github.com/gfngfn/Sesterl/pull/12) by @smorimoto).
+- Fix how to check type definitions ([PR\#30](https://github.com/gfngfn/Sesterl/pull/30)).
 
 ### Added
 - Add binary literal patterns ([PR\#28](https://github.com/gfngfn/Sesterl/pull/28)).
