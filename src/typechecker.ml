@@ -2279,25 +2279,31 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (morph :
     match letbind.vb_return with
     | Pure((tyretopt, utast0)) ->
         let (ty0, e0) = typecheck pre utast0 in
-(*
-        tyretopt |> Option.map (fun mty0 ->
-          let ty0_expected = decode_manual_type pre mty0 in
-          unify ty0 ty0_expected
-        ) |> Option.value ~default:();
-*)
+        begin
+          match (morph, tyretopt) with
+          | (MonoRec(_), Some(mty0)) ->
+              let ty0_expected = decode_manual_type pre mty0 in
+              unify ty0 ty0_expected
+
+          | _ ->
+              ()
+        end;
         let ty1 = (rngv, FuncType(domain, ty0)) in
         (ty1, e0, ibinders)
 
     | Effectful((tyretopt, utcomp0)) ->
         let ((eff0, ty0), e0) = typecheck_computation pre utcomp0 in
-(*
-        tyretopt |> Option.map (fun (mty1, mty2) ->
-          let ty1_expected = decode_manual_type pre mty1 in
-          let ty2_expected = decode_manual_type pre mty2 in
-          unify_effect eff0 (Effect(ty1_expected));
-          unify ty0 ty2_expected
-        ) |> Option.value ~default:();
-*)
+        begin
+          match (morph, tyretopt) with
+          | (MonoRec(_), Some((mty1, mty2))) ->
+              let ty1_expected = decode_manual_type pre mty1 in
+              let ty2_expected = decode_manual_type pre mty2 in
+              unify_effect eff0 (Effect(ty1_expected));
+              unify ty0 ty2_expected
+
+          | _ ->
+              ()
+        end;
         let ty1 = (rngv, EffType(domain, eff0, ty0)) in
         (ty1, e0, ibinders)
   in
