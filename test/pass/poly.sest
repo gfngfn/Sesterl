@@ -9,9 +9,15 @@ module Poly = struct
   val sum(ns) =
     foldl(fun(m, n) -> m + n end, 0, ns)
 
+  val count_true(bs) =
+    foldl(fun(n, b) -> if b then n + 1 else n end, 0, bs)
+
   val main(args) =
     let ans =
-      sum(3 :: 1 :: 4 :: 1 :: 5 :: 9 :: 2 :: [])
+      {
+        sum([3, 1, 4, 1, 5, 9, 2]),
+        count_true([true, false, true, true, false])
+      }
     in
     print_debug(ans)
 
