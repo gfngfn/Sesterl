@@ -747,6 +747,7 @@ patbot:
   | tokL=LBRACE; tokR=RBRACE   { let rng = make_range (Token(tokL)) (Token(tokR)) in (rng, PUnit) }
   | c=INT                      { let (rng, n) = c in (rng, PInt(n)) }
   | charlit=CHAR               { let (rng, uchar) = charlit in (rng, PChar(uchar)) }
+  | binlit=BINARY              { let (rng, s) = binlit in (rng, PBinary(s)) }
   | ident=ident                { let (rng, x) = ident in (rng, PVar(x)) }
   | rng=UNDERSCORE             { (rng, PWildCard) }
 

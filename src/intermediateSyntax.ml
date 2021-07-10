@@ -8,6 +8,7 @@ type pattern =
   | IPUnit
   | IPBool        of bool
   | IPInt         of int
+  | IPBinary      of string
   | IPChar        of Uchar.t
       [@printer (fun ppf uchar -> Format.fprintf ppf "IPChar(%a)" pp_uchar uchar)]
   | IPVar         of local_name

@@ -490,6 +490,7 @@ and stringify_pattern (ipat : pattern) =
   | IPBool(true)  -> "true"
   | IPBool(false) -> "false"
   | IPInt(n)      -> string_of_int n
+  | IPBinary(s)   -> Printf.sprintf "<<\"%s\"/utf8>>" (escape_string s)
   | IPChar(uchar) -> string_of_int (Uchar.to_int uchar)
   | IPVar(lname)  -> OutputIdentifier.output_local lname
   | IPWildCard    -> "_"

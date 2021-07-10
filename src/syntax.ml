@@ -276,6 +276,7 @@ and untyped_pattern_main =
   | PUnit
   | PBool        of bool
   | PInt         of int
+  | PBinary      of string
   | PChar        of Uchar.t
       [@printer (fun ppf uchar -> Format.fprintf ppf "PChar(%a)" pp_uchar uchar) ]
   | PVar         of identifier
