@@ -2316,7 +2316,7 @@ and typecheck_letrec_single (pre : pre) (letbind : untyped_let_binding) (morph :
         if subtype_poly_type ptyannot ptyf then
           ()
         else
-          raise_error (PolymorphicContradiction(rngv, x, ptyf, ptyannot))
+          raise_error (PolymorphicContradiction(rngv, x, ptyannot, ptyf))
   end;
   (ptyf, e1)
 
