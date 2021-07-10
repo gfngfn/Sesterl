@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), 
 - Fix how to output string/binary literals about non-ASCII characters ([PR\#22](https://github.com/gfngfn/Sesterl/pull/22) by @michallepicki).
 - Update GitHub Actions workflow ([PR\#12](https://github.com/gfngfn/Sesterl/pull/12) by @smorimoto).
 
+### Added
+- Add binary literal patterns ([PR\#28](https://github.com/gfngfn/Sesterl/pull/28)).
+
 ## [0.1.2] - 2021-05-29
 ### Added
 - Introduce the notion of attributes of the form `#[foo(…)]`.
