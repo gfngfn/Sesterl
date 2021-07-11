@@ -456,11 +456,11 @@ let report_type_error (e : type_error) : unit =
       let (sbids2, sbrids2, smain2) = TypeConv.show_poly_type dispmap pty2 in
       Format.printf "%a:\n"
         Range.pp rng;
-      Format.printf "  not a subtype; as to value '%s', type\n"
+      Format.printf "  as to value '%s', type\n"
         x;
       Format.printf "    %s\n"
         smain1;
-      Format.printf "  cannot be encapsulated by type\n";
+      Format.printf "  is not a subtype of\n";
       Format.printf "    %s\n"
         smain2;
       print_bound_ids (List.concat [sbids1; sbrids1; sbids2; sbrids2])

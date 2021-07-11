@@ -1,0 +1,12 @@
+module TestPolyRec = struct
+
+  val rec pair<$a>(x : $a) : {$a, $a} =
+    {x, x}
+
+  and trues() =
+    pair(true)
+
+  and ones() =
+    pair(1)
+
+end

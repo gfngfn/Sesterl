@@ -1,9 +1,5 @@
 module Mod = struct
 
-  type option<$a> =
-    | None
-    | Some($a)
-
   signature Ord = sig
     type s :: o
     val compare : fun(s, s) -> int
