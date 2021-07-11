@@ -9,9 +9,15 @@ exception PackageError of package_error
 
 let load_config absdir_in =
   let abspath_in = Core.Filename.concat absdir_in Constants.config_file_name in
+  let old_abspath_in = Core.Filename.concat absdir_in Constants.old_config_file_name in
   match ConfigLoader.load abspath_in with
-  | Error(e)   -> raise (ConfigError(e))
   | Ok(config) -> config
+  | Error(e1)   ->
+    match ConfigLoader.load old_abspath_in with
+    | Ok(config) ->
+      Logging.warn_old_config_file_name old_abspath_in;
+      config
+    | Error(e)   -> raise (ConfigError(e1))
 
 
 module PackageDirMap = Map.Make(String)

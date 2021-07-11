@@ -78,7 +78,7 @@ where `<source-file>` is the path to the source file you want to build (e.g. `tr
 
 [*Rebar3*](https://github.com/erlang/rebar3) is a popular build system for Erlang programs. Sesterl can collaborate with Rebar3.
 
-Based on a configuration file (i.e., `package.yaml`), the following command will generate `rebar.config`:
+Based on a configuration file (i.e., `sesterl.yaml`), the following command will generate `rebar.config`:
 
 ```console
 $ sesterl config ./
