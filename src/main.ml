@@ -193,7 +193,7 @@ let command_main =
     Term.(ret (const (`Error(true, "No subcommand specified."))))
   in
   let info : Term.info =
-    Term.info ~version:"0.1.2" "sesterl"
+    Term.info ~version:"0.1.3" "sesterl"
   in
   (term, info)
 
