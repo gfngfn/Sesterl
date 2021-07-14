@@ -1,7 +1,9 @@
 
 let config_file_name =
-  "package.yaml"
+  "sesterl.yaml"
 
+let old_config_file_name =
+  "package.yaml"
 
 let default_output_directory =
   "_generated"

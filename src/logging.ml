@@ -17,6 +17,10 @@ let warn_invalid_attribute (warning : attribute_warning) =
     warning.message
 
 
+let warn_old_config_file_name (fpath : string) =
+  Format.printf "* [Warning] old config file name detected: please rename '%s' to 'sesterl.yaml'\n"
+    fpath
+
 let output_written (fpath : string) =
   Format.printf "  output written on '%s'.\n"
     fpath
