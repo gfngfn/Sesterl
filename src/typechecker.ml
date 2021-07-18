@@ -709,6 +709,9 @@ let types_of_format (lev : int) (fmtelems : format_element list) : mono_type lis
         | HoleS ->
             Primitives.list_type rng (rng, BaseType(CharType))
 
+        | HoleB ->
+            (rng, BaseType(BinaryType))
+
         | HoleP
         | HoleW ->
             fresh_type_variable lev UniversalKind rng
