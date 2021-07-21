@@ -1,4 +1,4 @@
-module ErrorOption = struct
+module ErrorInference = struct
 
   val f(x) =
     x.foo
