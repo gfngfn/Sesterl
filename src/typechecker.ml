@@ -1484,9 +1484,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
               | Some((_, ptymain), name) ->
                   let pty = (rng, ptymain) in
-                  TypeConv.debug_print_poly_type "instantiate" pty;
                   let ty = TypeConv.instantiate pre.level pty in
-                  TypeConv.debug_print_mono_type "instantiate" ty;
                   (ty, IVar(name))
             end
 
@@ -1538,7 +1536,6 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         match TypeConv.canonicalize_root tyfun with
         | (_, FuncType(domain_expected, tyret)) ->
           (* A slight trick for making error messages easier to comprehend. *)
-            TypeConv.debug_print_mono_type "tyfun" tyfun;
             let iargs = typecheck_arguments_against_domain pre rng utargs domain_expected in
             let tyret =
               let (_, tyretmain) = tyret in
@@ -1757,7 +1754,6 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       ((rng, RecordType(labmap)), IRecord(emap))
 
   | RecordAccess(utast1, (_, label)) ->
-      Format.printf "!!! record access (label: %s, level: %d)\n" label pre.level;
       let (ty1, e1) = typecheck pre utast1 in
       let tyret = fresh_type_variable pre.level UniversalKind rng in
       let tyF =
@@ -1970,8 +1966,6 @@ and typecheck_arguments_against_domain (pre : pre) (rng : Range.t) ((utastargs, 
     if numord_got = numord_expected then
       List.fold_left2 (fun eargacc utastarg ty_expected ->
         let (ty_got, e) = typecheck pre utastarg in
-        TypeConv.debug_print_mono_type "ty_got" ty_got;
-        TypeConv.debug_print_mono_type "ty_expected" ty_expected;
         unify ty_got ty_expected;
         Alist.extend eargacc e
       ) Alist.empty utastargs tys_expected |> Alist.to_list
@@ -2253,12 +2247,10 @@ fun namef preL letbind ->
   in
   let e1 = ilambda ibinders e0 in
   let pty1 =
-    Format.printf "!!! generalize (level: %d)\n" preL.level;
     match TypeConv.generalize preL.level ty1 with
     | Ok(pty1)             -> pty1
     | Error((cycle, pty1)) -> raise_error (CyclicTypeParameter(rngv, cycle, pty1))
   in
-  TypeConv.debug_print_poly_type "result" pty1;
   let name = namef rngv x in
   (pty1, name, e1)
 
@@ -2681,10 +2673,6 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
 
     | (TypeVar(Mono(_)), _)
     | (_, TypeVar(Mono(_))) ->
-        let dispmap = TypeConv.DisplayMap.empty in
-        let (_sbids1, _sbrids1, smain1) = TypeConv.show_poly_type dispmap pty1 in
-        let (_sbids2, _sbrids2, smain2) = TypeConv.show_poly_type dispmap pty2 in
-        Format.printf "!!! %s %s\n" smain1 smain2;
         assert false
 
     | _ ->
