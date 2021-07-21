@@ -849,9 +849,9 @@ and unify_aux_free_id_and_record (fid1 : FreeID.t) (mtvu1 : mono_type_var_updata
         Inclusion(fid1)
       else
         let res =
+          let bkd1 = KindStore.get_free_id fid1 in
           match ty2 with
           | (_, RecordType(labmap2)) ->
-              let bkd1 = KindStore.get_free_id fid1 in
               begin
                 match bkd1 with
                 | UniversalKind ->
@@ -861,8 +861,18 @@ and unify_aux_free_id_and_record (fid1 : FreeID.t) (mtvu1 : mono_type_var_updata
                     unify_aux_label_assoc_subtype ~specific:labmap2 ~general:labmap1
               end
 
+          | (_, TypeVar(_)) ->
+              assert false
+
           | _ ->
-              Consistent
+              begin
+                match bkd1 with
+                | UniversalKind ->
+                    Consistent
+
+                | RecordKind(_) ->
+                    Contradiction
+              end
         in
         begin
           match res with
@@ -1508,6 +1518,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
         match TypeConv.canonicalize_root tyfun with
         | (_, FuncType(domain_expected, tyret)) ->
           (* A slight trick for making error messages easier to comprehend. *)
+            TypeConv.debug_print_mono_type "tyfun" tyfun;
             let iargs = typecheck_arguments_against_domain pre rng utargs domain_expected in
             let tyret =
               let (_, tyretmain) = tyret in
@@ -1939,6 +1950,8 @@ and typecheck_arguments_against_domain (pre : pre) (rng : Range.t) ((utastargs, 
     if numord_got = numord_expected then
       List.fold_left2 (fun eargacc utastarg ty_expected ->
         let (ty_got, e) = typecheck pre utastarg in
+        TypeConv.debug_print_mono_type "ty_got" ty_got;
+        TypeConv.debug_print_mono_type "ty_expected" ty_expected;
         unify ty_got ty_expected;
         Alist.extend eargacc e
       ) Alist.empty utastargs tys_expected |> Alist.to_list
