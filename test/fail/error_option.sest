@@ -4,6 +4,6 @@ module ErrorOption = struct
     x.foo
 
   val main(args) =
-    f(Some({foo = 42}))
+    f(42)
 
 end
