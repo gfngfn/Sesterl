@@ -861,8 +861,28 @@ and unify_aux_free_id_and_record (fid1 : FreeID.t) (mtvu1 : mono_type_var_updata
                     unify_aux_label_assoc_subtype ~specific:labmap2 ~general:labmap1
               end
 
+          | (_, TypeVar(MustBeBound(mbbid2))) ->
+              let bkd1 = KindStore.get_free_id fid1 in
+              let pbkd2 = KindStore.get_bound_id (MustBeBoundID.to_bound mbbid2) in
+              begin
+                match (bkd1, pbkd2) with
+                | (UniversalKind, UniversalKind) ->
+                    mtvu1 := Link(ty2);
+                    Consistent
+
+                | (UniversalKind, RecordKind(_)) ->
+                    mtvu1 := Link(ty2);
+                    Consistent
+
+                | (RecordKind(_), UniversalKind) ->
+                    Contradiction
+
+                | (RecordKind(labmap1), RecordKind(plabmap2)) ->
+                    failwith "TODO: unify_aux_free_id_and_record"
+              end
+
           | (_, TypeVar(_)) ->
-              assert false
+              Contradiction
 
           | _ ->
               begin
