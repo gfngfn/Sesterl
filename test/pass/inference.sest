@@ -1,0 +1,9 @@
+module Inference = struct
+
+  val f<$a :: {foo : int}>(r : $a, x) =
+    {x.foo, if true then x else r}
+
+  val main(args) =
+    f({ foo = 42 }, { foo = 57 })
+
+end
