@@ -143,7 +143,7 @@ let report_config_error (e : config_error) : unit =
       Format.printf "no output spec ('--output' or '-o') for single source file\n"
 
   | UnsupportedLanguageVersion(language_version) ->
-      Format.printf "unsupported language version '%s' specified; should not be newer than '%s'\n"
+      Format.printf "unsupported language version '%s' (the version of this compiler is '%s')\n"
         language_version
         Constants.semantic_version
 

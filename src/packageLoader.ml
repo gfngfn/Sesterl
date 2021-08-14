@@ -15,9 +15,9 @@ let is_supported_version (specified_language_version : string) : bool =
   | Some(specified_semver_string) ->
       begin
         match (Semver.of_string specified_semver_string, Semver.of_string Constants.semantic_version) with
-        | (_, None)                                       -> assert false
-        | (None, _)                                       -> false
-        | (Some(specified_semver), Some(required_semver)) -> Semver.greater_than specified_semver required_semver
+        | (_, None)                         -> assert false
+        | (None, _)                         -> false
+        | (Some(specified), Some(required)) -> not (Semver.greater_than specified required)
       end
 
 
