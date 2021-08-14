@@ -1,0 +1,9 @@
+module ErrorInference = struct
+
+  val f(x) =
+    x.foo
+
+  val main(args) =
+    f(42)
+
+end
