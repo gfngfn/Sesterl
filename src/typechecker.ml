@@ -843,6 +843,7 @@ let rec unify_aux (ty1 : mono_type) (ty2 : mono_type) : unification_result =
   | _ ->
       Contradiction
 
+
 and unify_aux_free_id_and_record (fid1 : FreeID.t) (mtvu1 : mono_type_var_updatable ref) (ty2 : mono_type) =
       let b = occurs fid1 ty2 in
       if b then
@@ -864,6 +865,8 @@ and unify_aux_free_id_and_record (fid1 : FreeID.t) (mtvu1 : mono_type_var_updata
           | (_, TypeVar(MustBeBound(mbbid2))) ->
               let bkd1 = KindStore.get_free_id fid1 in
               let pbkd2 = KindStore.get_bound_id (MustBeBoundID.to_bound mbbid2) in
+              (* The kind `bkd1` (i.e. the current kind of the free ID `fid1`) must be less strict than
+                 `pbkd2` (i.e. the specified kind of the must-be-bound ID `mbbid2`). *)
               begin
                 match (bkd1, pbkd2) with
                 | (UniversalKind, UniversalKind) ->
@@ -878,7 +881,31 @@ and unify_aux_free_id_and_record (fid1 : FreeID.t) (mtvu1 : mono_type_var_updata
                     Contradiction
 
                 | (RecordKind(labmap1), RecordKind(plabmap2)) ->
-                    failwith "TODO: unify_aux_free_id_and_record"
+                    let res =
+                      LabelAssoc.fold (fun label ty1 res ->
+                        match res with
+                        | Consistent ->
+                            begin
+                              match plabmap2 |> LabelAssoc.find_opt label with
+                              | None ->
+                                  Contradiction
+
+                              | Some(pty2) ->
+                                  let lev = 0 in (* TODO: fix this; this implementation is probably not valid *)
+                                  let ty2 = TypeConv.instantiate lev pty2 in
+                                  unify_aux ty1 ty2
+                            end
+
+                        | _ ->
+                            res
+                      ) labmap1 Consistent
+                    in
+                    begin
+                      match res with
+                      | Consistent -> mtvu1 := Link(ty2)
+                      | _          -> ()
+                    end;
+                    res
               end
 
           | (_, TypeVar(_)) ->
