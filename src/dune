@@ -7,6 +7,7 @@
     menhirLib
     cmdliner
     ocamlgraph
+    semver2
     core
     uutf
     yaml)
