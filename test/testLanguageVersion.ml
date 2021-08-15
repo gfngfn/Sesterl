@@ -34,6 +34,22 @@ let () =
           after   = "v0.1.4";
           expects = false;
         };
+        { before  = "v0.1.3";
+          after   = "v0.2.4";
+          expects = false;
+        };
+        { before  = "v0.1.5";
+          after   = "v0.2.4";
+          expects = false;
+        };
+        { before  = "v0.1.3";
+          after   = "v1.2.4";
+          expects = false;
+        };
+        { before  = "v1.1.5";
+          after   = "v1.2.4";
+          expects = true;
+        };
       ]
     );
   ]
