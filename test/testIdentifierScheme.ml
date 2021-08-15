@@ -42,7 +42,7 @@ let () =
         { message = "single";
           input   = "foo";
           expects = Some["foo"];
-         };
+        };
         { message = "double";
           input   = "foo_bar";
           expects = Some["foo"; "bar"];

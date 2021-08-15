@@ -22,4 +22,4 @@ let is_supported (specified_language_version : string) : bool =
   match (parse specified_language_version, parse Constants.semantic_version) with
   | (_, None)                         -> assert false
   | (None, _)                         -> false
-  | (Some(specified), Some(required)) -> is_compatible specified required
+  | (Some(specified), Some(required)) -> is_compatible ~before:specified ~after:required
