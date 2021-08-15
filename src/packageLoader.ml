@@ -7,20 +7,6 @@ open Errors
 exception PackageError of package_error
 
 
-let is_supported_version (specified_language_version : string) : bool =
-  match Core.String.chop_prefix specified_language_version ~prefix:"v" with
-  | None ->
-      false
-
-  | Some(specified_semver_string) ->
-      begin
-        match (Semver.of_string specified_semver_string, Semver.of_string Constants.semantic_version) with
-        | (_, None)                         -> assert false
-        | (None, _)                         -> false
-        | (Some(specified), Some(required)) -> not (Semver.greater_than specified required)
-      end
-
-
 let load_config absdir_in =
   let abspath_in = Core.Filename.concat absdir_in Constants.config_file_name in
   let old_abspath_in = Core.Filename.concat absdir_in Constants.old_config_file_name in
@@ -45,7 +31,7 @@ let load_config absdir_in =
       config
 
   | Some(language_version) ->
-      if is_supported_version language_version then
+      if LanguageVersion.is_supported language_version then
         config
       else
         raise (ConfigError(UnsupportedLanguageVersion(language_version)))
