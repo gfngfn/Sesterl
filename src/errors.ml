@@ -15,6 +15,7 @@ type config_error =
   | ConfigFileNotFound          of absolute_dir
   | SourceFileDependsOnTestFile of module_name * module_name
   | NoOutputSpecForSingleSource
+  | UnsupportedLanguageVersion  of string
 
 exception ConfigError of config_error
 

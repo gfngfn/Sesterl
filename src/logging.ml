@@ -142,6 +142,11 @@ let report_config_error (e : config_error) : unit =
   | NoOutputSpecForSingleSource ->
       Format.printf "no output spec ('--output' or '-o') for single source file\n"
 
+  | UnsupportedLanguageVersion(language_version) ->
+      Format.printf "unsupported language version '%s' (the version of this compiler is '%s')\n"
+        language_version
+        Constants.semantic_version
+
 
 let report_package_error (e : package_error) : unit =
   Format.printf "! [Build error] ";

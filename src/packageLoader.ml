@@ -10,14 +10,32 @@ exception PackageError of package_error
 let load_config absdir_in =
   let abspath_in = Core.Filename.concat absdir_in Constants.config_file_name in
   let old_abspath_in = Core.Filename.concat absdir_in Constants.old_config_file_name in
-  match ConfigLoader.load abspath_in with
-  | Ok(config) -> config
-  | Error(e1)   ->
-    match ConfigLoader.load old_abspath_in with
+  let config =
+    match ConfigLoader.load abspath_in with
     | Ok(config) ->
-      Logging.warn_old_config_file_name old_abspath_in;
+        config
+
+    | Error(e1) ->
+        begin
+          match ConfigLoader.load old_abspath_in with
+          | Ok(config) ->
+              Logging.warn_old_config_file_name old_abspath_in;
+              config
+
+          | Error(_e2) ->
+              raise (ConfigError(e1))
+        end
+  in
+  match config.ConfigLoader.language_version with
+  | None ->
       config
-    | Error(e)   -> raise (ConfigError(e1))
+
+  | Some(language_version) ->
+      if LanguageVersion.is_supported language_version then
+        config
+      else
+        raise (ConfigError(UnsupportedLanguageVersion(language_version)))
+
 
 
 module PackageDirMap = Map.Make(String)

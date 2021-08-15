@@ -1,8 +1,12 @@
 (tests
-  (names testRange testIdentifierScheme)
+  (names
+    testRange
+    testLanguageVersion
+    testIdentifierScheme)
   (libraries
     alcotest
     ocamlgraph
-  ))
+    semver2
+    core))
 
 (copy_files ../src/*.ml)

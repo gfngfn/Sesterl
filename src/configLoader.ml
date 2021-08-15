@@ -56,6 +56,7 @@ let default_erlang_config : erlang_config =
 
 
 type config = {
+  language_version   : string option;
   config_directory   : absolute_dir;
   package_name       : package_name;
   main_module_name   : module_name;
@@ -185,6 +186,7 @@ let dependency_decoder (confdir : absolute_dir) : dependency YamlDecoder.t =
 
 let config_decoder (confdir : absolute_dir) : config YamlDecoder.t =
   let open YamlDecoder in
+  get_opt "language" string >>= fun language_opt ->
   get "package" string >>= fun package_name ->
   get "source_directories" (list string) >>= fun srcdirs ->
   get "main_module" string >>= fun main_module_name ->
@@ -194,6 +196,7 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.t =
   get_or_else "erlang" erlang_config_decoder default_erlang_config >>= fun erlang_config ->
   let config =
     {
+      language_version   = language_opt;
       config_directory   = confdir;
       package_name       = package_name;
       main_module_name   = main_module_name;
@@ -204,12 +207,6 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.t =
       erlang_config      = erlang_config;
     }
   in
-(*
-  Format.printf "name: %s, srcdirs: %a, main: %s\n"
-    config.package_name
-    (Format.pp_print_list Format.pp_print_string) config.source_directories
-    config.main_module_path;  (* for debug *)
-*)
   succeed config
 
 
