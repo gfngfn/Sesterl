@@ -10,6 +10,8 @@ module Sup = struct
 
     type info = unit
 
+    type global = unit
+
     val init(args) = act
       let sup_flags = S.make_sup_flags() in
       let child_specs = [] in

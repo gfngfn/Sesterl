@@ -17,7 +17,12 @@ module App = struct
         do res <- Cowboy.start_clear(-name "echo_server", -port 8080, -dispatch dispatch) in
         case res of
         | Error(_) -> return(None)
-        | Ok(_)    -> Sup.start_link({})
+        | Ok(_)    ->
+            do res2 <- Sup.start_link({}) in
+            case res2 of
+            | Error(_) -> return(None)
+            | Ok(proc) -> return(Some(proc))
+            end
         end
     end
 
