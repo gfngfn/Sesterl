@@ -303,6 +303,8 @@ let report_type_error (e : type_error) : unit =
         len_actual
 
   | KindContradiction(rng, tynm, pkd_expected, pkd_actual) ->
+      failwith "TODO: KindContradiction"
+(*
       let dispmap = TypeConv.DisplayMap.empty in  (* TODO: traverse `pkd_*` and make `dispmap` *)
       let (_, _, skd_actual) = TypeConv.show_poly_kind dispmap pkd_actual in
       let (_, _, skd_expected) = TypeConv.show_poly_kind dispmap pkd_expected in
@@ -312,6 +314,7 @@ let report_type_error (e : type_error) : unit =
         tynm
         skd_actual
         skd_expected
+*)
 
   | TypeParameterBoundMoreThanOnce(rng, tyvar) ->
       Format.printf "%a:\n"

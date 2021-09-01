@@ -80,7 +80,6 @@ let internbridf (_bidmap : BoundID.t BoundIDMap.t) (_brid1 : BoundRowID.t) (_pro
 
 let add_dummy_fold (tynm : type_name) (tyid : TypeID.t) (bids : BoundID.t list) (ctorbrmap : constructor_branch_map) (sigr : SigRecord.t) : SigRecord.t =
   let bid = BoundID.fresh () in
-  KindStore.register_bound_id bid UniversalKind;
   let dr = Range.dummy "add_dummy_fold" in
   let plabmap =
     ConstructorMap.fold (fun ctornm (_ctorid, ptyargs) plabmap ->
@@ -88,7 +87,7 @@ let add_dummy_fold (tynm : type_name) (tyid : TypeID.t) (bids : BoundID.t list) 
         {
           ordered   = ptyargs;
           mandatory = LabelAssoc.empty;
-          optional  = FixedRow(LabelAssoc.empty);
+          optional  = RowEmpty;
         }
       in
       plabmap |> LabelAssoc.add ctornm (dr, FuncType(domty, (dr, TypeVar(Bound(bid)))))
@@ -98,7 +97,7 @@ let add_dummy_fold (tynm : type_name) (tyid : TypeID.t) (bids : BoundID.t list) 
     {
       ordered   = [(dr, TypeApp(tyid, bids |> List.map (fun bid -> (dr, TypeVar(Bound(bid))))))];
       mandatory = plabmap;
-      optional  = FixedRow(LabelAssoc.empty);
+      optional  = RowEmpty;
     }
   in
   let pty = (dr, FuncType(domty, (dr, TypeVar(Bound(bid))))) in
@@ -139,7 +138,7 @@ let make_type_scheme_from_constructor_entry (centry : constructor_entry) : type_
     {
       ordered   = ptys;
       mandatory = LabelAssoc.empty;
-      optional  = FixedRow(LabelAssoc.empty);
+      optional  = RowEmpty;
     }
   in
   let ty_cod = (dr, TypeApp(tyid, bids |> List.map (fun bid -> (dr, TypeVar(Bound(bid)))))) in
@@ -337,7 +336,7 @@ let iletrecin_multiple (binds : (identifier * poly_type * local_name * local_nam
           ILambda(None, ordnames, mndnamemap, optnamemap,
             iletpatin ipat_inner_tuple
               (IApply(OutputIdentifier.Local(name_for_whole_rec),
-                FixedRow(LabelAssoc.empty), [], LabelAssoc.empty, LabelAssoc.empty)) e0)
+                RowEmpty, [], LabelAssoc.empty, LabelAssoc.empty)) e0)
 
       | _ ->
           assert false
@@ -349,7 +348,7 @@ let iletrecin_multiple (binds : (identifier * poly_type * local_name * local_nam
   iletpatin ipat_outer_tuple
     (iapply
       (ILambda(Some(name_for_whole_rec), [], LabelAssoc.empty, LabelAssoc.empty, ITuple(tuple_entries)))
-      (FixedRow(LabelAssoc.empty))
+      RowEmpty
       ([], LabelAssoc.empty, LabelAssoc.empty))
     e2
 
@@ -377,8 +376,8 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     | ProductType(tys) ->
         tys |> TupleList.to_list |> aux_list
 
-    | RecordType(labmap) ->
-        aux_label_assoc labmap
+    | RecordType(row) ->
+        aux_row row
 
     | TypeApp(_tyid, tyargs) ->
         aux_list tyargs
@@ -417,7 +416,7 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
     let {ordered = tydoms; mandatory = mndlabmap; optional = optrow} = domain in
     let b1 = aux_list tydoms in
     let bmnd = aux_label_assoc mndlabmap in
-    let bopt = aux_option_row optrow in
+    let bopt = aux_row optrow in
     b1 || bmnd || bopt
 
   and aux_effect (Effect(ty)) =
@@ -426,21 +425,25 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
   and aux_pid_type (Pid(ty)) =
     aux ty
 
-  and aux_option_row = function
+  and aux_row = function
+    | RowCons(_, ty, row) ->
+        let b1 = aux ty in
+        let b2 = aux_row row in
+        b1 || b2
+
     | RowVar(UpdatableRow{contents = FreeRow(_)}) ->
         false
-          (* TODO: DOUBTFUL: do we need to traverse the kind of the free row ID here? *)
 
-    | RowVar(UpdatableRow{contents = LinkRow(labmap)}) ->
-        aux_label_assoc labmap
+    | RowVar(UpdatableRow{contents = LinkRow(row)}) ->
+        aux_row row
 
     | RowVar(MustBeBoundRow(_)) ->
         false
 
-    | FixedRow(labmap) ->
-        aux_label_assoc labmap
+    | RowEmpty ->
+        false
 
-  and aux_label_assoc labmap =
+  and aux_label_assoc (labmap : mono_type LabelAssoc.t) =
     LabelAssoc.fold (fun _ ty bacc ->
       let b = aux ty in
       b || bacc
@@ -453,7 +456,7 @@ let occurs (fid : FreeID.t) (ty : mono_type) : bool =
   aux ty
 
 
-let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
+let occurs_row (frid : FreeRowID.t) (row : mono_row) : bool =
   let rec aux (_, tymain) =
     match tymain with
     | BaseType(_) ->
@@ -481,8 +484,8 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
     | ProductType(tys) ->
         tys |> TupleList.to_list |> aux_list
 
-    | RecordType(labmap) ->
-        aux_label_assoc labmap
+    | RecordType(row) ->
+        aux_row row
 
     | TypeApp(_tyid, tyargs) ->
         aux_list tyargs
@@ -495,7 +498,7 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
     let {ordered = tydoms; mandatory = mndlabmap; optional = optrow} = domain in
     let b1 = aux_list tydoms in
     let bmnd = aux_label_assoc mndlabmap in
-    let bopt = aux_option_row optrow in
+    let bopt = aux_row optrow in
     b1 || bmnd || bopt
 
   and aux_pid (Pid(ty)) =
@@ -504,13 +507,25 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
   and aux_effect (Effect(ty)) =
     aux ty
 
-  and aux_option_row = function
-    | FixedRow(labmap)                                 -> aux_label_assoc labmap
-    | RowVar(UpdatableRow{contents = LinkRow(labmap)}) -> aux_label_assoc labmap
-    | RowVar(UpdatableRow{contents = FreeRow(fridx)})  -> FreeRowID.equal fridx frid
-    | RowVar(MustBeBoundRow(mbbrid))                   -> false
+  and aux_row = function
+    | RowCons(_, ty, row) ->
+        let b1 = aux ty in
+        let b2 = aux_row row in
+        b1 || b2
 
-  and aux_label_assoc labmap =
+    | RowVar(UpdatableRow{contents = LinkRow(row)}) ->
+        aux_row row
+
+    | RowVar(UpdatableRow{contents = FreeRow(fridx)}) ->
+        FreeRowID.equal fridx frid
+
+    | RowVar(MustBeBoundRow(_mbbrid)) ->
+        false
+
+    | RowEmpty ->
+        false
+
+  and aux_label_assoc (labmap : mono_type LabelAssoc.t) =
     LabelAssoc.fold (fun _ ty bacc ->
       let b = aux ty in
       bacc || b
@@ -520,10 +535,7 @@ let occurs_row (frid : FreeRowID.t) (labmap : mono_type LabelAssoc.t) =
     tys |> List.map aux |> List.fold_left ( || ) false
       (* Must not be short-circuit due to the level inference. *)
   in
-  LabelAssoc.fold (fun _ ty bacc ->
-    let b = aux ty in
-    bacc || b
-  ) labmap false
+  aux_row row
 
 
 let rec opaque_occurs_in_type_scheme : 'a 'b. (quantifier -> TypeID.t -> bool) -> ('a -> bool) -> quantifier -> ('a, 'b) typ -> bool =
@@ -543,8 +555,8 @@ fun tyidp tvp quant ->
     | TypeApp(tyid, tyargs) ->
         tyidp quant tyid || List.exists aux tyargs
 
-    | RecordType(labmap) ->
-        aux_label_assoc labmap
+    | RecordType(row) ->
+        aux_row row
 
     | TypeVar(tv) ->
         tvp tv
@@ -556,7 +568,7 @@ fun tyidp tvp quant ->
 
   and aux_domain domain =
     let {ordered = tydoms; mandatory = mndlabmap; optional = optrow} = domain in
-    List.exists aux tydoms || aux_label_assoc mndlabmap || aux_option_row optrow
+    List.exists aux tydoms || aux_label_assoc mndlabmap || aux_row optrow
 
   and aux_pid = function
     | Pid(ty) -> aux ty
@@ -564,9 +576,17 @@ fun tyidp tvp quant ->
   and aux_effect = function
     | Effect(ty) -> aux ty
 
-  and aux_option_row = function
-    | RowVar(_)        -> false
-    | FixedRow(labmap) -> aux_label_assoc labmap
+  and aux_row = function
+    | RowCons(_, ty, row) ->
+        let b1 = aux ty in
+        let b2 = aux_row row in
+        b1 || b2
+
+    | RowVar(_) ->
+        false
+
+    | RowEmpty ->
+        false
 
   and aux_label_assoc labmap =
     LabelAssoc.fold (fun _ ty bacc ->
@@ -641,7 +661,6 @@ let label_assoc_union =
 
 let fresh_type_variable ?name:nameopt (lev : int) (mbkd : mono_base_kind) (rng : Range.t) : mono_type =
   let fid = FreeID.fresh ~message:"fresh_type_variable" lev in
-  KindStore.register_free_id fid mbkd;
   let mtvu = ref (Free(fid)) in
   let ty = (rng, TypeVar(Updatable(mtvu))) in
 (*
@@ -711,7 +730,7 @@ let types_of_format (lev : int) (fmtelems : format_element list) : mono_type lis
 
         | HoleP
         | HoleW ->
-            fresh_type_variable lev UniversalKind rng
+            fresh_type_variable lev TypeKind rng
       in
       [ ty ]
 
@@ -783,8 +802,8 @@ let rec unify_aux (ty1 : mono_type) (ty2 : mono_type) : unification_result =
   | (ProductType(tys1), ProductType(tys2)) ->
       unify_aux_list (tys1 |> TupleList.to_list) (tys2 |> TupleList.to_list)
 
-  | (RecordType(labmap1), RecordType(labmap2)) ->
-      unify_aux_label_assoc_exact labmap1 labmap2
+  | (RecordType(row1), RecordType(row2)) ->
+      unify_aux_row row1 row2
 
   | (PackType(absmodsig1), PackType(absmodsig2)) ->
       begin
@@ -807,31 +826,8 @@ let rec unify_aux (ty1 : mono_type) (ty2 : mono_type) : unification_result =
       if FreeID.equal fid1 fid2 then
         Consistent
       else begin
-        let res =
-          let bkd1 = KindStore.get_free_id fid1 in
-          let bkd2 = KindStore.get_free_id fid2 in
-          match (bkd1, bkd2) with
-          | (UniversalKind, UniversalKind) ->
-              Consistent
-
-          | (UniversalKind, RecordKind(_)) ->
-              KindStore.register_free_id fid1 bkd2;
-              Consistent
-
-          | (RecordKind(_), UniversalKind) ->
-              KindStore.register_free_id fid2 bkd1;
-              Consistent
-
-          | (RecordKind(labmap1), RecordKind(labmap2)) ->
-              let res = unify_aux_label_assoc_intersection labmap1 labmap2 in
-              let union = label_assoc_union labmap1 labmap2 in
-              KindStore.register_free_id fid1 (RecordKind(union));
-              KindStore.register_free_id fid2 (RecordKind(union));
-              res
-        in
         mtvu1 := Link(ty2);
-          (* Not `mtvu1 := Free(fid2)`. But I don't really understand why... TODO: Understand this *)
-        res
+        Consistent
       end
 
   | (TypeVar(Updatable({contents = Free(fid1)} as mtvu1)), _) ->
@@ -845,87 +841,14 @@ let rec unify_aux (ty1 : mono_type) (ty2 : mono_type) : unification_result =
 
 
 and unify_aux_free_id_and_record (fid1 : FreeID.t) (mtvu1 : mono_type_var_updatable ref) (ty2 : mono_type) =
-      let b = occurs fid1 ty2 in
-      if b then
-        Inclusion(fid1)
-      else
-        let res =
-          let bkd1 = KindStore.get_free_id fid1 in
-          match ty2 with
-          | (_, RecordType(labmap2)) ->
-              begin
-                match bkd1 with
-                | UniversalKind ->
-                    Consistent
+  let b = occurs fid1 ty2 in
+  if b then
+    Inclusion(fid1)
+  else begin
+    mtvu1 := Link(ty2);
+    Consistent
+  end
 
-                | RecordKind(labmap1) ->
-                    unify_aux_label_assoc_subtype ~specific:labmap2 ~general:labmap1
-              end
-
-          | (_, TypeVar(MustBeBound(mbbid2))) ->
-              let bkd1 = KindStore.get_free_id fid1 in
-              let pbkd2 = KindStore.get_bound_id (MustBeBoundID.to_bound mbbid2) in
-              (* The kind `bkd1` (i.e. the current kind of the free ID `fid1`) must be less strict than
-                 `pbkd2` (i.e. the specified kind of the must-be-bound ID `mbbid2`). *)
-              begin
-                match (bkd1, pbkd2) with
-                | (UniversalKind, UniversalKind) ->
-                    mtvu1 := Link(ty2);
-                    Consistent
-
-                | (UniversalKind, RecordKind(_)) ->
-                    mtvu1 := Link(ty2);
-                    Consistent
-
-                | (RecordKind(_), UniversalKind) ->
-                    Contradiction
-
-                | (RecordKind(labmap1), RecordKind(plabmap2)) ->
-                    let res =
-                      LabelAssoc.fold (fun label ty1 res ->
-                        match res with
-                        | Consistent ->
-                            begin
-                              match plabmap2 |> LabelAssoc.find_opt label with
-                              | None ->
-                                  Contradiction
-
-                              | Some(pty2) ->
-                                  let lev = 0 in (* TODO: fix this; this implementation is probably not valid *)
-                                  let ty2 = TypeConv.instantiate lev pty2 in
-                                  unify_aux ty1 ty2
-                            end
-
-                        | _ ->
-                            res
-                      ) labmap1 Consistent
-                    in
-                    begin
-                      match res with
-                      | Consistent -> mtvu1 := Link(ty2)
-                      | _          -> ()
-                    end;
-                    res
-              end
-
-          | (_, TypeVar(_)) ->
-              Contradiction
-
-          | _ ->
-              begin
-                match bkd1 with
-                | UniversalKind ->
-                    Consistent
-
-                | RecordKind(_) ->
-                    Contradiction
-              end
-        in
-        begin
-          match res with
-          | Consistent -> mtvu1 := Link(ty2); res
-          | _          -> res
-        end
 
 and unify_aux_list tys1 tys2 =
   try
@@ -942,7 +865,7 @@ and unify_aux_domain domain1 domain2 =
   let {ordered = ty2doms; mandatory = mndlabmap2; optional = optrow2} = domain2 in
   let res1 = unify_aux_list ty1doms ty2doms in
   let resmnd = unify_aux_label_assoc_exact mndlabmap1 mndlabmap2 in
-  let resopt = unify_aux_option_row optrow1 optrow2 in
+  let resopt = unify_aux_row optrow1 optrow2 in
   res1 &&& resmnd &&& resopt
 
 and unify_aux_effect (Effect(ty1)) (Effect(ty2)) =
@@ -951,13 +874,13 @@ and unify_aux_effect (Effect(ty1)) (Effect(ty2)) =
 and unify_aux_pid_type (Pid(ty1)) (Pid(ty2)) =
   unify_aux ty1 ty2
 
-and unify_aux_option_row (optrow1 : mono_row) (optrow2 : mono_row) =
-  match (optrow1, optrow2) with
-  | (RowVar(UpdatableRow{contents = LinkRow(labmap1)}), _) ->
-      unify_aux_option_row (FixedRow(labmap1)) optrow2
+and unify_aux_row (row1 : mono_row) (row2 : mono_row) =
+  match (row1, row2) with
+  | (RowVar(UpdatableRow{contents = LinkRow(row1sub)}), _) ->
+      unify_aux_row row1sub row2
 
-  | (_, RowVar(UpdatableRow{contents = LinkRow(labmap2)})) ->
-      unify_aux_option_row optrow1 (FixedRow(labmap2))
+  | (_, RowVar(UpdatableRow{contents = LinkRow(row2sub)})) ->
+      unify_aux_row row1 row2sub
 
   | (RowVar(MustBeBoundRow(mbbrid1)), RowVar(MustBeBoundRow(mbbrid2))) ->
       if MustBeBoundRowID.equal mbbrid1 mbbrid2 then
@@ -969,34 +892,42 @@ and unify_aux_option_row (optrow1 : mono_row) (optrow2 : mono_row) =
   | (_, RowVar(MustBeBoundRow(_))) ->
       Contradiction
 
-  | (RowVar(UpdatableRow({contents = FreeRow(frid1)} as mrvu1)), FixedRow(labmap2)) ->
-      if occurs_row frid1 labmap2 then
+  | (RowVar(UpdatableRow({contents = FreeRow(frid1)} as mrvu1)), _) ->
+      if occurs_row frid1 row2 then
         InclusionRow(frid1)
       else
-        let labmap1 = KindStore.get_free_row frid1 in
+        failwith "TODO: unify_aux_row"
+(*
+        let labset1 = KindStore.get_free_row frid1 in
         begin
           match unify_aux_label_assoc_subtype ~specific:labmap2 ~general:labmap1 with
-          | Consistent -> mrvu1 := LinkRow(labmap2); Consistent
+          | Consistent -> mrvu1 := LinkRow(row2); Consistent
           | res        -> res
         end
+*)
 
-  | (FixedRow(labmap1), RowVar(UpdatableRow({contents = FreeRow(frid2)} as mrvu2))) ->
-      if occurs_row frid2 labmap1 then
+  | (_, RowVar(UpdatableRow({contents = FreeRow(frid2)} as mrvu2))) ->
+      if occurs_row frid2 row1 then
         InclusionRow(frid2)
       else
-        let labmap2 = KindStore.get_free_row frid2 in
+        failwith "TODO: unify_aux_row"
+(*
+        let labset2 = KindStore.get_free_row frid2 in
         begin
           match unify_aux_label_assoc_subtype ~specific:labmap1 ~general:labmap2 with
           | Consistent -> mrvu2 := LinkRow(labmap1); Consistent
           | res        -> res
         end
+*)
 
   | (RowVar(UpdatableRow({contents = FreeRow(frid1)} as mtvu1)), RowVar(UpdatableRow{contents = FreeRow(frid2)})) ->
       if FreeRowID.equal frid1 frid2 then
         Consistent
       else
-        let labmap1 = KindStore.get_free_row frid1 in
-        let labmap2 = KindStore.get_free_row frid2 in
+        failwith "TODO: unify_aux_row"
+(*
+        let labset1 = KindStore.get_free_row frid1 in
+        let labset2 = KindStore.get_free_row frid2 in
         let res = unify_aux_label_assoc_intersection labmap1 labmap2 in
         begin
           match res with
@@ -1011,8 +942,11 @@ and unify_aux_option_row (optrow1 : mono_row) (optrow2 : mono_row) =
           | _ ->
               res
         end
+*)
 
-  | (FixedRow(labmap1), FixedRow(labmap2)) ->
+  | (RowCons((rng, label), ty, row1sub), _) ->
+      failwith "TODO: unify_aux_row, RowCons"
+(*
       let merged =
         LabelAssoc.merge (fun _ tyopt1 tyopt2 ->
           match (tyopt1, tyopt2) with
@@ -1023,6 +957,14 @@ and unify_aux_option_row (optrow1 : mono_row) (optrow2 : mono_row) =
         ) labmap1 labmap2
       in
       LabelAssoc.fold (fun _ res resacc -> resacc &&& res) merged Consistent
+*)
+
+  | (RowEmpty, RowEmpty) ->
+      Consistent
+
+  | (RowEmpty, RowCons(_, _, _)) ->
+      Contradiction
+
 
 and unify_aux_label_assoc_subtype ~specific:labmap2 ~general:labmap1 =
   (* Check that `labmap2` is more specific than or equal to `labmap1`,
@@ -1159,11 +1101,7 @@ and make_rec_initial_type_from_annotation (preL : pre) (letbind : untyped_let_bi
             (rngv, EffType(domty, Effect(tyeff), tycod))
           )
     in
-    tyopt |> Option.map (fun ty ->
-      match TypeConv.generalize preL.level ty with
-      | Ok(pty)             -> pty
-      | Error((cycle, pty)) -> assert false (* Type parameters occurring in handwritten kinds cannot be cyclic. *)
-    )
+    tyopt |> Option.map (TypeConv.generalize preL.level)
   in
   (preS, ptyopt)
 
@@ -1171,18 +1109,6 @@ and make_rec_initial_type_from_annotation (preL : pre) (letbind : untyped_let_bi
 and make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder list) : pre * type_parameter_assoc =
   tyvarnms |> List.fold_left (fun (pre, assoc) ((rng, tyvarnm), kdannot) ->
     let mbbid = MustBeBoundID.fresh (pre.level + 1) in
-    let mbkd =
-      match kdannot with
-      | None        -> UniversalKind
-      | Some(mnbkd) -> decode_manual_base_kind pre mnbkd
-    in
-    let pbkd =
-      match TypeConv.generalize_base_kind pre.level mbkd with
-      | Ok(pbkd) -> pbkd
-      | Error(_) -> assert false
-          (* Type parameters occurring in handwritten kinds cannot be cyclic. *)
-    in
-    KindStore.register_bound_id (MustBeBoundID.to_bound mbbid) pbkd;
 (*
     Format.printf "MUST-BE-BOUND %s : L%d %a\n" tyvarnm lev MustBeBoundID.pp mbbid;  (* for debug *)
 *)

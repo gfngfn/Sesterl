@@ -70,6 +70,19 @@ end with type key = string) = struct
     )
 end
 
+module LabelSet : sig
+  include Set.S
+  val pp : Format.formatter -> t -> unit
+end = struct
+  module Impl = Set.Make(String)
+  include Impl
+
+  let pp ppf labset =
+    labset |> Impl.iter (fun label ->
+      Format.fprintf ppf "%s,@ " label
+    )
+end
+
 
 let pp_identifier ppf s =
   Format.fprintf ppf "\"%s\"" s

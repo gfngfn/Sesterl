@@ -16,7 +16,7 @@ and ('a, 'b) typ_main =
   | TypeVar     of 'a
   | ProductType of (('a, 'b) typ) TupleList.t
   | TypeApp     of TypeID.t * (('a, 'b) typ) list
-  | RecordType  of (('a, 'b) typ) LabelAssoc.t
+  | RecordType  of ('a, 'b) row
   | PackType    of module_signature abstracted
 
 and ('a, 'b) domain_type = {
@@ -32,12 +32,13 @@ and ('a, 'b) pid_type =
   | Pid of ('a, 'b) typ
 
 and ('a, 'b) row =
-  | FixedRow of (('a, 'b) typ) LabelAssoc.t
-  | RowVar   of 'b
+  | RowCons of label ranged * (('a, 'b) typ) * ('a, 'b) row
+  | RowVar  of 'b
+  | RowEmpty
 
 and ('a, 'b) base_kind =
-  | UniversalKind
-  | RecordKind    of (('a, 'b) typ) LabelAssoc.t
+  | TypeKind
+  | RowKind  of LabelSet.t
 
 and module_signature =
   | ConcStructure of record_signature
@@ -67,7 +68,7 @@ and mono_type_var =
 
 and mono_row_var_updatable =
   | FreeRow of FreeRowID.t
-  | LinkRow of mono_type LabelAssoc.t
+  | LinkRow of mono_row
 
 and mono_row_var =
   | UpdatableRow   of mono_row_var_updatable ref

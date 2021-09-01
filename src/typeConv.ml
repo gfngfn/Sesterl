@@ -234,20 +234,14 @@ let collect_ids_scheme
   let rec aux_free_id (fid : FreeID.t) =
     if FreeIDHashTable.mem fidht fid then
       ()
-    else begin
-      FreeIDHashTable.add fidht fid ();
-      let mbkd = KindStore.get_free_id fid in
-      aux_mono_base_kind mbkd
-    end
+    else
+      FreeIDHashTable.add fidht fid ()
 
   and aux_free_row_id (frid : FreeRowID.t) =
     if FreeRowIDHashTable.mem fridht frid then
       ()
-    else begin
-      FreeRowIDHashTable.add fridht frid ();
-      let labmap = KindStore.get_free_row frid in
-      aux_mono_label_assoc labmap
-    end
+    else
+      FreeRowIDHashTable.add fridht frid ()
 
   and aux_mono ((_, tymain) : mono_type) : unit =
     match tymain with
@@ -278,8 +272,8 @@ let collect_ids_scheme
     | ProductType(tys) ->
         tys |> TupleList.to_list |> List.iter aux_mono
 
-    | RecordType(labmap) ->
-        aux_mono_label_assoc labmap
+    | RecordType(row) ->
+        aux_mono_row row
 
     | TypeApp(tyid, tyargs) ->
         tyargs |> List.iter aux_mono
@@ -307,11 +301,8 @@ let collect_ids_scheme
           | Bound(bid) ->
               if BoundIDHashTable.mem bidht bid then
                 ()
-              else begin
-                BoundIDHashTable.add bidht bid ();
-                let pbkd = KindStore.get_bound_id bid in
-                aux_poly_base_kind pbkd
-              end
+              else
+                BoundIDHashTable.add bidht bid ()
         end
 
     | FuncType(pdomain, ptycod) ->
@@ -329,8 +320,8 @@ let collect_ids_scheme
     | ProductType(ptys) ->
         ptys |> TupleList.to_list |> List.iter aux_poly
 
-    | RecordType(plabmap) ->
-        aux_poly_label_assoc plabmap
+    | RecordType(prow) ->
+        aux_poly_row prow
 
     | TypeApp(tyid, ptyargs) ->
         ptyargs |> List.iter aux_poly
@@ -344,25 +335,15 @@ let collect_ids_scheme
   and aux_poly_label_assoc (plabmap : poly_type LabelAssoc.t) : unit =
     LabelAssoc.iter (fun _ pty -> aux_poly pty) plabmap
 
-  and aux_mono_base_kind (bkd : mono_base_kind) : unit =
-    match bkd with
-    | UniversalKind      -> ()
-    | RecordKind(labmap) -> aux_mono_label_assoc labmap
-
-  and aux_poly_base_kind (pbkd : poly_base_kind) : unit =
-    match pbkd with
-    | UniversalKind       -> ()
-    | RecordKind(plabmap) -> aux_poly_label_assoc plabmap
-
   and aux_mono_domain (domain : mono_domain_type) : unit =
     domain.ordered |> List.iter aux_mono;
     aux_mono_label_assoc domain.mandatory;
-    aux_mono_option_row domain.optional
+    aux_mono_row domain.optional
 
   and aux_poly_domain (pdomain : poly_domain_type) : unit =
     pdomain.ordered |> List.iter aux_poly;
     aux_poly_label_assoc pdomain.mandatory;
-    aux_poly_option_row pdomain.optional
+    aux_poly_row pdomain.optional
 
   and aux_mono_effect (Effect(ty)) =
     aux_mono ty
@@ -376,32 +357,34 @@ let collect_ids_scheme
   and aux_poly_pid_type (Pid(pty)) =
     aux_poly pty
 
-  and aux_mono_option_row : mono_row -> unit = function
-    | FixedRow(labmap)                                 -> aux_mono_label_assoc labmap
-    | RowVar(UpdatableRow{contents = LinkRow(labmap)}) -> aux_mono_label_assoc labmap
-    | RowVar(UpdatableRow{contents = FreeRow(frid)})   -> aux_free_row_id frid
-    | RowVar(MustBeBoundRow(mbbrid))                   -> ()
+  and aux_mono_row : mono_row -> unit = function
+    | RowCons(_rlabel, ty, row)                      -> aux_mono ty; aux_mono_row row
+    | RowVar(UpdatableRow{contents = LinkRow(row)})  -> aux_mono_row row
+    | RowVar(UpdatableRow{contents = FreeRow(frid)}) -> aux_free_row_id frid
+    | RowVar(MustBeBoundRow(mbbrid))                 -> ()
+    | RowEmpty                                       -> ()
 
-  and aux_poly_option_row : poly_row -> unit = function
-    | FixedRow(plabmap) ->
-        aux_poly_label_assoc plabmap
+  and aux_poly_row : poly_row -> unit = function
+    | RowCons(_rlabel, pty, prow) ->
+        aux_poly pty;
+        aux_poly_row prow
 
     | RowVar(MonoRow(prv)) ->
         begin
           match prv with
-          | UpdatableRow{contents = LinkRow(labmap)} -> aux_mono_label_assoc labmap
-          | UpdatableRow{contents = FreeRow(frid)}   -> aux_free_row_id frid
-          | MustBeBoundRow(_)                        -> ()
+          | UpdatableRow{contents = LinkRow(row)}  -> aux_mono_row row
+          | UpdatableRow{contents = FreeRow(frid)} -> aux_free_row_id frid
+          | MustBeBoundRow(_)                      -> ()
         end
 
     | RowVar(BoundRow(brid)) ->
         if BoundRowIDHashTable.mem bridht brid then
           ()
-        else begin
-          BoundRowIDHashTable.add bridht brid ();
-          let plabmap = KindStore.get_bound_row brid in
-          aux_poly_label_assoc plabmap
-        end
+        else
+          BoundRowIDHashTable.add bridht brid ()
+
+    | RowEmpty ->
+        ()
   in
   (aux_mono, aux_poly)
 
@@ -460,12 +443,10 @@ let collect_ids_poly (pty : poly_type) (dispmap : DisplayMap.t) : DisplayMap.t =
    - `levpred`:
      Given a level of free/must-be-bound ID,
      this predicate returns whether it should be bound or not. *)
-let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_type) : (poly_type, BoundBothID.t cycle * poly_type) result =
+let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_type) : poly_type =
 
   let fidht = FreeIDHashTable.create 32 in
   let fridht = FreeRowIDHashTable.create 32 in
-
-  let bdepsht = BoundBothIDHashTable.create 32 in
 
   let rec intern (fid : FreeID.t) : BoundID.t =
     match FreeIDHashTable.find_opt fidht fid with
@@ -475,10 +456,6 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
     | None ->
         let bid = BoundID.fresh () in
         FreeIDHashTable.add fidht fid bid;
-        let mbkd = KindStore.get_free_id fid in
-        let (bbidset, pbkd) = aux_base_kind mbkd in
-        BoundBothIDHashTable.add bdepsht (BoundBothID.Type(bid)) bbidset;
-        KindStore.register_bound_id bid pbkd;
         bid
 
   and intern_row (frid : FreeRowID.t) : BoundRowID.t =
@@ -489,10 +466,8 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
     | None ->
         let brid = BoundRowID.fresh () in
         FreeRowIDHashTable.add fridht frid brid;
-        let labmap = KindStore.get_free_row frid in
-        let (bbidset, plabmap) = aux_label_assoc labmap in
-        BoundBothIDHashTable.add bdepsht (BoundBothID.Row(brid)) bbidset;
-        KindStore.register_bound_row brid plabmap;
+        let labset = KindStore.get_free_row frid in
+        KindStore.register_bound_row brid labset;
         brid
 
   and aux_label_assoc (labmap : mono_type LabelAssoc.t) : BoundBothIDSet.t * poly_type LabelAssoc.t =
@@ -501,20 +476,11 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
       (BoundBothIDSet.union bbidsetacc bbidset, plabmap |> LabelAssoc.add label pty)
     ) labmap (BoundBothIDSet.empty, LabelAssoc.empty)
 
-  and aux_base_kind (mbkd : mono_base_kind) : BoundBothIDSet.t * poly_base_kind =
-    match mbkd with
-    | UniversalKind ->
-        (BoundBothIDSet.empty, UniversalKind)
-
-    | RecordKind(labmap) ->
-        let (bbidset, plabmap) = aux_label_assoc labmap in
-        (bbidset, RecordKind(plabmap))
-
   and aux_domain (domain : mono_domain_type) : BoundBothIDSet.t * poly_domain_type =
     let {ordered = tydoms; mandatory = mndlabmap; optional = optrow} = domain in
     let (bbidset1, ptydoms) = aux_list tydoms in
     let (bbidset2, pmndlabmap) = aux_label_assoc mndlabmap in
-    let (bbidset3, poptrow) = aux_option_row optrow in
+    let (bbidset3, poptrow) = aux_row optrow in
     let bbidset = List.fold_left BoundBothIDSet.union bbidset1 [bbidset2; bbidset3] in
     (bbidset, {ordered = ptydoms; mandatory = pmndlabmap; optional = poptrow})
 
@@ -578,9 +544,9 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         let pty = (rngf rng, ProductType(ptys)) in
         (bbidset, pty)
 
-    | RecordType(labmap) ->
-        let (bbidset, plabmap) = aux_label_assoc labmap in
-        let pty = (rngf rng, RecordType(plabmap)) in
+    | RecordType(row) ->
+        let (bbidset, prow) = aux_row row in
+        let pty = (rngf rng, RecordType(prow)) in
         (bbidset, pty)
 
     | TypeApp(tyid, tyargs) ->
@@ -609,14 +575,15 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
     let (bbidset, pty) = aux ty in
     (bbidset, Pid(pty))
 
-  and aux_option_row : mono_row -> BoundBothIDSet.t * poly_row = function
-    | FixedRow(labmap) ->
-        let (bbidset, plabmap) = aux_label_assoc labmap in
-        (bbidset, FixedRow(plabmap))
+  and aux_row : mono_row -> BoundBothIDSet.t * poly_row = function
+    | RowCons(rlabel, ty, row) ->
+        let (bbidset1, pty) = aux ty in
+        let (bbidset2, prow) = aux_row row in
+        (BoundBothIDSet.union bbidset1 bbidset2, RowCons(rlabel, pty, prow))
 
-    | RowVar(UpdatableRow{contents = LinkRow(labmap)}) ->
-        let (bbidset, plabmap) = aux_label_assoc labmap in
-        (bbidset, FixedRow(plabmap))
+    | RowVar(UpdatableRow{contents = LinkRow(row)}) ->
+        let (bbidset, prow) = aux_row row in
+        (bbidset, prow)
 
     | RowVar((UpdatableRow{contents = FreeRow(frid)}) as mrv) ->
         if levpred (FreeRowID.get_level frid) then
@@ -634,28 +601,17 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         else
           (BoundBothIDSet.empty, RowVar(MonoRow(MustBeBoundRow(mbbrid))))
 
+    | RowEmpty ->
+        (BoundBothIDSet.empty, RowEmpty)
+
   in
-  let (bbidset, pty) = aux ty in
-  let graph =
-    BoundBothIDDependencyGraph.empty |> BoundBothIDSet.fold (fun bbid graph ->
-      BoundBothIDDependencyGraph.add_vertex graph bbid
-    ) bbidset
-  in
-  let graph =
-    BoundBothIDHashTable.fold (fun bbid_from bbidset_to graph ->
-      graph |> BoundBothIDSet.fold (fun bbid_to graph ->
-        BoundBothIDDependencyGraph.add_edge graph bbid_from bbid_to
-      ) bbidset_to
-    ) bdepsht graph
-  in
-  match BoundBothIDDependencyGraph.find_cycle graph with
-  | Some(cycle) -> Error((cycle, pty))
-  | None        -> Ok(pty)
+  let (_bbidset, pty) = aux ty in
+  pty
 
 
 (* `generalize lev ty` transforms a monotype `ty` into a polytype
    by binding type variables the level of which is higher than `lev`. *)
-let generalize (lev : int) (ty : mono_type) : (poly_type, BoundBothID.t cycle * poly_type) result =
+let generalize (lev : int) (ty : mono_type) : poly_type =
   lift_scheme
     (fun _ -> Range.dummy "erased")
     (fun levx -> lev < levx)
@@ -664,10 +620,7 @@ let generalize (lev : int) (ty : mono_type) : (poly_type, BoundBothID.t cycle * 
 
 (* `lift` projects monotypes into polytypes without binding any type variables. *)
 let lift (ty : mono_type) : poly_type =
-  let res = lift_scheme (fun rng -> rng) (fun _ -> false) ty in
-  match res with
-  | Ok(pty)  -> pty
-  | Error(_) -> assert false
+  lift_scheme (fun rng -> rng) (fun _ -> false) ty
 
 
 let instantiate_scheme : 'a 'b. (Range.t -> poly_type_var -> ('a, 'b) typ) -> (poly_row_var -> 'b) -> poly_type -> ('a, 'b) typ =
@@ -699,9 +652,9 @@ fun intern intern_row pty ->
         let tys = ptys |> TupleList.map aux in
         (rng, ProductType(tys))
 
-    | RecordType(plabmap) ->
-        let labmap = plabmap |> LabelAssoc.map aux in
-        (rng, RecordType(labmap))
+    | RecordType(prow) ->
+        let row = aux_row prow in
+        (rng, RecordType(row))
 
     | TypeApp(tyid, ptyargs) ->
         (rng, TypeApp(tyid, ptyargs |> List.map aux))
@@ -709,19 +662,23 @@ fun intern intern_row pty ->
     | PackType(absmodsig) ->
         (rng, PackType(absmodsig))
 
+  and aux_row = function
+    | RowCons(rlabel, pty, prow) ->
+        let ty = aux pty in
+        let row = aux_row prow in
+        RowCons(rlabel, ty, row)
+
+    | RowVar(prv) ->
+        RowVar(intern_row prv)
+
+    | RowEmpty ->
+        RowEmpty
+
   and aux_domain pdomain =
     let {ordered = ptydoms; mandatory = pmndlabmap; optional = poptrow} = pdomain in
     let tydoms = ptydoms |> List.map aux in
     let mndlabmap = pmndlabmap |> LabelAssoc.map aux in
-    let optrow =
-      match poptrow with
-      | FixedRow(plabmap) ->
-          let labmap = plabmap |> LabelAssoc.map aux in
-          FixedRow(labmap)
-
-      | RowVar(prv) ->
-          RowVar(intern_row prv)
-    in
+    let optrow = aux_row poptrow in
     {ordered = tydoms; mandatory = mndlabmap; optional = optrow}
 
   and aux_effect (Effect(pty)) =
@@ -750,9 +707,6 @@ let instantiate_by_hash_table bidht bridht (lev : int) (pty : poly_type) : mono_
 
           | None ->
               let fid = FreeID.fresh ~message:"instantiate, intern" lev in
-              let pbkd = KindStore.get_bound_id bid in
-              let mbkd = aux_base_kind pbkd in
-              KindStore.register_free_id fid mbkd;
               let mtvu = ref (Free(fid)) in
               BoundIDHashTable.add bidht bid mtvu;
               Updatable(mtvu)
@@ -771,21 +725,12 @@ let instantiate_by_hash_table bidht bridht (lev : int) (pty : poly_type) : mono_
               UpdatableRow(mrvu)
 
           | None ->
-              let plabmap = KindStore.get_bound_row brid in
-              let labmap = plabmap |> LabelAssoc.map aux in
+              let labset = KindStore.get_bound_row brid in
               let frid = FreeRowID.fresh ~message:"instantiate, intern_row" lev in
-              KindStore.register_free_row frid labmap;
+              KindStore.register_free_row frid labset;
               let mrvu = ref (FreeRow(frid)) in
               UpdatableRow(mrvu)
         end
-
-  and aux_base_kind (pbkd : poly_base_kind) : mono_base_kind =
-    match pbkd with
-    | UniversalKind ->
-        UniversalKind
-
-    | RecordKind(plabmap) ->
-        RecordKind(plabmap |> LabelAssoc.map aux)
 
   and aux pty =
     instantiate_scheme intern intern_row pty
@@ -800,15 +745,6 @@ let instantiate (lev : int) (pty : poly_type) =
   instantiate_by_hash_table bidht bridht lev pty
 
 
-let instantiate_base_kind_by_hash_table bidht bridht (lev : int) (pbkd : poly_base_kind) : mono_base_kind =
-  match pbkd with
-  | UniversalKind ->
-      UniversalKind
-
-  | RecordKind(plabmap) ->
-      RecordKind(plabmap |> LabelAssoc.map (instantiate_by_hash_table bidht bridht lev))
-
-
 let make_bound_to_free_hash_table bidht bridht (lev : int) (typarams : BoundID.t list) : mono_type list =
   let tyargacc =
     typarams |> List.fold_left (fun tyargacc bid ->
@@ -819,9 +755,6 @@ let make_bound_to_free_hash_table bidht bridht (lev : int) (typarams : BoundID.t
 
         | None ->
             let fid = FreeID.fresh ~message:"make_bound_to_free_hash_table" lev in
-            let pbkd = KindStore.get_bound_id bid in
-            let mbkd = instantiate_base_kind_by_hash_table bidht bridht lev pbkd in
-            KindStore.register_free_id fid mbkd;
             let mtvu = ref (Free(fid)) in
             BoundIDHashTable.add bidht bid mtvu;
             Updatable(mtvu)
@@ -916,9 +849,7 @@ let make_opaque_type_scheme (bids : BoundID.t list) (tyid : TypeID.t) : type_sch
 let make_opaque_type_scheme_from_base_kinds (pbkds : poly_base_kind list) (tyid : TypeID.t) : type_scheme =
   let bids =
     pbkds |> List.map (fun pbkd ->
-      let bid = BoundID.fresh () in
-      KindStore.register_bound_id bid pbkd;
-      bid
+      BoundID.fresh ()
     )
   in
   make_opaque_type_scheme bids tyid
@@ -952,7 +883,7 @@ let get_opaque_type ((bids, pty_body) : type_scheme) : TypeID.t option =
 let overwrite_range_of_type (rng : Range.t) (_, tymain) =
   (rng, tymain)
 
-
+(*
 let can_row_take_optional : mono_row -> bool = function
   | FixedRow(labmap) ->
       LabelAssoc.cardinal labmap > 0
@@ -967,62 +898,11 @@ let can_row_take_optional : mono_row -> bool = function
   | RowVar(MustBeBoundRow(mbbrid)) ->
       let labmap = KindStore.get_bound_row (MustBeBoundID.to_bound mbbrid) in
       LabelAssoc.cardinal labmap > 0
-
+*)
 
 let rec kind_of_arity n =
-  let bkddoms = List.init n (fun _ -> UniversalKind) in
-  Kind(bkddoms, UniversalKind)
-
-
-let lift_base_kind_scheme (rngf : Range.t -> Range.t) (levf : int -> bool) (mbkd : mono_base_kind) : (poly_base_kind, BoundBothID.t cycle * poly_type) result =
-  let open ResultMonad in
-  match mbkd with
-  | UniversalKind ->
-      return UniversalKind
-
-  | RecordKind(labmap) ->
-      begin
-        LabelAssoc.fold (fun label ty acc ->
-          acc >>= fun plabmap ->
-          lift_scheme rngf levf ty >>= fun pty ->
-          return (plabmap |> LabelAssoc.add label pty)
-        ) labmap (Ok(LabelAssoc.empty))
-      end >>= fun plabmap ->
-      return (RecordKind(plabmap))
-
-
-let generalize_base_kind (lev : int) : mono_base_kind -> (poly_base_kind, BoundBothID.t cycle * poly_type) result =
-  lift_base_kind_scheme
-    (fun _ -> Range.dummy "erased")
-    (fun levx -> lev < levx)
-
-
-let lift_base_kind =
-  lift_base_kind_scheme
-    (fun rng -> rng)
-    (fun _ -> false)
-
-
-let lift_kind (kd : mono_kind) : poly_kind =
-  let open ResultMonad in
-  match kd with
-  | Kind(bkddoms, bkdcod) ->
-      let res =
-        begin
-          bkddoms |> List.fold_left (fun acc bkddom ->
-            acc >>= fun pbkddomacc ->
-            lift_base_kind bkddom >>= fun pbkddom ->
-            return (Alist.extend pbkddomacc pbkddom)
-          ) (return Alist.empty)
-        end >>= fun pbkddomacc ->
-        lift_base_kind bkdcod >>= fun pbkdcod ->
-        return (Kind(Alist.to_list pbkddomacc, pbkdcod))
-      in
-      begin
-        match res with
-        | Ok(pkd)  -> pkd
-        | Error(_) -> assert false
-      end
+  let bkddoms = List.init n (fun _ -> TypeKind) in
+  Kind(bkddoms, TypeKind)
 
 
 let rec arity_of_kind = function
@@ -1072,7 +952,7 @@ fun showtv showrv domain ->
     | Some(s) -> (false, s)
   in
   let (is_opts_empty, sopts) =
-    match show_row showtv showrv domain.optional with
+    match show_row ~prefix:"?" ~suffix:"" showtv showrv domain.optional with
     | None    -> (true, "")
     | Some(s) -> (false, s)
   in
@@ -1123,9 +1003,9 @@ fun showtv showrv ty ->
         let ss = tys |> TupleList.to_list |> List.map aux in
         Printf.sprintf "{%s}" (String.concat ", " ss)
 
-    | RecordType(labmap) ->
+    | RecordType(row) ->
         begin
-          match show_label_assoc ~prefix:"" ~suffix:" :" showtv showrv labmap with
+          match show_row ~prefix:"" ~suffix:" :" showtv showrv row with
           | None    -> "{}"
           | Some(s) -> Printf.sprintf "{%s}" s
         end
@@ -1154,11 +1034,14 @@ fun showtv showrv ty ->
   aux ty
 
 
-and show_row : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) row -> string option =
-fun showtv showrv optrow ->
+and show_row : 'a 'b. prefix:string -> suffix:string -> ('a -> string) -> ('b -> string option) -> ('a, 'b) row -> string option =
+fun ~prefix ~suffix showtv showrv optrow ->
+  failwith "TODO: show_row"
+(*
   match optrow with
-  | FixedRow(labmap) -> labmap |> show_label_assoc ~prefix:"?" ~suffix:"" showtv showrv
-  | RowVar(rv)       -> showrv rv |> Option.map (fun s -> "?" ^ s)
+  | RowCons(rlabel) -> labmap |> show_label_assoc ~prefix:"?" ~suffix:"" showtv showrv
+  | RowVar(rv)       -> showrv rv |> Option.map (fun s -> prefix ^ s)
+*)
 
 
 and show_kind : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) kind -> string =
@@ -1176,14 +1059,17 @@ fun showtv showrv kd ->
 and show_base_kind : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) base_kind -> string =
 fun showtv showrv ->
   function
-  | UniversalKind ->
+  | TypeKind ->
       "o"
 
-  | RecordKind(labmap) ->
+  | RowKind(labset) ->
+      failwith "TODO: show_base_kind, RowKind"
+(*
       let s =
         labmap |> show_label_assoc ~prefix:"" ~suffix:" :" showtv showrv |> Option.value ~default:""
       in
       Printf.sprintf "{%s}" s
+*)
 
 
 and show_mono_type_var (dispmap : DisplayMap.t) (mtv : mono_type_var) : string =
@@ -1206,11 +1092,8 @@ and show_mono_row_var (dispmap : DisplayMap.t) (mrv : mono_row_var) : string opt
 
 and show_mono_row_var_updatable (dispmap : DisplayMap.t) (mrvu : mono_row_var_updatable) : string option =
   match mrvu with
-  | LinkRow(labmap) ->
-      show_label_assoc ~prefix:"?" ~suffix:""
-        (show_mono_type_var dispmap)
-        (show_mono_row_var dispmap)
-        labmap
+  | LinkRow(row) ->
+      show_row ~prefix:"?" ~suffix:"" (show_mono_type_var dispmap) (show_mono_row_var dispmap) row
 
   | FreeRow(frid) ->
       let s = dispmap |> DisplayMap.find_free_row_id frid in
@@ -1221,8 +1104,8 @@ let show_mono_type (dispmap : DisplayMap.t) : mono_type -> string =
   show_type (show_mono_type_var dispmap) (show_mono_row_var dispmap)
 
 
-let show_mono_row (dispmap : DisplayMap.t) : mono_row -> string option =
-  show_row (show_mono_type_var dispmap) (show_mono_row_var dispmap)
+let show_mono_row ~(prefix : string) ~(suffix : string) (dispmap : DisplayMap.t) : mono_row -> string option =
+  show_row ~prefix ~suffix (show_mono_type_var dispmap) (show_mono_row_var dispmap)
 
 
 let pp_mono_type dispmap ppf ty =
@@ -1243,7 +1126,7 @@ type 'a state =
 
 type hash_tables = (string state) BoundIDHashTable.t * ((string LabelAssoc.t) state) BoundRowIDHashTable.t
 
-
+(*
 (* Does NOT fall into an infinite loop even when type variables are mutually dependent or cyclic. *)
 let rec show_poly_type_var (dispmap : DisplayMap.t) (hts : hash_tables) = function
   | Bound(bid) ->
@@ -1322,9 +1205,11 @@ let create_initial_hash_tables () : hash_tables =
   let bidht = BoundIDHashTable.create 32 in
   let bridht = BoundRowIDHashTable.create 32 in
   (bidht, bridht)
-
+*)
 
 let show_poly_type (dispmap : DisplayMap.t) (pty : poly_type) : string list * string list * string =
+  failwith "TODO: show_poly_type"
+(*
   let hts = create_initial_hash_tables () in
   let smain = show_poly_type_sub dispmap hts pty in
   let sbids = show_bound_type_ids dispmap hts in
@@ -1355,7 +1240,7 @@ let show_poly_kind (dispmap : DisplayMap.t) (pkd : poly_kind) : string list * st
       let sbids = show_bound_type_ids dispmap hts in
       let sbrids = show_bound_row_ids dispmap hts in
       (sbids, sbrids, smain)
-
+*)
 
 let pp_poly_type dispmap ppf pty =
   let (_, _, sty) = show_poly_type dispmap pty in
@@ -1369,6 +1254,8 @@ let debug_print_poly_type message pty =
 
 
 let print_nontrivial_mono_base_kinds (dispmap : DisplayMap.t) =
+  failwith "TODO: print_nontrivial_mono_base_kinds"
+(*
   let fids =
     dispmap |> DisplayMap.fold_free_id (fun fid s acc ->
       let bkd = KindStore.get_free_id fid in
@@ -1420,7 +1307,7 @@ let print_nontrivial_mono_base_kinds (dispmap : DisplayMap.t) =
           (dispmap |> DisplayMap.find_free_row_id frid)
           skd
       )
-
+*)
 
 let debug_print_mono_type message ty =
   let dispmap = DisplayMap.empty |> collect_ids_mono ty in
