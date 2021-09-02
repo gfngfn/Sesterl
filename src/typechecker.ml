@@ -181,8 +181,8 @@ let get_dependency_on_synonym_types (vertices : SynonymNameSet.t) (pre : pre) (m
     | MProductType(mtys) ->
         mtys |> TupleList.to_list |> List.iter aux
 
-    | MRecordType(labmtys) ->
-        aux_labeled_list labmtys
+    | MRecordType(mrow) ->
+        aux_row mrow
 
     | MEffType((mtydoms, mndlabmtys, mrow), mty1, mty2) ->
         aux_labeled_list mndlabmtys;
@@ -205,8 +205,7 @@ let get_dependency_on_synonym_types (vertices : SynonymNameSet.t) (pre : pre) (m
 
   and aux_row (mrow : manual_row) : unit =
     match mrow with
-    | MFixedRow(optlabmtys) -> aux_labeled_list optlabmtys
-    | MRowVar(_)            -> ()
+    | MRow(optlabmtys, _) -> aux_labeled_list optlabmtys
 
   and aux_signature (utsig : untyped_signature) : unit =
     () (* TODO: implement this or restrict the syntax of `pack` *)
@@ -659,7 +658,7 @@ let label_assoc_union =
   LabelAssoc.union (fun _ _ ty2 -> Some(ty2))
 
 
-let fresh_type_variable ?name:nameopt (lev : int) (mbkd : mono_base_kind) (rng : Range.t) : mono_type =
+let fresh_type_variable ?name:nameopt (lev : int) (rng : Range.t) : mono_type =
   let fid = FreeID.fresh ~message:"fresh_type_variable" lev in
   let mtvu = ref (Free(fid)) in
   let ty = (rng, TypeVar(Updatable(mtvu))) in
@@ -730,7 +729,7 @@ let types_of_format (lev : int) (fmtelems : format_element list) : mono_type lis
 
         | HoleP
         | HoleW ->
-            fresh_type_variable lev TypeKind rng
+            fresh_type_variable lev rng
       in
       [ ty ]
 
@@ -1178,22 +1177,14 @@ and make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder list)
 
 and decode_manual_base_kind (pre : pre) (mnbkd : manual_base_kind) : mono_base_kind =
 
-  let aux_labeled_list =
-    decode_manual_record_type pre
-  in
-
   let rec aux (rng, mnbkdmain) =
     match mnbkdmain with
     | MKindName(kdnm) ->
         begin
           match kdnm with
-          | "o" -> UniversalKind
+          | "o" -> TypeKind
           | _   -> raise_error (UndefinedKindName(rng, kdnm))
         end
-
-    | MRecordKind(labmtys) ->
-        let labmap = aux_labeled_list labmtys in
-        RecordKind(labmap)
   in
   aux mnbkd
 
@@ -1267,9 +1258,9 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
       | MProductType(mtys) ->
           ProductType(TupleList.map aux mtys)
 
-      | MRecordType(labmtys) ->
-          let labmap = aux_labeled_list labmtys in
-          RecordType(labmap)
+      | MRecordType(mrow) ->
+          let row = aux_row mrow in
+          RecordType(row)
 
       | MEffType((mtydoms, mndlabmtys, mrow), mty1, mty2) ->
           let mndlabmap = aux_labeled_list mndlabmtys in
@@ -1336,18 +1327,27 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
 
   and aux_row (mrow : manual_row) : mono_row =
     match mrow with
-    | MFixedRow(optlabmtys) ->
-        FixedRow(aux_labeled_list optlabmtys)
-
-    | MRowVar(rng, rowparam) ->
-        begin
-          match rowparams |> RowParameterMap.find_opt rowparam with
+    | MRow(optlabmtys, rowvar_opt) ->
+        let row_last =
+          match rowvar_opt with
           | None ->
-              raise_error (UnboundRowParameter(rng, rowparam))
+              RowEmpty
 
-          | Some((mbbrid, _)) ->
-              RowVar(MustBeBoundRow(mbbrid))
-        end
+          | Some((rng, rowparam)) ->
+              begin
+                match rowparams |> RowParameterMap.find_opt rowparam with
+                | None ->
+                    raise_error (UnboundRowParameter(rng, rowparam))
+
+                | Some((mbbrid, _)) ->
+                    RowVar(MustBeBoundRow(mbbrid))
+              end
+        in
+        optlabmtys |> List.fold_left (fun row_acc (rlabel, mty) ->
+          let ty = aux mty in
+          RowCons(rlabel, ty, row_acc)
+        ) row_last
+
   in
   aux mty
 
@@ -1364,26 +1364,24 @@ and decode_manual_record_type (pre : pre) (labmtys : labeled_manual_type list) :
   ) LabelAssoc.empty
 
 
-and add_local_row_parameter (rowvars : (row_variable_name ranged * (label ranged * manual_type) list) list) (pre : pre) : pre =
+and add_local_row_parameter (rowvars : (row_variable_name ranged * (label ranged) list) list) (pre : pre) : pre =
   rowvars |> List.fold_left (fun pre ((rng, rowvarnm), mkind) ->
     let rowparams = pre.local_row_parameters in
     if rowparams |> RowParameterMap.mem rowvarnm then
       raise_error (RowParameterBoundMoreThanOnce(rng, rowvarnm))
     else
       let mbbrid = MustBeBoundRowID.fresh pre.level in
-      let plabmap =
-        mkind |> List.fold_left (fun plabmap (rlabel, mty) ->
+      let labset =
+        mkind |> List.fold_left (fun labset rlabel ->
           let (rnglabel, label) = rlabel in
-          if plabmap |> LabelAssoc.mem label then
+          if labset |> LabelSet.mem label then
             raise_error (DuplicatedLabel(rnglabel, label))
           else
-            let ty = decode_manual_type pre mty in
-            let pty = TypeConv.lift ty in
-            plabmap |> LabelAssoc.add label pty
-        ) LabelAssoc.empty
+            labset |> LabelSet.add label
+        ) LabelSet.empty
       in
-      KindStore.register_bound_row (MustBeBoundRowID.to_bound mbbrid) plabmap;
-      let rowparams = rowparams |> RowParameterMap.add rowvarnm (mbbrid, plabmap) in
+      KindStore.register_bound_row (MustBeBoundRowID.to_bound mbbrid) labset;
+      let rowparams = rowparams |> RowParameterMap.add rowvarnm (mbbrid, labset) in
       { pre with local_row_parameters = rowparams }
   ) pre
 
@@ -1391,7 +1389,7 @@ and add_local_row_parameter (rowvars : (row_variable_name ranged * (label ranged
 and decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) : mono_type =
   match tyannot with
   | None ->
-      fresh_type_variable ~name:x pre.level UniversalKind rng
+      fresh_type_variable ~name:x pre.level rng
 
   | Some(mty) ->
       decode_manual_type pre mty
@@ -1428,7 +1426,7 @@ and add_labeled_optional_parameters_to_type_environment (pre : pre) (optbinders 
       let (ty_outer, default) =
         match utdefault with
         | None ->
-            let ty_outer = fresh_type_variable pre.level UniversalKind (Range.dummy "optional") in
+            let ty_outer = fresh_type_variable pre.level (Range.dummy "optional") in
             unify ty_inner (Primitives.option_type (Range.dummy "option") ty_outer);
             (ty_outer, None)
 
@@ -1551,7 +1549,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
         | _ ->
             let (domain, optrow, iargs) = typecheck_arguments pre rng utargs in
-            let tyret = fresh_type_variable ~name:"(Apply)" pre.level UniversalKind rng in
+            let tyret = fresh_type_variable ~name:"(Apply)" pre.level rng in
             unify tyfun (Range.dummy "Apply", FuncType(domain, tyret));
             (tyret, iapply efun optrow iargs)
       end
@@ -1597,15 +1595,15 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let eargs = List.map snd tyeargs in
       let tyrests =
         restrngs |> List.map (fun restrng ->
-          fresh_type_variable ~name:"Freeze, rest" pre.level UniversalKind restrng
+          fresh_type_variable ~name:"Freeze, rest" pre.level restrng
         )
       in
       let tyargsall = List.append tyargs tyrests in
 
-      let tyrecv = fresh_type_variable ~name:"Freeze, recv" pre.level UniversalKind rng in
+      let tyrecv = fresh_type_variable ~name:"Freeze, recv" pre.level rng in
       let eff = Effect(tyrecv) in
-      let tyret = fresh_type_variable ~name:"Freeze, ret" pre.level UniversalKind rng in
-      let domain = {ordered = tyargsall; mandatory = LabelAssoc.empty; optional = FixedRow(LabelAssoc.empty)} in
+      let tyret = fresh_type_variable ~name:"Freeze, ret" pre.level rng in
+      let domain = {ordered = tyargsall; mandatory = LabelAssoc.empty; optional = RowEmpty} in
       unify tyfun (Range.dummy "Freeze1", EffType(domain, eff, tyret));
       let tyrest =
         let dr = Range.dummy "Freeze2" in
@@ -1622,14 +1620,14 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let eargs = List.map snd tyeargs in
       let tyholes =
         restrngs |> List.map (fun restrng ->
-          fresh_type_variable ~name:"FreezeUpdate, rest1" pre.level UniversalKind restrng
+          fresh_type_variable ~name:"FreezeUpdate, rest1" pre.level restrng
         )
       in
       let tyrecv =
-        fresh_type_variable ~name:"FreezeUpdate, recv" pre.level UniversalKind (Range.dummy "FreezeUpdate, recv")
+        fresh_type_variable ~name:"FreezeUpdate, recv" pre.level (Range.dummy "FreezeUpdate, recv")
       in
       let tyret =
-        fresh_type_variable ~name:"FreezeUpdate, ret" pre.level UniversalKind (Range.dummy "FreezeUpdate, ret")
+        fresh_type_variable ~name:"FreezeUpdate, ret" pre.level (Range.dummy "FreezeUpdate, ret")
       in
       let ty_expected =
         let tyrest_expected =
@@ -1689,7 +1687,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       (ty, ITuple(es))
 
   | ListNil ->
-      let tysub = fresh_type_variable pre.level UniversalKind (Range.dummy "list-nil") in
+      let tysub = fresh_type_variable pre.level (Range.dummy "list-nil") in
       let ty = Primitives.list_type rng tysub in
       (ty, IListNil)
 
@@ -1701,7 +1699,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
 
   | Case(utast0, branches) ->
       let (ty0, e0) = typecheck pre utast0 in
-      let tyret = fresh_type_variable pre.level UniversalKind rng in
+      let tyret = fresh_type_variable pre.level rng in
       let ibrs = branches |> List.map (typecheck_pure_case_branch pre ~pattern:ty0 ~return:tyret) in
       (tyret, ICase(e0, ibrs))
 
@@ -1799,11 +1797,7 @@ and typecheck_let_pattern (pre : pre) (rng : Range.t) (utpat : untyped_pattern) 
   unify ty1 typat;
   let tyenv =
     BindingMap.fold (fun x (ty, lname, _) tyenv ->
-      let pty =
-        match TypeConv.generalize pre.level ty with
-        | Ok(pty)             -> pty
-        | Error((cycle, pty)) -> raise_error (CyclicTypeParameter(rng, cycle, pty))
-      in
+      let pty = TypeConv.generalize pre.level ty in
       tyenv |> Typeenv.add_value x pty (OutputIdentifier.Local(lname))
     ) bindmap pre.tyenv
   in
@@ -1834,10 +1828,10 @@ and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono
   | CompReceive(branches) ->
       let lev = pre.level in
       let effexp =
-        let ty = fresh_type_variable lev UniversalKind (Range.dummy "receive-recv") in
+        let ty = fresh_type_variable lev (Range.dummy "receive-recv") in
         Effect(ty)
       in
-      let tyret = fresh_type_variable lev UniversalKind (Range.dummy "receive-ret") in
+      let tyret = fresh_type_variable lev (Range.dummy "receive-ret") in
       let ibrs = branches |> List.map (typecheck_receive_branch pre effexp tyret) in
       ((effexp, tyret), IReceive(ibrs))
 
@@ -1881,10 +1875,10 @@ and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono
   | CompCase(utast0, branches) ->
       let (ty0, e0) = typecheck pre utast0 in
       let eff =
-        let tyrecv = fresh_type_variable pre.level UniversalKind (Range.dummy "CompCase1") in
+        let tyrecv = fresh_type_variable pre.level (Range.dummy "CompCase1") in
         Effect(tyrecv)
       in
-      let tyret = fresh_type_variable pre.level UniversalKind (Range.dummy "CompCase2") in
+      let tyret = fresh_type_variable pre.level (Range.dummy "CompCase2") in
       let ibrs = branches |> List.map (typecheck_effectful_case_branch pre ~pattern:ty0 ~return:(eff, tyret)) in
       ((eff, tyret), ICase(e0, ibrs))
 
@@ -1892,10 +1886,10 @@ and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono
       let (tyfun, efun) = typecheck pre utastfun in
       let (domain, optrow, iargs) = typecheck_arguments pre rng utargs in
       let eff =
-        let tyrecv = fresh_type_variable ~name:"(CompApply2)" pre.level UniversalKind rng in
+        let tyrecv = fresh_type_variable ~name:"(CompApply2)" pre.level rng in
         Effect(tyrecv)
       in
-      let tyret = fresh_type_variable ~name:"(CompApply1)" pre.level UniversalKind rng in
+      let tyret = fresh_type_variable ~name:"(CompApply1)" pre.level rng in
       unify tyfun (Range.dummy "CompApply", EffType(domain, eff, tyret));
       ((eff, tyret), iapply efun optrow iargs)
 
@@ -2155,17 +2149,17 @@ and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type
       immediate (BaseType(CharType)) (IPChar(uchar))
 
   | PVar(x) ->
-      let ty = fresh_type_variable ~name:x pre.level UniversalKind rng in
+      let ty = fresh_type_variable ~name:x pre.level rng in
       let lname = generate_local_name rng x in
       (ty, IPVar(lname), BindingMap.singleton x (ty, lname, rng))
 
   | PWildCard ->
-      let ty = fresh_type_variable ~name:"_" pre.level UniversalKind rng in
+      let ty = fresh_type_variable ~name:"_" pre.level rng in
       (ty, IPWildCard, BindingMap.empty)
 
   | PListNil ->
       let ty =
-        let tysub = fresh_type_variable pre.level UniversalKind rng in
+        let tysub = fresh_type_variable pre.level rng in
         Primitives.list_type rng tysub
       in
       (ty, IPListNil, BindingMap.empty)
@@ -2252,11 +2246,7 @@ fun namef preL letbind ->
         (ty1, e0, ibinders)
   in
   let e1 = ilambda ibinders e0 in
-  let pty1 =
-    match TypeConv.generalize preL.level ty1 with
-    | Ok(pty1)             -> pty1
-    | Error((cycle, pty1)) -> raise_error (CyclicTypeParameter(rngv, cycle, pty1))
-  in
+  let pty1 = TypeConv.generalize preL.level ty1 in
   let name = namef rngv x in
   (pty1, name, e1)
 
@@ -2280,7 +2270,7 @@ fun namesf proj preL letbinds ->
             (tyenv, PolyRec(pty))
 
         | None ->
-            let tyf = fresh_type_variable ~name:x levS UniversalKind rngv in
+            let tyf = fresh_type_variable ~name:x levS rngv in
             let tyenv = tyenv |> Typeenv.add_value x (TypeConv.lift tyf) (proj name_inner) in
             (tyenv, MonoRec(tyf))
       in
@@ -2343,11 +2333,7 @@ and typecheck_letrec_single (preS : pre) (letbind : untyped_let_binding) (morph 
         (ty1, e0, ibinders)
   in
   let e1 = ilambda ibinders e0 in
-  let ptyf =
-    match TypeConv.generalize (preS.level - 1) ty1 with
-    | Ok(ptyf)             -> ptyf
-    | Error((cycle, ptyf)) -> raise_error (CyclicTypeParameter(rngv, cycle, ptyf))
-  in
+  let ptyf = TypeConv.generalize (preS.level - 1) ty1 in
   begin
     match morph with
     | MonoRec(tyf) ->
@@ -2369,14 +2355,7 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
         let (ctorattr, warnings) = ConstructorAttribute.decode attrs in
         warnings |> List.iter Logging.warn_invalid_attribute;
         let tyargs = mtyargs |> List.map (decode_manual_type pre) in
-        let ptyargs =
-          tyargs |> List.map (fun ty ->
-            match TypeConv.generalize pre.level ty with
-            | Ok(pty)  -> pty
-            | Error(_) -> assert false
-              (* Type parameters occurring in handwritten types cannot be cyclic. *)
-          )
-        in
+        let ptyargs = tyargs |> List.map (TypeConv.generalize pre.level) in
         let ctorid =
           match ctorattr.target_atom with
           | None ->
@@ -3216,12 +3195,7 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
         { pre with level = 1 } |> add_local_row_parameter rowparams
       in
       let ty = decode_manual_type pre mty in
-      let pty =
-        match TypeConv.generalize 0 ty with
-        | Ok(pty)  -> pty
-        | Error(_) -> assert false
-          (* Type parameters occurring in handwritten types cannot be cyclic. *)
-      in
+      let pty = TypeConv.generalize 0 ty in
       let gname = OutputIdentifier.fresh_global_dummy () in
       let ventry = { val_type = pty; val_global = gname } in
       let sigr = SigRecord.empty |> SigRecord.add_value x ventry in
@@ -3523,10 +3497,7 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
           { pre with level = 1 } |> add_local_row_parameter extbind.ext_row_params
         in
         let ty = decode_manual_type pre mty in
-        match TypeConv.generalize 0 ty with
-        | Ok(pty)  -> pty
-        | Error(_) -> assert false
-          (* Type parameters occurring in handwritten types cannot be cyclic. *)
+        TypeConv.generalize 0 ty
       in
       let has_option = extbind.ext_has_option in
       let gname =
@@ -3729,12 +3700,7 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
       let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
       let bids = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
       let ty_body = decode_manual_type pre mtyreal in
-      let pty_body =
-        match TypeConv.generalize 0 ty_body with
-        | Ok(pty_body) -> pty_body
-        | Error(_)     -> assert false
-          (* Type parameters occurring in handwritten types cannot be cyclic. *)
-      in
+      let pty_body = TypeConv.generalize 0 ty_body in
       let tentry = { type_scheme = (bids, pty_body); type_kind = pkd } in
       let tyenv = tyenv |> Typeenv.add_type tynm tentry in
       let tydefacc = Alist.extend tydefacc (tynm, tentry) in

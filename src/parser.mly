@@ -121,9 +121,9 @@
 %type<Syntax.manual_type list * (Syntax.labeled_manual_type list * Syntax.manual_row)> tydoms
 %type<Syntax.labeled_manual_type list * Syntax.manual_row> labtydoms
 %type<Syntax.manual_row> opttydoms
-%type<Syntax.labeled_manual_type list> opttydomsfixed
-%type<Syntax.type_variable_binder list * ((Range.t * Syntax.row_variable_name) * Syntax.labeled_manual_type list) list> typarams
-%type<((Range.t * Syntax.row_variable_name) * Syntax.labeled_manual_type list) list> rowparams
+%type<(Range.t * Syntax.label) list> labels
+%type<Syntax.type_variable_binder list * ((Range.t * Syntax.row_variable_name) * (Range.t * Syntax.label) list) list> typarams
+%type<((Range.t * Syntax.row_variable_name) * (Range.t * Syntax.label) list) list> rowparams
 %type<Syntax.untyped_let_binding> bindvalsingle
 %type<Range.t * Syntax.internal_or_external> bindvaltop
 %type<Syntax.rec_or_nonrec> bindvallocal
@@ -213,9 +213,14 @@ typaramssub:
     }
 ;
 rowparams:
-  |                                                                                        { [] }
-  | rowparam=ROWPARAM; CONS; LPAREN; rowkind=opttydomsfixed; RPAREN                        { [ (rowparam, rowkind) ] }
-  | rowparam=ROWPARAM; CONS; LPAREN; rowkind=opttydomsfixed; RPAREN; COMMA; tail=rowparams { (rowparam, rowkind) :: tail }
+  |                                                                               { [] }
+  | rowparam=ROWPARAM; CONS; LPAREN; labels=labels; RPAREN                        { [ (rowparam, labels) ] }
+  | rowparam=ROWPARAM; CONS; LPAREN; labels=labels; RPAREN; COMMA; tail=rowparams { (rowparam, labels) :: tail }
+;
+labels:
+  |                               { [] }
+  | tok=LOWER                     { [ tok ] }
+  | tok=LOWER; COMMA; tail=labels { tok :: tail }
 ;
 bindvallocal:
   | valbinding=bindvalsingle                           { NonRec(valbinding) }
@@ -793,7 +798,7 @@ tys:
 ;
 tydoms:
   | labmtydoms=labtydoms       { ([], labmtydoms) }
-  | mty=ty                     { ([ mty ], ([], MFixedRow([]))) }
+  | mty=ty                     { ([ mty ], ([], MRow([], None))) }
   | mty=ty; COMMA; tail=tydoms { let (ordmtydoms, labmtydoms) = tail in (mty :: ordmtydoms, labmtydoms) }
 ;
 labtydoms:
@@ -801,7 +806,7 @@ labtydoms:
       ([], optmtydoms)
     }
   | rlabel=MNDLABEL; mty=ty {
-      ([ (rlabel, mty) ], MFixedRow([]))
+      ([ (rlabel, mty) ], MRow([], None))
     }
   | rlabel=MNDLABEL; mty=ty; COMMA; tail=labtydoms {
       let (mndmtydoms, optmtydoms) = tail in
@@ -809,13 +814,22 @@ labtydoms:
     }
 ;
 opttydoms:
-  | tok=ROWPARAM            { let (rng, rowparam) = tok in MRowVar(rng, rowparam) }
-  | fixedrow=opttydomsfixed { MFixedRow(fixedrow) }
+  | sub=opttydomssub { let (pairs, rowvaropt) = sub in MRow(pairs, rowvaropt) }
 ;
-opttydomsfixed:
-  |                                                     { [] }
-  | rlabel=OPTLABEL; mty=ty                             { [ (rlabel, mty) ] }
-  | rlabel=OPTLABEL; mty=ty; COMMA; tail=opttydomsfixed { (rlabel, mty) :: tail }
+opttydomssub:
+  | {
+      ([], None)
+    }
+  | rlabel=OPTLABEL; mty=ty {
+      ([ (rlabel, mty) ], None)
+    }
+  | tok=ROWPARAM {
+      ([], Some(tok))
+    }
+  | rlabel=OPTLABEL; mty=ty; COMMA; tail=opttydomssub {
+      let (pairs, rowvaropt) = tail in
+      ((rlabel, mty) :: pairs, rowvaropt)
+    }
 ;
 kd:
   | tokL=LPAREN; bkddoms=bkds; RPAREN; ARROW; bkdcod=bkd {
@@ -837,11 +851,6 @@ bkd:
       let (rng, kdnm) = ident in
       (rng, MKindName(kdnm))
     }
-  | tokL=LBRACE; tyrecord=tyrecord; tokR=RBRACE {
-      let rng = make_range (Token(tokL)) (Token(tokR)) in
-      (rng, MRecordKind(tyrecord))
-    }
-;
 ty:
   | utmod=modchain; tyident=DOTLOWER {
       let rng = make_range (Ranged(utmod)) (Ranged(tyident)) in
@@ -884,7 +893,8 @@ tybot:
     }
   | tokL=LBRACE; tyrecord=tyrecord; tokR=RBRACE {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
-      (rng, MRecordType(tyrecord))
+      let (pairs, rowvaropt) = tyrecord in
+      (rng, MRecordType(MRow(pairs, rowvaropt)))
     }
   | tokL=PACK; utsig=sigexprbot {
       let rng = make_range (Token(tokL)) (Ranged(utsig)) in
@@ -901,9 +911,19 @@ tycod:
     }
 ;
 tyrecord:
-  |                                                   { [] }
-  | rlabel=LOWER; COLON; mty=ty                       { [ (rlabel, mty) ] }
-  | rlabel=LOWER; COLON; mty=ty; COMMA; tail=tyrecord { (rlabel, mty) :: tail }
+  | {
+      ([], None)
+    }
+  | rlabel=LOWER; COLON; mty=ty {
+      ([ (rlabel, mty) ], None)
+    }
+  | tok=ROWPARAM {
+      ([], Some(tok))
+    }
+  | rlabel=LOWER; COLON; mty=ty; COMMA; tail=tyrecord {
+      let (pairs, rowvaropt) = tail in
+      ((rlabel, mty) :: pairs, rowvaropt)
+    }
 ;
 tytuplesub:
   | COMMA; mty=ty { mty }

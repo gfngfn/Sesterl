@@ -179,7 +179,7 @@ and 'a abstracted = quantifier * 'a
 
 type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorMap.t
 
-type local_row_parameter_map = (MustBeBoundRowID.t * poly_type LabelAssoc.t) RowParameterMap.t
+type local_row_parameter_map = (MustBeBoundRowID.t * LabelSet.t) RowParameterMap.t
 
 type variant_entry = {
   v_type_parameters : BoundID.t list;

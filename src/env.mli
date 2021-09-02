@@ -137,7 +137,7 @@ type constructor_entry = {
 
 type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorMap.t
 
-type local_row_parameter_map = (MustBeBoundRowID.t * poly_type LabelAssoc.t) RowParameterMap.t
+type local_row_parameter_map = (MustBeBoundRowID.t * LabelSet.t) RowParameterMap.t
 
 module Typeenv : sig
 
