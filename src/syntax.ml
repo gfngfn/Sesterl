@@ -70,10 +70,10 @@ end with type key = string) = struct
     )
 end
 
-module LabelSet : sig
+module LabelSet : (sig
   include Set.S
   val pp : Format.formatter -> t -> unit
-end = struct
+end with type elt = label) = struct
   module Impl = Set.Make(String)
   include Impl
 
