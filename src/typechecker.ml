@@ -1175,21 +1175,17 @@ and make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder list)
   ) (pre, TypeParameterAssoc.empty)
 
 
-and decode_manual_base_kind (pre : pre) (mnbkd : manual_base_kind) : mono_base_kind =
-
-  let rec aux (rng, mnbkdmain) =
-    match mnbkdmain with
-    | MKindName(kdnm) ->
-        begin
-          match kdnm with
-          | "o" -> TypeKind
-          | _   -> raise_error (UndefinedKindName(rng, kdnm))
-        end
-  in
-  aux mnbkd
+and decode_manual_base_kind (pre : pre) ((rng, mnbkdmain) : manual_base_kind) : base_kind =
+  match mnbkdmain with
+  | MKindName(kdnm) ->
+      begin
+        match kdnm with
+        | "o" -> TypeKind
+        | _   -> raise_error (UndefinedKindName(rng, kdnm))
+      end
 
 
-and decode_manual_kind (pre : pre) (mnkd : manual_kind) : mono_kind =
+and decode_manual_kind (pre : pre) (mnkd : manual_kind) : kind =
   match mnkd with
   | (_, MKind(mnbkddoms, mnbkdcod)) ->
       let bkddoms = mnbkddoms |> List.map (decode_manual_base_kind pre) in
@@ -1743,23 +1739,23 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       ((rng, BaseType(BinaryType)), IBaseConst(BinaryByInts(ns)))
 
   | Record(labasts) ->
-      let (emap, labmap) =
-        labasts |> List.fold_left (fun (emap, labmap) (rlabel, utast) ->
+      let (emap, row) =
+        labasts |> List.fold_left (fun (emap, row) (rlabel, utast) ->
           let (rnglabel, label) = rlabel in
-          if labmap |> LabelAssoc.mem label then
+          if emap |> LabelAssoc.mem label then
             raise_error (DuplicatedLabel(rnglabel, label))
           else
             let (ty, e) = typecheck pre utast in
-            let labmap = labmap |> LabelAssoc.add label ty in
+            let row = RowCons(rlabel, ty, row) in
             let emap = emap |> LabelAssoc.add label e in
-            (emap, labmap)
-        ) (LabelAssoc.empty, LabelAssoc.empty)
+            (emap, row)
+        ) (LabelAssoc.empty, RowEmpty)
       in
-      ((rng, RecordType(labmap)), IRecord(emap))
+      ((rng, RecordType(row)), IRecord(emap))
 
   | RecordAccess(utast1, (_, label)) ->
       let (ty1, e1) = typecheck pre utast1 in
-      let tyret = fresh_type_variable pre.level UniversalKind rng in
+      let tyret = fresh_type_variable pre.level rng in
       let tyF =
         let labmap = LabelAssoc.singleton label tyret in
         fresh_type_variable pre.level (RecordKind(labmap)) (Range.dummy "RecordAccess")
@@ -1924,6 +1920,7 @@ and typecheck_arguments (pre : pre) (rng : Range.t) ((utastargs, mndutastargs, o
   let tyeargs = List.map (typecheck pre) utastargs in
   let tyargs = List.map fst tyeargs in
   let eargs = List.map snd tyeargs in
+
   let (mndlabmap, mndargmap) =
     mndutastargs |> List.fold_left (fun (mndlabmap, mndargmap) (rlabel, utast) ->
       let (rnglabel, label) = rlabel in
@@ -1936,24 +1933,30 @@ and typecheck_arguments (pre : pre) (rng : Range.t) ((utastargs, mndutastargs, o
         (mndlabmap, mndargmap)
     ) (LabelAssoc.empty, LabelAssoc.empty)
   in
-  let (optlabmap, optargmap) =
-    optutastargs |> List.fold_left (fun (optlabmap, optargmap) (rlabel, utast) ->
-      let (rnglabel, label) = rlabel in
-      if optlabmap |> LabelAssoc.mem label then
-        raise_error (DuplicatedLabel(rnglabel, label))
-      else
-        let (ty, e) = typecheck pre utast in
-        let optlabmap = optlabmap |> LabelAssoc.add label ty in
-        let optargmap = optargmap |> LabelAssoc.add label e in
-        (optlabmap, optargmap)
-    ) (LabelAssoc.empty, LabelAssoc.empty)
-  in
-  let optrow =
+
+  let (optrow, optargmap) =
     let frid = FreeRowID.fresh ~message:"Apply, row" pre.level in
-    KindStore.register_free_row frid optlabmap;
-    let mrvu = ref (FreeRow(frid)) in
-    RowVar(UpdatableRow(mrvu))
+    let row_init =
+      let mrvu = ref (FreeRow(frid)) in
+      RowVar(UpdatableRow(mrvu))
+    in
+    let (optrow, optlabset, optargmap) =
+      optutastargs |> List.fold_left (fun (optrow, optlabset, optargmap) (rlabel, utast) ->
+        let (rnglabel, label) = rlabel in
+        if optlabset |> LabelSet.mem label then
+          raise_error (DuplicatedLabel(rnglabel, label))
+        else
+          let (ty, e) = typecheck pre utast in
+          let optrow = RowCons(rlabel, ty, optrow) in
+          let optlabset = optlabset |> LabelSet.add label in
+          let optargmap = optargmap |> LabelAssoc.add label e in
+          (optrow, optlabset, optargmap)
+      ) (row_init, LabelSet.empty, LabelAssoc.empty)
+    in
+    KindStore.register_free_row frid optlabset;
+    (optrow, optargmap)
   in
+
   let domain = {ordered = tyargs; mandatory = mndlabmap; optional = optrow} in
   (domain, optrow, (eargs, mndargmap, optargmap))
 
@@ -2377,9 +2380,10 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
 
 
 (* `subtype_poly_type_impl internbid internbrid pty1 pty2` checks that
-   whether `pty1` is more general than (or equal to) `pty2`
+   whether `pty1` is more general than (or equal to) `pty2`.
    Note that being more general means being smaller as polymorphic types;
    we have `pty1 <= pty2` in that if `x : pty1` holds and `pty1` is more general than `pty2`, then `x : pty2`.
+   For example, we have `(∀α. α → α) <= (int → int)`.
    The parameter `internbid` is used for `internbid bid pty`, which returns
    whether the bound ID `bid` occurring in `pty1` is mapped to a type equivalent to `pty`.
 *)
@@ -2420,8 +2424,8 @@ and subtype_poly_type_impl (internbid : BoundID.t -> poly_type -> bool) (internb
     | (ProductType(ptys1), ProductType(ptys2)) ->
         aux_list (TupleList.to_list ptys1) (TupleList.to_list ptys2)
 
-    | (RecordType(plabmap1), RecordType(plabmap2)) ->
-        aux_label_assoc plabmap1 plabmap2
+    | (RecordType(prow1), RecordType(prow2)) ->
+        aux_row prow1 prow2
 
     | (PackType(absmodsig1), PackType(absmodsig2)) ->
         begin
@@ -2440,22 +2444,7 @@ and subtype_poly_type_impl (internbid : BoundID.t -> poly_type -> bool) (internb
         end
 
     | (TypeVar(Bound(bid1)), _) ->
-        let b =
-          match ptymain2 with
-          | TypeVar(Bound(bid2)) ->
-              let pbkd1 = KindStore.get_bound_id bid1 in
-              let pbkd2 = KindStore.get_bound_id bid2 in
-              aux_base_kind pbkd1 pbkd2
-
-          | RecordType(plabmap2) ->
-              let pbkd1 = KindStore.get_bound_id bid1 in
-              aux_base_kind pbkd1 (RecordKind(plabmap2))
-
-          | _ ->
-              true
-
-        in
-        if b then internbid bid1 pty2 else false
+        internbid bid1 pty2
 
     | (TypeApp(tyid1, ptyargs1), TypeApp(tyid2, ptyargs2)) ->
         TypeID.equal tyid1 tyid2 && aux_list ptyargs1 ptyargs2
@@ -2474,16 +2463,8 @@ and subtype_poly_type_impl (internbid : BoundID.t -> poly_type -> bool) (internb
           bacc && b
         ) true
 
-  and aux_base_kind pbkd1 pbkd2 =
-    match (pbkd1, pbkd2) with
-    | (UniversalKind, _) ->
-        true
-
-    | (RecordKind(_), UniversalKind) ->
-        false
-
-    | (RecordKind(plabmap1), RecordKind(plabmap2)) ->
-        subtype_label_assoc internbid internbrid plabmap1 plabmap2
+  and aux_row (prow1 : poly_row) (prow2 : poly_row) =
+    failwith "TODO: subtype_poly_type_impl, aux_row"
 
   and aux_label_assoc plabmap1 plabmap2 =
     LabelAssoc.merge (fun _ ptyopt1 ptyopt2 ->
@@ -2584,29 +2565,26 @@ and subtype_poly_type (pty1 : poly_type) (pty2 : poly_type) : bool =
 
 
 and poly_row_equal (prow1 : poly_row) (prow2 : poly_row) : bool =
-  match (prow1, prow2) with
-  | (RowVar(MonoRow(_)), _)
-  | (_, RowVar(MonoRow(_))) ->
-      assert false
-
-  | (RowVar(BoundRow(brid1)), RowVar(BoundRow(brid2))) ->
-      BoundRowID.equal brid1 brid2
-
-  | (FixedRow(plabmap1), FixedRow(plabmap2)) ->
-      LabelAssoc.merge (fun _ ptyopt1 ptyopt2 ->
-        match (ptyopt1, ptyopt2) with
-        | (None, None)             -> None
-        | (Some(pty1), Some(pty2)) -> Some(poly_type_equal pty1 pty2)
-        | _                        -> Some(false)
-      ) plabmap1 plabmap2 |> LabelAssoc.for_all (fun _ b -> b)
-
-  | _ ->
-      false
+  let (plabmap1, rowvar1_opt) = TypeConv.normalize_row prow1 in
+  let (plabmap2, rowvar2_opt) = TypeConv.normalize_row prow2 in
+  let bmap =
+    LabelAssoc.merge (fun _ ptyopt1 ptyopt2 ->
+      match (ptyopt1, ptyopt2) with
+      | (None, None)             -> None
+      | (Some(pty1), Some(pty2)) -> Some(poly_type_equal pty1 pty2)
+      | _                        -> Some(false)
+    ) plabmap1 plabmap2 |> LabelAssoc.for_all (fun _ b -> b)
+  in
+  if bmap then
+    match (rowvar1_opt, rowvar2_opt) with
+    | (None, None)                                   -> true
+    | (Some(BoundRow(brid1)), Some(BoundRow(brid2))) -> BoundRowID.equal brid1 brid2
+    | _                                              -> false
+  else
+    false
 
 
 and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
-
-  let aux_label_assoc = poly_label_assoc_equal in
 
   let rec aux (pty1 : poly_type) (pty2 : poly_type) : bool =
     let (_, ptymain1) = pty1 in
@@ -2630,8 +2608,8 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
     | (ProductType(ptys1), ProductType(ptys2)) ->
         aux_list (ptys1 |> TupleList.to_list) (ptys2 |> TupleList.to_list)
 
-    | (RecordType(plabmap1), RecordType(plabmap2)) ->
-        aux_label_assoc plabmap1 plabmap2
+    | (RecordType(prow1), RecordType(prow2)) ->
+        poly_row_equal prow1 prow2
 
     | (PackType(absmodsig1), PackType(absmodsig2)) ->
         begin
@@ -2672,28 +2650,15 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
   and aux_domain pdomain1 pdomain2 =
     let {ordered = pty1doms; mandatory = pmndlabmap1; optional = poptrow1} = pdomain1 in
     let {ordered = pty2doms; mandatory = pmndlabmap2; optional = poptrow2} = pdomain2 in
-    aux_list pty1doms pty2doms && aux_label_assoc pmndlabmap1 pmndlabmap2 && aux_option_row poptrow1 poptrow2
+    aux_list pty1doms pty2doms &&
+      poly_label_assoc_equal pmndlabmap1 pmndlabmap2 &&
+      poly_row_equal poptrow1 poptrow2
 
   and aux_effect (Effect(pty1)) (Effect(pty2)) =
     aux pty1 pty2
 
   and aux_pid_type (Pid(pty1)) (Pid(pty2)) =
     aux pty1 pty2
-
-  and aux_option_row poptrow1 poptrow2 =
-    match (poptrow1, poptrow2) with
-    | (RowVar(MonoRow(_)), _)
-    | (_, RowVar(MonoRow(_))) ->
-        assert false
-
-    | (RowVar(BoundRow(brid1)), RowVar(BoundRow(brid2))) ->
-        BoundRowID.equal brid1 brid2
-
-    | (FixedRow(plabmap1), FixedRow(plabmap2)) ->
-        aux_label_assoc plabmap1 plabmap2
-
-    | _ ->
-        false
 
   in
   aux pty1 pty2
@@ -2712,13 +2677,13 @@ and poly_label_assoc_equal plabmap1 plabmap2 =
   merged |> LabelAssoc.for_all (fun _ b -> b)
 
 
-and subtype_poly_base_kind (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (pbkd1 : poly_base_kind) (pbkd2 : poly_base_kind) =
-  match (pbkd1, pbkd2) with
-  | (_, UniversalKind) ->
+and subtype_base_kind (bkd1 : base_kind) (bkd2 : base_kind) =
+  match (bkd1, bkd2) with
+  | (TypeKind, TypeKind) ->
       true
 
-  | (RecordKind(plabmap1), RecordKind(plabmap2)) ->
-      subtype_label_assoc internbid internbrid plabmap1 plabmap2
+  | (RowKind(labset1), RowKind(labset2)) ->
+      failwith "TODO: subtype_base_kind, (RowKind, RowKind)"
 
   | _ ->
       false
@@ -2739,17 +2704,7 @@ and subtype_type_scheme (tyscheme1 : type_scheme) (tyscheme2 : type_scheme) : bo
       in
       let internbid = internbidf bidmap in
       let internbrid = internbridf bidmap in
-      let b =
-        BoundIDMap.fold (fun bid1 bid2 b ->
-          if b then
-            let pbkd1 = KindStore.get_bound_id bid1 in
-            let pbkd2 = KindStore.get_bound_id bid2 in
-            subtype_poly_base_kind internbid internbrid pbkd1 pbkd2
-          else
-            false
-        ) bidmap true
-      in
-      let b = if b then subtype_poly_type_impl internbid internbrid pty_body1 pty_body2 else false in
+      let b = subtype_poly_type_impl internbid internbrid pty_body1 pty_body2 in
       (b, bidmap)
 
 
@@ -2897,11 +2852,9 @@ and subtype_concrete_with_concrete ~(cause : Range.t) ~(address : address) (mods
                 let tyscheme2 = tentry2.type_scheme in
                 let (b1, bidmap1) = subtype_type_scheme tyscheme1 tyscheme2 in
                 let (b2, _) = subtype_type_scheme tyscheme2 tyscheme1 in
-                let Kind(_, pbkdcod1) = tentry1.type_kind in
-                let Kind(_, pbkdcod2) = tentry2.type_kind in
-                let internbid = internbidf bidmap1 in
-                let internbrid = internbridf bidmap1 in
-                let b0 = subtype_poly_base_kind internbid internbrid pbkdcod1 pbkdcod2 in
+                let Kind(_, bkdcod1) = tentry1.type_kind in
+                let Kind(_, bkdcod2) = tentry2.type_kind in
+                let b0 = subtype_base_kind bkdcod1 bkdcod2 in
                 if b1 && b2 && b0 then
                   ()
                 else
@@ -3081,7 +3034,7 @@ and substitute_structure ~(cause : Range.t) ~(address : address) (subst : substi
         let (bids, pty_body) = tentry.type_scheme in
         {
           type_scheme = (bids, pty_body |> substitute_poly_type ~cause subst);
-          type_kind   = tentry.type_kind |> substitute_poly_kind ~cause subst;
+          type_kind   = tentry.type_kind;
         }
       )
       ~m:(fun _ mentry ->
@@ -3096,20 +3049,10 @@ and substitute_abstract ~(cause : Range.t) ~(address : address) (subst : substit
   let (quant, modsig) = absmodsig in
   let modsig = substitute_concrete ~cause ~address subst modsig in
   (quant, modsig)
-    (* Strictly speaking, we should assert that `quant` and the domain of `wtmap` be disjoint. *)
+    (* Strictly speaking, we should assert that `quant` and the domain of `subst` be disjoint. *)
 
 
-and substitute_poly_kind ~(cause : Range.t) (subst : substitution) (pkd : poly_kind) : poly_kind =
-  let Kind(pbkds, pbkd) = pkd in
-  Kind(pbkds |> List.map (substitute_poly_base_kind ~cause subst), pbkd |> substitute_poly_base_kind ~cause subst)
-
-
-and substitute_poly_base_kind ~(cause : Range.t) (subst : substitution) (pbkd : poly_base_kind) : poly_base_kind =
-  match pbkd with
-  | UniversalKind       -> UniversalKind
-  | RecordKind(plabmap) -> RecordKind(plabmap |> LabelAssoc.map (substitute_poly_type ~cause subst))
-
-
+(* Applies the subtitution `subst` to `pty`. Here, it is assumed that `MonoRow` does not occur in `pty`. *)
 and substitute_poly_type ~(cause : Range.t) (subst : substitution) (pty : poly_type) : poly_type =
   let rec aux (rng, ptymain) =
     let ptymain =
@@ -3125,8 +3068,8 @@ and substitute_poly_type ~(cause : Range.t) (subst : substitution) (pty : poly_t
       | FuncType(pdomain, ptycod) ->
           FuncType(aux_domain pdomain, aux ptycod)
 
-      | RecordType(labmap) ->
-          RecordType(labmap |> LabelAssoc.map aux)
+      | RecordType(prow) ->
+          RecordType(aux_row prow)
 
       | TypeApp(tyid_from, ptyargs) ->
           begin
@@ -3142,7 +3085,7 @@ and substitute_poly_type ~(cause : Range.t) (subst : substitution) (pty : poly_t
                       assert false
 
                   | Error(Some((ptyarg, pbkd))) ->
-                      failwith (Format.asprintf "TODO: error report (base kind mispatch, %a)" Range.pp cause)
+                      failwith (Format.asprintf "TODO (error): error report (base kind mispatch, %a)" Range.pp cause)
 
                   | Ok((_, ptymain)) ->
                       ptymain
@@ -3161,7 +3104,7 @@ and substitute_poly_type ~(cause : Range.t) (subst : substitution) (pty : poly_t
     {
       ordered   = ptydoms |> List.map aux;
       mandatory = pmndlabmap |> LabelAssoc.map aux;
-      optional  = aux_option_row poptrow;
+      optional  = aux_row poptrow;
     }
 
   and aux_pid = function
@@ -3170,10 +3113,11 @@ and substitute_poly_type ~(cause : Range.t) (subst : substitution) (pty : poly_t
   and aux_effect = function
     | Effect(pty) -> Effect(aux pty)
 
-  and aux_option_row (poptrow : poly_row) =
-    match poptrow with
-    | RowVar(_)         -> poptrow
-    | FixedRow(plabmap) -> FixedRow(plabmap |> LabelAssoc.map aux)
+  and aux_row (prow : poly_row) =
+    match prow with
+    | RowCons(rlabel, ty, prow) -> RowCons(rlabel, aux ty, aux_row prow)
+    | RowVar(_)                 -> prow (* Assumes that `MonoRow` does not occur in rows. *)
+    | RowEmpty                  -> RowEmpty
   in
   aux pty
 
@@ -3211,22 +3155,21 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
           local_row_parameters  = RowParameterMap.empty;
         }
       in
-      let mkd =
+      let kd =
         match kdannot with
-        | None       -> Kind([], UniversalKind)
+        | None       -> Kind([], TypeKind)
         | Some(mnkd) -> decode_manual_kind pre_init mnkd
       in
       let oid = TypeID.fresh (Alist.to_list address) tynm in
-      let pkd = TypeConv.lift_kind mkd in
-      let Kind(pbkds, _) = pkd in
+      let Kind(bkds, _) = kd in
       let tentry =
         {
-          type_scheme = TypeConv.make_opaque_type_scheme_from_base_kinds pbkds oid;
-          type_kind   = pkd;
+          type_scheme = TypeConv.make_opaque_type_scheme_from_base_kinds bkds oid;
+          type_kind   = kd;
         }
       in
       let sigr = SigRecord.empty |> SigRecord.add_type tynm tentry in
-      (OpaqueIDMap.singleton oid pkd, sigr)
+      (OpaqueIDMap.singleton oid kd, sigr)
 
   | DeclModule(modident, utsig) ->
       let (rngm, m) = modident in
@@ -3449,10 +3392,10 @@ and typecheck_signature ~(address : address) (tyenv : Typeenv.t) (utsig : untype
       (quant, modsig_ret)
 
 
-(* Checks that `pkd1` and `pkd2` is the same kind. *)
-and unify_kind (rng : Range.t) (tynm : type_name) ~actual:(pkd1 : poly_kind) ~expected:(pkd2 : poly_kind) : unit =
-  let Kind(bkdsdom1, bkdcod1) = pkd1 in
-  let Kind(bkdsdom2, bkdcod2) = pkd2 in
+(* Checks that `kd1` and `kd2` are the same. *)
+and unify_kind (rng : Range.t) (tynm : type_name) ~actual:(kd1 : kind) ~expected:(kd2 : kind) : unit =
+  let Kind(bkdsdom1, bkdcod1) = kd1 in
+  let Kind(bkdsdom2, bkdcod2) = kd2 in
   match List.combine bkdsdom1 bkdsdom2 with
   | exception Invalid_argument(_) ->
       let arity_actual = List.length bkdsdom1 in
@@ -3464,14 +3407,14 @@ and unify_kind (rng : Range.t) (tynm : type_name) ~actual:(pkd1 : poly_kind) ~ex
       if bdom && base_kind_equal bkdcod1 bkdcod2 then
         ()
       else
-        raise_error (KindContradiction(rng, tynm, pkd1, pkd2))
+        raise_error (KindContradiction(rng, tynm, kd1, kd2))
 
 
-and base_kind_equal (bkd1 : poly_base_kind) (bkd2 : poly_base_kind) =
+and base_kind_equal (bkd1 : base_kind) (bkd2 : base_kind) : bool =
   match (bkd1, bkd2) with
-  | (UniversalKind, UniversalKind)               -> true
-  | (RecordKind(plabmap1), RecordKind(plabmap2)) -> poly_label_assoc_equal plabmap1 plabmap2
-  | _                                            -> false
+  | (TypeKind, TypeKind)                 -> true
+  | (RowKind(labset1), RowKind(labset2)) -> LabelSet.equal labset1 labset2
+  | _                                    -> false
 
 
 and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * (ModuleAttribute.t * binding list) =
@@ -3621,16 +3564,15 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
   let (synacc, vntacc, vertices, graph, tyenv) =
     tybinds |> List.fold_left (fun (synacc, vntacc, vertices, graph, tyenv) (tyident, tyvars, syn_or_vnt) ->
       let (rng, tynm) = tyident in
-      let pkd =
+      let kd =
         let bkddoms =
           tyvars |> List.map (fun (_, kdannot) ->
             match kdannot with
-            | None        -> UniversalKind
+            | None        -> TypeKind
             | Some(mnbkd) -> decode_manual_base_kind pre_init mnbkd
           )
         in
-        let kd = Kind(bkddoms, UniversalKind) in
-        TypeConv.lift_kind kd
+        Kind(bkddoms, TypeKind)
       in
       match syn_or_vnt with
       | BindSynonym(synbind) ->
@@ -3639,7 +3581,7 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
               position        = rng;
               type_variables  = tyvars;
               definition_body = synbind;
-              kind            = pkd;
+              kind            = kd;
             }
           in
           let graph = graph |> DependencyGraph.add_vertex tynm syndata in
@@ -3648,16 +3590,16 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
           (synacc, vntacc, vertices, graph, tyenv)
 
       | BindVariant(vntbind) ->
-          let Kind(pbkds, _) = pkd in
+          let Kind(bkds, _) = kd in
           let tyid = TypeID.fresh (Alist.to_list address) tynm in
           let tentry =
             {
-              type_scheme = TypeConv.make_opaque_type_scheme_from_base_kinds pbkds tyid;
-              type_kind   = pkd;
+              type_scheme = TypeConv.make_opaque_type_scheme_from_base_kinds bkds tyid;
+              type_kind   = kd;
             }
           in
           let tyenv = tyenv |> Typeenv.add_type tynm tentry in
-          let vntacc = Alist.extend vntacc (tyident, tyvars, vntbind, tyid, pkd, tentry) in
+          let vntacc = Alist.extend vntacc (tyident, tyvars, vntbind, tyid, kd, tentry) in
           (synacc, vntacc, vertices, graph, tyenv)
     ) (Alist.empty, Alist.empty, SynonymNameSet.empty, DependencyGraph.empty, tyenv)
   in

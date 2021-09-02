@@ -439,6 +439,16 @@ let collect_ids_poly (pty : poly_type) (dispmap : DisplayMap.t) : DisplayMap.t =
   dispmap
 
 
+let normalize_row : 'a 'b. ('a, 'b) row -> (('a, 'b) typ) LabelAssoc.t * 'b option =
+fun row ->
+  let rec aux labmap = function
+    | RowCons((_, label), ty, row) -> aux (labmap |> LabelAssoc.add label ty) row
+    | RowVar(rv)                   -> (labmap, Some(rv))
+    | RowEmpty                     -> (labmap, None)
+  in
+  aux LabelAssoc.empty row
+
+
 (* Arguments:
    - `levpred`:
      Given a level of free/must-be-bound ID,
@@ -815,7 +825,7 @@ let substitute_poly_type (substmap : poly_type BoundIDMap.t) : poly_type -> poly
   instantiate_scheme intern intern_row
 
 
-let apply_type_scheme_mono ((bids, pty_body) : type_scheme) (tyargs : mono_type list) : (mono_type, (mono_type * poly_base_kind) option) result =
+let apply_type_scheme_mono ((bids, pty_body) : type_scheme) (tyargs : mono_type list) : (mono_type, (mono_type * base_kind) option) result =
   try
     let substmap =
       List.fold_left2 (fun substmap bid tyarg ->
@@ -828,7 +838,7 @@ let apply_type_scheme_mono ((bids, pty_body) : type_scheme) (tyargs : mono_type 
   | _ -> Error(None)
 
 
-let apply_type_scheme_poly ((bids, pty_body) : type_scheme) (ptyargs : poly_type list) : (poly_type, (poly_type * poly_base_kind) option) result =
+let apply_type_scheme_poly ((bids, pty_body) : type_scheme) (ptyargs : poly_type list) : (poly_type, (poly_type * base_kind) option) result =
   try
     let substmap =
       List.fold_left2 (fun substmap bid ptyarg ->
@@ -846,12 +856,8 @@ let make_opaque_type_scheme (bids : BoundID.t list) (tyid : TypeID.t) : type_sch
   (bids, (dr, TypeApp(tyid, ptyargs)))
 
 
-let make_opaque_type_scheme_from_base_kinds (pbkds : poly_base_kind list) (tyid : TypeID.t) : type_scheme =
-  let bids =
-    pbkds |> List.map (fun pbkd ->
-      BoundID.fresh ()
-    )
-  in
+let make_opaque_type_scheme_from_base_kinds (bkds : base_kind list) (tyid : TypeID.t) : type_scheme =
+  let bids = bkds |> List.map (fun _bkd -> BoundID.fresh ()) in
   make_opaque_type_scheme bids tyid
 
 
@@ -1044,32 +1050,24 @@ fun ~prefix ~suffix showtv showrv optrow ->
 *)
 
 
-and show_kind : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) kind -> string =
-fun showtv showrv kd ->
-  let showbkd = show_base_kind showtv showrv in
+and show_kind (kd : kind) : string =
   match kd with
   | Kind([], bkd) ->
-      showbkd bkd
+      show_base_kind bkd
 
   | Kind((_ :: _) as bkds, bkd) ->
-      let sdom = bkds |> List.map showbkd |> String.concat ", " in
-      let scod = showbkd bkd in
+      let sdom = bkds |> List.map show_base_kind |> String.concat ", " in
+      let scod = show_base_kind bkd in
       Printf.sprintf "(%s) -> %s" sdom scod
 
-and show_base_kind : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) base_kind -> string =
-fun showtv showrv ->
+
+and show_base_kind : base_kind -> string =
   function
   | TypeKind ->
       "o"
 
   | RowKind(labset) ->
       failwith "TODO: show_base_kind, RowKind"
-(*
-      let s =
-        labmap |> show_label_assoc ~prefix:"" ~suffix:" :" showtv showrv |> Option.value ~default:""
-      in
-      Printf.sprintf "{%s}" s
-*)
 
 
 and show_mono_type_var (dispmap : DisplayMap.t) (mtv : mono_type_var) : string =
@@ -1112,12 +1110,8 @@ let pp_mono_type dispmap ppf ty =
   Format.fprintf ppf "%s" (show_mono_type dispmap ty)
 
 
-let show_mono_base_kind (dispmap : DisplayMap.t) : mono_base_kind -> string =
-  show_base_kind (show_mono_type_var dispmap) (show_mono_row_var dispmap)
-
-
-let pp_mono_base_kind dispmap ppf mbkd =
-  Format.fprintf ppf "%s" (show_mono_base_kind dispmap mbkd)
+let pp_base_kind dispmap ppf bkd =
+  Format.fprintf ppf "%s" (show_base_kind bkd)
 
 
 type 'a state =

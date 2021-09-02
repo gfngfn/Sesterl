@@ -34,7 +34,7 @@ and ('a, 'b) row =
   | RowVar  of 'b
   | RowEmpty
 
-and ('a, 'b) base_kind =
+and base_kind =
   | TypeKind
   | RowKind  of LabelSet.t
 
@@ -69,7 +69,7 @@ and type_scheme = BoundID.t list * poly_type
 
 and type_entry = {
   type_scheme : type_scheme;
-  type_kind   : poly_kind;
+  type_kind   : kind;
 }
 
 and module_entry = {
@@ -85,7 +85,7 @@ and constructor_entry = {
 }
 
 and opaque_entry = {
-  opaque_kind : poly_kind;
+  opaque_kind : kind;
 }
 
 and environment = {
@@ -95,7 +95,7 @@ and environment = {
     [@printer (fun ppf _ -> Format.fprintf ppf "<constructors>")]
   types        : type_entry TypeNameMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<types>")]
-  opaques      : poly_kind OpaqueIDMap.t;
+  opaques      : kind OpaqueIDMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<opaques>")]
   modules      : module_entry ModuleNameMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<modules>")]
@@ -122,9 +122,9 @@ and record_signature_entry =
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRSig>")]
 [@@deriving show { with_path = false }]
 
-and ('a, 'b) kind =
-  | Kind of (('a, 'b) base_kind) list * ('a, 'b) base_kind
-      (* Handles order-0 or order-1 kind only, *)
+and kind =
+  | Kind of (base_kind) list * base_kind
+      (* Handles order-0 or order-1 kind only. *)
 
 and mono_type_var_updatable =
   | Free of FreeID.t
@@ -146,10 +146,6 @@ and mono_type = (mono_type_var, mono_row_var) typ
 
 and mono_row = (mono_type_var, mono_row_var) row
 
-and mono_kind = (mono_type_var, mono_row_var) kind
-
-and mono_base_kind = (mono_type_var, mono_row_var) base_kind
-
 and mono_effect = (mono_type_var, mono_row_var) effect
 
 and mono_domain_type = (mono_type_var, mono_row_var) domain_type
@@ -166,13 +162,9 @@ and poly_type = (poly_type_var, poly_row_var) typ
 
 and poly_row = (poly_type_var, poly_row_var) row
 
-and poly_kind = (poly_type_var, poly_row_var) kind
-
-and poly_base_kind = (poly_type_var, poly_row_var) base_kind
-
 and poly_domain_type = (poly_type_var, poly_row_var) domain_type
 
-and quantifier = poly_kind OpaqueIDMap.t
+and quantifier = kind OpaqueIDMap.t
   [@printer pp_opaque_id_quantifier]
 
 and 'a abstracted = quantifier * 'a
@@ -267,9 +259,9 @@ module Typeenv = struct
     }
 
 
-  let add_opaque_id (tynm : type_name) (oid : TypeID.t) (pkd : poly_kind) (tyenv : t) : t =
+  let add_opaque_id (tynm : type_name) (oid : TypeID.t) (kd : kind) (tyenv : t) : t =
     { tyenv with
-      opaques = tyenv.opaques |> OpaqueIDMap.add oid pkd;
+      opaques = tyenv.opaques |> OpaqueIDMap.add oid kd;
     }
 
 

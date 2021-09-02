@@ -51,7 +51,7 @@ type type_error =
   | UndefinedTypeName                   of Range.t * type_name
   | UndefinedKindName                   of Range.t * kind_name
   | InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
-  | KindContradiction                   of Range.t * type_name * poly_kind * poly_kind
+  | KindContradiction                   of Range.t * type_name * kind * kind
   | TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
   | RowParameterBoundMoreThanOnce       of Range.t * row_variable_name
   | InvalidByte                         of Range.t

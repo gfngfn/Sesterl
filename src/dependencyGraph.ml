@@ -15,7 +15,7 @@ type data = {
   position        : Range.t;
   type_variables  : type_variable_binder list;
   definition_body : manual_type;
-  kind            : poly_kind;
+  kind            : kind;
 }
 
 type t = {
