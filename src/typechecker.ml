@@ -669,6 +669,13 @@ let fresh_type_variable ?name:nameopt (lev : int) (rng : Range.t) : mono_type =
   ty
 
 
+let fresh_row_variable (lev : int) (labset : LabelSet.t) : mono_row =
+  let frid = FreeRowID.fresh ~message:"fresh_row_variable" lev in
+  KindStore.register_free_row frid labset;
+  let mrvu = ref (FreeRow(frid)) in
+  RowVar(UpdatableRow(mrvu))
+
+
 let check_properly_used (tyenv : Typeenv.t) ((rng, x) : identifier ranged) =
   match tyenv |> Typeenv.is_val_properly_used x with
   | None        -> assert false
@@ -1753,24 +1760,18 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       in
       ((rng, RecordType(row)), IRecord(emap))
 
-  | RecordAccess(utast1, (_, label)) ->
+  | RecordAccess(utast1, ((_, label) as rlabel)) ->
       let (ty1, e1) = typecheck pre utast1 in
-      let tyret = fresh_type_variable pre.level rng in
-      let tyF =
-        let labmap = LabelAssoc.singleton label tyret in
-        fresh_type_variable pre.level (RecordKind(labmap)) (Range.dummy "RecordAccess")
-      in
-      unify ty1 tyF;
-      (tyret, IRecordAccess(e1, label))
+      let ty_ret = fresh_type_variable pre.level rng in
+      let row_rest = fresh_row_variable pre.level (LabelSet.singleton label) in
+      unify ty1 (Range.dummy "RecordAccess", RecordType(RowCons(rlabel, ty_ret, row_rest)));
+      (ty_ret, IRecordAccess(e1, label))
 
-  | RecordUpdate(utast1, (_, label), utast2) ->
+  | RecordUpdate(utast1, ((_, label) as rlabel), utast2) ->
       let (ty1, e1) = typecheck pre utast1 in
       let (ty2, e2) = typecheck pre utast2 in
-      let tyF =
-        let labmap = LabelAssoc.singleton label ty2 in
-        fresh_type_variable pre.level (RecordKind(labmap)) (Range.dummy "RecordUpdate")
-      in
-      unify ty1 tyF;
+      let row_rest = fresh_row_variable pre.level (LabelSet.singleton label) in
+      unify ty1 (Range.dummy "RecordUpdate", RecordType(RowCons(rlabel, ty2, row_rest)));
       (ty1, IRecordUpdate(e1, label, e2))
 
   | Pack(modidentchain1, utsig2) ->
