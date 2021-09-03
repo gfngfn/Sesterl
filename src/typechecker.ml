@@ -1020,7 +1020,7 @@ and solve_membership_aux (rng : Range.t) (label : label) (ty : mono_type) (row :
       if labset0 |> LabelSet.mem label then
         failwith "TODO (error): reject for the disjointness"
       else begin
-        let lev = failwith "TODO: solve_membership_aux, level" in
+        let lev = FreeRowID.get_level frid0 in
         let frid1 = FreeRowID.fresh ~message:"solve_membership_aux" lev in
         KindStore.register_free_row frid1 LabelSet.empty;
         let mrvu1 = ref (FreeRow(frid1)) in
@@ -1419,10 +1419,10 @@ and add_ordered_parameters_to_type_environment (pre : pre) (binders : binder lis
   (tyenv, tydoms, lnames)
 
 
-and add_labeled_optional_parameters_to_type_environment (pre : pre) (optbinders : (labeled_binder * untyped_ast option) list) : Typeenv.t * mono_type LabelAssoc.t * (local_name * ast option) LabelAssoc.t =
-  optbinders |> List.fold_left (fun (tyenv, labmap, optnamemap) ((rlabel, binder), utdefault) ->
+and add_labeled_optional_parameters_to_type_environment (pre : pre) (optbinders : (labeled_binder * untyped_ast option) list) : Typeenv.t * mono_row * (local_name * ast option) LabelAssoc.t =
+  optbinders |> List.fold_left (fun (tyenv, optrow, optnamemap) ((rlabel, binder), utdefault) ->
     let (rnglabel, label) = rlabel in
-    if labmap |> LabelAssoc.mem label then
+    if optnamemap |> LabelAssoc.mem label then
       raise_error (DuplicatedLabel(rnglabel, label))
     else
       let (x, ty_inner, lname) = decode_parameter pre binder in
@@ -1438,11 +1438,11 @@ and add_labeled_optional_parameters_to_type_environment (pre : pre) (optbinders 
             unify ty_inner ty;
             (ty_inner, Some(e))
       in
-      let labmap = labmap |> LabelAssoc.add label ty_outer in
+      let optrow = RowCons(rlabel, ty_outer, optrow) in
       let tyenv = tyenv |> Typeenv.add_value x (TypeConv.lift ty_inner) (OutputIdentifier.Local(lname)) in
       let optnamemap = optnamemap |> LabelAssoc.add label (lname, default) in
-      (tyenv, labmap, optnamemap)
-  ) (pre.tyenv, LabelAssoc.empty, LabelAssoc.empty)
+      (tyenv, optrow, optnamemap)
+  ) (pre.tyenv, RowEmpty, LabelAssoc.empty)
 
 
 and add_labeled_mandatory_parameters_to_type_environment (pre : pre) (mndbinders : labeled_binder list) : Typeenv.t * mono_type LabelAssoc.t * local_name LabelAssoc.t =
@@ -1466,10 +1466,10 @@ and add_parameters_to_type_environment (pre : pre) ((ordbinders, mndbinders, opt
   let (tyenv, mndlabmap, mndnamemap) =
     add_labeled_mandatory_parameters_to_type_environment { pre with tyenv } mndbinders
   in
-  let (tyenv, optlabmap, optnamemap) =
+  let (tyenv, optrow, optnamemap) =
     add_labeled_optional_parameters_to_type_environment { pre with tyenv } optbinders
   in
-  let domain = {ordered = tydoms; mandatory = mndlabmap; optional = FixedRow(optlabmap)} in
+  let domain = {ordered = tydoms; mandatory = mndlabmap; optional = optrow} in
   let ibinders = (ordnames, mndnamemap, optnamemap) in
   (tyenv, domain, ibinders)
 
@@ -1937,6 +1937,7 @@ and typecheck_arguments (pre : pre) (rng : Range.t) ((utastargs, mndutastargs, o
 
   let (optrow, optargmap) =
     let frid = FreeRowID.fresh ~message:"Apply, row" pre.level in
+      (* Note: the initial kind for `frid` will be assigned after traversing the given optional arguments. *)
     let row_init =
       let mrvu = ref (FreeRow(frid)) in
       RowVar(UpdatableRow(mrvu))
@@ -2001,56 +2002,41 @@ and typecheck_arguments_against_domain (pre : pre) (rng : Range.t) ((utastargs, 
     | (label, ty) :: _ -> raise_error @@ MissingMandatoryLabel{range = rng; label = label; typ = ty}
   in
   let optargmap =
-    let labmap_known =
-      match optrow_expected with
-      | FixedRow(labmap) ->
-          labmap
-
-      | RowVar(UpdatableRow{contents = LinkRow(labmap)}) ->
-          labmap
-
-      | RowVar(MustBeBoundRow(mbbrid)) ->
-          let plabmap = KindStore.get_bound_row (MustBeBoundRowID.to_bound mbbrid) in
-          plabmap |> LabelAssoc.map (TypeConv.instantiate pre.level)
-
-      | RowVar(UpdatableRow{contents = FreeRow(frid)}) ->
-          KindStore.get_free_row frid
-    in
-    let (unknown_label, optlabmap, optargmap) =
-      optutastargs |> List.fold_left (fun (unknown_label, optlabmap, optargmap) (rlabel, utast) ->
-        let (rnglabel, label) = rlabel in
+    let (labmap_known, rowvar_opt) = TypeConv.normalize_mono_row optrow_expected in
+    let (unknown_labels, optargmap) =
+      optutastargs |> List.fold_left (fun (unknown_labels, optargmap) (rlabel, utast) ->
+        let (_, label) = rlabel in
         if optargmap |> LabelAssoc.mem label then
-          raise_error (DuplicatedLabel(rnglabel, label))
+          raise_error (DuplicatedLabel(rng, label))
         else
           let (ty_got, e) = typecheck pre utast in
           let optargmap = optargmap |> LabelAssoc.add label e in
           match labmap_known |> LabelAssoc.find_opt label with
           | None ->
-              let optlabmap = optlabmap |> LabelAssoc.add label ty_got in
-              (Some(rlabel), optlabmap, optargmap)
+              (unknown_labels |> LabelSet.add label, optargmap)
 
           | Some(ty_expected) ->
               unify ty_got ty_expected;
-              let optlabmap = optlabmap |> LabelAssoc.add label ty_expected in
-              (unknown_label, optlabmap, optargmap)
+              (unknown_labels, optargmap)
 
-      ) (None, LabelAssoc.empty, LabelAssoc.empty)
+      ) (LabelSet.empty, LabelAssoc.empty)
     in
-    let () =
-      match unknown_label with
-      | Some(rnglabel, label) ->
+    begin
+      match LabelSet.elements unknown_labels with
+      | label :: _ ->
           begin
-            match optrow_expected with
-            | RowVar(UpdatableRow{contents = FreeRow(frid)}) ->
-                KindStore.register_free_row frid optlabmap
+            match rowvar_opt with
+            | Some(UpdatableRow{contents = FreeRow(frid)}) ->
+                let labset = KindStore.get_free_row frid in
+                KindStore.register_free_row frid (LabelSet.union labset unknown_labels)
 
             | _ ->
-                raise_error @@ UnexpectedOptionalLabel{range = rnglabel; label = label}
+                raise_error @@ UnexpectedOptionalLabel{range = rng; label = label}
           end
 
-      | None ->
+      | _ ->
           ()
-    in
+    end;
     optargmap
   in
   (eargs, mndargmap, optargmap)
@@ -2467,20 +2453,15 @@ and subtype_poly_type_impl (internbid : BoundID.t -> poly_type -> bool) (internb
   and aux_row (prow1 : poly_row) (prow2 : poly_row) =
     failwith "TODO: subtype_poly_type_impl, aux_row"
 
-  and aux_label_assoc plabmap1 plabmap2 =
-    LabelAssoc.merge (fun _ ptyopt1 ptyopt2 ->
-      match (ptyopt1, ptyopt2) with
-      | (None, None)             -> None
-      | (Some(pty1), Some(pty2)) -> Some(aux pty1 pty2)
-      | _                        -> Some(false)
-    ) plabmap1 plabmap2 |> LabelAssoc.for_all (fun _ b -> b)
-
   and aux_domain domain1 domain2 =
     let {ordered = ptydoms1; mandatory = mndlabmap1; optional = poptrow1} = domain1 in
     let {ordered = ptydoms2; mandatory = mndlabmap2; optional = poptrow2} = domain2 in
     let b1 = aux_list ptydoms1 ptydoms2 in
-    let bmnd = aux_label_assoc mndlabmap1 mndlabmap2 in
-    let bopt = subtype_option_row internbid internbrid poptrow1 poptrow2 in
+    let bmnd =
+      let opt = subtype_label_assoc internbid internbrid mndlabmap1 mndlabmap2 in
+      Option.is_some opt
+    in
+    let bopt = subtype_row internbid internbrid poptrow1 poptrow2 in
     b1 && bmnd && bopt
 
   and aux_pid (Pid(pty1)) (Pid(pty2)) =
@@ -2492,53 +2473,59 @@ and subtype_poly_type_impl (internbid : BoundID.t -> poly_type -> bool) (internb
   aux pty1 pty2
 
 
-and subtype_label_assoc (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (plabmap1 : poly_type LabelAssoc.t) (plabmap2 : poly_type LabelAssoc.t) =
-  LabelAssoc.fold (fun label pty1 b ->
-    if not b then
+(* Checks that `dom plabmap1 ⊆ dom plabmap2` and `∀label ∈ dom plabmap1. plabmap1(label) <: plabmap2(label)`
+   by referring and updating `internbid` and `internbrid`. *)
+and subtype_label_assoc (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (plabmap1 : poly_type LabelAssoc.t) (plabmap2 : poly_type LabelAssoc.t) : (poly_type LabelAssoc.t) option =
+  let merged =
+    LabelAssoc.merge (fun label pty1_opt pty2_opt ->
+      match (pty1_opt, pty2_opt) with
+      | (Some(pty1), Some(pty2)) -> Some(Ok(subtype_poly_type_impl internbid internbrid pty1 pty2))
+      | (None, Some(pty2))       -> Some(Error(pty2))
+      | _                        -> Some(Ok(false))
+    ) plabmap1 plabmap2
+  in
+  if merged |> LabelAssoc.for_all (fun _label res -> Result.value ~default:false res) then
+    let plabmap_diff =
+      merged |> LabelAssoc.filter_map (fun _label res ->
+        match res with
+        | Ok(_)       -> None
+        | Error(pty2) -> Some(pty2)
+      )
+    in
+    Some(plabmap_diff)
+  else
+    None
+
+
+and subtype_label_assoc_with_equal_domain (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (plabmap1 : poly_type LabelAssoc.t) (plabmap2 : poly_type LabelAssoc.t) : bool =
+  LabelAssoc.merge (fun label pty1_opt pty2_opt ->
+    match (pty1_opt, pty2_opt) with
+    | (Some(pty1), Some(pty2)) -> Some(subtype_poly_type_impl internbid internbrid pty1 pty2)
+    | _                        -> Some(false)
+  ) plabmap1 plabmap2 |> LabelAssoc.for_all (fun _label b -> b)
+
+
+and subtype_row (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (prow1 : poly_row) (prow2 : poly_row) : bool =
+  let (plabmap1, rowvar1_opt) = TypeConv.normalize_poly_row prow1 in
+  let (plabmap2, rowvar2_opt) = TypeConv.normalize_poly_row prow2 in
+
+  match (rowvar1_opt, rowvar2_opt) with
+  | (None, None) ->
+      subtype_label_assoc_with_equal_domain internbid internbrid plabmap1 plabmap2
+
+  | (Some(MonoRow(_)), _) | (_, Some(MonoRow(_))) ->
+      assert false
+
+  | (None, Some(BoundRow(_brid2))) ->
       false
-    else
-      match plabmap2 |> LabelAssoc.find_opt label with
-      | None       -> false
-      | Some(pty2) -> subtype_poly_type_impl internbid internbrid pty1 pty2
-  ) plabmap1 true
 
-
-and subtype_option_row (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (poptrow1 : poly_row) (poptrow2 : poly_row) : bool =
-
-  let aux_label_assoc =
-    subtype_label_assoc internbid internbrid
-  in
-
-  let aux poptrow1 poptrow2 =
-    match (poptrow1, poptrow2) with
-    | (RowVar(MonoRow(_)), _)
-    | (_, RowVar(MonoRow(_))) ->
-        assert false
-
-    | (FixedRow(plabmap1), FixedRow(plabmap2)) ->
-        aux_label_assoc plabmap1 plabmap2
-
-    | (FixedRow(_), RowVar(_)) ->
-        false
-
-    | (RowVar(BoundRow(brid1)), FixedRow(plabmap2)) ->
-        (* First check that the kind of `brid1` is more general than (or equal to) `prow2`. *)
-        let plabmap1 = KindStore.get_bound_row brid1 in
-        if aux_label_assoc plabmap1 plabmap2 then
-          internbrid brid1 poptrow2
-        else
-          false
-
-    | (RowVar(BoundRow(brid1)), RowVar(BoundRow(brid2))) ->
-        (* First check that the kind of `brid1` is more general than (or equal to) that of `brid2`. *)
-        let plabmap1 = KindStore.get_bound_row brid1 in
-        let plabmap2 = KindStore.get_bound_row brid2 in
-        if aux_label_assoc plabmap1 plabmap2 then
-          internbrid brid1 poptrow2
-        else
-          false
-  in
-  aux poptrow1 poptrow2
+  | (Some(BoundRow(brid1)), _) ->
+      let opt = subtype_label_assoc internbid internbrid plabmap1 plabmap2 in
+      begin
+        match opt with
+        | None               -> false
+        | Some(plabmap_diff) -> internbrid brid1 (plabmap_diff, rowvar2_opt)
+      end
 
 
 and subtype_poly_type (pty1 : poly_type) (pty2 : poly_type) : bool =
@@ -2565,9 +2552,11 @@ and subtype_poly_type (pty1 : poly_type) (pty2 : poly_type) : bool =
   subtype_poly_type_impl internbid internbrid pty1 pty2
 
 
+(* Checks that `prow1` and `prow2` are exactly the same up to reordering.
+   Here, `Mono` and `MonoRow` are not supposed to occur in `prow1` nor `prow2`. *)
 and poly_row_equal (prow1 : poly_row) (prow2 : poly_row) : bool =
-  let (plabmap1, rowvar1_opt) = TypeConv.normalize_row prow1 in
-  let (plabmap2, rowvar2_opt) = TypeConv.normalize_row prow2 in
+  let (plabmap1, rowvar1_opt) = TypeConv.normalize_poly_row prow1 in
+  let (plabmap2, rowvar2_opt) = TypeConv.normalize_poly_row prow2 in
   let bmap =
     LabelAssoc.merge (fun _ ptyopt1 ptyopt2 ->
       match (ptyopt1, ptyopt2) with
@@ -2585,8 +2574,9 @@ and poly_row_equal (prow1 : poly_row) (prow2 : poly_row) : bool =
     false
 
 
+(* Checks that `pty1` and `pty2` is exactly equal (up to reordering of records, etc.).
+   Here, `Mono` and `MonoRow` are not supposed to occur in `pty1` nor `pty2`. *)
 and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
-
   let rec aux (pty1 : poly_type) (pty2 : poly_type) : bool =
     let (_, ptymain1) = pty1 in
     let (_, ptymain2) = pty2 in
@@ -3053,7 +3043,7 @@ and substitute_abstract ~(cause : Range.t) ~(address : address) (subst : substit
     (* Strictly speaking, we should assert that `quant` and the domain of `subst` be disjoint. *)
 
 
-(* Applies the subtitution `subst` to `pty`. Here, it is assumed that `MonoRow` does not occur in `pty`. *)
+(* Applies the subtitution `subst` to `pty`. Here, `MonoRow` are not supposed to occur in `pty`. *)
 and substitute_poly_type ~(cause : Range.t) (subst : substitution) (pty : poly_type) : poly_type =
   let rec aux (rng, ptymain) =
     let ptymain =

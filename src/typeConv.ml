@@ -439,12 +439,22 @@ let collect_ids_poly (pty : poly_type) (dispmap : DisplayMap.t) : DisplayMap.t =
   dispmap
 
 
-let normalize_row : 'a 'b. ('a, 'b) row -> (('a, 'b) typ) LabelAssoc.t * 'b option =
-fun row ->
+(* Normalizes the polymorphic row `prow`. Here, `MonoRow` is not supposed to occur in `prow`. *)
+let normalize_poly_row (prow : poly_row) : poly_type LabelAssoc.t * poly_row_var option =
+  let rec aux plabmap = function
+    | RowCons((_, label), pty, prow) -> aux (plabmap |> LabelAssoc.add label pty) prow
+    | RowVar(prv)                    -> (plabmap, Some(prv))
+    | RowEmpty                       -> (plabmap, None)
+  in
+  aux LabelAssoc.empty prow
+
+
+let normalize_mono_row (row : mono_row) : mono_type LabelAssoc.t * mono_row_var option =
   let rec aux labmap = function
-    | RowCons((_, label), ty, row) -> aux (labmap |> LabelAssoc.add label ty) row
-    | RowVar(rv)                   -> (labmap, Some(rv))
-    | RowEmpty                     -> (labmap, None)
+    | RowCons((_, label), ty, row)                   -> aux (labmap |> LabelAssoc.add label ty) row
+    | RowVar(UpdatableRow{contents = LinkRow(row)})  -> aux labmap row
+    | RowVar(rv)                                     -> (labmap, Some(rv))
+    | RowEmpty                                       -> (labmap, None)
   in
   aux LabelAssoc.empty row
 
