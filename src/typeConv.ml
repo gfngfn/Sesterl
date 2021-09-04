@@ -1163,6 +1163,10 @@ and show_poly_type_sub (dispmap : DisplayMap.t) (hts : hash_tables) : poly_type 
   show_type (show_poly_type_var dispmap hts) (show_poly_row_var dispmap hts)
 
 
+let show_poly_row_sub (dispmap : DisplayMap.t) (hts : hash_tables) : poly_row -> string option =
+  show_row ~prefix:"" ~suffix:"" (show_poly_type_var dispmap hts) (show_poly_row_var dispmap hts)
+
+
 let show_bound_type_ids (dispmap : DisplayMap.t) ((bidht, _) : hash_tables) =
   BoundIDHashTable.fold (fun bid skdopt acc ->
     let sb = dispmap |> DisplayMap.find_bound_id bid in
@@ -1192,6 +1196,14 @@ let create_initial_hash_tables () : hash_tables =
 let show_poly_type (dispmap : DisplayMap.t) (pty : poly_type) : string list * string list * string =
   let hts = create_initial_hash_tables () in
   let smain = show_poly_type_sub dispmap hts pty in
+  let sbids = show_bound_type_ids dispmap hts in
+  let sbrids = show_bound_row_ids dispmap hts in
+  (sbids, sbrids, smain)
+
+
+let show_poly_row (dispmap : DisplayMap.t) (prow : poly_row) : string list * string list * string =
+  let hts = create_initial_hash_tables () in
+  let smain = Option.value ~default:"(empty)" (show_poly_row_sub dispmap hts prow) in
   let sbids = show_bound_type_ids dispmap hts in
   let sbrids = show_bound_row_ids dispmap hts in
   (sbids, sbrids, smain)
