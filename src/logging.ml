@@ -302,19 +302,13 @@ let report_type_error (e : type_error) : unit =
         len_expected
         len_actual
 
-  | KindContradiction(rng, tynm, pkd_expected, pkd_actual) ->
-      failwith "TODO: KindContradiction"
-(*
-      let dispmap = TypeConv.DisplayMap.empty in  (* TODO: traverse `pkd_*` and make `dispmap` *)
-      let (_, _, skd_actual) = TypeConv.show_poly_kind dispmap pkd_actual in
-      let (_, _, skd_expected) = TypeConv.show_poly_kind dispmap pkd_expected in
+  | KindContradiction(rng, tynm, kd_expected, kd_actual) ->
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  type constructor '%s' has kind %s, but is expected of kind %s\n"
         tynm
-        skd_actual
-        skd_expected
-*)
+        (TypeConv.show_kind kd_actual)
+        (TypeConv.show_kind kd_expected)
 
   | TypeParameterBoundMoreThanOnce(rng, tyvar) ->
       Format.printf "%a:\n"

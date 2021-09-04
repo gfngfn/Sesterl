@@ -1219,3 +1219,18 @@ let debug_print_mono_type message ty =
   let s = show_mono_type dispmap ty in
   Format.printf "!!! %s (%s)\n" message s;
   print_base_kinds dispmap
+
+
+let show_base_kind (bkd : base_kind) : string =
+  match bkd with
+  | TypeKind        -> "o"
+  | RowKind(labset) -> Printf.sprintf "(%s)" (labset |> LabelSet.elements |> String.concat ", ")
+
+
+let show_kind (kd : kind) : string =
+  let Kind(bkddoms, bkdcod) = kd in
+  let sdoms = bkddoms |> List.map show_base_kind in
+  let scod = show_base_kind bkdcod in
+  match sdoms with
+  | []     -> scod
+  | _ :: _ -> Printf.sprintf "(%s) -> %s" (String.concat ", " sdoms) scod
