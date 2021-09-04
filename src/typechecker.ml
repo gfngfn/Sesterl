@@ -2416,7 +2416,7 @@ and subtype_poly_type_impl (internbid : type_intern) (internbrid : row_intern) (
         aux_list (TupleList.to_list ptys1) (TupleList.to_list ptys2)
 
     | (RecordType(prow1), RecordType(prow2)) ->
-        aux_row prow1 prow2
+        subtype_row_with_equal_domain internbid internbrid prow1 prow2
 
     | (PackType(absmodsig1), PackType(absmodsig2)) ->
         begin
@@ -2454,9 +2454,6 @@ and subtype_poly_type_impl (internbid : type_intern) (internbrid : row_intern) (
           bacc && b
         ) true
 
-  and aux_row (prow1 : poly_row) (prow2 : poly_row) =
-    failwith "TODO: subtype_poly_type_impl, aux_row"
-
   and aux_domain domain1 domain2 =
     let {ordered = ptydoms1; mandatory = mndlabmap1; optional = poptrow1} = domain1 in
     let {ordered = ptydoms2; mandatory = mndlabmap2; optional = poptrow2} = domain2 in
@@ -2465,7 +2462,7 @@ and subtype_poly_type_impl (internbid : type_intern) (internbrid : row_intern) (
       let opt = subtype_label_assoc internbid internbrid mndlabmap1 mndlabmap2 in
       Option.is_some opt
     in
-    let bopt = subtype_row internbid internbrid poptrow1 poptrow2 in
+    let bopt = subtype_row_with_equal_domain internbid internbrid poptrow1 poptrow2 in
     b1 && bmnd && bopt
 
   and aux_pid (Pid(pty1)) (Pid(pty2)) =
@@ -2509,7 +2506,7 @@ and subtype_label_assoc_with_equal_domain (internbid : type_intern) (internbrid 
   ) plabmap1 plabmap2 |> LabelAssoc.for_all (fun _label b -> b)
 
 
-and subtype_row (internbid : type_intern) (internbrid : row_intern) (prow1 : poly_row) (prow2 : poly_row) : bool =
+and subtype_row_with_equal_domain (internbid : type_intern) (internbrid : row_intern) (prow1 : poly_row) (prow2 : poly_row) : bool =
   let NormalizedRow(plabmap1, rowvar1_opt) = TypeConv.normalize_poly_row prow1 in
   let NormalizedRow(plabmap2, rowvar2_opt) = TypeConv.normalize_poly_row prow2 in
 
