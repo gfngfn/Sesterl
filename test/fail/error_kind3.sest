@@ -1,0 +1,6 @@
+module ErrorKind3 = struct
+
+  val f<?$r :: (foo)>(r : { foo : int, bar : bool, ?$r }, n : int, b : bool) : { foo : int, bar : bool, ?$r } =
+    { r | foo = n, bar = b }
+
+end
