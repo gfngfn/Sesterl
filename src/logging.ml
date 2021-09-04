@@ -218,7 +218,7 @@ let report_type_error (e : type_error) : unit =
       Format.printf "  but is expected of type\n";
       Format.printf "    %a\n"
         (TypeConv.pp_mono_type dispmap) ty2;
-      TypeConv.print_nontrivial_mono_base_kinds dispmap
+      TypeConv.print_base_kinds dispmap
 
   | InclusionError(fid, ty1, ty2) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
@@ -233,7 +233,7 @@ let report_type_error (e : type_error) : unit =
         (TypeConv.pp_mono_type dispmap) ty2;
       Format.printf "at the same time, but these types are inconsistent as to the occurrence of type variable %s\n"
         (dispmap |> TypeConv.DisplayMap.find_free_id fid);
-      TypeConv.print_nontrivial_mono_base_kinds dispmap
+      TypeConv.print_base_kinds dispmap
 
   | InclusionRowError(frid, ty1, ty2) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
@@ -248,7 +248,7 @@ let report_type_error (e : type_error) : unit =
         (TypeConv.pp_mono_type dispmap) ty2;
       Format.printf "at the same time, but these types are inconsistent as to the occurrence of row variable %s\n"
         (dispmap |> TypeConv.DisplayMap.find_free_row_id frid);
-      TypeConv.print_nontrivial_mono_base_kinds dispmap
+      TypeConv.print_base_kinds dispmap
 
   | BoundMoreThanOnceInPattern(rng, x) ->
       Format.printf "%a:\n"
@@ -557,7 +557,7 @@ let report_type_error (e : type_error) : unit =
         info.label;
       Format.printf "    %a\n"
         (TypeConv.pp_mono_type dispmap) ty;
-      TypeConv.print_nontrivial_mono_base_kinds dispmap
+      TypeConv.print_base_kinds dispmap
 
   | UnexpectedMandatoryLabel(info) ->
       Format.printf "%a:\n"

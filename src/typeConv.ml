@@ -1220,67 +1220,30 @@ let debug_print_poly_type message pty =
   Format.printf "!!! %s ((%s), (%s), %s)\n" message (String.concat ", " ss1) (String.concat ", " ss2) s3
 
 
-let print_nontrivial_mono_base_kinds (dispmap : DisplayMap.t) =
-  failwith "TODO: print_nontrivial_mono_base_kinds"
-(*
-  let fids =
-    dispmap |> DisplayMap.fold_free_id (fun fid s acc ->
-      let bkd = KindStore.get_free_id fid in
-      match bkd with
-      | UniversalKind ->
-          acc
-
-      | RecordKind(labmap) ->
-          Alist.extend acc (fid, labmap)
+let print_base_kinds (dispmap : DisplayMap.t) =
+  let row_names =
+    dispmap |> DisplayMap.fold_free_row_id (fun frid row_name acc ->
+      let labset = KindStore.get_free_row frid in
+      let s = labset |> LabelSet.elements |> String.concat ", " in
+      Alist.extend acc (row_name, s)
     ) Alist.empty |> Alist.to_list
   in
-  let frids =
-    dispmap |> DisplayMap.fold_free_row_id (fun frid s acc ->
-      let labmap = KindStore.get_free_row frid in
-      match show_mono_row dispmap (FixedRow(labmap)) with
-      | None    -> acc
-      | Some(s) -> Alist.extend acc (frid, s)
-    ) Alist.empty |> Alist.to_list
-  in
-(*
-  let bids =
-    dispmap |> TypeConv.DisplayMap.fold_bound_id (fun bid s acc ->
-      let pkd = KindStore.get_bound_id bid in
-      match pkd with
-      | UniversalKind       -> acc
-      | RecordKind(plabmap) -> Alist.extend acc (bid, plabmap)
-    ) Alist.empty |> Alist.to_list
-  in
-  let brids =
-    dispmap |> TypeConv.DisplayMap.fold_bound_row_id (fun brid s acc ->
-      let plabmap = KindStore.get_free_row brid in
-      Alist.extend acc (brid, plabmap)
-    ) Alist.empty |> Alist.to_list
-  in
-*)
-  match (fids, frids) with
-  | ([], []) ->
+  match row_names with
+  | [] ->
       ()
 
-  | _ ->
+  | _ :: _ ->
       Format.printf "  where\n";
-      fids |> List.iter (fun (fid, labmap) ->
-        Format.printf "  - %s :: %a\n"
-          (dispmap |> DisplayMap.find_free_id fid)
-          (pp_mono_base_kind dispmap) (RecordKind(labmap))
-      );
-      frids |> List.iter (fun (frid, skd) ->
-        Format.printf "  - %s :: (%s)\n"
-          (dispmap |> DisplayMap.find_free_row_id frid)
-          skd
+      row_names |> List.iter (fun (row_name, skd) ->
+        Format.printf "  - %s :: (%s)\n" row_name skd
       )
-*)
+
 
 let debug_print_mono_type message ty =
   let dispmap = DisplayMap.empty |> collect_ids_mono ty in
   let s = show_mono_type dispmap ty in
   Format.printf "!!! %s (%s)\n" message s;
-  print_nontrivial_mono_base_kinds dispmap
+  print_base_kinds dispmap
 
 
 (*
