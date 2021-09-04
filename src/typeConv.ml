@@ -905,9 +905,9 @@ let overwrite_range_of_type (rng : Range.t) (_, tymain) =
 
 let rec can_row_take_optional : mono_row -> bool = function
   | RowCons(_, _, _)                               -> true
-  | RowVar(UpdatableRow{contents = FreeRow(frid)}) -> true
+  | RowVar(UpdatableRow{contents = FreeRow(frid)}) -> false
   | RowVar(UpdatableRow{contents = LinkRow(row)})  -> can_row_take_optional row
-  | RowVar(MustBeBoundRow(mbbrid))                 -> true
+  | RowVar(MustBeBoundRow(mbbrid))                 -> false
   | RowEmpty                                       -> false
 
 
