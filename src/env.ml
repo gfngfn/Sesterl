@@ -169,8 +169,12 @@ and quantifier = kind OpaqueIDMap.t
 
 and 'a abstracted = quantifier * 'a
 
-type normalized_poly_row =
-  | NormalizedRow of poly_type LabelAssoc.t * poly_row_var option
+type ('a, 'b) normalized_row =
+  | NormalizedRow of (('a, 'b) typ) LabelAssoc.t * 'b option
+
+type normalized_mono_row = (mono_type_var, mono_row_var) normalized_row
+
+type normalized_poly_row = (poly_type_var, poly_row_var) normalized_row
 
 type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorMap.t
 

@@ -439,8 +439,8 @@ let collect_ids_poly (pty : poly_type) (dispmap : DisplayMap.t) : DisplayMap.t =
   dispmap
 
 
-(* Normalizes the polymorphic row `prow`. Here, `MonoRow` is not supposed to occur in `prow`. *)
-let normalize_poly_row (prow : poly_row) : normalized_poly_row =
+let normalize_row_general : ('a, 'b) row -> ('a, 'b) normalized_row =
+fun prow ->
   let rec aux plabmap = function
     | RowCons((_, label), pty, prow) -> aux (plabmap |> LabelAssoc.add label pty) prow
     | RowVar(prv)                    -> NormalizedRow(plabmap, Some(prv))
@@ -449,12 +449,17 @@ let normalize_poly_row (prow : poly_row) : normalized_poly_row =
   aux LabelAssoc.empty prow
 
 
-let normalize_mono_row (row : mono_row) : mono_type LabelAssoc.t * mono_row_var option =
+(* Normalizes the polymorphic row `prow`. Here, `MonoRow` is not supposed to occur in `prow`. *)
+let normalize_poly_row (prow : poly_row) : normalized_poly_row =
+  normalize_row_general prow
+
+
+let normalize_mono_row (row : mono_row) : normalized_mono_row =
   let rec aux labmap = function
     | RowCons((_, label), ty, row)                   -> aux (labmap |> LabelAssoc.add label ty) row
     | RowVar(UpdatableRow{contents = LinkRow(row)})  -> aux labmap row
-    | RowVar(rv)                                     -> (labmap, Some(rv))
-    | RowEmpty                                       -> (labmap, None)
+    | RowVar(rv)                                     -> NormalizedRow(labmap, Some(rv))
+    | RowEmpty                                       -> NormalizedRow(labmap, None)
   in
   aux LabelAssoc.empty row
 
@@ -840,7 +845,6 @@ let apply_type_scheme_mono ((bids, pty_body) : type_scheme) (tyargs : mono_type 
     let substmap =
       List.fold_left2 (fun substmap bid tyarg ->
         substmap |> BoundIDMap.add bid tyarg
-          (* TODO: check that `tyarg` can be kinded by the kind of `bid` *)
       ) BoundIDMap.empty bids tyargs
     in
     Ok(substitute_mono_type substmap pty_body)
@@ -853,7 +857,6 @@ let apply_type_scheme_poly ((bids, pty_body) : type_scheme) (ptyargs : poly_type
     let substmap =
       List.fold_left2 (fun substmap bid ptyarg ->
         substmap |> BoundIDMap.add bid ptyarg
-          (* TODO: check that `tyarg` can be kinded by the kind of `bid` *)
       ) BoundIDMap.empty bids ptyargs
     in
     Ok(substitute_poly_type substmap pty_body)
@@ -1043,13 +1046,20 @@ fun showtv showrv ty ->
 
 
 and show_row : 'a 'b. prefix:string -> suffix:string -> ('a -> string) -> ('b -> string option) -> ('a, 'b) row -> string option =
-fun ~prefix ~suffix showtv showrv optrow ->
-  failwith "TODO: show_row"
-(*
-  match optrow with
-  | RowCons(rlabel) -> labmap |> show_label_assoc ~prefix:"?" ~suffix:"" showtv showrv
-  | RowVar(rv)       -> showrv rv |> Option.map (fun s -> prefix ^ s)
-*)
+fun ~prefix ~suffix showtv showrv row ->
+  let NormalizedRow(labmap, rowvar_opt) = normalize_row_general row in
+  let smain_opt = labmap |> show_label_assoc ~prefix ~suffix showtv showrv in
+  let svar_opt =
+    match rowvar_opt with
+    | Some(rv) -> showrv rv |> Option.map (fun s -> prefix ^ s)
+    | None     -> None
+  in
+  match (smain_opt, svar_opt) with
+  | (Some(smain), Some(svar)) -> Some(Printf.sprintf "%s, %s" smain svar)
+  | (Some(smain), None)       -> Some(smain)
+  | (None, Some(svar))        -> Some(svar)
+  | (None, None)              -> None
+
 
 
 and show_kind (kd : kind) : string =
@@ -1116,26 +1126,14 @@ let pp_base_kind dispmap ppf bkd =
   Format.fprintf ppf "%s" (show_base_kind bkd)
 
 
-type 'a state =
-  | Touching
-  | Touched of 'a
+type hash_tables = unit BoundIDHashTable.t * LabelSet.t BoundRowIDHashTable.t
 
-type hash_tables = (string state) BoundIDHashTable.t * ((string LabelAssoc.t) state) BoundRowIDHashTable.t
 
-(*
-(* Does NOT fall into an infinite loop even when type variables are mutually dependent or cyclic. *)
 let rec show_poly_type_var (dispmap : DisplayMap.t) (hts : hash_tables) = function
   | Bound(bid) ->
       let (bidht, _) = hts in
       if BoundIDHashTable.mem bidht bid then () else begin
-        BoundIDHashTable.add bidht bid Touching;
-        let pbkd = KindStore.get_bound_id bid in
-        let skd =
-          match pbkd with
-          | UniversalKind -> "o"
-          | _             -> show_poly_base_kind_sub dispmap hts pbkd
-        in
-        BoundIDHashTable.replace bidht bid (Touched(skd))
+        BoundIDHashTable.add bidht bid ()
       end;
       dispmap |> DisplayMap.find_bound_id bid
 
@@ -1147,10 +1145,8 @@ and show_poly_row_var (dispmap : DisplayMap.t) (hts : hash_tables) = function
   | BoundRow(brid) ->
       let (_, bridht) = hts in
       if BoundRowIDHashTable.mem bridht brid then () else begin
-        BoundRowIDHashTable.add bridht brid Touching;
-        let plabmap = KindStore.get_bound_row brid in
-        let smap = plabmap |> LabelAssoc.map (show_poly_type_sub dispmap hts) in
-        BoundRowIDHashTable.replace bridht brid (Touched(smap))
+        let labset = KindStore.get_bound_row brid in
+        BoundRowIDHashTable.add bridht brid labset;
       end;
       let s = dispmap |> DisplayMap.find_bound_row_id brid in
       Some(s)
@@ -1163,36 +1159,22 @@ and show_poly_type_sub (dispmap : DisplayMap.t) (hts : hash_tables) : poly_type 
   show_type (show_poly_type_var dispmap hts) (show_poly_row_var dispmap hts)
 
 
-and show_poly_base_kind_sub (dispmap : DisplayMap.t) (hts : hash_tables) : poly_base_kind -> string =
-  show_base_kind (show_poly_type_var dispmap hts) (show_poly_row_var dispmap hts)
-
-
 let show_bound_type_ids (dispmap : DisplayMap.t) ((bidht, _) : hash_tables) =
   BoundIDHashTable.fold (fun bid skdopt acc ->
     let sb = dispmap |> DisplayMap.find_bound_id bid in
-    let s =
-      match skdopt with
-      | Touching     -> assert false
-      | Touched(skd) -> Printf.sprintf "%s :: %s" sb skd
-    in
-    Alist.extend acc s
+    Alist.extend acc (Printf.sprintf "%s :: o" sb)
   ) bidht Alist.empty |> Alist.to_list
 
 
 let show_bound_row_ids (dispmap : DisplayMap.t) ((_, bridht) : hash_tables) =
-  BoundRowIDHashTable.fold (fun brid state acc ->
+  BoundRowIDHashTable.fold (fun brid labset acc ->
     let sb = dispmap |> DisplayMap.find_bound_row_id brid in
-    match state with
-    | Touching ->
-        assert false
-
-    | Touched(smap) ->
-        let skd =
-          LabelAssoc.fold (fun label sty acc ->
-            Alist.extend acc (Printf.sprintf "?%s %s" label sty)
-          ) smap Alist.empty |> Alist.to_list |> String.concat ", "
-        in
-        Alist.extend acc (Printf.sprintf "%s :: (%s)" sb skd)
+    let skd =
+      LabelSet.fold (fun label acc ->
+        Alist.extend acc label
+      ) labset Alist.empty |> Alist.to_list |> String.concat ", "
+    in
+    Alist.extend acc (Printf.sprintf "%s :: (%s)" sb skd)
 
   ) bridht Alist.empty |> Alist.to_list
 
@@ -1201,42 +1183,15 @@ let create_initial_hash_tables () : hash_tables =
   let bidht = BoundIDHashTable.create 32 in
   let bridht = BoundRowIDHashTable.create 32 in
   (bidht, bridht)
-*)
+
 
 let show_poly_type (dispmap : DisplayMap.t) (pty : poly_type) : string list * string list * string =
-  failwith "TODO: show_poly_type"
-(*
   let hts = create_initial_hash_tables () in
   let smain = show_poly_type_sub dispmap hts pty in
   let sbids = show_bound_type_ids dispmap hts in
   let sbrids = show_bound_row_ids dispmap hts in
   (sbids, sbrids, smain)
 
-
-let show_poly_base_kind (dispmap : DisplayMap.t) (pbkd : poly_base_kind) : string list * string list * string =
-  let hts = create_initial_hash_tables () in
-  let smain = show_poly_base_kind_sub dispmap hts pbkd in
-  let sbids = show_bound_type_ids dispmap hts in
-  let sbrids = show_bound_row_ids dispmap hts in
-  (sbids, sbrids, smain)
-
-
-let show_poly_kind (dispmap : DisplayMap.t) (pkd : poly_kind) : string list * string list * string =
-  let hts = create_initial_hash_tables () in
-  match pkd with
-  | Kind(pbkddoms, pbkdcod) ->
-      let smain =
-        let sdoms = pbkddoms |> List.map (show_poly_base_kind_sub dispmap hts) in
-        let scod = show_poly_base_kind_sub dispmap hts pbkdcod in
-        if List.length sdoms > 0 then
-          Printf.sprintf "(%s) -> %s" (String.concat ", " sdoms) scod
-        else
-          scod
-      in
-      let sbids = show_bound_type_ids dispmap hts in
-      let sbrids = show_bound_row_ids dispmap hts in
-      (sbids, sbrids, smain)
-*)
 
 let pp_poly_type dispmap ppf pty =
   let (_, _, sty) = show_poly_type dispmap pty in

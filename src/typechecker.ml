@@ -2006,7 +2006,7 @@ and typecheck_arguments_against_domain (pre : pre) (rng : Range.t) ((utastargs, 
     | (label, ty) :: _ -> raise_error @@ MissingMandatoryLabel{range = rng; label = label; typ = ty}
   in
   let optargmap =
-    let (labmap_known, rowvar_opt) = TypeConv.normalize_mono_row optrow_expected in
+    let NormalizedRow(labmap_known, rowvar_opt) = TypeConv.normalize_mono_row optrow_expected in
     let (unknown_labels, optargmap) =
       optutastargs |> List.fold_left (fun (unknown_labels, optargmap) (rlabel, utast) ->
         let (_, label) = rlabel in
