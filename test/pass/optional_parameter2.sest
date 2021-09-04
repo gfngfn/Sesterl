@@ -7,8 +7,8 @@ module OptionalParameter2 = struct
   end
 
   include Impl :> sig
-    val f1<$a, ?$r :: (?foo int, ?bar binary)> : fun(fun(int, ?$r) -> $a) -> {$a, $a}
-    val f2<$a, ?$r :: (?foo int)> : fun(fun(int, ?$r) -> $a) -> {$a, $a}
+    val f1<$a, ?$r :: (foo, bar)> : fun(fun(int, ?foo int, ?bar binary, ?$r) -> $a) -> {$a, $a}
+    val f2<$a, ?$r :: (foo)> : fun(fun(int, ?foo int, ?$r) -> $a) -> {$a, $a}
     val f3<$a> : fun(fun(int, ?foo int, ?baz bool) -> $a) -> {$a, $a}
   end
 
