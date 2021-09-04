@@ -1122,6 +1122,10 @@ let pp_mono_type dispmap ppf ty =
   Format.fprintf ppf "%s" (show_mono_type dispmap ty)
 
 
+let pp_mono_row dispmap ppf row =
+  Format.fprintf ppf "%s" (Option.value ~default:"(empty)" (show_mono_row ~prefix:"" ~suffix:"" dispmap row))
+
+
 let pp_base_kind dispmap ppf bkd =
   Format.fprintf ppf "%s" (show_base_kind bkd)
 

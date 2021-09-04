@@ -1960,6 +1960,7 @@ and typecheck_arguments (pre : pre) (rng : Range.t) ((utastargs, mndutastargs, o
       ) (row_init, LabelSet.empty, LabelAssoc.empty)
     in
     KindStore.register_free_row frid optlabset;
+    Format.printf "!!! typecheck_arguments (range: %a, length: %d, optrow: %a)\n" Range.pp rng (List.length optutastargs) TypeConv.(pp_mono_row DisplayMap.empty) optrow;
     (optrow, optargmap)
   in
 
@@ -2007,32 +2008,47 @@ and typecheck_arguments_against_domain (pre : pre) (rng : Range.t) ((utastargs, 
   in
   let optargmap =
     let NormalizedRow(labmap_known, rowvar_opt) = TypeConv.normalize_mono_row optrow_expected in
-    let (unknown_labels, optargmap) =
-      optutastargs |> List.fold_left (fun (unknown_labels, optargmap) (rlabel, utast) ->
-        let (_, label) = rlabel in
+    let (all_labset, unknown_labels, optargmap) =
+      optutastargs |> List.fold_left (fun (all_labset, unknown_labels, optargmap) (rlabel, utast) ->
+        let (rng_label, label) = rlabel in
         if optargmap |> LabelAssoc.mem label then
           raise_error (DuplicatedLabel(rng, label))
         else
           let (ty_got, e) = typecheck pre utast in
           let optargmap = optargmap |> LabelAssoc.add label e in
+          let all_labset = all_labset |> LabelSet.add label in
           match labmap_known |> LabelAssoc.find_opt label with
           | None ->
-              (unknown_labels |> LabelSet.add label, optargmap)
+              (all_labset, unknown_labels |> LabelAssoc.add label (rng_label, ty_got), optargmap)
 
           | Some(ty_expected) ->
               unify ty_got ty_expected;
-              (unknown_labels, optargmap)
+              (all_labset, unknown_labels, optargmap)
 
-      ) (LabelSet.empty, LabelAssoc.empty)
+      ) (LabelSet.empty, LabelAssoc.empty, LabelAssoc.empty)
     in
+
     begin
-      match LabelSet.elements unknown_labels with
-      | label :: _ ->
+      match LabelAssoc.bindings unknown_labels with
+      | (label, _) :: _ ->
           begin
             match rowvar_opt with
-            | Some(UpdatableRow{contents = FreeRow(frid)}) ->
-                let labset = KindStore.get_free_row frid in
-                KindStore.register_free_row frid (LabelSet.union labset unknown_labels)
+            | Some(UpdatableRow({contents = FreeRow(frid)} as mrvu)) ->
+                let row_unknown =
+                  let row_init =
+                    let frid0 = FreeRowID.fresh ~message:"typecheck_arguments_against_domain" pre.level in
+                    KindStore.register_free_row frid0 all_labset;
+                    let mrvu0 = ref (FreeRow(frid0)) in
+                    RowVar(UpdatableRow(mrvu0))
+                  in
+                  LabelAssoc.fold (fun label (rng, ty) row_acc ->
+                    RowCons((rng, label), ty, row_acc)
+                  ) unknown_labels row_init
+                in
+
+                Format.printf "!!! against_domain (range: %a, unknown: %a, row: %a)\n" Range.pp rng (LabelAssoc.pp (fun ppf _ -> Format.fprintf ppf "_")) unknown_labels TypeConv.(pp_mono_row DisplayMap.empty) row_unknown;
+
+                mrvu := LinkRow(row_unknown)
 
             | _ ->
                 raise_error @@ UnexpectedOptionalLabel{range = rng; label = label}

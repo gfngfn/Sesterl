@@ -66,7 +66,7 @@ end with type key = string) = struct
 
   let pp ppsub ppf labmap =
     labmap |> Impl.iter (fun label v ->
-      Format.fprintf ppf "%s ->@ %a;@ " label ppsub v
+      Format.fprintf ppf "%s -> %a; " label ppsub v
     )
 end
 
