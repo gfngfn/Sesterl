@@ -1253,7 +1253,7 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                   match TypeConv.apply_type_scheme_mono tyscheme tyargs with
                   | Ok((_, tymain)) -> tymain
                   | Error(None)     -> invalid rng tynm ~expect:len_expected ~actual:len_actual
-                  | Error(_)        -> failwith "TODO: report error (base kind mismatch, MTypeName)"
+                  | Error(_)        -> failwith "TODO (error): report error (base kind mismatch, MTypeName)"
                 end
           end
 
@@ -1321,7 +1321,7 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                             invalid rng tynm2 ~expect:len_expected ~actual:len_actual
 
                         | Error(_) ->
-                            failwith "TODO: error report (base kind mismatch, MModProjType)"
+                            failwith "TODO (error): error report (base kind mismatch, MModProjType)"
                       end
                 end
           end
