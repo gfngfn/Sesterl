@@ -1061,27 +1061,6 @@ fun ~prefix ~suffix showtv showrv row ->
   | (None, None)              -> None
 
 
-
-and show_kind (kd : kind) : string =
-  match kd with
-  | Kind([], bkd) ->
-      show_base_kind bkd
-
-  | Kind((_ :: _) as bkds, bkd) ->
-      let sdom = bkds |> List.map show_base_kind |> String.concat ", " in
-      let scod = show_base_kind bkd in
-      Printf.sprintf "(%s) -> %s" sdom scod
-
-
-and show_base_kind : base_kind -> string =
-  function
-  | TypeKind ->
-      "o"
-
-  | RowKind(labset) ->
-      failwith "TODO: show_base_kind, RowKind"
-
-
 and show_mono_type_var (dispmap : DisplayMap.t) (mtv : mono_type_var) : string =
   match mtv with
   | MustBeBound(mbbid) -> Format.asprintf "%a" MustBeBoundID.pp mbbid
@@ -1124,10 +1103,6 @@ let pp_mono_type dispmap ppf ty =
 
 let pp_mono_row dispmap ppf row =
   Format.fprintf ppf "%s" (Option.value ~default:"(empty)" (show_mono_row ~prefix:"" ~suffix:"" dispmap row))
-
-
-let pp_base_kind dispmap ppf bkd =
-  Format.fprintf ppf "%s" (show_base_kind bkd)
 
 
 type hash_tables = unit BoundIDHashTable.t * LabelSet.t BoundRowIDHashTable.t
@@ -1244,19 +1219,3 @@ let debug_print_mono_type message ty =
   let s = show_mono_type dispmap ty in
   Format.printf "!!! %s (%s)\n" message s;
   print_base_kinds dispmap
-
-
-(*
-let show_poly_row : poly_row -> string option =
-  show_row show_poly_type_var show_poly_row_var
-
-
-let pp_poly_row (ppf : Format.formatter) (prow : poly_row) : unit =
-  match show_poly_row prow with
-  | None    -> ()
-  | Some(s) -> Format.fprintf ppf "%s" s
-
-
-let pp_poly_kind (ppf : Format.formatter) (pkd : poly_kind) =
-  Format.fprintf ppf "%s" (show_poly_kind pkd)
-*)
