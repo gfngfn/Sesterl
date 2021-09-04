@@ -1960,7 +1960,9 @@ and typecheck_arguments (pre : pre) (rng : Range.t) ((utastargs, mndutastargs, o
       ) (row_init, LabelSet.empty, LabelAssoc.empty)
     in
     KindStore.register_free_row frid optlabset;
+(*
     Format.printf "!!! typecheck_arguments (range: %a, length: %d, optrow: %a)\n" Range.pp rng (List.length optutastargs) TypeConv.(pp_mono_row DisplayMap.empty) optrow;
+*)
     (optrow, optargmap)
   in
 
@@ -2045,9 +2047,9 @@ and typecheck_arguments_against_domain (pre : pre) (rng : Range.t) ((utastargs, 
                     RowCons((rng, label), ty, row_acc)
                   ) unknown_labels row_init
                 in
-
+(*
                 Format.printf "!!! against_domain (range: %a, unknown: %a, row: %a)\n" Range.pp rng (LabelAssoc.pp (fun ppf _ -> Format.fprintf ppf "_")) unknown_labels TypeConv.(pp_mono_row DisplayMap.empty) row_unknown;
-
+*)
                 mrvu := LinkRow(row_unknown)
 
             | _ ->
@@ -2396,13 +2398,12 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
 *)
 and subtype_poly_type_impl (internbid : type_intern) (internbrid : row_intern) (pty1 : poly_type) (pty2 : poly_type) : bool =
   let rec aux pty1 pty2 =
-
+(*
   let (sbt1, sbr1, sty1) = TypeConv.show_poly_type TypeConv.DisplayMap.empty pty1 in
   let (sbt2, sbr2, sty2) = TypeConv.show_poly_type TypeConv.DisplayMap.empty pty2 in
   Format.printf "!!! {subtype_poly_type_impl> %s <?= %s\n" sty1 sty2;  (* for debug *)
   Format.printf "!!! - %a\n" (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf ", ") Format.pp_print_string) (List.concat [sbt1; sbr1; sbt2; sbr2]);
-
-  let res = (* !!! for debug *)
+*)
     let (_, ptymain1) = pty1 in
     let (_, ptymain2) = pty2 in
     match (ptymain1, ptymain2) with
@@ -2458,7 +2459,6 @@ and subtype_poly_type_impl (internbid : type_intern) (internbrid : row_intern) (
 
     | _ ->
         false
-  in Format.printf "!!! ---> %B}\n" res; res
 
   and aux_list ptys1 ptys2 =
     match List.combine ptys1 ptys2 with
@@ -2476,7 +2476,7 @@ and subtype_poly_type_impl (internbid : type_intern) (internbrid : row_intern) (
     let {ordered = ptydoms2; mandatory = mndlabmap2; optional = poptrow2} = domain2 in
     let b1 = aux_list ptydoms1 ptydoms2 in
     let bmnd = subtype_label_assoc_with_equal_domain internbid internbrid mndlabmap1 mndlabmap2 in
-    let bopt = subtype_row_with_equal_domain internbid internbrid poptrow1 poptrow2 in (* FIXME *)
+    let bopt = subtype_row_with_equal_domain internbid internbrid poptrow1 poptrow2 in
     b1 && bmnd && bopt
 
   and aux_pid (Pid(pty1)) (Pid(pty2)) =
@@ -2491,10 +2491,6 @@ and subtype_poly_type_impl (internbid : type_intern) (internbrid : row_intern) (
 (* Checks that `dom plabmap1 ⊆ dom plabmap2` and `∀label ∈ dom plabmap1. plabmap1(label) <: plabmap2(label)`
    by referring and updating `internbid` and `internbrid`. *)
 and subtype_label_assoc_inclusive (internbid : type_intern) (internbrid : row_intern) (plabmap1 : poly_type LabelAssoc.t) (plabmap2 : poly_type LabelAssoc.t) : (poly_type LabelAssoc.t) option =
-
-  let pp = LabelAssoc.pp TypeConv.(pp_poly_type DisplayMap.empty) in
-  Format.printf "!!! {subtype_label_assoc_inclusive> %a <?= %a\n" pp plabmap1 pp plabmap2;
-
   let merged =
     LabelAssoc.merge (fun label pty1_opt pty2_opt ->
       match (pty1_opt, pty2_opt) with
@@ -2511,10 +2507,8 @@ and subtype_label_assoc_inclusive (internbid : type_intern) (internbrid : row_in
         | Error(pty2) -> Some(pty2)
       )
     in
-    let () = Format.printf "!!! ---> %a}\n" pp plabmap_diff in
     Some(plabmap_diff)
   else
-    let () = Format.printf "!!! ---> none}\n" in
     None
 
 
@@ -2527,16 +2521,15 @@ and subtype_label_assoc_with_equal_domain (internbid : type_intern) (internbrid 
 
 
 and subtype_row_with_equal_domain (internbid : type_intern) (internbrid : row_intern) (prow1 : poly_row) (prow2 : poly_row) : bool =
-
+(*
   let (sbt1, sbr1, sty1) = TypeConv.show_poly_row TypeConv.DisplayMap.empty prow1 in
   let (sbt2, sbr2, sty2) = TypeConv.show_poly_row TypeConv.DisplayMap.empty prow2 in
   Format.printf "!!! {subtype_row_with_equal_domain> %s <?= %s\n" sty1 sty2;  (* for debug *)
   Format.printf "!!! - %a\n" (Format.pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf ", ") Format.pp_print_string) (List.concat [sbt1; sbr1; sbt2; sbr2]);
-
+*)
   let NormalizedRow(plabmap1, rowvar1_opt) = TypeConv.normalize_poly_row prow1 in
   let NormalizedRow(plabmap2, rowvar2_opt) = TypeConv.normalize_poly_row prow2 in
 
-  let res = (* !!! for debug *)
   match (rowvar1_opt, rowvar2_opt) with
   | (None, None) ->
       subtype_label_assoc_with_equal_domain internbid internbrid plabmap1 plabmap2
@@ -2554,7 +2547,6 @@ and subtype_row_with_equal_domain (internbid : type_intern) (internbrid : row_in
         | None               -> false
         | Some(plabmap_diff) -> internbrid brid1 (NormalizedRow(plabmap_diff, rowvar2_opt))
       end
-  in Format.printf "!!! ---> %B}\n" res; res (* for debug *)
 
 
 and subtype_poly_type (pty1 : poly_type) (pty2 : poly_type) : bool =
