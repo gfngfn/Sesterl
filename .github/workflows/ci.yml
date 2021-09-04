@@ -15,7 +15,6 @@ jobs:
           - macos-latest
           - ubuntu-latest
         ocaml-compiler:
-          - 4.10.x
           - 4.11.x
           - 4.12.x
 
