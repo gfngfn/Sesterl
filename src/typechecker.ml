@@ -15,6 +15,10 @@ module SubstMap = Map.Make(TypeID)
 
 type substitution = type_scheme SubstMap.t
 
+type type_intern = BoundID.t -> poly_type -> bool
+
+type row_intern = BoundRowID.t -> normalized_poly_row -> bool
+
 type subtyping_error = unit
 
 type binding_map = (mono_type * local_name * Range.t) BindingMap.t
@@ -73,7 +77,7 @@ let internbidf (bidmap : BoundID.t BoundIDMap.t) (bid1 : BoundID.t) (pty2 : poly
       false
 
 
-let internbridf (_bidmap : BoundID.t BoundIDMap.t) (_brid1 : BoundRowID.t) (_prow2 : poly_row) : bool =
+let internbridf (_bidmap : BoundID.t BoundIDMap.t) (_brid1 : BoundRowID.t) (_nomrow2 : normalized_poly_row) : bool =
   (* TODO: implement this when type definitions become able to take row parameters *)
   false
 
@@ -2374,7 +2378,7 @@ and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) 
    The parameter `internbid` is used for `internbid bid pty`, which returns
    whether the bound ID `bid` occurring in `pty1` is mapped to a type equivalent to `pty`.
 *)
-and subtype_poly_type_impl (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (pty1 : poly_type) (pty2 : poly_type) : bool =
+and subtype_poly_type_impl (internbid : type_intern) (internbrid : row_intern) (pty1 : poly_type) (pty2 : poly_type) : bool =
   let rec aux pty1 pty2 =
 (*
   let (sbt1, sbr1, sty1) = TypeConv.show_poly_type TypeConv.DisplayMap.empty pty1 in
@@ -2475,7 +2479,7 @@ and subtype_poly_type_impl (internbid : BoundID.t -> poly_type -> bool) (internb
 
 (* Checks that `dom plabmap1 ⊆ dom plabmap2` and `∀label ∈ dom plabmap1. plabmap1(label) <: plabmap2(label)`
    by referring and updating `internbid` and `internbrid`. *)
-and subtype_label_assoc (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (plabmap1 : poly_type LabelAssoc.t) (plabmap2 : poly_type LabelAssoc.t) : (poly_type LabelAssoc.t) option =
+and subtype_label_assoc (internbid : type_intern) (internbrid : row_intern) (plabmap1 : poly_type LabelAssoc.t) (plabmap2 : poly_type LabelAssoc.t) : (poly_type LabelAssoc.t) option =
   let merged =
     LabelAssoc.merge (fun label pty1_opt pty2_opt ->
       match (pty1_opt, pty2_opt) with
@@ -2497,7 +2501,7 @@ and subtype_label_assoc (internbid : BoundID.t -> poly_type -> bool) (internbrid
     None
 
 
-and subtype_label_assoc_with_equal_domain (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (plabmap1 : poly_type LabelAssoc.t) (plabmap2 : poly_type LabelAssoc.t) : bool =
+and subtype_label_assoc_with_equal_domain (internbid : type_intern) (internbrid : row_intern) (plabmap1 : poly_type LabelAssoc.t) (plabmap2 : poly_type LabelAssoc.t) : bool =
   LabelAssoc.merge (fun label pty1_opt pty2_opt ->
     match (pty1_opt, pty2_opt) with
     | (Some(pty1), Some(pty2)) -> Some(subtype_poly_type_impl internbid internbrid pty1 pty2)
@@ -2505,9 +2509,9 @@ and subtype_label_assoc_with_equal_domain (internbid : BoundID.t -> poly_type ->
   ) plabmap1 plabmap2 |> LabelAssoc.for_all (fun _label b -> b)
 
 
-and subtype_row (internbid : BoundID.t -> poly_type -> bool) (internbrid : BoundRowID.t -> poly_row -> bool) (prow1 : poly_row) (prow2 : poly_row) : bool =
-  let (plabmap1, rowvar1_opt) = TypeConv.normalize_poly_row prow1 in
-  let (plabmap2, rowvar2_opt) = TypeConv.normalize_poly_row prow2 in
+and subtype_row (internbid : type_intern) (internbrid : row_intern) (prow1 : poly_row) (prow2 : poly_row) : bool =
+  let NormalizedRow(plabmap1, rowvar1_opt) = TypeConv.normalize_poly_row prow1 in
+  let NormalizedRow(plabmap2, rowvar2_opt) = TypeConv.normalize_poly_row prow2 in
 
   match (rowvar1_opt, rowvar2_opt) with
   | (None, None) ->
@@ -2524,7 +2528,7 @@ and subtype_row (internbid : BoundID.t -> poly_type -> bool) (internbrid : Bound
       begin
         match opt with
         | None               -> false
-        | Some(plabmap_diff) -> internbrid brid1 (plabmap_diff, rowvar2_opt)
+        | Some(plabmap_diff) -> internbrid brid1 (NormalizedRow(plabmap_diff, rowvar2_opt))
       end
 
 
@@ -2540,14 +2544,14 @@ and subtype_poly_type (pty1 : poly_type) (pty2 : poly_type) : bool =
     | Some(pty) ->
         poly_type_equal pty pty2
   in
-  let internbrid (brid1 : BoundRowID.t) (prow2 : poly_row) : bool =
+  let internbrid (brid1 : BoundRowID.t) (nomrow2 : normalized_poly_row) : bool =
     match BoundRowIDHashTable.find_opt bridht brid1 with
     | None ->
-        BoundRowIDHashTable.add bridht brid1 prow2;
+        BoundRowIDHashTable.add bridht brid1 nomrow2;
         true
 
-    | Some(prow) ->
-        poly_row_equal prow prow2
+    | Some(nomrow) ->
+        normalized_poly_row_equal nomrow nomrow2
   in
   subtype_poly_type_impl internbid internbrid pty1 pty2
 
@@ -2555,8 +2559,12 @@ and subtype_poly_type (pty1 : poly_type) (pty2 : poly_type) : bool =
 (* Checks that `prow1` and `prow2` are exactly the same up to reordering.
    Here, `Mono` and `MonoRow` are not supposed to occur in `prow1` nor `prow2`. *)
 and poly_row_equal (prow1 : poly_row) (prow2 : poly_row) : bool =
-  let (plabmap1, rowvar1_opt) = TypeConv.normalize_poly_row prow1 in
-  let (plabmap2, rowvar2_opt) = TypeConv.normalize_poly_row prow2 in
+  normalized_poly_row_equal (TypeConv.normalize_poly_row prow1) (TypeConv.normalize_poly_row prow2)
+
+
+and normalized_poly_row_equal (nomrow1 : normalized_poly_row) (nomrow2 : normalized_poly_row) : bool =
+  let NormalizedRow(plabmap1, rowvar1_opt) = nomrow1 in
+  let NormalizedRow(plabmap2, rowvar2_opt) = nomrow2 in
   let bmap =
     LabelAssoc.merge (fun _ ptyopt1 ptyopt2 ->
       match (ptyopt1, ptyopt2) with

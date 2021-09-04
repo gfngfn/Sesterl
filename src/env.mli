@@ -102,6 +102,9 @@ and 'a abstracted = quantifier * 'a
 
 val pp_module_signature : Format.formatter -> module_signature -> unit
 
+type normalized_poly_row =
+  | NormalizedRow of poly_type LabelAssoc.t * poly_row_var option
+
 type value_entry = {
   val_type   : poly_type;
   val_global : global_name;

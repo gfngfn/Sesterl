@@ -440,11 +440,11 @@ let collect_ids_poly (pty : poly_type) (dispmap : DisplayMap.t) : DisplayMap.t =
 
 
 (* Normalizes the polymorphic row `prow`. Here, `MonoRow` is not supposed to occur in `prow`. *)
-let normalize_poly_row (prow : poly_row) : poly_type LabelAssoc.t * poly_row_var option =
+let normalize_poly_row (prow : poly_row) : normalized_poly_row =
   let rec aux plabmap = function
     | RowCons((_, label), pty, prow) -> aux (plabmap |> LabelAssoc.add label pty) prow
-    | RowVar(prv)                    -> (plabmap, Some(prv))
-    | RowEmpty                       -> (plabmap, None)
+    | RowVar(prv)                    -> NormalizedRow(plabmap, Some(prv))
+    | RowEmpty                       -> NormalizedRow(plabmap, None)
   in
   aux LabelAssoc.empty prow
 
@@ -899,22 +899,14 @@ let get_opaque_type ((bids, pty_body) : type_scheme) : TypeID.t option =
 let overwrite_range_of_type (rng : Range.t) (_, tymain) =
   (rng, tymain)
 
-(*
-let can_row_take_optional : mono_row -> bool = function
-  | FixedRow(labmap) ->
-      LabelAssoc.cardinal labmap > 0
 
-  | RowVar(UpdatableRow{contents = FreeRow(frid)}) ->
-      let labmap = KindStore.get_free_row frid in
-      LabelAssoc.cardinal labmap > 0
+let rec can_row_take_optional : mono_row -> bool = function
+  | RowCons(_, _, _)                               -> true
+  | RowVar(UpdatableRow{contents = FreeRow(frid)}) -> true
+  | RowVar(UpdatableRow{contents = LinkRow(row)})  -> can_row_take_optional row
+  | RowVar(MustBeBoundRow(mbbrid))                 -> true
+  | RowEmpty                                       -> false
 
-  | RowVar(UpdatableRow{contents = LinkRow(labmap)}) ->
-      LabelAssoc.cardinal labmap > 0
-
-  | RowVar(MustBeBoundRow(mbbrid)) ->
-      let labmap = KindStore.get_bound_row (MustBeBoundID.to_bound mbbrid) in
-      LabelAssoc.cardinal labmap > 0
-*)
 
 let rec kind_of_arity n =
   let bkddoms = List.init n (fun _ -> TypeKind) in
