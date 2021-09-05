@@ -207,7 +207,7 @@ let report_type_error (e : type_error) : unit =
       Format.printf "  unbound variable '%s'\n"
         x
 
-  | ContradictionError(ty1, ty2) ->
+  | UnificationError(ty1, ty2, Contradiction) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
       let (rng1, _) = ty1 in
       Format.printf "%a:\n"
@@ -220,7 +220,7 @@ let report_type_error (e : type_error) : unit =
         (TypeConv.pp_mono_type dispmap) ty2;
       TypeConv.print_base_kinds dispmap
 
-  | InclusionError(fid, ty1, ty2) ->
+  | UnificationError(ty1, ty2, Inclusion(fid)) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
       let (rng1, _) = ty1 in
       Format.printf "%a:"
@@ -235,7 +235,7 @@ let report_type_error (e : type_error) : unit =
         (dispmap |> TypeConv.DisplayMap.find_free_id fid);
       TypeConv.print_base_kinds dispmap
 
-  | InclusionRowError(frid, ty1, ty2) ->
+  | UnificationError(ty1, ty2, InclusionRow(frid)) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
       let (rng1, _) = ty1 in
       Format.printf "%a:\n"
@@ -249,6 +249,26 @@ let report_type_error (e : type_error) : unit =
       Format.printf "at the same time, but these types are inconsistent as to the occurrence of row variable %s\n"
         (dispmap |> TypeConv.DisplayMap.find_free_row_id frid);
       TypeConv.print_base_kinds dispmap
+
+  | UnificationError(ty1, ty2, InsufficientRowConstraint(r)) ->
+      let dispmap = make_display_map_from_mono_types [ty1; ty2] in
+      let (rng1, _) = ty1 in
+      Format.printf "%a:\n"
+        Range.pp rng1;
+      Format.printf "  this expression has type\n";
+      Format.printf "    %a\n"
+        (TypeConv.pp_mono_type dispmap) ty1;
+      Format.printf "  but is expected of type\n";
+      Format.printf "    %a\n"
+        (TypeConv.pp_mono_type dispmap) ty2;
+      TypeConv.print_base_kinds dispmap;
+      Format.printf "  The row parameter %a is specified so that it does not contain the following labels:\n"
+        MustBeBoundRowID.pp r.id;
+      Format.printf "    %s\n"
+        (r.given |> LabelSet.elements |> String.concat ", ");
+      Format.printf "  but the following label(s) should also be specified:\n";
+      Format.printf "    %s\n"
+        (r.required |> LabelSet.elements |> String.concat ", ")
 
   | BoundMoreThanOnceInPattern(rng, x) ->
       Format.printf "%a:\n"

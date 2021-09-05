@@ -6,7 +6,7 @@ open Env
 open Errors
 
 
-exception Error of type_error
+exception TypeError of type_error
 
 
 module BindingMap = Map.Make(String)
@@ -24,12 +24,6 @@ type subtyping_error = unit
 type binding_map = (mono_type * local_name * Range.t) BindingMap.t
 
 type variant_definition = type_name * TypeID.t * BoundID.t list * constructor_branch_map
-
-type unification_result =
-  | Consistent
-  | Contradiction
-  | Inclusion     of FreeID.t
-  | InclusionRow  of FreeRowID.t
 
 type rec_morph =
   | MonoRec of mono_type
@@ -57,7 +51,7 @@ module SynonymNameHashSet =
 
 
 let raise_error e =
-  raise (Error(e))
+  raise (TypeError(e))
 
 
 let merge_quantifier (quant1 : quantifier) (quant2 : quantifier) : quantifier =
@@ -289,12 +283,6 @@ let add_open_specs_to_type_environment (openspecs : module_name_chain list) (tye
     | ConcStructure(sigr) ->
         tyenv |> update_type_environment_by_signature_record sigr
   ) tyenv
-
-
-let (&&&) res1 res2 =
-  match (res1, res2) with
-  | (Consistent, _) -> res2
-  | _               -> res1
 
 
 let iapply (efun : ast) (mrow : mono_row) ((eargs, mndargmap, optargmap) : ast list * ast LabelAssoc.t * ast LabelAssoc.t) : ast =
@@ -773,7 +761,8 @@ let type_of_base_constant (lev : int) (rng : Range.t) (bc : base_constant) =
       Primitives.format_type rng tyarg
 
 
-let rec unify_aux (ty1 : mono_type) (ty2 : mono_type) : unification_result =
+let rec unify_aux (ty1 : mono_type) (ty2 : mono_type) : (unit, unification_error) result =
+  let open ResultMonad in
   let (_, ty1main) = ty1 in
   let (_, ty2main) = ty2 in
   match (ty1main, ty2main) with
@@ -784,27 +773,31 @@ let rec unify_aux (ty1 : mono_type) (ty2 : mono_type) : unification_result =
       unify_aux ty1 ty2l
 
   | (TypeVar(MustBeBound(mbbid1)), TypeVar(MustBeBound(mbbid2))) ->
-      if MustBeBoundID.equal mbbid1 mbbid2 then Consistent else Contradiction
+      if MustBeBoundID.equal mbbid1 mbbid2 then
+        return ()
+      else
+        err Contradiction
 
   | (TypeApp(tyid1, tyargs1), TypeApp(tyid2, tyargs2)) ->
       if TypeID.equal tyid1 tyid2 then
         unify_aux_list tyargs1 tyargs2
       else
-        Contradiction
+        err Contradiction
 
   | (BaseType(bt1), BaseType(bt2)) ->
-      if bt1 = bt2 then Consistent else Contradiction
+      if bt1 = bt2 then
+        return ()
+      else
+        err Contradiction
 
   | (FuncType(domain1, ty1cod), FuncType(domain2, ty2cod)) ->
-      let resdom = unify_aux_domain domain1 domain2 in
-      let rescod = unify_aux ty1cod ty2cod in
-      resdom &&& rescod
+      unify_aux_domain domain1 domain2 >>= fun () ->
+      unify_aux ty1cod ty2cod
 
   | (EffType(domain1, eff1, tysub1), EffType(domain2, eff2, tysub2)) ->
-      let resdom = unify_aux_domain domain1 domain2 in
-      let reseff = unify_aux_effect eff1 eff2 in
-      let ressub = unify_aux tysub1 tysub2 in
-      resdom &&& reseff &&& ressub
+      unify_aux_domain domain1 domain2 >>= fun () ->
+      unify_aux_effect eff1 eff2 >>= fun () ->
+      unify_aux tysub1 tysub2
 
   | (PidType(pidty1), PidType(pidty2)) ->
       unify_aux_pid_type pidty1 pidty2
@@ -826,18 +819,18 @@ let rec unify_aux (ty1 : mono_type) (ty2 : mono_type) : unification_result =
             ~cause:(Range.dummy "unify2")
             ~address:Alist.empty
             absmodsig2 absmodsig1;
-          Consistent
+          return ()
         with
         | _ ->
-            Contradiction
+            err Contradiction
       end
 
   | (TypeVar(Updatable({contents = Free(fid1)} as mtvu1)), TypeVar(Updatable{contents = Free(fid2)})) ->
       if FreeID.equal fid1 fid2 then
-        Consistent
+        return ()
       else begin
         mtvu1 := Link(ty2);
-        Consistent
+        return ()
       end
 
   | (TypeVar(Updatable({contents = Free(fid1)} as mtvu1)), _) ->
@@ -847,37 +840,39 @@ let rec unify_aux (ty1 : mono_type) (ty2 : mono_type) : unification_result =
       unify_aux_free_id_and_record fid2 mtvu2 ty1
 
   | _ ->
-      Contradiction
+      err Contradiction
 
 
 and unify_aux_free_id_and_record (fid1 : FreeID.t) (mtvu1 : mono_type_var_updatable ref) (ty2 : mono_type) =
+  let open ResultMonad in
   let b = occurs fid1 ty2 in
   if b then
-    Inclusion(fid1)
+    err @@ Inclusion(fid1)
   else begin
     mtvu1 := Link(ty2);
-    Consistent
+    return ()
   end
 
 
 and unify_aux_list tys1 tys2 =
+  let open ResultMonad in
   try
     List.fold_left2 (fun res ty1 ty2 ->
-      match res with
-      | Consistent -> unify_aux ty1 ty2
-      | _          -> res
-    ) Consistent tys1 tys2
+      res >>= fun () ->
+      unify_aux ty1 ty2
+    ) (return ()) tys1 tys2
   with
-  | Invalid_argument(_) -> Contradiction
+  | Invalid_argument(_) ->
+      err Contradiction
 
 
 and unify_aux_domain domain1 domain2 =
+  let open ResultMonad in
   let {ordered = ty1doms; mandatory = mndlabmap1; optional = optrow1} = domain1 in
   let {ordered = ty2doms; mandatory = mndlabmap2; optional = optrow2} = domain2 in
-  let res1 = unify_aux_list ty1doms ty2doms in
-  let resmnd = unify_aux_label_assoc_exact mndlabmap1 mndlabmap2 in
-  let resopt = unify_aux_row optrow1 optrow2 in
-  res1 &&& resmnd &&& resopt
+  unify_aux_list ty1doms ty2doms >>= fun () ->
+  unify_aux_label_assoc_exact mndlabmap1 mndlabmap2 >>= fun () ->
+  unify_aux_row optrow1 optrow2
 
 
 and unify_aux_effect (Effect(ty1)) (Effect(ty2)) =
@@ -889,6 +884,7 @@ and unify_aux_pid_type (Pid(ty1)) (Pid(ty2)) =
 
 
 and unify_aux_row (row1 : mono_row) (row2 : mono_row) =
+  let open ResultMonad in
   match (row1, row2) with
   | (RowVar(UpdatableRow{contents = LinkRow(row1sub)}), _) ->
       unify_aux_row row1sub row2
@@ -898,95 +894,84 @@ and unify_aux_row (row1 : mono_row) (row2 : mono_row) =
 
   | (RowVar(UpdatableRow({contents = FreeRow(frid1)} as mtvu1)), RowVar(UpdatableRow{contents = FreeRow(frid2)})) ->
       if FreeRowID.equal frid1 frid2 then
-        Consistent
+        return ()
       else begin
         let labset1 = KindStore.get_free_row frid1 in
         let labset2 = KindStore.get_free_row frid2 in
         let labset = LabelSet.union labset1 labset2 in
         mtvu1 := LinkRow(row2);
         KindStore.register_free_row frid2 labset;
-        Consistent
+        return ()
       end
 
   | (RowVar(UpdatableRow({contents = FreeRow(frid1)} as mrvu1)), _) ->
       if occurs_row frid1 row2 then
-        InclusionRow(frid1)
-      else
+        err @@ InclusionRow(frid1)
+      else begin
         let labset1 = KindStore.get_free_row frid1 in
-        let res = solve_disjointness_aux row2 labset1 in
-        begin
-          match res with
-          | Consistent -> mrvu1 := LinkRow(row2); Consistent
-          | _          -> res
-        end
+        solve_disjointness_aux row2 labset1 >>= fun () ->
+        mrvu1 := LinkRow(row2);
+        return ()
+      end
 
   | (_, RowVar(UpdatableRow({contents = FreeRow(frid2)} as mrvu2))) ->
       if occurs_row frid2 row1 then
-        InclusionRow(frid2)
-      else
+        err @@ InclusionRow(frid2)
+      else begin
         let labset2 = KindStore.get_free_row frid2 in
-        let res = solve_disjointness_aux row1 labset2 in
-        begin
-          match res with
-          | Consistent -> mrvu2 := LinkRow(row1); Consistent
-          | _          -> res
-        end
+        solve_disjointness_aux row1 labset2 >>= fun () ->
+        mrvu2 := LinkRow(row1);
+        return ()
+      end
 
   | (RowVar(MustBeBoundRow(mbbrid1)), RowVar(MustBeBoundRow(mbbrid2))) ->
       if MustBeBoundRowID.equal mbbrid1 mbbrid2 then
-        Consistent
+        return ()
       else
-        Contradiction
+        err Contradiction
 
   | (RowVar(MustBeBoundRow(_)), _)
   | (_, RowVar(MustBeBoundRow(_))) ->
-      Contradiction
+      err Contradiction
 
   | (RowCons((rng, label), ty, row1sub), _) ->
-      let opt1 = solve_membership_aux rng label ty row2 in
-      begin
-        match opt1 with
-        | Some(row2rest) -> unify_aux_row row1sub row2rest
-        | None           -> Contradiction
-      end
+      solve_membership_aux rng label ty row2 >>= fun row2rest ->
+      unify_aux_row row1sub row2rest
 
   | (RowEmpty, RowEmpty) ->
-      Consistent
+      return ()
 
   | (RowEmpty, RowCons(_, _, _)) ->
-      Contradiction
+      err Contradiction
 
 
+(* Check that `labmap2` is more specific than or equal to `labmap1`,
+   i.e., the domain of `labmap1` is contained in that of `labmap2`. *)
 and unify_aux_label_assoc_subtype ~specific:labmap2 ~general:labmap1 =
-  (* Check that `labmap2` is more specific than or equal to `labmap1`,
-     i.e., the domain of `labmap1` is contained in that of `labmap2`. *)
+  let open ResultMonad in
   LabelAssoc.fold (fun label ty1 res ->
-    match res with
-    | Consistent ->
-        begin
-          match labmap2 |> LabelAssoc.find_opt label with
-          | None      -> Contradiction
-          | Some(ty2) -> unify_aux ty1 ty2
-        end
-
-    | _ ->
-        res
-  ) labmap1 Consistent
+    res >>= fun () ->
+    match labmap2 |> LabelAssoc.find_opt label with
+    | None      -> err Contradiction
+    | Some(ty2) -> unify_aux ty1 ty2
+  ) labmap1 (return ())
 
 
 and unify_aux_label_assoc_exact labmap1 labmap2 =
+  let open ResultMonad in
   let merged =
     LabelAssoc.merge (fun _ tyopt1 tyopt2 ->
       match (tyopt1, tyopt2) with
       | (None, None)           -> None
       | (Some(ty1), Some(ty2)) -> Some(unify_aux ty1 ty2)
-      | _                      -> Some(Contradiction)
+      | _                      -> Some(err Contradiction)
     ) labmap1 labmap2
   in
-  LabelAssoc.fold (fun _ res resacc -> resacc &&& res) merged Consistent
+  LabelAssoc.fold (fun _ res resacc -> resacc >>= fun () -> res) merged (return ())
 
 
 and unify_aux_label_assoc_intersection labmap1 labmap2 =
+  let open ResultMonad in
   let intersection =
     LabelAssoc.merge (fun _ opt1 opt2 ->
       match (opt1, opt2) with
@@ -995,26 +980,23 @@ and unify_aux_label_assoc_intersection labmap1 labmap2 =
     ) labmap1 labmap2
   in
   LabelAssoc.fold (fun label (ty1, ty2) res ->
-    match res with
-    | Consistent -> unify_aux ty1 ty2
-    | _          -> res
-  ) intersection Consistent
+    res >>= fun () ->
+    unify_aux ty1 ty2
+  ) intersection (return ())
 
 
 (* Solves the constraint that `label : ty` is a field of `row`.
-   Returns `Some(row_rest)` if the constraint is solved where `row_rest` stands for the other fields. *)
-and solve_membership_aux (rng : Range.t) (label : label) (ty : mono_type) (row : mono_row) : mono_row option =
+   Returns `Ok(row_rest)` if the constraint is solved where `row_rest` stands for the other fields. *)
+and solve_membership_aux (rng : Range.t) (label : label) (ty : mono_type) (row : mono_row) : (mono_row, unification_error) result =
+  let open ResultMonad in
   match row with
   | RowCons((rng0, label0), ty0, row0) ->
       if String.equal label0 label then
-        let res = unify_aux ty0 ty in
-        match res with
-        | Consistent -> Some(row0)
-        | _          -> None
+        unify_aux ty0 ty >>= fun () ->
+        return row0
       else
-        solve_membership_aux rng label ty row0 |> Option.map (fun row0rest ->
-          RowCons((rng0, label0), ty0, row0rest)
-        )
+        solve_membership_aux rng label ty row0 >>= fun row0rest ->
+        return @@ RowCons((rng0, label0), ty0, row0rest)
 
   | RowVar(UpdatableRow{contents = LinkRow(row0)}) ->
       solve_membership_aux rng label ty row0
@@ -1022,31 +1004,32 @@ and solve_membership_aux (rng : Range.t) (label : label) (ty : mono_type) (row :
   | RowVar(UpdatableRow({contents = FreeRow(frid0)} as mrvu0)) ->
       let labset0 = KindStore.get_free_row frid0 in
       if labset0 |> LabelSet.mem label then
-        failwith "TODO (error): reject for the disjointness"
+        err Contradiction (* TODO (error): reject for the disjointness *)
       else begin
         let lev = FreeRowID.get_level frid0 in
         let frid1 = FreeRowID.fresh ~message:"solve_membership_aux" lev in
         KindStore.register_free_row frid1 LabelSet.empty;
         let mrvu1 = ref (FreeRow(frid1)) in
         let row_rest = RowVar(UpdatableRow(mrvu1)) in
-        let row = RowCons((rng, label), ty, row_rest) in
-        mrvu0 := LinkRow(row);
-        Some(row_rest)
+        let row_new = RowCons((rng, label), ty, row_rest) in
+        mrvu0 := LinkRow(row_new);
+        return row_rest
       end
 
   | RowVar(MustBeBoundRow(_)) ->
-      failwith "TODO (error): solve_membership_aux, reject for must-be-bound row IDs"
+      err Contradiction (* TODO (error): solve_membership_aux, reject for must-be-bound row IDs *)
 
   | RowEmpty ->
-      failwith "TODO (error): solve_membership_aux, RowEmpty"
+      err Contradiction (* TODO (error): solve_membership_aux, RowEmpty *)
 
 
 (* Solves the constraint that `row` does not have any label in `labset`. *)
 and solve_disjointness_aux (row : mono_row) (labset : LabelSet.t) =
+  let open ResultMonad in
   match row with
-  | RowCons((rng, label), _ty, rowsub) ->
+  | RowCons((rng, label), ty, rowsub) ->
       if labset |> LabelSet.mem label then
-        failwith "TODO (error): reject for the non-disjointness"
+        err Contradiction
       else
         solve_disjointness_aux rowsub labset
 
@@ -1056,38 +1039,31 @@ and solve_disjointness_aux (row : mono_row) (labset : LabelSet.t) =
   | RowVar(UpdatableRow{contents = FreeRow(frid0)}) ->
       let labset0 = KindStore.get_free_row frid0 in
       KindStore.register_free_row frid0 (LabelSet.union labset0 labset);
-      Consistent
+      return ()
 
   | RowVar(MustBeBoundRow(mbbrid0)) ->
       let labset0 = KindStore.get_bound_row (MustBeBoundRowID.to_bound mbbrid0) in
       if LabelSet.subset labset labset0 then
-        Consistent
+        return ()
       else
-        failwith "TODO (error): reject for an insufficient constraint on a must-be-bound row ID"
+        err @@ InsufficientRowConstraint{ id = mbbrid0; given = labset0; required = labset; }
 
   | RowEmpty ->
-      Consistent
+      return ()
 
 
 and unify (tyact : mono_type) (tyexp : mono_type) : unit =
-(*
-  Format.printf "UNIFY %a =?= %a\n" pp_mono_type tyact pp_mono_type tyexp; (* for debug *)
-*)
   let res = unify_aux tyact tyexp in
   match res with
-  | Consistent         -> ()
-  | Contradiction      -> raise_error (ContradictionError(tyact, tyexp))
-  | Inclusion(fid)     -> raise_error (InclusionError(fid, tyact, tyexp))
-  | InclusionRow(frid) -> raise_error (InclusionRowError(frid, tyact, tyexp))
+  | Ok(())   -> ()
+  | Error(e) -> raise_error (UnificationError(tyact, tyexp, e))
 
 
 and unify_effect (Effect(tyact) : mono_effect) (Effect(tyexp) : mono_effect) : unit =
   let res = unify_aux tyact tyexp in
   match res with
-  | Consistent         -> ()
-  | Contradiction      -> raise_error (ContradictionError(tyact, tyexp))
-  | Inclusion(fid)     -> raise_error (InclusionError(fid, tyact, tyexp))
-  | InclusionRow(frid) -> raise_error (InclusionRowError(frid, tyact, tyexp))
+  | Ok(())   -> ()
+  | Error(e) -> raise_error (UnificationError(tyact, tyexp, e))
 
 
 and make_rec_initial_type_from_annotation (preL : pre) (letbind : untyped_let_binding) : pre * poly_type option =

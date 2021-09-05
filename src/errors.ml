@@ -37,11 +37,15 @@ type syntax_error =
   | LexerError of lexer_error
   | ParseError of Range.t
 
+type unification_error =
+  | Contradiction
+  | Inclusion                 of FreeID.t
+  | InclusionRow              of FreeRowID.t
+  | InsufficientRowConstraint of { id : MustBeBoundRowID.t; given : LabelSet.t; required : LabelSet.t; }
+
 type type_error =
   | UnboundVariable                     of Range.t * identifier
-  | ContradictionError                  of mono_type * mono_type
-  | InclusionError                      of FreeID.t * mono_type * mono_type
-  | InclusionRowError                   of FreeRowID.t * mono_type * mono_type
+  | UnificationError                    of mono_type * mono_type * unification_error
   | BadArityOfOrderedArguments          of {range : Range.t; got : int; expected : int}
   | BoundMoreThanOnceInPattern          of Range.t * identifier
   | UnboundTypeParameter                of Range.t * type_variable_name
