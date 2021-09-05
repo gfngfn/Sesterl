@@ -174,22 +174,22 @@ let pp_type_parameter_list dispmap ppf bids =
       ()
 
   | _ :: _ ->
-      let pp_bound_id ppf bid = Format.fprintf ppf "%s" (dispmap |> TypeConv.DisplayMap.find_bound_id bid) in
+      let pp_bound_id ppf bid = Format.fprintf ppf "%s" (dispmap |> DisplayMap.find_bound_id bid) in
       let pp_sep ppf () = Format.fprintf ppf ", " in
       Format.fprintf ppf "<%a>" (Format.pp_print_list ~pp_sep pp_bound_id) bids
 
 
 let make_display_map_from_mono_types =
-  TypeConv.DisplayMap.empty |> List.fold_left (fun dispmap ty -> dispmap |> TypeConv.collect_ids_mono ty)
+  DisplayMap.empty |> List.fold_left (fun dispmap ty -> dispmap |> TypeConv.collect_ids_mono ty)
 
 
 let make_display_map_from_poly_types =
-  TypeConv.DisplayMap.empty |> List.fold_left (fun dispmap pty -> dispmap |> TypeConv.collect_ids_poly pty)
+  DisplayMap.empty |> List.fold_left (fun dispmap pty -> dispmap |> TypeConv.collect_ids_poly pty)
 
 
-let print_free_rows_and_base_kinds (dispmap : TypeConv.DisplayMap.t) =
+let print_free_rows_and_base_kinds (dispmap : DisplayMap.t) =
   let row_names =
-    dispmap |> TypeConv.DisplayMap.fold_free_row_id (fun frid row_name acc ->
+    dispmap |> DisplayMap.fold_free_row_id (fun frid row_name acc ->
       let labset = KindStore.get_free_row frid in
       let s = labset |> LabelSet.elements |> String.concat ", " in
       Alist.extend acc (row_name, s)
@@ -245,7 +245,7 @@ let report_unification_error ~actual:(ty1 : mono_type) ~expected:(ty2 : mono_typ
       Format.printf "    %a\n"
         (TypeConv.pp_mono_type dispmap) ty2;
       Format.printf "  at the same time, but these types are inconsistent as to the occurrence of type variable %s\n"
-        (dispmap |> TypeConv.DisplayMap.find_free_id fid);
+        (dispmap |> DisplayMap.find_free_id fid);
       print_free_rows_and_base_kinds dispmap
 
   | InclusionRow(frid) ->
@@ -260,7 +260,7 @@ let report_unification_error ~actual:(ty1 : mono_type) ~expected:(ty2 : mono_typ
       Format.printf "    %a\n"
         (TypeConv.pp_mono_type dispmap) ty2;
       Format.printf "  at the same time, but these types are inconsistent as to the occurrence of row variable %s\n"
-        (dispmap |> TypeConv.DisplayMap.find_free_row_id frid);
+        (dispmap |> DisplayMap.find_free_row_id frid);
       print_free_rows_and_base_kinds dispmap
 
   | InsufficientRowConstraint(r) ->
@@ -397,8 +397,8 @@ let report_type_error (e : type_error) : unit =
       bbids |> List.iter (fun bbid ->
         let sb =
           match bbid with
-          | BoundBothID.Type(bid) -> dispmap |> TypeConv.DisplayMap.find_bound_id bid
-          | BoundBothID.Row(brid) -> dispmap |> TypeConv.DisplayMap.find_bound_row_id brid
+          | BoundBothID.Type(bid) -> dispmap |> DisplayMap.find_bound_id bid
+          | BoundBothID.Row(brid) -> dispmap |> DisplayMap.find_bound_row_id brid
         in
         Format.printf "  - %s\n"
           sb
@@ -475,7 +475,7 @@ let report_type_error (e : type_error) : unit =
       Format.printf "    %s\n"
         smain2;
       Format.printf "  as to type variable %s\n"
-        (dispmap |> TypeConv.DisplayMap.find_free_id fid);
+        (dispmap |> DisplayMap.find_free_id fid);
       print_bound_ids (List.concat [sbids1; sbrids1; sbids2; sbrids2])
 
   | MissingRequiredValName(rng, x, pty) ->
