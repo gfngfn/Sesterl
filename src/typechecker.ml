@@ -1227,9 +1227,8 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                 let tyscheme = tentry.type_scheme in
                 begin
                   match TypeConv.apply_type_scheme_mono tyscheme tyargs with
-                  | Ok((_, tymain)) -> tymain
-                  | Error(None)     -> invalid rng tynm ~expect:len_expected ~actual:len_actual
-                  | Error(_)        -> failwith "TODO (error): report error (base kind mismatch, MTypeName)"
+                  | Some((_, tymain)) -> tymain
+                  | None              -> invalid rng tynm ~expect:len_expected ~actual:len_actual
                 end
           end
 
@@ -1284,7 +1283,7 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                       let tyscheme = tentry2.type_scheme in
                       begin
                         match TypeConv.apply_type_scheme_mono tyscheme tyargs with
-                        | Ok((_, tymain) as ty) ->
+                        | Some((_, tymain) as ty) ->
                             if opaque_occurs_in_mono_type quant1 ty then
                               (* Combining (T-Path) and the second premise “Γ ⊢ Σ : Ω” of (P-Mod)
                                  in the original paper “F-ing modules” [Rossberg, Russo & Dreyer 2014],
@@ -1293,11 +1292,8 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                             else
                               tymain
 
-                        | Error(None) ->
+                        | None ->
                             invalid rng tynm2 ~expect:len_expected ~actual:len_actual
-
-                        | Error(_) ->
-                            failwith "TODO (error): error report (base kind mismatch, MModProjType)"
                       end
                 end
           end
@@ -3072,15 +3068,8 @@ and substitute_poly_type ~(cause : Range.t) (subst : substitution) (pty : poly_t
             | Some(tyscheme) ->
                 begin
                   match TypeConv.apply_type_scheme_poly tyscheme (ptyargs |> List.map aux) with
-                  | Error(None) ->
-                    (* Arity mismatch; this cannot happen. *)
-                      assert false
-
-                  | Error(Some((ptyarg, pbkd))) ->
-                      failwith (Format.asprintf "TODO (error): error report (base kind mispatch, %a)" Range.pp cause)
-
-                  | Ok((_, ptymain)) ->
-                      ptymain
+                  | None               -> assert false (* Arity mismatch; this cannot happen. *)
+                  | Some((_, ptymain)) -> ptymain
                 end
 
           end
