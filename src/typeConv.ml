@@ -1063,7 +1063,7 @@ fun ~prefix ~suffix showtv showrv row ->
 
 and show_mono_type_var (dispmap : DisplayMap.t) (mtv : mono_type_var) : string =
   match mtv with
-  | MustBeBound(mbbid) -> Format.asprintf "%a" MustBeBoundID.pp mbbid
+  | MustBeBound(mbbid) -> Format.asprintf "%a" MustBeBoundID.pp_rich mbbid
   | Updatable(mtvu)    -> show_mono_type_var_updatable dispmap !mtvu
 
 
@@ -1076,7 +1076,7 @@ and show_mono_type_var_updatable (dispmap : DisplayMap.t) (mtvu : mono_type_var_
 and show_mono_row_var (dispmap : DisplayMap.t) (mrv : mono_row_var) : string option =
   match mrv with
   | UpdatableRow(mrvu)     -> show_mono_row_var_updatable dispmap !mrvu
-  | MustBeBoundRow(mbbrid) -> Some(Format.asprintf "%a" MustBeBoundRowID.pp mbbrid)
+  | MustBeBoundRow(mbbrid) -> Some(Format.asprintf "?%a" MustBeBoundRowID.pp_rich mbbrid)
 
 
 and show_mono_row_var_updatable (dispmap : DisplayMap.t) (mrvu : mono_row_var_updatable) : string option =
