@@ -1,6 +1,7 @@
 
 open MyUtil
 open Syntax
+open Env
 open Errors
 
 
@@ -198,16 +199,9 @@ let print_bound_ids (ss : string list) =
       )
 
 
-let report_type_error (e : type_error) : unit =
-  Format.printf "! [Type error] ";
+let report_unification_error ~actual:(ty1 : mono_type) ~expected:(ty2 : mono_type) (e : unification_error) : unit =
   match e with
-  | UnboundVariable(rng, x) ->
-      Format.printf "%a:\n"
-        Range.pp rng;
-      Format.printf "  unbound variable '%s'\n"
-        x
-
-  | UnificationError(ty1, ty2, Contradiction) ->
+  | Contradiction ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
       let (rng1, _) = ty1 in
       Format.printf "%a:\n"
@@ -220,7 +214,7 @@ let report_type_error (e : type_error) : unit =
         (TypeConv.pp_mono_type dispmap) ty2;
       TypeConv.print_base_kinds dispmap
 
-  | UnificationError(ty1, ty2, Inclusion(fid)) ->
+  | Inclusion(fid) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
       let (rng1, _) = ty1 in
       Format.printf "%a:"
@@ -235,7 +229,7 @@ let report_type_error (e : type_error) : unit =
         (dispmap |> TypeConv.DisplayMap.find_free_id fid);
       TypeConv.print_base_kinds dispmap
 
-  | UnificationError(ty1, ty2, InclusionRow(frid)) ->
+  | InclusionRow(frid) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
       let (rng1, _) = ty1 in
       Format.printf "%a:\n"
@@ -250,7 +244,7 @@ let report_type_error (e : type_error) : unit =
         (dispmap |> TypeConv.DisplayMap.find_free_row_id frid);
       TypeConv.print_base_kinds dispmap
 
-  | UnificationError(ty1, ty2, InsufficientRowConstraint(r)) ->
+  | InsufficientRowConstraint(r) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
       let (rng1, _) = ty1 in
       Format.printf "%a:\n"
@@ -269,6 +263,19 @@ let report_type_error (e : type_error) : unit =
       Format.printf "  but the following label(s) should also be specified:\n";
       Format.printf "    %s\n"
         (r.required |> LabelSet.elements |> String.concat ", ")
+
+
+let report_type_error (e : type_error) : unit =
+  Format.printf "! [Type error] ";
+  match e with
+  | UnboundVariable(rng, x) ->
+      Format.printf "%a:\n"
+        Range.pp rng;
+      Format.printf "  unbound variable '%s'\n"
+        x
+
+  | UnificationError(r) ->
+      report_unification_error ~actual:r.actual ~expected:r.expected r.detail
 
   | BoundMoreThanOnceInPattern(rng, x) ->
       Format.printf "%a:\n"

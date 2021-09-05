@@ -1056,14 +1056,14 @@ and unify (tyact : mono_type) (tyexp : mono_type) : unit =
   let res = unify_aux tyact tyexp in
   match res with
   | Ok(())   -> ()
-  | Error(e) -> raise_error (UnificationError(tyact, tyexp, e))
+  | Error(e) -> raise_error (UnificationError{ actual = tyact; expected = tyexp; detail = e; })
 
 
 and unify_effect (Effect(tyact) : mono_effect) (Effect(tyexp) : mono_effect) : unit =
   let res = unify_aux tyact tyexp in
   match res with
   | Ok(())   -> ()
-  | Error(e) -> raise_error (UnificationError(tyact, tyexp, e))
+  | Error(e) -> raise_error (UnificationError{ actual = tyact; expected = tyexp; detail = e; })
 
 
 and make_rec_initial_type_from_annotation (preL : pre) (letbind : untyped_let_binding) : pre * poly_type option =

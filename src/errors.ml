@@ -45,8 +45,8 @@ type unification_error =
 
 type type_error =
   | UnboundVariable                     of Range.t * identifier
-  | UnificationError                    of mono_type * mono_type * unification_error
-  | BadArityOfOrderedArguments          of {range : Range.t; got : int; expected : int}
+  | UnificationError                    of { actual : mono_type; expected : mono_type; detail : unification_error; }
+  | BadArityOfOrderedArguments          of { range : Range.t; got : int; expected : int; }
   | BoundMoreThanOnceInPattern          of Range.t * identifier
   | UnboundTypeParameter                of Range.t * type_variable_name
   | UnboundRowParameter                 of Range.t * row_variable_name
@@ -79,9 +79,6 @@ type type_error =
   | NotASubtypeTypeDefinition           of Range.t * type_name * type_entry * type_entry
   | NotASubtypeConstructorDefinition    of Range.t * constructor_name * constructor_entry * constructor_entry
   | NotASubtypeVariant                  of Range.t * TypeID.t * TypeID.t * constructor_name
-(*
-  | NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t
-*)
   | OpaqueIDExtrudesScopeViaValue       of Range.t * poly_type
   | OpaqueIDExtrudesScopeViaType        of Range.t * type_entry
   | OpaqueIDExtrudesScopeViaSignature   of Range.t * module_signature abstracted
@@ -90,8 +87,8 @@ type type_error =
   | InvalidIdentifier                   of Range.t * string
   | ConflictInSignature                 of Range.t * string
   | DuplicatedLabel                     of Range.t * label
-  | UnexpectedMandatoryLabel            of {range : Range.t; label : label}
-  | MissingMandatoryLabel               of {range : Range.t; label : label; typ : mono_type}
-  | UnexpectedOptionalLabel             of {range : Range.t; label : label}
+  | UnexpectedMandatoryLabel            of { range : Range.t; label : label; }
+  | MissingMandatoryLabel               of { range : Range.t; label : label; typ : mono_type; }
+  | UnexpectedOptionalLabel             of { range : Range.t; label : label; }
   | NullaryFormatString                 of Range.t
   | CannotFreezeNonGlobalName           of Range.t * identifier
