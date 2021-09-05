@@ -2667,14 +2667,9 @@ and poly_label_assoc_equal plabmap1 plabmap2 =
 
 and subtype_base_kind (bkd1 : base_kind) (bkd2 : base_kind) =
   match (bkd1, bkd2) with
-  | (TypeKind, TypeKind) ->
-      true
-
-  | (RowKind(labset1), RowKind(labset2)) ->
-      failwith "TODO: subtype_base_kind, (RowKind, RowKind)"
-
-  | _ ->
-      false
+  | (TypeKind, TypeKind)                 -> true
+  | (RowKind(labset1), RowKind(labset2)) -> LabelSet.subset labset2 labset1
+  | _                                    -> false
 
 
 and subtype_type_scheme (tyscheme1 : type_scheme) (tyscheme2 : type_scheme) : bool * BoundID.t BoundIDMap.t =
