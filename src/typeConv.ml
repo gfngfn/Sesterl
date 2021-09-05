@@ -853,82 +853,48 @@ let pp_mono_row dispmap ppf row =
   Format.fprintf ppf "%s" (Option.value ~default:"(empty)" (show_mono_row ~prefix:"" ~suffix:"" dispmap row))
 
 
-type hash_tables = unit BoundIDHashTable.t * LabelSet.t BoundRowIDHashTable.t
+let rec show_poly_type_var (dispmap : DisplayMap.t) = function
+  | Bound(bid) -> dispmap |> DisplayMap.find_bound_id bid
+  | Mono(mtv)  -> show_mono_type_var dispmap mtv
 
 
-let rec show_poly_type_var (dispmap : DisplayMap.t) (hts : hash_tables) = function
-  | Bound(bid) ->
-      let (bidht, _) = hts in
-      if BoundIDHashTable.mem bidht bid then () else begin
-        BoundIDHashTable.add bidht bid ()
-      end;
-      dispmap |> DisplayMap.find_bound_id bid
-
-  | Mono(mtv) ->
-      show_mono_type_var dispmap mtv
+and show_poly_row_var (dispmap : DisplayMap.t) = function
+  | BoundRow(brid) -> Some(dispmap |> DisplayMap.find_bound_row_id brid)
+  | MonoRow(mrv)   -> show_mono_row_var dispmap mrv
 
 
-and show_poly_row_var (dispmap : DisplayMap.t) (hts : hash_tables) = function
-  | BoundRow(brid) ->
-      let (_, bridht) = hts in
-      if BoundRowIDHashTable.mem bridht brid then () else begin
-        let labset = KindStore.get_bound_row brid in
-        BoundRowIDHashTable.add bridht brid labset;
-      end;
-      let s = dispmap |> DisplayMap.find_bound_row_id brid in
-      Some(s)
-
-  | MonoRow(mrv) ->
-      show_mono_row_var dispmap mrv
+and show_poly_type_sub (dispmap : DisplayMap.t) : poly_type -> string =
+  show_type (show_poly_type_var dispmap) (show_poly_row_var dispmap)
 
 
-and show_poly_type_sub (dispmap : DisplayMap.t) (hts : hash_tables) : poly_type -> string =
-  show_type (show_poly_type_var dispmap hts) (show_poly_row_var dispmap hts)
+let show_poly_row_sub (dispmap : DisplayMap.t) : poly_row -> string option =
+  show_row ~prefix:"" ~suffix:"" (show_poly_type_var dispmap) (show_poly_row_var dispmap)
 
 
-let show_poly_row_sub (dispmap : DisplayMap.t) (hts : hash_tables) : poly_row -> string option =
-  show_row ~prefix:"" ~suffix:"" (show_poly_type_var dispmap hts) (show_poly_row_var dispmap hts)
-
-
-let show_bound_type_ids (dispmap : DisplayMap.t) ((bidht, _) : hash_tables) =
-  BoundIDHashTable.fold (fun bid skdopt acc ->
-    let sb = dispmap |> DisplayMap.find_bound_id bid in
+let show_bound_type_ids (dispmap : DisplayMap.t) =
+  dispmap |> DisplayMap.fold_bound_id (fun bid sb acc ->
     Alist.extend acc (Printf.sprintf "%s :: o" sb)
-  ) bidht Alist.empty |> Alist.to_list
+  ) Alist.empty |> Alist.to_list
 
 
-let show_bound_row_ids (dispmap : DisplayMap.t) ((_, bridht) : hash_tables) =
-  BoundRowIDHashTable.fold (fun brid labset acc ->
-    let sb = dispmap |> DisplayMap.find_bound_row_id brid in
-    let skd =
-      LabelSet.fold (fun label acc ->
-        Alist.extend acc label
-      ) labset Alist.empty |> Alist.to_list |> String.concat ", "
-    in
+let show_bound_row_ids (dispmap : DisplayMap.t) =
+  dispmap |> DisplayMap.fold_bound_row_id (fun brid (sb, labset) acc ->
+    let skd = labset |> LabelSet.elements |> String.concat ", " in
     Alist.extend acc (Printf.sprintf "%s :: (%s)" sb skd)
-
-  ) bridht Alist.empty |> Alist.to_list
-
-
-let create_initial_hash_tables () : hash_tables =
-  let bidht = BoundIDHashTable.create 32 in
-  let bridht = BoundRowIDHashTable.create 32 in
-  (bidht, bridht)
+  ) Alist.empty |> Alist.to_list
 
 
 let show_poly_type (dispmap : DisplayMap.t) (pty : poly_type) : string list * string list * string =
-  let hts = create_initial_hash_tables () in
-  let smain = show_poly_type_sub dispmap hts pty in
-  let sbids = show_bound_type_ids dispmap hts in
-  let sbrids = show_bound_row_ids dispmap hts in
+  let smain = show_poly_type_sub dispmap pty in
+  let sbids = show_bound_type_ids dispmap in
+  let sbrids = show_bound_row_ids dispmap in
   (sbids, sbrids, smain)
 
 
 let show_poly_row (dispmap : DisplayMap.t) (prow : poly_row) : string list * string list * string =
-  let hts = create_initial_hash_tables () in
-  let smain = Option.value ~default:"(empty)" (show_poly_row_sub dispmap hts prow) in
-  let sbids = show_bound_type_ids dispmap hts in
-  let sbrids = show_bound_row_ids dispmap hts in
+  let smain = Option.value ~default:"(empty)" (show_poly_row_sub dispmap prow) in
+  let sbids = show_bound_type_ids dispmap in
+  let sbrids = show_bound_row_ids dispmap in
   (sbids, sbrids, smain)
 
 
