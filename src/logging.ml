@@ -275,7 +275,7 @@ let report_unification_error ~actual:(ty1 : mono_type) ~expected:(ty2 : mono_typ
       Format.printf "    %a\n"
         (TypeConv.pp_mono_type dispmap) ty2;
       print_free_rows_and_base_kinds dispmap;
-      Format.printf "  The row parameter %a is specified so that it does not contain the following labels:\n"
+      Format.printf "  The row parameter %a is specified so that it does not contain the following label(s):\n"
         MustBeBoundRowID.pp_rich r.id;
       Format.printf "    %s\n"
         (r.given |> LabelSet.elements |> String.concat ", ");
@@ -402,7 +402,6 @@ let report_type_error (e : type_error) : unit =
         in
         Format.printf "  - %s\n"
           sb
-
       );
       Format.printf "  in:\n";
       let (sbids, sbrids, smain) = TypeConv.show_poly_type dispmap pty in
