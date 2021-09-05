@@ -24,7 +24,7 @@ let to_bound (mbbid : t) : BoundID.t =
 
 
 let pp_rich (ppf : Format.formatter) (mbbid : t) : unit =
-  Format.fprintf ppf "$%s" mbbid.name
+  Format.fprintf ppf "%s" mbbid.name
 
 
 let pp (ppf : Format.formatter) (mbbid : t) : unit =

@@ -102,7 +102,7 @@ end = struct
       bound_row_ids = BoundRowIDMap.empty;
     }
 
-  let make_value prefix i =
+  let make_value (prefix : string) (i : int) =
     let rec aux chs i =
       let q = i / 26 in
       let r = i mod 26 in
@@ -113,7 +113,7 @@ end = struct
         aux (ch :: chs) r
     in
     let chs = aux [] i in
-    Core_kernel.String.of_char_list (prefix :: chs)
+    prefix ^ (Core_kernel.String.of_char_list chs)
 
   let add_free_id fid dispmap =
     let fids = dispmap.free_ids in
@@ -121,7 +121,7 @@ end = struct
       dispmap
     else
       let i = dispmap.current_max in
-      let s = make_value '\'' i in
+      let s = make_value "'" i in
       { dispmap with
         current_max = i + 1;
         free_ids    = fids |> FreeIDMap.add fid s;
@@ -133,7 +133,7 @@ end = struct
       dispmap
     else
       let i = dispmap.current_max in
-      let s = make_value '\'' i in
+      let s = make_value "?'" i in
       { dispmap with
         current_max  = i + 1;
         free_row_ids = dispmap.free_row_ids |> FreeRowIDMap.add frid s;
@@ -145,7 +145,7 @@ end = struct
       dispmap
     else
       let i = dispmap.current_max in
-      let s = make_value '#' i in
+      let s = make_value "#" i in
       { dispmap with
         current_max = i + 1;
         bound_ids   = bids |> BoundIDMap.add bid s;
@@ -157,7 +157,7 @@ end = struct
       dispmap
     else
       let i = dispmap.current_max in
-      let s = make_value '#' i in
+      let s = make_value "?#" i in
       { dispmap with
         current_max   = i + 1;
         bound_row_ids = brids |> BoundRowIDMap.add brid s;
@@ -1051,7 +1051,7 @@ fun ~prefix ~suffix showtv showrv row ->
   let smain_opt = labmap |> show_label_assoc ~prefix ~suffix showtv showrv in
   let svar_opt =
     match rowvar_opt with
-    | Some(rv) -> showrv rv |> Option.map (fun s -> prefix ^ s)
+    | Some(rv) -> showrv rv
     | None     -> None
   in
   match (smain_opt, svar_opt) with
@@ -1076,7 +1076,7 @@ and show_mono_type_var_updatable (dispmap : DisplayMap.t) (mtvu : mono_type_var_
 and show_mono_row_var (dispmap : DisplayMap.t) (mrv : mono_row_var) : string option =
   match mrv with
   | UpdatableRow(mrvu)     -> show_mono_row_var_updatable dispmap !mrvu
-  | MustBeBoundRow(mbbrid) -> Some(Format.asprintf "?%a" MustBeBoundRowID.pp_rich mbbrid)
+  | MustBeBoundRow(mbbrid) -> Some(Format.asprintf "%a" MustBeBoundRowID.pp_rich mbbrid)
 
 
 and show_mono_row_var_updatable (dispmap : DisplayMap.t) (mrvu : mono_row_var_updatable) : string option =

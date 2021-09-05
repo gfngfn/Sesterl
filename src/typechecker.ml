@@ -1147,7 +1147,7 @@ and make_rec_initial_type_from_annotation (preL : pre) (letbind : untyped_let_bi
 
 and make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder list) : pre * type_parameter_assoc =
   tyvarnms |> List.fold_left (fun (pre, assoc) ((rng, tyvarnm), kdannot) ->
-    let mbbid = MustBeBoundID.fresh tyvarnm (pre.level + 1) in
+    let mbbid = MustBeBoundID.fresh ("$" ^ tyvarnm) (pre.level + 1) in
     match assoc |> TypeParameterAssoc.add_last tyvarnm mbbid with
     | None ->
         raise_error (TypeParameterBoundMoreThanOnce(rng, tyvarnm))
@@ -1346,7 +1346,7 @@ and add_local_row_parameter (rowvars : (row_variable_name ranged * (label ranged
     if rowparams |> RowParameterMap.mem rowvarnm then
       raise_error (RowParameterBoundMoreThanOnce(rng, rowvarnm))
     else
-      let mbbrid = MustBeBoundRowID.fresh rowvarnm pre.level in
+      let mbbrid = MustBeBoundRowID.fresh ("?$" ^ rowvarnm) pre.level in
       let labset =
         mkind |> List.fold_left (fun labset rlabel ->
           let (rnglabel, label) = rlabel in
