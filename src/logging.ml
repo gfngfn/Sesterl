@@ -187,6 +187,25 @@ let make_display_map_from_poly_types =
   TypeConv.DisplayMap.empty |> List.fold_left (fun dispmap pty -> dispmap |> TypeConv.collect_ids_poly pty)
 
 
+let print_free_rows_and_base_kinds (dispmap : TypeConv.DisplayMap.t) =
+  let row_names =
+    dispmap |> TypeConv.DisplayMap.fold_free_row_id (fun frid row_name acc ->
+      let labset = KindStore.get_free_row frid in
+      let s = labset |> LabelSet.elements |> String.concat ", " in
+      Alist.extend acc (row_name, s)
+    ) Alist.empty |> Alist.to_list
+  in
+  match row_names with
+  | [] ->
+      ()
+
+  | _ :: _ ->
+      Format.printf "  where\n";
+      row_names |> List.iter (fun (row_name, skd) ->
+        Format.printf "  - %s :: (%s)\n" row_name skd
+      )
+
+
 let print_bound_ids (ss : string list) =
   match ss with
   | [] ->
@@ -212,7 +231,7 @@ let report_unification_error ~actual:(ty1 : mono_type) ~expected:(ty2 : mono_typ
       Format.printf "  but is expected of type\n";
       Format.printf "    %a\n"
         (TypeConv.pp_mono_type dispmap) ty2;
-      TypeConv.print_base_kinds dispmap
+      print_free_rows_and_base_kinds dispmap
 
   | Inclusion(fid) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
@@ -227,7 +246,7 @@ let report_unification_error ~actual:(ty1 : mono_type) ~expected:(ty2 : mono_typ
         (TypeConv.pp_mono_type dispmap) ty2;
       Format.printf "  at the same time, but these types are inconsistent as to the occurrence of type variable %s\n"
         (dispmap |> TypeConv.DisplayMap.find_free_id fid);
-      TypeConv.print_base_kinds dispmap
+      print_free_rows_and_base_kinds dispmap
 
   | InclusionRow(frid) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
@@ -242,7 +261,7 @@ let report_unification_error ~actual:(ty1 : mono_type) ~expected:(ty2 : mono_typ
         (TypeConv.pp_mono_type dispmap) ty2;
       Format.printf "  at the same time, but these types are inconsistent as to the occurrence of row variable %s\n"
         (dispmap |> TypeConv.DisplayMap.find_free_row_id frid);
-      TypeConv.print_base_kinds dispmap
+      print_free_rows_and_base_kinds dispmap
 
   | InsufficientRowConstraint(r) ->
       let dispmap = make_display_map_from_mono_types [ty1; ty2] in
@@ -255,7 +274,7 @@ let report_unification_error ~actual:(ty1 : mono_type) ~expected:(ty2 : mono_typ
       Format.printf "  but is expected of type\n";
       Format.printf "    %a\n"
         (TypeConv.pp_mono_type dispmap) ty2;
-      TypeConv.print_base_kinds dispmap;
+      print_free_rows_and_base_kinds dispmap;
       Format.printf "  The row parameter %a is specified so that it does not contain the following labels:\n"
         MustBeBoundRowID.pp_rich r.id;
       Format.printf "    %s\n"
@@ -578,7 +597,7 @@ let report_type_error (e : type_error) : unit =
         info.label;
       Format.printf "    %a\n"
         (TypeConv.pp_mono_type dispmap) ty;
-      TypeConv.print_base_kinds dispmap
+      print_free_rows_and_base_kinds dispmap
 
   | UnexpectedMandatoryLabel(info) ->
       Format.printf "%a:\n"

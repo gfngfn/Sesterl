@@ -226,24 +226,20 @@ end = struct
 end
 
 
-let collect_ids_scheme
-    (fidht : unit FreeIDHashTable.t)
-    (fridht : unit FreeRowIDHashTable.t)
-    (bidht : unit BoundIDHashTable.t)
-    (bridht : unit BoundRowIDHashTable.t) =
-  let rec aux_free_id (fid : FreeID.t) =
+let collect_ids_scheme (fidht : unit FreeIDHashTable.t) (fridht : unit FreeRowIDHashTable.t) (bidht : unit BoundIDHashTable.t) (bridht : unit BoundRowIDHashTable.t) =
+  let aux_free_id (fid : FreeID.t) =
     if FreeIDHashTable.mem fidht fid then
       ()
     else
       FreeIDHashTable.add fidht fid ()
-
-  and aux_free_row_id (frid : FreeRowID.t) =
+  in
+  let aux_free_row_id (frid : FreeRowID.t) =
     if FreeRowIDHashTable.mem fridht frid then
       ()
     else
       FreeRowIDHashTable.add fridht frid ()
-
-  and aux_mono ((_, tymain) : mono_type) : unit =
+  in
+  let rec aux_mono ((_, tymain) : mono_type) : unit =
     match tymain with
     | BaseType(_) ->
         ()
@@ -1184,43 +1180,6 @@ let show_poly_row (dispmap : DisplayMap.t) (prow : poly_row) : string list * str
   (sbids, sbrids, smain)
 
 
-let pp_poly_type dispmap ppf pty =
-  let (_, _, sty) = show_poly_type dispmap pty in
-  Format.fprintf ppf "%s" sty
-
-
-let debug_print_poly_type message pty =
-  let dispmap = DisplayMap.empty |> collect_ids_poly pty in
-  let (ss1, ss2, s3) = show_poly_type dispmap pty in
-  Format.printf "!!! %s ((%s), (%s), %s)\n" message (String.concat ", " ss1) (String.concat ", " ss2) s3
-
-
-let print_base_kinds (dispmap : DisplayMap.t) =
-  let row_names =
-    dispmap |> DisplayMap.fold_free_row_id (fun frid row_name acc ->
-      let labset = KindStore.get_free_row frid in
-      let s = labset |> LabelSet.elements |> String.concat ", " in
-      Alist.extend acc (row_name, s)
-    ) Alist.empty |> Alist.to_list
-  in
-  match row_names with
-  | [] ->
-      ()
-
-  | _ :: _ ->
-      Format.printf "  where\n";
-      row_names |> List.iter (fun (row_name, skd) ->
-        Format.printf "  - %s :: (%s)\n" row_name skd
-      )
-
-
-let debug_print_mono_type message ty =
-  let dispmap = DisplayMap.empty |> collect_ids_mono ty in
-  let s = show_mono_type dispmap ty in
-  Format.printf "!!! %s (%s)\n" message s;
-  print_base_kinds dispmap
-
-
 let show_base_kind (bkd : base_kind) : string =
   match bkd with
   | TypeKind        -> "o"
@@ -1234,3 +1193,15 @@ let show_kind (kd : kind) : string =
   match sdoms with
   | []     -> scod
   | _ :: _ -> Printf.sprintf "(%s) -> %s" (String.concat ", " sdoms) scod
+
+
+let pp_debug_poly_type ~(raw : bool) (ppf : Format.formatter) (pty : poly_type) : unit =
+  let dispmap = if raw then DisplayMap.empty else DisplayMap.empty |> collect_ids_poly pty in
+  let (ss1, ss2, s3) = show_poly_type dispmap pty in
+  Format.fprintf ppf "(%s), (%s), %s" (String.concat ", " ss1) (String.concat ", " ss2) s3
+
+
+let pp_debug_mono_type ~(raw : bool) (ppf : Format.formatter) (ty : mono_type) : unit =
+  let dispmap = if raw then DisplayMap.empty else DisplayMap.empty |> collect_ids_mono ty in
+  let s = show_mono_type dispmap ty in
+  Format.printf "%s" s
