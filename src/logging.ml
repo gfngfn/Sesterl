@@ -189,8 +189,7 @@ let make_display_map_from_poly_types =
 
 let print_free_rows_and_base_kinds (dispmap : DisplayMap.t) =
   let row_names =
-    dispmap |> DisplayMap.fold_free_row_id (fun frid row_name acc ->
-      let labset = KindStore.get_free_row frid in
+    dispmap |> DisplayMap.fold_free_row_id (fun frid (row_name, labset) acc ->
       let s = labset |> LabelSet.elements |> String.concat ", " in
       Alist.extend acc (row_name, s)
     ) Alist.empty |> Alist.to_list

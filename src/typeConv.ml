@@ -4,7 +4,7 @@ open Syntax
 open Env
 
 
-let collect_ids_scheme (fidht : unit FreeIDHashTable.t) (fridht : unit FreeRowIDHashTable.t) (bidht : unit BoundIDHashTable.t) (bridht : unit BoundRowIDHashTable.t) =
+let collect_ids_scheme (fidht : unit FreeIDHashTable.t) (fridht : LabelSet.t FreeRowIDHashTable.t) (bidht : unit BoundIDHashTable.t) (bridht : LabelSet.t BoundRowIDHashTable.t) =
   let aux_free_id (fid : FreeID.t) =
     if FreeIDHashTable.mem fidht fid then
       ()
@@ -15,7 +15,21 @@ let collect_ids_scheme (fidht : unit FreeIDHashTable.t) (fridht : unit FreeRowID
     if FreeRowIDHashTable.mem fridht frid then
       ()
     else
-      FreeRowIDHashTable.add fridht frid ()
+      let labset = KindStore.get_free_row frid in
+      FreeRowIDHashTable.add fridht frid labset
+  in
+  let aux_bound_id (bid : BoundID.t) =
+    if BoundIDHashTable.mem bidht bid then
+      ()
+    else
+      BoundIDHashTable.add bidht bid ()
+  in
+  let aux_bound_row_id (brid : BoundRowID.t) =
+    if BoundRowIDHashTable.mem bridht brid then
+      ()
+    else
+      let labset = KindStore.get_bound_row brid in
+      BoundRowIDHashTable.add bridht brid labset
   in
   let rec aux_mono ((_, tymain) : mono_type) : unit =
     match tymain with
@@ -63,20 +77,10 @@ let collect_ids_scheme (fidht : unit FreeIDHashTable.t) (fridht : unit FreeRowID
     | TypeVar(ptv) ->
         begin
           match ptv with
-          | Mono(Updatable{contents = Link(ty)}) ->
-              aux_mono ty
-
-          | Mono(Updatable{contents = Free(fid)}) ->
-              aux_free_id fid
-
-          | Mono(MustBeBound(_)) ->
-              ()
-
-          | Bound(bid) ->
-              if BoundIDHashTable.mem bidht bid then
-                ()
-              else
-                BoundIDHashTable.add bidht bid ()
+          | Mono(Updatable{contents = Link(ty)})  -> aux_mono ty
+          | Mono(Updatable{contents = Free(fid)}) -> aux_free_id fid
+          | Mono(MustBeBound(_))                  -> ()
+          | Bound(bid)                            -> aux_bound_id bid
         end
 
     | FuncType(pdomain, ptycod) ->
@@ -152,10 +156,7 @@ let collect_ids_scheme (fidht : unit FreeIDHashTable.t) (fridht : unit FreeRowID
         end
 
     | RowVar(BoundRow(brid)) ->
-        if BoundRowIDHashTable.mem bridht brid then
-          ()
-        else
-          BoundRowIDHashTable.add bridht brid ()
+        aux_bound_row_id brid
 
     | RowEmpty ->
         ()
@@ -176,8 +177,8 @@ let collect_ids_mono (ty : mono_type) (dispmap : DisplayMap.t) : DisplayMap.t =
     ) fidht dispmap
   in
   let dispmap =
-    FreeRowIDHashTable.fold (fun frid () dispmap ->
-      dispmap |> DisplayMap.add_free_row_id frid
+    FreeRowIDHashTable.fold (fun frid labset dispmap ->
+      dispmap |> DisplayMap.add_free_row_id frid labset
     ) fridht dispmap
   in
   dispmap
@@ -196,8 +197,8 @@ let collect_ids_poly (pty : poly_type) (dispmap : DisplayMap.t) : DisplayMap.t =
     ) fidht dispmap
   in
   let dispmap =
-    FreeRowIDHashTable.fold (fun frid () dispmap ->
-      dispmap |> DisplayMap.add_free_row_id frid
+    FreeRowIDHashTable.fold (fun frid labset dispmap ->
+      dispmap |> DisplayMap.add_free_row_id frid labset
     ) fridht dispmap
   in
   let dispmap =
@@ -206,8 +207,8 @@ let collect_ids_poly (pty : poly_type) (dispmap : DisplayMap.t) : DisplayMap.t =
     ) bidht dispmap
   in
   let dispmap =
-    BoundRowIDHashTable.fold (fun brid () dispmap ->
-      dispmap |> DisplayMap.add_bound_row_id brid
+    BoundRowIDHashTable.fold (fun brid labset dispmap ->
+      dispmap |> DisplayMap.add_bound_row_id brid labset
     ) bridht dispmap
   in
   dispmap

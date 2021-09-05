@@ -11,9 +11,9 @@ module BoundRowIDMap = Map.Make(BoundRowID)
 type t = {
   current_max   : int;
   free_ids      : string FreeIDMap.t;
-  free_row_ids  : string FreeRowIDMap.t;
+  free_row_ids  : (string * LabelSet.t) FreeRowIDMap.t;
   bound_ids     : string BoundIDMap.t;
-  bound_row_ids : string BoundRowIDMap.t;
+  bound_row_ids : (string * LabelSet.t) BoundRowIDMap.t;
 }
 
 
@@ -54,7 +54,7 @@ let add_free_id fid dispmap =
     }
 
 
-let add_free_row_id frid dispmap =
+let add_free_row_id frid labset dispmap =
   let frids = dispmap.free_row_ids in
   if frids |> FreeRowIDMap.mem frid then
     dispmap
@@ -63,7 +63,7 @@ let add_free_row_id frid dispmap =
     let s = make_value "?'" i in
     { dispmap with
       current_max  = i + 1;
-      free_row_ids = dispmap.free_row_ids |> FreeRowIDMap.add frid s;
+      free_row_ids = dispmap.free_row_ids |> FreeRowIDMap.add frid (s, labset);
     }
 
 
@@ -80,7 +80,7 @@ let add_bound_id bid dispmap =
     }
 
 
-let add_bound_row_id brid dispmap =
+let add_bound_row_id brid labset dispmap =
   let brids = dispmap.bound_row_ids in
   if brids |> BoundRowIDMap.mem brid then
     dispmap
@@ -89,7 +89,7 @@ let add_bound_row_id brid dispmap =
     let s = make_value "?#" i in
     { dispmap with
       current_max   = i + 1;
-      bound_row_ids = brids |> BoundRowIDMap.add brid s;
+      bound_row_ids = brids |> BoundRowIDMap.add brid (s, labset);
     }
 
 
@@ -101,8 +101,8 @@ let find_free_id fid dispmap =
 
 let find_free_row_id frid dispmap =
   match dispmap.free_row_ids |> FreeRowIDMap.find_opt frid with
-  | Some(s) -> s
-  | None    -> Format.asprintf "!!%a!!" FreeRowID.pp frid
+  | Some((s, _)) -> s
+  | None         -> Format.asprintf "!!%a!!" FreeRowID.pp frid
 
 
 let find_bound_id bid dispmap =
@@ -113,8 +113,8 @@ let find_bound_id bid dispmap =
 
 let find_bound_row_id brid dispmap =
   match dispmap.bound_row_ids |> BoundRowIDMap.find_opt brid with
-  | Some(s) -> s
-  | None    -> Format.asprintf "!!%a!!" BoundRowID.pp brid
+  | Some((s, _)) -> s
+  | None         -> Format.asprintf "!!%a!!" BoundRowID.pp brid
 
 
 let make_free_id_hash_set dispmap =
@@ -127,8 +127,8 @@ let make_free_id_hash_set dispmap =
 
 let make_free_row_id_hash_set dispmap =
   let fridht = FreeRowIDHashTable.create 32 in
-  dispmap.free_row_ids |> FreeRowIDMap.iter (fun frid _ ->
-    FreeRowIDHashTable.add fridht frid ()
+  dispmap.free_row_ids |> FreeRowIDMap.iter (fun frid (_, labset) ->
+    FreeRowIDHashTable.add fridht frid labset
   );
   fridht
 
@@ -143,8 +143,8 @@ let make_bound_id_hash_set dispmap =
 
 let make_bound_row_id_hash_set dispmap =
   let bridht = BoundRowIDHashTable.create 32 in
-  dispmap.bound_row_ids |> BoundRowIDMap.iter (fun brid _ ->
-    BoundRowIDHashTable.add bridht brid ()
+  dispmap.bound_row_ids |> BoundRowIDMap.iter (fun brid (_, labset) ->
+    BoundRowIDHashTable.add bridht brid labset
   );
   bridht
 
