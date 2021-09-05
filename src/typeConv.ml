@@ -863,39 +863,29 @@ and show_poly_row_var (dispmap : DisplayMap.t) = function
   | MonoRow(mrv)   -> show_mono_row_var dispmap mrv
 
 
-and show_poly_type_sub (dispmap : DisplayMap.t) : poly_type -> string =
+and show_poly_type (dispmap : DisplayMap.t) : poly_type -> string =
   show_type (show_poly_type_var dispmap) (show_poly_row_var dispmap)
 
 
-let show_poly_row_sub (dispmap : DisplayMap.t) : poly_row -> string option =
+let show_poly_row (dispmap : DisplayMap.t) : poly_row -> string option =
   show_row ~prefix:"" ~suffix:"" (show_poly_type_var dispmap) (show_poly_row_var dispmap)
+
+
+let pp_poly_type (dispmap : DisplayMap.t) (ppf : Format.formatter) (pty : poly_type) : unit =
+  Format.fprintf ppf "%s" (show_poly_type dispmap pty)
 
 
 let show_bound_type_ids (dispmap : DisplayMap.t) =
   dispmap |> DisplayMap.fold_bound_id (fun bid sb acc ->
     Alist.extend acc (Printf.sprintf "%s :: o" sb)
-  ) Alist.empty |> Alist.to_list
+  ) Alist.empty |> Alist.to_rev_list
 
 
 let show_bound_row_ids (dispmap : DisplayMap.t) =
   dispmap |> DisplayMap.fold_bound_row_id (fun brid (sb, labset) acc ->
     let skd = labset |> LabelSet.elements |> String.concat ", " in
     Alist.extend acc (Printf.sprintf "%s :: (%s)" sb skd)
-  ) Alist.empty |> Alist.to_list
-
-
-let show_poly_type (dispmap : DisplayMap.t) (pty : poly_type) : string list * string list * string =
-  let smain = show_poly_type_sub dispmap pty in
-  let sbids = show_bound_type_ids dispmap in
-  let sbrids = show_bound_row_ids dispmap in
-  (sbids, sbrids, smain)
-
-
-let show_poly_row (dispmap : DisplayMap.t) (prow : poly_row) : string list * string list * string =
-  let smain = Option.value ~default:"(empty)" (show_poly_row_sub dispmap prow) in
-  let sbids = show_bound_type_ids dispmap in
-  let sbrids = show_bound_row_ids dispmap in
-  (sbids, sbrids, smain)
+  ) Alist.empty |> Alist.to_rev_list
 
 
 let show_base_kind (bkd : base_kind) : string =
@@ -915,8 +905,10 @@ let show_kind (kd : kind) : string =
 
 let pp_debug_poly_type ~(raw : bool) (ppf : Format.formatter) (pty : poly_type) : unit =
   let dispmap = if raw then DisplayMap.empty else DisplayMap.empty |> collect_ids_poly pty in
-  let (ss1, ss2, s3) = show_poly_type dispmap pty in
-  Format.fprintf ppf "(%s), (%s), %s" (String.concat ", " ss1) (String.concat ", " ss2) s3
+  let ss1 = show_bound_type_ids dispmap in
+  let ss2 = show_bound_row_ids dispmap in
+  let s3 = show_poly_type dispmap pty in
+  Format.fprintf ppf "<%s> <%s> %s" (String.concat ", " ss1) (String.concat ", " ss2) s3
 
 
 let pp_debug_mono_type ~(raw : bool) (ppf : Format.formatter) (ty : mono_type) : unit =

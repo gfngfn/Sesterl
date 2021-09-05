@@ -192,7 +192,7 @@ let print_free_rows_and_base_kinds (dispmap : DisplayMap.t) =
     dispmap |> DisplayMap.fold_free_row_id (fun frid (row_name, labset) acc ->
       let s = labset |> LabelSet.elements |> String.concat ", " in
       Alist.extend acc (row_name, s)
-    ) Alist.empty |> Alist.to_list
+    ) Alist.empty |> Alist.to_rev_list
   in
   match row_names with
   | [] ->
@@ -383,31 +383,6 @@ let report_type_error (e : type_error) : unit =
         Format.printf "  - %s (%a)\n" tynm Range.pp rng
       )
 
-  | CyclicTypeParameter(rng, cycle, pty) ->
-      let dispmap = make_display_map_from_poly_types [pty] in
-      let bbids =
-        match cycle with
-        | Loop(bbid)   -> [ bbid ]
-        | Cycle(bbids) -> bbids |> List2.to_list
-      in
-      Format.printf "%a:\n"
-        Range.pp rng;
-      Format.printf "  cyclic type variables:\n";
-      bbids |> List.iter (fun bbid ->
-        let sb =
-          match bbid with
-          | BoundBothID.Type(bid) -> dispmap |> DisplayMap.find_bound_id bid
-          | BoundBothID.Row(brid) -> dispmap |> DisplayMap.find_bound_row_id brid
-        in
-        Format.printf "  - %s\n"
-          sb
-      );
-      Format.printf "  in:\n";
-      let (sbids, sbrids, smain) = TypeConv.show_poly_type dispmap pty in
-      let ss = List.append sbids sbrids in
-      let sb = if List.length ss = 0 then "" else "<" ^ String.concat ", " ss ^ ">" in
-      Format.printf "  %s %s\n" sb smain
-
   | UnboundModuleName(rng, modnm) ->
       Format.printf "%a:\n"
         Range.pp rng;
@@ -448,44 +423,45 @@ let report_type_error (e : type_error) : unit =
 
   | PolymorphicContradiction(rng, x, pty1, pty2) ->
       let dispmap = make_display_map_from_poly_types [pty1; pty2] in
-      let (sbids1, sbrids1, smain1) = TypeConv.show_poly_type dispmap pty1 in
-      let (sbids2, sbrids2, smain2) = TypeConv.show_poly_type dispmap pty2 in
+      let sbids = TypeConv.show_bound_type_ids dispmap in
+      let sbrids = TypeConv.show_bound_row_ids dispmap in
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  as to value '%s', type\n"
         x;
-      Format.printf "    %s\n"
-        smain1;
+      Format.printf "    %a\n"
+        (TypeConv.pp_poly_type dispmap) pty1;
       Format.printf "  is not a subtype of\n";
-      Format.printf "    %s\n"
-        smain2;
-      print_bound_ids (List.concat [sbids1; sbrids1; sbids2; sbrids2])
+      Format.printf "    %a\n"
+        (TypeConv.pp_poly_type dispmap) pty2;
+      print_bound_ids (List.append sbids sbrids)
 
   | PolymorphicInclusion(rng, fid, pty1, pty2) ->
       let dispmap = make_display_map_from_poly_types [pty1; pty2] in
-      let (sbids1, sbrids1, smain1) = TypeConv.show_poly_type dispmap pty1 in
-      let (sbids2, sbrids2, smain2) = TypeConv.show_poly_type dispmap pty2 in
+      let sbids = TypeConv.show_bound_type_ids dispmap in
+      let sbrids = TypeConv.show_bound_row_ids dispmap in
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  type\n";
-      Format.printf "    %s\n"
-        smain1;
+      Format.printf "    %a\n"
+        (TypeConv.pp_poly_type dispmap) pty1;
       Format.printf " is inconsistent with type\n";
-      Format.printf "    %s\n"
-        smain2;
+      Format.printf "    %a\n"
+        (TypeConv.pp_poly_type dispmap) pty2;
       Format.printf "  as to type variable %s\n"
         (dispmap |> DisplayMap.find_free_id fid);
-      print_bound_ids (List.concat [sbids1; sbrids1; sbids2; sbrids2])
+      print_bound_ids (List.append sbids sbrids)
 
   | MissingRequiredValName(rng, x, pty) ->
       let dispmap = make_display_map_from_poly_types [pty] in
-      let (sbids, sbrids, smain) = TypeConv.show_poly_type dispmap pty in
+      let sbids = TypeConv.show_bound_type_ids dispmap in
+      let sbrids = TypeConv.show_bound_row_ids dispmap in
       Format.printf "%a:\n"
         Range.pp rng;
       Format.printf "  missing required value '%s' of type\n"
         x;
-      Format.printf "    %s\n"
-        smain;
+      Format.printf "    %a\n"
+        (TypeConv.pp_poly_type dispmap) pty;
       print_bound_ids (List.concat [sbids; sbrids])
 
   | MissingRequiredConstructorName(rng, ctornm, _centry) ->

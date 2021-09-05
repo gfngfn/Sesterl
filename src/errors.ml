@@ -60,7 +60,6 @@ type type_error =
   | RowParameterBoundMoreThanOnce       of Range.t * row_variable_name
   | InvalidByte                         of Range.t
   | CyclicSynonymTypeDefinition         of (type_name ranged) cycle
-  | CyclicTypeParameter                 of Range.t * BoundBothID.t cycle * poly_type
   | UnboundModuleName                   of Range.t * module_name
   | NotOfStructureType                  of Range.t * module_signature
   | NotOfFunctorType                    of Range.t * module_signature
