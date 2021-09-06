@@ -56,7 +56,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), 
 - Add option `-p` for specifying paths of external packages, which will be used mainly for the collaboration with Rebar3.
 
 ### Changed
-- Change output module names from `foo_bar_baz.erl` to `Foo.Bar.Baz.erl`.
+- Change output module names from `foo_bar_baz.erl` to `Foo.Bar.Baz.erl` (**breaking change for FFIs**).
 
 ### Fixed
 - Fix the parser about unit patterns and Boolean patterns.
