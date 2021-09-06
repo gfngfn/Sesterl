@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), 
 
 ### Changed
 - Change the typing rules for records from a record polymorphism similar to that of SML\# to a kind of row polymorphism ([PR\#39](https://github.com/gfngfn/Sesterl/pull/39); **breaking change**).
+- Change the type for the hole `~s` in patterns from `list<char>` to `binary` ([PR\#33](https://github.com/gfngfn/Sesterl/pull/33); **breaking change**).
 
 ## [0.1.5] - 2021-08-14
 ### Fixed
