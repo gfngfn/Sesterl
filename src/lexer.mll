@@ -55,7 +55,7 @@ let identifier = (small (digit | latin | "_")*)
 let constructor = (capital (digit | latin | "_")*)
 let nssymbol = ['&' '|' '=' '/' '+' '-' '.']
 let fmtdigits = (("-" digit+) | (digit*))
-let hole = ['c' 'f' 'e' 'g' 's' 'p' 'w' 'b']
+let hole = ['c' 'f' 'e' 'g' 's' 'p' 'w']
 
 rule token = parse
   | space { token lexbuf }

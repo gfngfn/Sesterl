@@ -724,9 +724,6 @@ let types_of_format (lev : int) (fmtelems : format_element list) : mono_type lis
             (rng, BaseType(FloatType))
 
         | HoleS ->
-            Primitives.list_type rng (rng, BaseType(CharType))
-
-        | HoleB ->
             (rng, BaseType(BinaryType))
 
         | HoleP

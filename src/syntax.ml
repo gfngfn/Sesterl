@@ -116,7 +116,6 @@ type format_hole =
   | HoleS  (* Strings. *)
   | HoleP
   | HoleW
-  | HoleB  (* Binaries (this is not defined in Erlang). *)
 [@@deriving show {with_path = false; } ]
 
 type format_control = {

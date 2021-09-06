@@ -133,7 +133,6 @@ let stringify_hole = function
   | HoleS -> "s"
   | HoleP -> "p"
   | HoleW -> "w"
-  | HoleB -> "s" (* Same as `HoleS`. *)
 
 
 let stringify_format_element = function
