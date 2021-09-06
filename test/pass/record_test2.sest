@@ -8,7 +8,7 @@ module RecordTest2 = struct
 
   module Api = Impl :> sig
     val record : fun() -> { foo : int, bar : bool }
-    val get_foo<$a, $b :: {foo : $a}> : fun($b) -> $a
+    val get_foo<$a, ?$b :: (foo)> : fun({ foo : $a, ?$b }) -> $a
     val get_foo2 : fun({ foo : binary, bar : float }) -> binary
   end
 

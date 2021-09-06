@@ -66,7 +66,20 @@ end with type key = string) = struct
 
   let pp ppsub ppf labmap =
     labmap |> Impl.iter (fun label v ->
-      Format.fprintf ppf "%s ->@ %a;@ " label ppsub v
+      Format.fprintf ppf "%s -> %a; " label ppsub v
+    )
+end
+
+module LabelSet : (sig
+  include Set.S
+  val pp : Format.formatter -> t -> unit
+end with type elt = label) = struct
+  module Impl = Set.Make(String)
+  include Impl
+
+  let pp ppf labset =
+    labset |> Impl.iter (fun label ->
+      Format.fprintf ppf "%s,@ " label
     )
 end
 
@@ -145,7 +158,6 @@ and manual_base_kind =
 
 and manual_base_kind_main =
   | MKindName   of kind_name
-  | MRecordKind of labeled_manual_type list
 
 and manual_type = manual_type_main ranged
 
@@ -153,7 +165,7 @@ and manual_type_main =
   | MTypeName    of type_name * manual_type list
   | MFuncType    of manual_domain_type * manual_type
   | MProductType of manual_type TupleList.t
-  | MRecordType  of labeled_manual_type list
+  | MRecordType  of manual_row
   | MEffType     of manual_domain_type * manual_type * manual_type
   | MTypeVar     of type_variable_name
   | MModProjType of untyped_module * type_name ranged * manual_type list
@@ -163,8 +175,7 @@ and manual_domain_type =
   manual_type list * labeled_manual_type list * manual_row
 
 and manual_row =
-  | MFixedRow of (label ranged * manual_type) list
-  | MRowVar   of Range.t * row_variable_name
+  | MRow of (label ranged * manual_type) list * (Range.t * row_variable_name) option
 
 and binder = identifier ranged * manual_type option
 
@@ -237,7 +248,7 @@ and type_variable_binder =
 and external_binding = {
   ext_identifier  : identifier ranged;
   ext_type_params : type_variable_binder list;
-  ext_row_params  : ((row_variable_name ranged) * labeled_manual_type list) list;
+  ext_row_params  : ((row_variable_name ranged) * (label ranged) list) list;
   ext_type_annot  : manual_type;
   ext_arity       : int;
   ext_has_option  : bool;
@@ -247,7 +258,7 @@ and external_binding = {
 and untyped_let_binding = {
   vb_identifier  : identifier ranged;
   vb_forall      : type_variable_binder list;
-  vb_forall_row  : (row_variable_name ranged * labeled_manual_type list) list;
+  vb_forall_row  : (row_variable_name ranged * (label ranged) list) list;
   vb_parameters  : binder list;
   vb_mandatories : labeled_binder list;
   vb_optionals   : labeled_optional_binder list;
@@ -326,7 +337,7 @@ and untyped_declaration =
   untyped_declaration_main ranged
 
 and untyped_declaration_main =
-  | DeclVal        of identifier ranged * type_variable_binder list * (row_variable_name ranged * (label ranged * manual_type) list) list * manual_type
+  | DeclVal        of identifier ranged * type_variable_binder list * (row_variable_name ranged * (label ranged) list) list * manual_type
   | DeclTypeOpaque of type_name ranged * manual_kind option
   | DeclModule     of module_name ranged * untyped_signature
   | DeclSig        of signature_name ranged * untyped_signature

@@ -4,7 +4,7 @@ open IntermediateSyntax
 open Env
 open Errors
 
-exception Error of type_error
+exception TypeError of type_error
 
 val typecheck_signature : address:address -> Typeenv.t -> untyped_signature -> module_signature abstracted
 

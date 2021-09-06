@@ -16,7 +16,7 @@ and ('a, 'b) typ_main =
   | TypeVar     of 'a
   | ProductType of (('a, 'b) typ) TupleList.t
   | TypeApp     of TypeID.t * (('a, 'b) typ) list
-  | RecordType  of (('a, 'b) typ) LabelAssoc.t
+  | RecordType  of ('a, 'b) row
   | PackType    of module_signature abstracted
 
 and ('a, 'b) domain_type = {
@@ -32,12 +32,13 @@ and ('a, 'b) pid_type =
   | Pid of ('a, 'b) typ
 
 and ('a, 'b) row =
-  | FixedRow of (('a, 'b) typ) LabelAssoc.t
-  | RowVar   of 'b
+  | RowCons of label ranged * (('a, 'b) typ) * ('a, 'b) row
+  | RowVar  of 'b
+  | RowEmpty
 
-and ('a, 'b) base_kind =
-  | UniversalKind
-  | RecordKind    of (('a, 'b) typ) LabelAssoc.t
+and base_kind =
+  | TypeKind
+  | RowKind  of LabelSet.t
 
 and module_signature =
   | ConcStructure of record_signature
@@ -53,9 +54,9 @@ and functor_signature = {
 and functor_domain =
   | Domain of record_signature
 
-and ('a, 'b) kind =
-  | Kind of (('a, 'b) base_kind) list * ('a, 'b) base_kind
-      (* Handles order-0 or order-1 kind only, *)
+and kind =
+  | Kind of (base_kind) list * base_kind
+      (* Handles order-0 or order-1 kind only. *)
 
 and mono_type_var_updatable =
   | Free of FreeID.t
@@ -67,7 +68,7 @@ and mono_type_var =
 
 and mono_row_var_updatable =
   | FreeRow of FreeRowID.t
-  | LinkRow of mono_type LabelAssoc.t
+  | LinkRow of mono_row
 
 and mono_row_var =
   | UpdatableRow   of mono_row_var_updatable ref
@@ -76,10 +77,6 @@ and mono_row_var =
 and mono_type = (mono_type_var, mono_row_var) typ
 
 and mono_row = (mono_type_var, mono_row_var) row
-
-and mono_kind = (mono_type_var, mono_row_var) kind
-
-and mono_base_kind = (mono_type_var, mono_row_var) base_kind
 
 and mono_effect = (mono_type_var, mono_row_var) effect
 
@@ -95,19 +92,22 @@ and poly_row_var =
 
 and poly_type = (poly_type_var, poly_row_var) typ
 
-and poly_kind = (poly_type_var, poly_row_var) kind
-
 and poly_row = (poly_type_var, poly_row_var) row
-
-and poly_base_kind = (poly_type_var, poly_row_var) base_kind
 
 and poly_domain_type = (poly_type_var, poly_row_var) domain_type
 
-and quantifier = poly_kind OpaqueIDMap.t
+and quantifier = kind OpaqueIDMap.t
 
 and 'a abstracted = quantifier * 'a
 
 val pp_module_signature : Format.formatter -> module_signature -> unit
+
+type ('a, 'b) normalized_row =
+  | NormalizedRow of (('a, 'b) typ) LabelAssoc.t * 'b option
+
+type normalized_mono_row = (mono_type_var, mono_row_var) normalized_row
+
+type normalized_poly_row = (poly_type_var, poly_row_var) normalized_row
 
 type value_entry = {
   val_type   : poly_type;
@@ -118,7 +118,7 @@ type type_scheme = BoundID.t list * poly_type
 
 type type_entry = {
   type_scheme : type_scheme;
-  type_kind   : poly_kind;
+  type_kind   : kind;
 }
 [@@deriving show { with_path = false }]
 
@@ -136,7 +136,7 @@ type constructor_entry = {
 
 type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorMap.t
 
-type local_row_parameter_map = (MustBeBoundRowID.t * poly_type LabelAssoc.t) RowParameterMap.t
+type local_row_parameter_map = (MustBeBoundRowID.t * LabelSet.t) RowParameterMap.t
 
 module Typeenv : sig
 
@@ -163,7 +163,7 @@ module Typeenv : sig
 
   val add_type : type_name -> type_entry -> t -> t
 
-  val add_opaque_id : type_name -> TypeID.t -> poly_kind -> t -> t
+  val add_opaque_id : type_name -> TypeID.t -> kind -> t -> t
 
   val find_type : type_name -> t -> type_entry option
 

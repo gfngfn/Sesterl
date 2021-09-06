@@ -4,19 +4,19 @@ import Handler
 module App = struct
 
   val start(start_type, start_args) = act
-    case
+    let error = fun(x) -> Error(Stdlib.RawValue.forget(x)) end in
+    let dispatch_res =
         Cowboy.make_dispatch_table(pack Handler : Cowboy.Handler, [
             {"/",                 {}},
             {"/users/:user_name", {}},
-        ])
-    of
-    | Error(_) ->
-        return(None)
-
+        ]) in
+    case dispatch_res of
+    | Error(e) ->
+        return(error(e))
     | Ok(dispatch) ->
         do res <- Cowboy.start_clear(-name "echo_server", -port 8080, -dispatch dispatch) in
         case res of
-        | Error(_) -> return(None)
+        | Error(e) -> return(error(e))
         | Ok(_)    -> Sup.start_link({})
         end
     end

@@ -1,9 +1,16 @@
 
+
+let semantic_version =
+  "v0.1.5"
+
+
 let config_file_name =
   "sesterl.yaml"
 
+
 let old_config_file_name =
   "package.yaml"
+
 
 let default_output_directory =
   "_generated"

@@ -1,6 +1,6 @@
 (lang dune 2.5)
 (name sesterl)
-(version 0.1.4)
+(version 0.1.5)
 
 (using menhir 1.0)
 (generate_opam_files true)
@@ -21,6 +21,7 @@
     (menhirLib (>= 20200211))
     (cmdliner (>= 1.0.4))
     (ocamlgraph (>= 1.8.8))
+    (semver2 (>= 1.2.0))
     (core (>= 0.13.0))
     (uutf (>= 1.0.2))
     (yaml (>= 2.1.0))

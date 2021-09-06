@@ -1,26 +1,31 @@
 
 type t = {
   main  : BoundID.t;
+  name  : string;
   level : int;
 }
 
 
-let fresh (lev : int) =
+let fresh (name : string) (lev : int) : t =
   let bid = BoundID.fresh () in
-  { main = bid; level = lev; }
+  { main = bid; name = name; level = lev; }
 
 
-let equal mbbid1 mbbid2 =
+let equal (mbbid1 : t) (mbbid2 : t) : bool =
   BoundID.equal mbbid1.main mbbid2.main
 
 
-let get_level mbbid =
+let get_level (mbbid : t) : int =
   mbbid.level
 
 
-let to_bound mbbid =
+let to_bound (mbbid : t) : BoundID.t =
   mbbid.main
 
 
-let pp ppf mbbid =
+let pp_rich (ppf : Format.formatter) (mbbid : t) : unit =
+  Format.fprintf ppf "%s" mbbid.name
+
+
+let pp (ppf : Format.formatter) (mbbid : t) : unit =
   Format.fprintf ppf "_%aL%d" BoundID.pp mbbid.main mbbid.level

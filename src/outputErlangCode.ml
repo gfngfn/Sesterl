@@ -1,6 +1,7 @@
 
 open MyUtil
 open Syntax
+open Env
 open IntermediateSyntax
 
 
@@ -257,7 +258,7 @@ let rec stringify_option_decoding_operation (nmap : name_map) (sname_map : strin
   ) optnamemap Alist.empty |> Alist.to_list |> String.concat ""
 
 
-and stringify_arguments (nmap : name_map) mrow ordastargs mndargmap optargmap =
+and stringify_arguments (nmap : name_map) (mrow : mono_row) (ordastargs : ast list) (mndargmap : ast LabelAssoc.t) (optargmap : ast LabelAssoc.t) =
   let iter = stringify_ast nmap in
   let astargs =
     let mndastargs =

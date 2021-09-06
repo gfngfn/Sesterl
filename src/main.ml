@@ -40,7 +40,7 @@ let catch_error (k : unit -> unit) =
       Logging.report_config_error e;
       exit 1
 
-  | Typechecker.Error(e) ->
+  | Typechecker.TypeError(e) ->
       Logging.report_type_error e;
       exit 1
 
@@ -193,7 +193,7 @@ let command_main =
     Term.(ret (const (`Error(true, "No subcommand specified."))))
   in
   let info : Term.info =
-    Term.info ~version:"0.1.4" "sesterl"
+    Term.info ~version:Constants.semantic_version "sesterl"
   in
   (term, info)
 

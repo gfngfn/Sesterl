@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Add a new field `language` to the config file format ([PR\#36](https://github.com/gfngfn/Sesterl/pull/36)).
+
+### Changed
+- Change the typing rules for records from a record polymorphism similar to that of SML\# to a kind of row polymorphism ([PR\#39](https://github.com/gfngfn/Sesterl/pull/39); **breaking change**).
+
+## [0.1.5] - 2021-08-14
+### Fixed
+- Fix an unsound type-checking behavior about record kinds ([PR\#35](https://github.com/gfngfn/Sesterl/pull/35)).
 
 ## [0.1.4] - 2021-07-15
 ### Changed
@@ -32,7 +41,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), 
 - Add the syntax `open M`.
 
 ### Changed
-- Change how to compile `None` and `Some`.
+- Change how to compile `None` and `Some` (**breaking change for FFIs**).
 
 ### Fixed
 - Largely fix the type-checking algorithm (mainly about how to track type synonyms).
@@ -47,7 +56,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), 
 - Add option `-p` for specifying paths of external packages, which will be used mainly for the collaboration with Rebar3.
 
 ### Changed
-- Change output module names from `foo_bar_baz.erl` to `Foo.Bar.Baz.erl`.
+- Change output module names from `foo_bar_baz.erl` to `Foo.Bar.Baz.erl` (**breaking change for FFIs**).
 
 ### Fixed
 - Fix the parser about unit patterns and Boolean patterns.
@@ -60,15 +69,16 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), 
 
 ### Changed
 - Change the command line spec from `sesterl <input> -o <output>` to `sesterl build <input> -o <output>`.
-- Change the syntax of effect types from `[τ]τ` to `fun(τ, …, τ) -> [τ]τ`.
-- Separate the syntax of expressions and that of computations by using the newly introduced keyword `act`.
+- Change the syntax of effect types from `[τ]τ` to `fun(τ, …, τ) -> [τ]τ` (**breaking change**).
+- Separate the syntax of expressions and that of computations by using the newly introduced keyword `act` (**breaking change**).
 
 ## 0.0.1 - 2020-10-29
 
 The initial release
 
 
-  [Unreleased]: https://github.com/gfngfn/Sesterl/compare/v0.1.4...HEAD
+  [Unreleased]: https://github.com/gfngfn/Sesterl/compare/v0.1.5...HEAD
+  [0.1.5]: https://github.com/gfngfn/Sesterl/compare/v0.1.4...v0.1.5
   [0.1.4]: https://github.com/gfngfn/Sesterl/compare/v0.1.3...v0.1.4
   [0.1.3]: https://github.com/gfngfn/Sesterl/compare/v0.1.2...v0.1.3
   [0.1.2]: https://github.com/gfngfn/Sesterl/compare/v0.1.1...v0.1.2

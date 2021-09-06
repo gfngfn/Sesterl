@@ -15,6 +15,7 @@ type config_error =
   | ConfigFileNotFound          of absolute_dir
   | SourceFileDependsOnTestFile of module_name * module_name
   | NoOutputSpecForSingleSource
+  | UnsupportedLanguageVersion  of string
 
 exception ConfigError of config_error
 
@@ -36,12 +37,16 @@ type syntax_error =
   | LexerError of lexer_error
   | ParseError of Range.t
 
+type unification_error =
+  | Contradiction
+  | Inclusion                 of FreeID.t
+  | InclusionRow              of FreeRowID.t
+  | InsufficientRowConstraint of { id : MustBeBoundRowID.t; given : LabelSet.t; required : LabelSet.t; }
+
 type type_error =
   | UnboundVariable                     of Range.t * identifier
-  | ContradictionError                  of mono_type * mono_type
-  | InclusionError                      of FreeID.t * mono_type * mono_type
-  | InclusionRowError                   of FreeRowID.t * mono_type * mono_type
-  | BadArityOfOrderedArguments          of {range : Range.t; got : int; expected : int}
+  | UnificationError                    of { actual : mono_type; expected : mono_type; detail : unification_error; }
+  | BadArityOfOrderedArguments          of { range : Range.t; got : int; expected : int; }
   | BoundMoreThanOnceInPattern          of Range.t * identifier
   | UnboundTypeParameter                of Range.t * type_variable_name
   | UnboundRowParameter                 of Range.t * row_variable_name
@@ -50,12 +55,11 @@ type type_error =
   | UndefinedTypeName                   of Range.t * type_name
   | UndefinedKindName                   of Range.t * kind_name
   | InvalidNumberOfTypeArguments        of Range.t * type_name * int * int
-  | KindContradiction                   of Range.t * type_name * poly_kind * poly_kind
+  | KindContradiction                   of Range.t * type_name * kind * kind
   | TypeParameterBoundMoreThanOnce      of Range.t * type_variable_name
   | RowParameterBoundMoreThanOnce       of Range.t * row_variable_name
   | InvalidByte                         of Range.t
   | CyclicSynonymTypeDefinition         of (type_name ranged) cycle
-  | CyclicTypeParameter                 of Range.t * BoundBothID.t cycle * poly_type
   | UnboundModuleName                   of Range.t * module_name
   | NotOfStructureType                  of Range.t * module_signature
   | NotOfFunctorType                    of Range.t * module_signature
@@ -74,9 +78,6 @@ type type_error =
   | NotASubtypeTypeDefinition           of Range.t * type_name * type_entry * type_entry
   | NotASubtypeConstructorDefinition    of Range.t * constructor_name * constructor_entry * constructor_entry
   | NotASubtypeVariant                  of Range.t * TypeID.t * TypeID.t * constructor_name
-(*
-  | NotASubtypeSynonym                  of Range.t * TypeID.Synonym.t * TypeID.Synonym.t
-*)
   | OpaqueIDExtrudesScopeViaValue       of Range.t * poly_type
   | OpaqueIDExtrudesScopeViaType        of Range.t * type_entry
   | OpaqueIDExtrudesScopeViaSignature   of Range.t * module_signature abstracted
@@ -85,8 +86,8 @@ type type_error =
   | InvalidIdentifier                   of Range.t * string
   | ConflictInSignature                 of Range.t * string
   | DuplicatedLabel                     of Range.t * label
-  | UnexpectedMandatoryLabel            of {range : Range.t; label : label}
-  | MissingMandatoryLabel               of {range : Range.t; label : label; typ : mono_type}
-  | UnexpectedOptionalLabel             of {range : Range.t; label : label}
+  | UnexpectedMandatoryLabel            of { range : Range.t; label : label; }
+  | MissingMandatoryLabel               of { range : Range.t; label : label; typ : mono_type; }
+  | UnexpectedOptionalLabel             of { range : Range.t; label : label; }
   | NullaryFormatString                 of Range.t
   | CannotFreezeNonGlobalName           of Range.t * identifier

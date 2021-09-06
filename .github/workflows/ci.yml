@@ -15,7 +15,6 @@ jobs:
           - macos-latest
           - ubuntu-latest
         ocaml-compiler:
-          - 4.10.x
           - 4.11.x
           - 4.12.x
 
@@ -41,6 +40,9 @@ jobs:
 
       - name: Build Sesterl
         run: opam exec -- make all
+
+      - name: Run unit tests
+        run: opam exec -- make test-unit
 
       - name: Run positive blackbox tests
         run: opam exec -- make test-blackbox-positive
