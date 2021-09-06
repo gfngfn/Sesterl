@@ -944,7 +944,7 @@ row-params ::=
 
 ## References
 
-* Sheng Chen and Matin Erwig. [Principal type inference for GADTs](https://doi.org/10.1145/2837614.2837665). In *Proceedings of the 43rd Annual ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL ’16)*, pp. 416–428, 2016.
+* Sheng Chen and Martin Erwig. [Principal type inference for GADTs](https://doi.org/10.1145/2837614.2837665). In *Proceedings of the 43rd Annual ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL ’16)*, pp. 416–428, 2016.
 * Martin Elsman, Troels Henriksen, Danil Annenkov, and Cosmin E. Oancea. [Static interpretation of higher-order modules in Futhark: functional GPU programming in the large](https://dl.acm.org/doi/10.1145/3236792). *Proceedings of the ACM on Programming Languages* 2, ICFP, Article 97, 2018.
 * Simon Fowler. [*Typed Concurrent Functional Programming with Channels, Actors, and Sessions*](https://era.ed.ac.uk/handle/1842/35873). PhD thesis, University of Edinburgh, 2019.
 * Benedict R. Gaster and Mark P. Jones. [A polymorphic type system for extensible records and variants](https://web.cecs.pdx.edu/~mpj/pubs/96-3.pdf). Technical Report NOTTCS-TR-96-3, 1996.
