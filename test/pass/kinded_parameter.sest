@@ -1,7 +1,7 @@
 module KindedParameter = struct
-
-  type t<$a :: {foo : int}> =
-    | HasFoo($a)
+/* (not supported yet)
+  type t<?$r :: (foo)> =
+    | HasFoo({foo : int, ?$r})
 
   val f(x) =
     case x of
@@ -13,5 +13,5 @@ module KindedParameter = struct
     | HasFoo(r) ->
         if b then r else { y | bar = b }
     end
-
+*/
 end

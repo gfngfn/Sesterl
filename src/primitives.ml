@@ -56,7 +56,7 @@ let assertion_function_type : mono_type =
     {
       ordered   = [(dr, BaseType(BinaryType)); (dr, BaseType(IntType))];
       mandatory = LabelAssoc.empty;
-      optional  = FixedRow(LabelAssoc.empty);
+      optional  = RowEmpty;
     }
   in
   (dr, FuncType(domty, (dr, BaseType(UnitType))))
@@ -64,7 +64,6 @@ let assertion_function_type : mono_type =
 
 let fresh_bound () =
   let bid = BoundID.fresh () in
-  KindStore.register_bound_id bid UniversalKind;
   (Range.dummy "primitives-bound", TypeVar(Bound(bid)))
 
 
@@ -80,7 +79,7 @@ let ( @-> ) tydoms tycod =
     {
       ordered   = tydoms;
       mandatory = LabelAssoc.empty;
-      optional  = FixedRow(LabelAssoc.empty);
+      optional  = RowEmpty;
     }
   in
   (dr, FuncType(domain, tycod))
@@ -90,7 +89,7 @@ let eff tydoms tyrcv ty0 =
     {
       ordered   = tydoms;
       mandatory = LabelAssoc.empty;
-      optional  = FixedRow(LabelAssoc.empty);
+      optional  = RowEmpty;
     }
   in
   (dr, EffType(domain, Effect(tyrcv), ty0))
@@ -361,7 +360,6 @@ let initial_environment =
     |> add_variant_types [
       begin
         let bid = BoundID.fresh () in
-        KindStore.register_bound_id bid UniversalKind;
         ("option", vid_option, [bid], [
           ("None", Some("error"), []);
           ("Some", Some("ok"),    [(dr, TypeVar(Bound(bid)))]);
@@ -370,8 +368,6 @@ let initial_environment =
       begin
         let bid_ok = BoundID.fresh () in
         let bid_error = BoundID.fresh () in
-        KindStore.register_bound_id bid_ok UniversalKind;
-        KindStore.register_bound_id bid_error UniversalKind;
         ("result", vid_result, [bid_ok; bid_error], [
           ("Ok",    None, [(dr, TypeVar(Bound(bid_ok)))]);
           ("Error", None, [(dr, TypeVar(Bound(bid_error)))]);
@@ -379,7 +375,6 @@ let initial_environment =
       end;
       begin
         let bid = BoundID.fresh () in
-        KindStore.register_bound_id bid UniversalKind;
         ("list", vid_list, [bid], [
           (* Here is no constructor definition
              because `ListNil` and `ListCons` are provided for type `untyped_ast`. *)
@@ -387,17 +382,13 @@ let initial_environment =
       end;
       begin
         let bid = BoundID.fresh () in
-        KindStore.register_bound_id bid UniversalKind;
         ("format", vid_format, [bid], [
         ])
       end;
       begin
         let bid1 = BoundID.fresh () in
-        KindStore.register_bound_id bid1 UniversalKind;
         let bid2 = BoundID.fresh () in
-        KindStore.register_bound_id bid2 UniversalKind;
         let bid3 = BoundID.fresh () in
-        KindStore.register_bound_id bid3 UniversalKind;
         ("frozen", vid_frozen, [bid1; bid2; bid3], [
         ])
       end;

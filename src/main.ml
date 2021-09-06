@@ -40,7 +40,7 @@ let catch_error (k : unit -> unit) =
       Logging.report_config_error e;
       exit 1
 
-  | Typechecker.Error(e) ->
+  | Typechecker.TypeError(e) ->
       Logging.report_type_error e;
       exit 1
 

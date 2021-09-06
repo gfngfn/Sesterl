@@ -513,12 +513,12 @@ The functions `succ` and `f` defined above are given types as follows:
 
 ```
 val succ : fun(int, ?diff int) -> int
-val f<$a, ?$r :: (?diff int)> : fun(fun(int, ?$r) -> $a) -> ($a, $a)
+val f<$a, ?$r :: (diff)> : fun(fun(int, ?diff int, ?$r) -> $a) -> ($a, $a)
 ```
 
 Here, `?diff int` signifies that `succ` can take a `?diff`-labeled optional argument of type `int`, and the absense of other labels in the same domain means that `succ` cannot take optional arguments with labels other than `?diff`.
 
-`?$r :: (?diff int)` is a *row variable* with its kind; it tracks constraints about the minimum set of optional labels that must be able to be given. This is based on an original type system that resembles SML\#’s one for record polymorphism \[Ohori 1995\] (The type system is currently not documented anywhere).
+`?$r :: (diff)` is a *row variable* with its kind; it can be instantiated with any rows that do NOT contain the label `diff`; kinds for row variables stand for the prohibited set of labels. This is based on an original type system that resembles record polymorphism \[Gaster & Jones 1996\] (The type system is currently not documented anywhere).
 
 
 ### Labeled mandatory parameters
@@ -580,7 +580,7 @@ let r = {foo = 42, bar = true} in
 r.foo  /* => 42 */
 ```
 
-In Sesterl, operations for records are made polymorphic by using the same type system as *SML\#* \[Ohori 1995\]. For example, consider the function definition below:
+In Sesterl, operations for records are made polymorphic by using the type system for extensible rows \[Gaster & Jones 1996\]. For example, consider the function definition below:
 
 ```
 val get_foo(x) = x.foo
@@ -589,10 +589,10 @@ val get_foo(x) = x.foo
 The function `get_foo` is typed like the following:
 
 ```
-val get_foo<$a, $b :: {foo : $a}> : fun($b) -> $a
+val get_foo<$a, ?$r :: (foo)> : fun({foo : $a, ?$r}) -> $a
 ```
 
-Here, `{foo : $a}` is a *kind* (i.e. “type of types”) for record types that contain at least `foo : int`. Thanks to the constraint expressed by the kind, `$b` can be instantiated by `{foo : int, bar : bool}`, `{foo : int, baz : binary}`, and so on, but not by `{bar : bool}` etc.  Then, for instance, the following program is well-typed:
+Here, `(foo)` is the kind for row variables that does NOT contain the label `foo`, similar to ones used for optional parameters. Thanks to the constraint expressed by the kind, `{foo : $a, ?$r}` can be instantiated by `{foo : int, bar : bool}`, `{foo : int, baz : binary}`, and so on, but not by `{bar : bool}` etc.  Then, for instance, the following program is well-typed:
 
 ```
 val main() =
@@ -606,24 +606,26 @@ val main() =
   get_foo({bar = true})
 ```
 
+Note: Prior to Sesterl 0.2.0, polymorphic typing for records was based on the one used in *SML\#* \[Ohori 1995\].
+
 
 ## Major differences from similar projects
 
 There have been brilliant functional languages that compile to Erlang or BEAM (i.e. bytecode for Erlang VM). Some of them are the following:
 
-* [*Elixir*](https://elixir-lang.org/) \[Valim et. al. 2011–2020\]
+* [*Elixir*](https://elixir-lang.org/) \[Valim et al. 2011–2021\]
   - Definitely the most well-known AltErlang language, and well-used in productions.
   - Compiles to Erlang AST.
   - Untyped (i.e. dynamically typed).
   - Has Ruby-like syntax.
   - Supports Lisp-like meta-programming features by quoting/unquoting.
-* [*Alpaca*](https://github.com/alpaca-lang/alpaca) \[Pierre et. al. 2016–2019\]
+* [*Alpaca*](https://github.com/alpaca-lang/alpaca) \[Pierre et al. 2016–2019\]
   - Statically typed.
   - Compiles to Core Erlang compiler IR.
   - Has static guarantee about types of messages sent or received between processes.
   - Has OCaml- or Elm-like syntax.
   - Implemented in Erlang.
-* [*Gleam*](https://github.com/gleam-lang/gleam) \[Pilfold et. al. 2018–2020\]
+* [*Gleam*](https://github.com/gleam-lang/gleam) \[Pilfold et al. 2018–2021\]
   - Statically typed.
   - Compiles to sources in Erlang.
   - Has Rust-like syntax.
@@ -740,7 +742,7 @@ E ::=
   | 'let' bind-val-local 'in' E                     # local bindings
   | 'let' pattern '=' E 'in' E                      # local bindings by the pattern matching
   | 'fun' '(' val-params ')' '->' E 'end'           # pure abstractions
-  | 'fun' '(' val-params ')' '->' 'act' K 'end'     # effectful abstractions
+  | 'fun' '(' val-params ')' '->' 'act' P 'end'     # effectful abstractions
   | 'if' E 'then' E 'else' E                        # conditionals
   | 'case' E 'of' pure-cases 'end'                  # pattern-matching expressions
   | '{' '}'                                         # the unit value
@@ -765,15 +767,15 @@ pure-cases ::=
   | ('|')? pattern '->' E ('|' pattern '->' E)*
 
 # effectful computations:
-K ::=
-  | 'do' x '<-' K 'in' K                  # sequential compositions (i.e. so-called a bind in a monadic sense)
+P ::=
+  | 'do' x '<-' P 'in' P                  # sequential compositions (i.e. so-called a bind in a monadic sense)
   | 'receive' effectful-cases 'end'       # selective receive
   | E '(' val-args ')'                    # function applications
-  | 'if' E 'then' K 'else' K              # conditionals
+  | 'if' E 'then' P 'else' P              # conditionals
   | 'case' E 'of' effectful-cases 'end'   # pattern-matching expressions
 
 effectful-cases ::=
-  | ('|')? pattern '->' K ('|' pattern '->' K)*
+  | ('|')? pattern '->' P ('|' pattern '->' P)*
 
 # sequences of arguments for function applications:
 val-args ::=
@@ -842,11 +844,16 @@ K ::=
   | '(' kd-base (',' kd-base)* (',')? ')' '->' kd-base   # order-1 kinds
 
 kd-base ::=
-  | k                                       # named base kinds (currently only 'o' is provided)
-  | '{' l '=' T (',' l '=' T)* (',')? '}'   # record kinds
+  | k      # named base kinds (currently only 'o' is provided)
+  | kd-row # row kinds
 
 kd-row ::=
-  | '(' ty-optional-doms ')'
+  | '(' labels ')'
+
+labels ::=
+  | l ',' labels
+  | l
+  | (empty)
 
 open-spec ::=
   | 'open' (X '.')* X
@@ -890,7 +897,7 @@ bind-val-local ::=
 
 bind-val-single ::=
   | x ty-quant '(' val-params ')' (':' T)? '=' E                   # function definitions
-  | x ty-quant '(' val-params ')' (':' '[' T ']' T)? '=' 'act' K   # action definitions
+  | x ty-quant '(' val-params ')' (':' '[' T ']' T)? '=' 'act' P   # action definitions
 
 bind-val-ffi ::=
   | x ty-quant ':' T '=' 'external' n ('+')? string-block  # FFI
@@ -925,7 +932,8 @@ ty-quant ::=
   | ('<' ty-params '>')?
 
 ty-params ::=
-  | $a ('::' K)? (',' ty-params)?
+  | $a ',' ty-params
+  | $a
   | row-params
 
 row-params ::=
@@ -939,6 +947,7 @@ row-params ::=
 * Sheng Chen and Matin Erwig. [Principal type inference for GADTs](https://doi.org/10.1145/2837614.2837665). In *Proceedings of the 43rd Annual ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL ’16)*, pp. 416–428, 2016.
 * Martin Elsman, Troels Henriksen, Danil Annenkov, and Cosmin E. Oancea. [Static interpretation of higher-order modules in Futhark: functional GPU programming in the large](https://dl.acm.org/doi/10.1145/3236792). *Proceedings of the ACM on Programming Languages* 2, ICFP, Article 97, 2018.
 * Simon Fowler. [*Typed Concurrent Functional Programming with Channels, Actors, and Sessions*](https://era.ed.ac.uk/handle/1842/35873). PhD thesis, University of Edinburgh, 2019.
+* Benedict R. Gaster and Mark P. Jones. [A polymorphic type system for extensible records and variants](https://web.cecs.pdx.edu/~mpj/pubs/96-3.pdf). Technical Report NOTTCS-TR-96-3, 1996.
 * Roger Hindley. The principal type-scheme of an object in combinatory logic. *Transactions of the American Mathematical Society*, **146**, pp. 29–60, 1969.
 * Robin Milner. A theory of type polymorphism in programming. *Journal of Computer and System Sciences*, **17**, pp. 348–375, 1978.
 * Atsushi Ohori. [A polymorphic record calculus and its compilation](https://dl.acm.org/doi/10.1145/218570.218572). *ACM Transactions on Programming Languages and Systems*, **17**(6), pp. 844–895, 1995.
