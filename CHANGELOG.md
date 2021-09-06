@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), 
 ### Added
 - Add a new field `language` to the config file format ([PR\#36](https://github.com/gfngfn/Sesterl/pull/36)).
 
+### Changed
+- Change the typing rules for records from a record polymorphism similar to that of SML\# to a kind of row polymorphism ([PR\#39](https://github.com/gfngfn/Sesterl/pull/39); **breaking change**).
+
 ## [0.1.5] - 2021-08-14
 ### Fixed
 - Fix an unsound type-checking behavior about record kinds ([PR\#35](https://github.com/gfngfn/Sesterl/pull/35)).
@@ -38,7 +41,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), 
 - Add the syntax `open M`.
 
 ### Changed
-- Change how to compile `None` and `Some`.
+- Change how to compile `None` and `Some` (**breaking change for FFIs**).
 
 ### Fixed
 - Largely fix the type-checking algorithm (mainly about how to track type synonyms).
@@ -66,8 +69,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), 
 
 ### Changed
 - Change the command line spec from `sesterl <input> -o <output>` to `sesterl build <input> -o <output>`.
-- Change the syntax of effect types from `[τ]τ` to `fun(τ, …, τ) -> [τ]τ`.
-- Separate the syntax of expressions and that of computations by using the newly introduced keyword `act`.
+- Change the syntax of effect types from `[τ]τ` to `fun(τ, …, τ) -> [τ]τ` (**breaking change**).
+- Separate the syntax of expressions and that of computations by using the newly introduced keyword `act` (**breaking change**).
 
 ## 0.0.1 - 2020-10-29
 
