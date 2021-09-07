@@ -13,6 +13,7 @@ else
         GNU_SED="sed"
     else
         echo "GNU sed is not installed. Stop."
+        exit 1
     fi
 fi
 
