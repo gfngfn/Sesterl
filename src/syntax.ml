@@ -333,7 +333,7 @@ and untyped_signature_main =
   | SigWith    of untyped_signature * (module_name ranged) list * type_binding list
 
 and untyped_declaration =
-  untyped_declaration_main ranged
+  (attribute list * untyped_declaration_main) ranged
 
 and untyped_declaration_main =
   | DeclVal        of identifier ranged * type_variable_binder list * (row_variable_name ranged * (label ranged) list) list * manual_type

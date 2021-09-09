@@ -77,7 +77,7 @@
       (* TODO: fix such an ad-hoc insertion of kinds *)
 
 
-  let decl_type_transparent tokL tybinds : untyped_declaration =
+  let decl_type_transparent tokL tybinds : untyped_declaration_main ranged =
     let rng = Range.dummy "decl_type_transparent" in  (* TODO: give appropriate code ranges *)
     let dr = Range.dummy "decl_type_transparent" in
     let decls : untyped_declaration list =
@@ -89,7 +89,7 @@
           )
         in
         let mnkd = (dr, MKind(mnbkddoms, base_kind_o)) in
-        (dr, DeclTypeOpaque(tyident, Some(mnkd)))
+        (dr, ([], DeclTypeOpaque(tyident, Some(mnkd))))
       )
     in
     (rng, DeclInclude((dr, SigWith((dr, SigDecls([], decls)), [], tybinds))))
@@ -128,6 +128,7 @@
 %type<Range.t * Syntax.internal_or_external> bindvaltop
 %type<Syntax.rec_or_nonrec> bindvallocal
 %type<Syntax.untyped_module> modexprbot
+%type<Syntax.untyped_declaration> decl
 
 %%
 main:
@@ -335,6 +336,11 @@ tyannot:
   | COLON; mty=ty { Some(mty) }
 ;
 decl:
+  | attrs=list(attr); d=declmain {
+      let (rng, declmain) = d in
+      (rng, (attrs, declmain))
+    }
+declmain:
   | tokL=VAL; ident=LOWER; tyrowparams=typarams; COLON; mty=ty {
       let (typarams, rowparams) = tyrowparams in
       let rng = make_range (Token(tokL)) (Ranged(mty)) in

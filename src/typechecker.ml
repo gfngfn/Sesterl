@@ -3096,7 +3096,9 @@ and substitute_poly_type ~(cause : Range.t) (subst : substitution) (pty : poly_t
 
 
 and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
-  let (_, utdeclmain) = utdecl in
+  let (_, (attrs, utdeclmain)) = utdecl in
+  let (declattr, warnings) = DeclarationAttribute.decode attrs in
+  warnings |> List.iter Logging.warn_invalid_attribute;
   match utdeclmain with
   | DeclVal((_, x), typarams, rowparams, mty) ->
       let pre =
