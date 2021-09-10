@@ -5,9 +5,10 @@ open Env
 
 
 type document_tree_element =
-  | DocModule of module_name * document_tree_signature * string option
   | DocVal    of identifier * poly_type * string option
-  | DocType   of type_name
+  | DocType   of type_name * type_scheme
+  | DocModule of module_name * document_tree_signature * string option
+  | DocSig    of signature_name * document_tree_signature
 
 and document_tree_signature =
   | DocStructure of document_tree_element list
@@ -38,12 +39,16 @@ and traverse_structure (sigr : SigRecord.t) : document_tree_element list =
       )
       ~c:(fun _ _ acc -> acc)
       ~f:(fun _ _ acc -> acc)
-      ~t:(fun _tynm _tentry acc -> acc)  (* TODO *)
-      ~m:(fun modnm mentry acc ->
-        let doctr = traverse_signature mentry.mod_signature in
-        Alist.extend acc (DocModule(modnm, doctr, None))
+      ~t:(fun tynm tentry acc ->
+        Alist.extend acc (DocType(tynm, tentry.type_scheme))
       )
-      ~s:(fun _signm _sentry acc -> acc)  (* TODO *)
+      ~m:(fun modnm mentry acc ->
+        let docelems = traverse_signature mentry.mod_signature in
+        Alist.extend acc (DocModule(modnm, docelems, None))
+      )
+      ~s:(fun signm (_, modsig) acc ->
+        let docsig = traverse_signature modsig in
+        Alist.extend acc (DocSig(signm, docsig)))
       Alist.empty
   in
   acc |> Alist.to_list
