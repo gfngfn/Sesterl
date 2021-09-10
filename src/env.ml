@@ -63,6 +63,7 @@ and env_value_entry = {
 and value_entry = {
   val_type   : poly_type;
   val_global : global_name;
+  val_doc    : string option;
 }
 
 and type_scheme = BoundID.t list * poly_type

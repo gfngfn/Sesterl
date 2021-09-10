@@ -11,6 +11,8 @@ module SigRecordMap = Map.Make(String)
 type sig_record_map = (SigRecord.t abstracted * space_name) SigRecordMap.t
 
 type single_output = {
+  module_name : module_name;
+  signature   : SigRecord.t abstracted;
   space_name  : space_name;
   attribute   : ModuleAttribute.t;
   bindings    : binding list;
@@ -44,12 +46,11 @@ let check_single (is_verbose : bool) ~check_public_signature:(check_public_signa
     utsigopt |> Option.map (Typechecker.typecheck_signature ~address:Alist.empty tyenv_for_sig)
   in
   let (_, abssigr, sname, (modattr, ibinds)) = Typechecker.main tyenv_for_mod modident absmodsigopt utmod in
-(*
-  let (_, sigr) = abssigr in
-  if is_verbose then display_top_structure modident sigr;
-*)
   let out =
+    let (_, modnm) = modident in
     {
+      module_name = modnm;
+      signature   = abssigr;
       space_name  = sname;
       attribute   = modattr;
       bindings    = ibinds;

@@ -112,6 +112,7 @@ type normalized_poly_row = (poly_type_var, poly_row_var) normalized_row
 type value_entry = {
   val_type   : poly_type;
   val_global : global_name;
+  val_doc    : string option;
 }
 
 type type_scheme = BoundID.t list * poly_type

@@ -3116,7 +3116,13 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       let ty = decode_manual_type pre mty in
       let pty = TypeConv.generalize 0 ty in
       let gname = OutputIdentifier.fresh_global_dummy () in
-      let ventry = { val_type = pty; val_global = gname } in
+      let ventry =
+        {
+          val_type   = pty;
+          val_global = gname;
+          val_doc    = declattr.doc;
+        }
+      in
       let sigr = SigRecord.empty |> SigRecord.add_value x ventry in
       (OpaqueIDMap.empty, sigr)
 
@@ -3422,7 +3428,16 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
         let is_test_suite = valattr.is_test_suite in
         generate_global_name ~is_test_suite ~arity:arity ~has_option:has_option rngv x
       in
-      let sigr = SigRecord.empty |> SigRecord.add_value x { val_type = pty; val_global = gname } in
+      let sigr =
+        let ventry =
+          {
+            val_type   = pty;
+            val_global = gname;
+            val_doc    = None;
+          }
+        in
+        SigRecord.empty |> SigRecord.add_value x ventry
+      in
       let ibinds = [ IBindVal(IExternal(gname, extbind.ext_code)) ] in
       ((OpaqueIDMap.empty, sigr), (ModuleAttribute.empty, ibinds))
 
@@ -3448,7 +3463,14 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
             let recbinds = typecheck_letrec_mutual (global_name_scheme is_test_suite) proj pre_init valbinds in
             let (sigr, irecbindacc) =
               recbinds |> List.fold_left (fun (sigr, irecbindacc) (x, pty, gname_outer, _, e) ->
-                let sigr = sigr |> SigRecord.add_value x { val_type = pty; val_global = gname_outer } in
+                let ventry =
+                  {
+                    val_type   = pty;
+                    val_global = gname_outer;
+                    val_doc    = None;
+                  }
+                in
+                let sigr = sigr |> SigRecord.add_value x ventry in
                 let irecbindacc = Alist.extend irecbindacc (x, gname_outer, pty, e) in
                 (sigr, irecbindacc)
               ) (SigRecord.empty, Alist.empty)
@@ -3463,7 +3485,16 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
               typecheck_let gnamef pre_init valbind
             in
             let (_, x) = valbind.vb_identifier in
-            let sigr = SigRecord.empty |> SigRecord.add_value x { val_type = pty; val_global = gname } in
+            let sigr =
+              let ventry =
+                {
+                  val_type   = pty;
+                  val_global = gname;
+                  val_doc    = None;
+                }
+              in
+              SigRecord.empty |> SigRecord.add_value x ventry
+            in
             (sigr, INonRec(x, gname, pty, e))
       in
       let ibinds = [ IBindVal(i_rec_or_nonrec) ] in
