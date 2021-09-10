@@ -54,7 +54,8 @@ and traverse_structure (sigr : SigRecord.t) : document_tree_element list =
   acc |> Alist.to_list
 
 
-let stringify_document_tree (address : module_name Alist.t) (docelems : document_tree_element list) : string list =
+let rec stringify_document_tree (depth : int) (docelems : document_tree_element list) : string list =
+  let indent = String.make (depth * 2) ' ' in
   docelems |> List.map (function
   | DocVal(x, pty, doc_opt) ->
       let dispmap = DisplayMap.empty |> TypeConv.collect_ids_poly pty in
@@ -75,7 +76,7 @@ let stringify_document_tree (address : module_name Alist.t) (docelems : document
         | [] -> ""
         | ss -> "<" ^ (String.concat ", " ss) ^ ">"
       in
-      let s_main = Printf.sprintf "val %s%s : %s" x sq sty in
+      let s_main = Printf.sprintf "%sval %s%s : %s" indent x sq sty in
       begin
         match doc_opt with
         | None      -> [ s_main ]
@@ -83,14 +84,34 @@ let stringify_document_tree (address : module_name Alist.t) (docelems : document
       end
 
   | DocType(tynm, _) ->
-      [ Printf.sprintf "type %s" tynm ]
+      [ Printf.sprintf "%stype %s" indent tynm ]
 
   | DocModule(modnm, docsig) ->
-      [ Printf.sprintf "module %s :" modnm ]
+      let ss = docsig |> stringify_document_signature (depth + 1) in
+      (Printf.sprintf "%smodule %s :" indent modnm) :: ss
 
   | DocSig(signm, _docelems) ->
-      [ Printf.sprintf "signature %s" signm ]
+      [ Printf.sprintf "%ssignature %s" indent signm ]
   ) |> List.concat
+
+and stringify_document_signature (depth : int) (docsig : document_tree_signature) : string list =
+  let indent = String.make (depth * 2) ' ' in
+  match docsig with
+  | DocStructure(docelems) ->
+      List.concat [
+        [ Printf.sprintf "%ssig" indent ];
+        docelems |> stringify_document_tree (depth + 1);
+        [ Printf.sprintf "%send" indent ];
+      ]
+
+  | DocFunctor{ parameter = docelems; body = docsig } ->
+      List.concat [
+        [ Printf.sprintf "%sfun(sig" indent ];
+        docelems |> stringify_document_tree (depth + 1);
+        [ Printf.sprintf "%send) ->" indent ];
+        docsig |> stringify_document_signature (depth + 1);
+      ]
+
 
 
 let single (out : PackageChecker.single_output) =
@@ -100,7 +121,7 @@ let single (out : PackageChecker.single_output) =
 
 let main (absdir_doc_out : absolute_path) (outs : PackageChecker.single_output list) : unit =
   let docelems = outs |> List.map single in
-  let ss = docelems |> stringify_document_tree Alist.empty in
+  let ss = docelems |> stringify_document_tree 0 in
   print_endline "!!! -------- DocumentGenerator --------";
   ss |> List.iter print_endline;
   print_endline "!!! -------- --------"

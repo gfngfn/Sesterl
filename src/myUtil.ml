@@ -7,6 +7,7 @@ module Alist : sig
   val empty : 'a t
   val extend : 'a t -> 'a -> 'a t
   val append : 'a t -> 'a list -> 'a t
+  val length : 'a t -> int
   val to_list : 'a t -> 'a list
   val to_rev_list : 'a t -> 'a list
   val from_list : 'a list -> 'a t
@@ -20,6 +21,8 @@ end = struct
   let extend acc x = x :: acc
 
   let append acc xs = List.rev_append xs acc
+
+  let length acc = List.length acc
 
   let to_list = List.rev
 
