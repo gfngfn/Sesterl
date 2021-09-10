@@ -120,15 +120,17 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
     Core.Unix.mkdir_p absdir_test_out;
     let (_, gmap) = Primitives.initial_environment in
     pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, outs) ->
+      DocumentGenerator.main absdir_doc_out outs;
       outs |> List.fold_left (fun gmap out ->
         let sname = out.PackageChecker.space_name in
         let imod = (out.PackageChecker.attribute, out.PackageChecker.bindings) in
-        if out.PackageChecker.is_for_test then
-          OutputErlangCode.main spec absdir_test_out gmap ~package_name:pkgnameopt ~module_name:sname imod
-        else begin
-          DocumentGenerator.main absdir_doc_out outs;
-          OutputErlangCode.main spec absdir_out gmap ~package_name:pkgnameopt ~module_name:sname imod
-        end
+        let absdir =
+          if out.PackageChecker.is_for_test then
+            absdir_test_out
+          else
+            absdir_out
+        in
+        OutputErlangCode.main spec absdir gmap ~package_name:pkgnameopt ~module_name:sname imod
       ) gmap
     ) gmap |> ignore;
     OutputErlangCode.write_primitive_module absdir_out
