@@ -104,8 +104,8 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
     let (_, pkgoutsacc) =
       pkgs |> List.fold_left (fun (tyenv, outsacc) pkg ->
         let (pkgnameopt, submods, mainmod) = pkg in
-        let (tyenv, outs) = PackageChecker.main is_verbose tyenv submods mainmod in
-        (tyenv, Alist.extend outsacc (pkgnameopt, outs))
+        let (tyenv, subouts, mainout) = PackageChecker.main is_verbose tyenv submods mainmod in
+        (tyenv, Alist.extend outsacc (pkgnameopt, subouts, mainout))
       ) (tyenv, Alist.empty)
     in
 
@@ -119,7 +119,7 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
     Core.Unix.mkdir_p absdir_out;
     Core.Unix.mkdir_p absdir_test_out;
     let (_, gmap) = Primitives.initial_environment in
-    pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, outs) ->
+    pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, subouts, mainout) ->
       absdir_doc_out_opt |> Option.map (fun absdir_doc_out ->
         Core.Unix.mkdir_p absdir_doc_out;
         let abspath_doc_out =
@@ -131,8 +131,9 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
               let relpath = Printf.sprintf "%s.txt" (OutputIdentifier.output_space_to_snake pkgname) in
               append_path absdir_doc_out (RelativePath(relpath))
         in
-        DocumentGenerator.main abspath_doc_out outs
+        DocumentGenerator.main abspath_doc_out mainout
       ) |> ignore;
+      let outs = List.append subouts [ mainout ] in
       outs |> List.fold_left (fun gmap out ->
         let sname = out.PackageChecker.space_name in
         let imod = (out.PackageChecker.attribute, out.PackageChecker.bindings) in

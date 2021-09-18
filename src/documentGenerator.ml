@@ -118,9 +118,9 @@ let single (out : PackageChecker.single_output) =
   DocModule(out.module_name, DocStructure(traverse_structure sigr))
 
 
-let main (abspath_doc_out : absolute_path) (outs : PackageChecker.single_output list) : unit =
-  let docelems = outs |> List.map single in
-  let lines = docelems |> List.map (stringify_document_element 0) |> List.concat in
+let main (abspath_doc_out : absolute_path) (out : PackageChecker.single_output) : unit =
+  let docelem = single out in
+  let lines = stringify_document_element 0 docelem in
   let fout = open_out abspath_doc_out in
   lines |> List.iter (fun line ->
     output_string fout line;
