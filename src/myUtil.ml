@@ -100,6 +100,10 @@ let append_dir (absdir : absolute_dir) (RelativeDir(reldir) : relative_dir) : ab
   Filename.concat absdir reldir
 
 
+let append_path (absdir : absolute_dir) (RelativePath(relpath) : relative_path) : absolute_path =
+  Filename.concat absdir relpath
+
+
 let canonicalize_path (abspath : absolute_path) : absolute_path option =
   try
     Some(Core.Filename.realpath abspath)

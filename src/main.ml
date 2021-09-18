@@ -121,14 +121,17 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
     let (_, gmap) = Primitives.initial_environment in
     pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, outs) ->
       absdir_doc_out_opt |> Option.map (fun absdir_doc_out ->
-        let absdir_doc_out_for_package =
+        Core.Unix.mkdir_p absdir_doc_out;
+        let abspath_doc_out =
           match pkgnameopt with
-          | None          -> absdir_doc_out
+          | None ->
+              append_path absdir_doc_out (RelativePath("doc.txt"))
+
           | Some(pkgname) ->
-              let fname = Printf.sprintf "%s.txt" (OutputIdentifier.output_space_to_snake pkgname) in
-              append_dir absdir_doc_out (RelativeDir(fname))
+              let relpath = Printf.sprintf "%s.txt" (OutputIdentifier.output_space_to_snake pkgname) in
+              append_path absdir_doc_out (RelativePath(relpath))
         in
-        DocumentGenerator.main absdir_doc_out_for_package outs
+        DocumentGenerator.main abspath_doc_out outs
       ) |> ignore;
       outs |> List.fold_left (fun gmap out ->
         let sname = out.PackageChecker.space_name in

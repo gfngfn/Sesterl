@@ -121,17 +121,10 @@ let single (out : PackageChecker.single_output) =
 let main (abspath_doc_out : absolute_path) (outs : PackageChecker.single_output list) : unit =
   let docelems = outs |> List.map single in
   let lines = docelems |> List.map (stringify_document_element 0) |> List.concat in
-(*
   let fout = open_out abspath_doc_out in
-*)
   lines |> List.iter (fun line ->
-    print_endline line
-(*
     output_string fout line;
     output_string fout "\n"
-*)
   );
-(*
   close_out fout;
-*)
   Logging.output_written abspath_doc_out
