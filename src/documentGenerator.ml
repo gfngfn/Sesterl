@@ -55,11 +55,12 @@ and traverse_structure (sigr : SigRecord.t) : document_tree_element list =
 
 
 let rec stringify_document_element (depth : int) (docelem : document_tree_element) : string list =
+  let spec = TypeConv.display_spec_html in
   let indent = String.make (depth * 2) ' ' in
   match docelem with
   | DocVal(x, pty, doc_opt) ->
       let dispmap = DisplayMap.empty |> TypeConv.collect_ids_poly pty in
-      let sty = Format.asprintf "%a" (TypeConv.pp_poly_type dispmap) pty in
+      let sty = Format.asprintf "%a" (TypeConv.pp_poly_type ~spec dispmap) pty in
       let sq =
         let acc =
           dispmap |> DisplayMap.fold_bound_id (fun bid name acc ->
@@ -74,41 +75,59 @@ let rec stringify_document_element (depth : int) (docelem : document_tree_elemen
         in
         match Alist.to_list acc with
         | [] -> ""
-        | ss -> "<" ^ (String.concat ", " ss) ^ ">"
+        | ss -> Printf.sprintf "&lt;%s&gt;" (String.concat ", " ss)
       in
-      let s_main = Printf.sprintf "%sval %s%s : %s" indent x sq sty in
-      begin
+      let s_doc =
         match doc_opt with
-        | None      -> [ s_main ]
-        | Some(doc) -> [ s_main; doc ]
-      end
+        | None      -> ""
+        | Some(doc) -> Printf.sprintf "<div>%s</div>" doc
+      in
+      [ Printf.sprintf "%s<li><span>%s %s%s : %s</span>%s</li>" indent (spec.token "val") x sq sty s_doc ]
 
   | DocType(tynm, _) ->
-      [ Printf.sprintf "%stype %s" indent tynm ]
+      [ Printf.sprintf "%s<li><span>%s %s</span></li>" indent (spec.token "type") tynm ]
 
   | DocModule(modnm, docsig) ->
       let ss = docsig |> stringify_document_signature (depth + 1) in
-      (Printf.sprintf "%smodule %s :" indent modnm) :: ss
+      List.concat [
+        [
+          Printf.sprintf "%s<li>%s %s :" indent (spec.token "module") modnm;
+        ];
+        ss;
+      ]
 
   | DocSig(signm, _docelems) ->
-      [ Printf.sprintf "%ssignature %s" indent signm ]
+      [ Printf.sprintf "%s<li>%s %s</li>" indent (spec.token "signature") signm ]
 
 
 and stringify_document_signature (depth : int) (docsig : document_tree_signature) : string list =
+  let spec = TypeConv.display_spec_html in
   let indent = String.make (depth * 2) ' ' in
   match docsig with
   | DocStructure(docelems) ->
       List.concat [
-        [ Printf.sprintf "%ssig" indent ];
+        [
+          Printf.sprintf "%s%s" indent (spec.token "sig");
+          Printf.sprintf "%s<ul>" indent;
+        ];
         docelems |> List.map (stringify_document_element (depth + 1)) |> List.concat;
-        [ Printf.sprintf "%send" indent ];
+        [
+          Printf.sprintf "%s</ul>" indent;
+          Printf.sprintf "%s%s" indent (spec.token "end");
+        ];
       ]
 
   | DocFunctor{ parameter = docelems; body = docsig } ->
       List.concat [
-        [ Printf.sprintf "%sfun(sig" indent ];
+        [
+          Printf.sprintf "%s%s(%s" indent (spec.token "fun") (spec.token "sig");
+          Printf.sprintf "%s<ul>" indent;
+        ];
         docelems |> List.map (stringify_document_element (depth + 1)) |> List.concat;
-        [ Printf.sprintf "%send) ->" indent ];
+        [
+          Printf.sprintf "%s</ul>" indent;
+          Printf.sprintf "%s%s) ->" indent (spec.token "end");
+        ];
         docsig |> stringify_document_signature (depth + 1);
       ]
 
@@ -120,7 +139,21 @@ let single (out : PackageChecker.single_output) =
 
 let main (abspath_doc_out : absolute_path) (out : PackageChecker.single_output) : unit =
   let docelem = single out in
-  let lines = stringify_document_element 0 docelem in
+  let lines =
+    List.concat [
+      [
+        "<!DOCTYPE html>";
+        "<html>";
+        Printf.sprintf "<head><title>%s</title></head>" out.module_name;
+        "<body><ul>";
+      ];
+      stringify_document_element 0 docelem;
+      [
+        "</ul></body>";
+        "</html>";
+      ];
+    ]
+  in
   let fout = open_out abspath_doc_out in
   lines |> List.iter (fun line ->
     output_string fout line;

@@ -677,6 +677,33 @@ let rec canonicalize_root = function
       ty
 
 
+type display_spec = {
+  token   : string -> string;
+  arrow   : string;
+  paren   : string -> string;
+  bracket : string -> string;
+  angle   : string -> string;
+}
+
+
+let display_spec_tty = {
+  token   = (fun s -> s);
+  arrow   = "->";
+  paren   = (fun s -> Printf.sprintf "(%s)" s);
+  bracket = (fun s -> Printf.sprintf "[%s]" s);
+  angle   = (fun s -> Printf.sprintf "<%s>" s);
+}
+
+
+let display_spec_html = {
+  token   = (fun s -> Printf.sprintf "<span style=\"color: #0000AA;\">%s</span>" s);
+  arrow   = "-&gt;";
+  paren   = (fun s -> Printf.sprintf "(%s)" s);
+  bracket = (fun s -> Printf.sprintf "[%s]" s);
+  angle   = (fun s -> Printf.sprintf "&lt;%s&gt;" s);
+}
+
+
 let show_base_type = function
   | UnitType   -> "unit"
   | BoolType   -> "bool"
@@ -686,32 +713,32 @@ let show_base_type = function
   | CharType   -> "char"
 
 
-let rec show_label_assoc : 'a 'b. prefix:string -> suffix:string -> ('a -> string) -> ('b -> string option) -> (('a, 'b) typ) LabelAssoc.t -> string option =
-fun ~prefix:prefix ~suffix:suffix showtv showrv labmap ->
+let rec show_label_assoc : 'a 'b. prefix:string -> suffix:string -> display_spec -> ('a -> string) -> ('b -> string option) -> (('a, 'b) typ) LabelAssoc.t -> string option =
+fun ~prefix:prefix ~suffix:suffix spec showtv showrv labmap ->
   if LabelAssoc.cardinal labmap = 0 then
     None
   else
     let s =
       LabelAssoc.fold (fun label ty acc ->
-        let sty = show_type showtv showrv ty in
+        let sty = show_type spec showtv showrv ty in
         Alist.extend acc (prefix ^ label ^ suffix ^ " " ^ sty)
       ) labmap Alist.empty |> Alist.to_list |> String.concat ", "
     in
     Some(s)
 
 
-and show_domain : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) domain_type -> string =
-fun showtv showrv domain ->
-  let sdoms = domain.ordered |> List.map (show_type showtv showrv) in
+and show_domain : 'a 'b. display_spec -> ('a -> string) -> ('b -> string option) -> ('a, 'b) domain_type -> string =
+fun spec showtv showrv domain ->
+  let sdoms = domain.ordered |> List.map (show_type spec showtv showrv) in
   let sdomscat = String.concat ", " sdoms in
   let is_ord_empty = (List.length sdoms = 0) in
   let (is_mnds_empty, smnds) =
-    match show_label_assoc ~prefix:"-" ~suffix:"" showtv showrv domain.mandatory with
+    match show_label_assoc ~prefix:"-" ~suffix:"" spec showtv showrv domain.mandatory with
     | None    -> (true, "")
     | Some(s) -> (false, s)
   in
   let (is_opts_empty, sopts) =
-    match show_row ~prefix:"?" ~suffix:"" showtv showrv domain.optional with
+    match show_row ~prefix:"?" ~suffix:"" spec showtv showrv domain.optional with
     | None    -> (true, "")
     | Some(s) -> (false, s)
   in
@@ -731,29 +758,29 @@ fun showtv showrv domain ->
     sdomscat smid1 smnds smid2 sopts
 
 
-and show_type : 'a 'b. ('a -> string) -> ('b -> string option) -> ('a, 'b) typ -> string =
-fun showtv showrv ty ->
+and show_type : 'a 'b. display_spec -> ('a -> string) -> ('b -> string option) -> ('a, 'b) typ -> string =
+fun spec showtv showrv ty ->
   let rec aux (_, tymain) =
     match tymain with
     | BaseType(bty) ->
         show_base_type bty
 
     | FuncType(domain, tycod) ->
-        let sdom = show_domain showtv showrv domain in
+        let sdom = show_domain spec showtv showrv domain in
         let scod = aux tycod in
-        Printf.sprintf "fun(%s) -> %s"
-           sdom scod
+        Printf.sprintf "%s%s %s %s"
+           (spec.token "fun") (spec.paren sdom) spec.arrow scod
 
     | EffType(domain, eff, ty0) ->
-        let sdom = show_domain showtv showrv domain in
+        let sdom = show_domain spec showtv showrv domain in
         let seff = aux_effect eff in
         let s0 = aux ty0 in
-        Printf.sprintf "fun(%s) -> %s%s"
-          sdom seff s0
+        Printf.sprintf "%s%s %s %s%s"
+          (spec.token "fun") (spec.paren sdom) spec.arrow seff s0
 
     | PidType(pidty) ->
         let spid = aux_pid_type pidty in
-        "pid<" ^ spid ^ ">"
+        Printf.sprintf "pid%s" (spec.angle spid)
 
     | TypeVar(tv) ->
         showtv tv
@@ -764,7 +791,7 @@ fun showtv showrv ty ->
 
     | RecordType(row) ->
         begin
-          match show_row ~prefix:"" ~suffix:" :" showtv showrv row with
+          match show_row ~prefix:"" ~suffix:" :" spec showtv showrv row with
           | None    -> "{}"
           | Some(s) -> Printf.sprintf "{%s}" s
         end
@@ -777,7 +804,7 @@ fun showtv showrv ty ->
 
           | _ :: _ ->
               let ss = tyargs |> List.map aux in
-              Format.asprintf "%a<%s>" TypeID.pp tyid (String.concat ", " ss)
+              Format.asprintf "%a%s" TypeID.pp tyid (spec.angle (String.concat ", " ss))
         end
 
     | PackType(_absmodsig) ->
@@ -785,7 +812,7 @@ fun showtv showrv ty ->
 
   and aux_effect (Effect(ty)) =
     let s = aux ty in
-    "[" ^ s ^ "]"
+    spec.bracket s
 
   and aux_pid_type (Pid(ty)) =
     aux ty
@@ -793,10 +820,10 @@ fun showtv showrv ty ->
   aux ty
 
 
-and show_row : 'a 'b. prefix:string -> suffix:string -> ('a -> string) -> ('b -> string option) -> ('a, 'b) row -> string option =
-fun ~prefix ~suffix showtv showrv row ->
+and show_row : 'a 'b. prefix:string -> suffix:string -> display_spec -> ('a -> string) -> ('b -> string option) -> ('a, 'b) row -> string option =
+fun ~prefix ~suffix spec showtv showrv row ->
   let NormalizedRow(labmap, rowvar_opt) = normalize_row_general row in
-  let smain_opt = labmap |> show_label_assoc ~prefix ~suffix showtv showrv in
+  let smain_opt = labmap |> show_label_assoc ~prefix ~suffix spec showtv showrv in
   let svar_opt =
     match rowvar_opt with
     | Some(rv) -> showrv rv
@@ -809,70 +836,70 @@ fun ~prefix ~suffix showtv showrv row ->
   | (None, None)              -> None
 
 
-and show_mono_type_var (dispmap : DisplayMap.t) (mtv : mono_type_var) : string =
+and show_mono_type_var (spec : display_spec) (dispmap : DisplayMap.t) (mtv : mono_type_var) : string =
   match mtv with
   | MustBeBound(mbbid) -> Format.asprintf "%a" MustBeBoundID.pp_rich mbbid
-  | Updatable(mtvu)    -> show_mono_type_var_updatable dispmap !mtvu
+  | Updatable(mtvu)    -> show_mono_type_var_updatable spec dispmap !mtvu
 
 
-and show_mono_type_var_updatable (dispmap : DisplayMap.t) (mtvu : mono_type_var_updatable) : string =
+and show_mono_type_var_updatable (spec : display_spec) (dispmap : DisplayMap.t) (mtvu : mono_type_var_updatable) : string =
   match mtvu with
-  | Link(ty)  -> show_type (show_mono_type_var dispmap) (show_mono_row_var dispmap) ty
+  | Link(ty)  -> show_type spec (show_mono_type_var spec dispmap) (show_mono_row_var spec dispmap) ty
   | Free(fid) -> dispmap |> DisplayMap.find_free_id fid
 
 
-and show_mono_row_var (dispmap : DisplayMap.t) (mrv : mono_row_var) : string option =
+and show_mono_row_var (spec : display_spec) (dispmap : DisplayMap.t) (mrv : mono_row_var) : string option =
   match mrv with
-  | UpdatableRow(mrvu)     -> show_mono_row_var_updatable dispmap !mrvu
+  | UpdatableRow(mrvu)     -> show_mono_row_var_updatable spec dispmap !mrvu
   | MustBeBoundRow(mbbrid) -> Some(Format.asprintf "%a" MustBeBoundRowID.pp_rich mbbrid)
 
 
-and show_mono_row_var_updatable (dispmap : DisplayMap.t) (mrvu : mono_row_var_updatable) : string option =
+and show_mono_row_var_updatable (spec : display_spec) (dispmap : DisplayMap.t) (mrvu : mono_row_var_updatable) : string option =
   match mrvu with
   | LinkRow(row) ->
-      show_row ~prefix:"?" ~suffix:"" (show_mono_type_var dispmap) (show_mono_row_var dispmap) row
+      show_row ~prefix:"?" ~suffix:"" spec (show_mono_type_var spec dispmap) (show_mono_row_var spec dispmap) row
 
   | FreeRow(frid) ->
       let s = dispmap |> DisplayMap.find_free_row_id frid in
       Some(s)
 
 
-let show_mono_type (dispmap : DisplayMap.t) : mono_type -> string =
-  show_type (show_mono_type_var dispmap) (show_mono_row_var dispmap)
+let show_mono_type ?(spec : display_spec = display_spec_tty) (dispmap : DisplayMap.t) : mono_type -> string =
+  show_type spec (show_mono_type_var spec dispmap) (show_mono_row_var spec dispmap)
 
 
-let show_mono_row ~(prefix : string) ~(suffix : string) (dispmap : DisplayMap.t) : mono_row -> string option =
-  show_row ~prefix ~suffix (show_mono_type_var dispmap) (show_mono_row_var dispmap)
+let show_mono_row ~(prefix : string) ~(suffix : string) ?(spec : display_spec = display_spec_tty) (dispmap : DisplayMap.t) : mono_row -> string option =
+  show_row ~prefix ~suffix spec (show_mono_type_var spec dispmap) (show_mono_row_var spec dispmap)
 
 
-let pp_mono_type dispmap ppf ty =
-  Format.fprintf ppf "%s" (show_mono_type dispmap ty)
+let pp_mono_type ?(spec : display_spec = display_spec_tty) dispmap ppf ty =
+  Format.fprintf ppf "%s" (show_mono_type ~spec dispmap ty)
 
 
-let pp_mono_row dispmap ppf row =
-  Format.fprintf ppf "%s" (Option.value ~default:"(empty)" (show_mono_row ~prefix:"" ~suffix:"" dispmap row))
+let pp_mono_row ?(spec : display_spec = display_spec_tty) dispmap ppf row =
+  Format.fprintf ppf "%s" (Option.value ~default:"(empty)" (show_mono_row ~prefix:"" ~suffix:"" ~spec dispmap row))
 
 
-let rec show_poly_type_var (dispmap : DisplayMap.t) = function
+let rec show_poly_type_var (spec : display_spec) (dispmap : DisplayMap.t) = function
   | Bound(bid) -> dispmap |> DisplayMap.find_bound_id bid
-  | Mono(mtv)  -> show_mono_type_var dispmap mtv
+  | Mono(mtv)  -> show_mono_type_var spec dispmap mtv
 
 
-and show_poly_row_var (dispmap : DisplayMap.t) = function
+and show_poly_row_var (spec : display_spec) (dispmap : DisplayMap.t) = function
   | BoundRow(brid) -> Some(dispmap |> DisplayMap.find_bound_row_id brid)
-  | MonoRow(mrv)   -> show_mono_row_var dispmap mrv
+  | MonoRow(mrv)   -> show_mono_row_var spec dispmap mrv
 
 
-and show_poly_type (dispmap : DisplayMap.t) : poly_type -> string =
-  show_type (show_poly_type_var dispmap) (show_poly_row_var dispmap)
+and show_poly_type ?(spec : display_spec = display_spec_tty) (dispmap : DisplayMap.t) : poly_type -> string =
+  show_type spec (show_poly_type_var spec dispmap) (show_poly_row_var spec dispmap)
 
 
-let show_poly_row (dispmap : DisplayMap.t) : poly_row -> string option =
-  show_row ~prefix:"" ~suffix:"" (show_poly_type_var dispmap) (show_poly_row_var dispmap)
+let show_poly_row ?(spec : display_spec = display_spec_tty) (dispmap : DisplayMap.t) : poly_row -> string option =
+  show_row ~prefix:"" ~suffix:"" spec (show_poly_type_var spec dispmap) (show_poly_row_var spec dispmap)
 
 
-let pp_poly_type (dispmap : DisplayMap.t) (ppf : Format.formatter) (pty : poly_type) : unit =
-  Format.fprintf ppf "%s" (show_poly_type dispmap pty)
+let pp_poly_type ?(spec : display_spec = display_spec_tty) (dispmap : DisplayMap.t) (ppf : Format.formatter) (pty : poly_type) : unit =
+  Format.fprintf ppf "%s" (show_poly_type ~spec dispmap pty)
 
 
 let show_bound_type_ids (dispmap : DisplayMap.t) =

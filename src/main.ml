@@ -125,10 +125,10 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
         let abspath_doc_out =
           match pkgnameopt with
           | None ->
-              append_path absdir_doc_out (RelativePath("doc.txt"))
+              append_path absdir_doc_out (RelativePath("doc.html"))
 
           | Some(pkgname) ->
-              let relpath = Printf.sprintf "%s.txt" (OutputIdentifier.output_space_to_snake pkgname) in
+              let relpath = Printf.sprintf "%s.html" (OutputIdentifier.output_space_to_snake pkgname) in
               append_path absdir_doc_out (RelativePath(relpath))
         in
         DocumentGenerator.main abspath_doc_out mainout
