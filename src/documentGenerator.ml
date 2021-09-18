@@ -82,22 +82,22 @@ let rec stringify_document_element (depth : int) (docelem : document_tree_elemen
         | None      -> ""
         | Some(doc) -> Printf.sprintf "<div>%s</div>" doc
       in
-      [ Printf.sprintf "%s<li><span>%s %s%s : %s</span>%s</li>" indent (spec.token "val") x sq sty s_doc ]
+      [ Printf.sprintf "%s<li><span class=\"inline-code\">%s %s%s : %s</span>%s</li>" indent (spec.token "val") x sq sty s_doc ]
 
   | DocType(tynm, _) ->
-      [ Printf.sprintf "%s<li><span>%s %s</span></li>" indent (spec.token "type") tynm ]
+      [ Printf.sprintf "%s<li><span class=\"inline-code\">%s %s</span></li>" indent (spec.token "type") tynm ]
 
   | DocModule(modnm, docsig) ->
       let ss = docsig |> stringify_document_signature (depth + 1) in
       List.concat [
         [
-          Printf.sprintf "%s<li>%s %s :" indent (spec.token "module") modnm;
+          Printf.sprintf "%s<li><span class=\"inline-code\">%s %s :</span>" indent (spec.token "module") modnm;
         ];
         ss;
       ]
 
   | DocSig(signm, _docelems) ->
-      [ Printf.sprintf "%s<li>%s %s</li>" indent (spec.token "signature") signm ]
+      [ Printf.sprintf "%s<li><span class=\"inline-code\">%s %s</span></li>" indent (spec.token "signature") signm ]
 
 
 and stringify_document_signature (depth : int) (docsig : document_tree_signature) : string list =
@@ -107,26 +107,26 @@ and stringify_document_signature (depth : int) (docsig : document_tree_signature
   | DocStructure(docelems) ->
       List.concat [
         [
-          Printf.sprintf "%s%s" indent (spec.token "sig");
+          Printf.sprintf "%s<span class=\"inline-code\">%s</span>" indent (spec.token "sig");
           Printf.sprintf "%s<ul>" indent;
         ];
         docelems |> List.map (stringify_document_element (depth + 1)) |> List.concat;
         [
           Printf.sprintf "%s</ul>" indent;
-          Printf.sprintf "%s%s" indent (spec.token "end");
+          Printf.sprintf "%s<span class=\"inline-code\">%s</span>" indent (spec.token "end");
         ];
       ]
 
   | DocFunctor{ parameter = docelems; body = docsig } ->
       List.concat [
         [
-          Printf.sprintf "%s%s(%s" indent (spec.token "fun") (spec.token "sig");
+          Printf.sprintf "%s<span class=\"inline-code\">%s(%s</span>" indent (spec.token "fun") (spec.token "sig");
           Printf.sprintf "%s<ul>" indent;
         ];
         docelems |> List.map (stringify_document_element (depth + 1)) |> List.concat;
         [
           Printf.sprintf "%s</ul>" indent;
-          Printf.sprintf "%s%s) ->" indent (spec.token "end");
+          Printf.sprintf "%s<span class=\"inline-code\">%s) -></span>" indent (spec.token "end");
         ];
         docsig |> stringify_document_signature (depth + 1);
       ]
@@ -144,7 +144,13 @@ let main (abspath_doc_out : absolute_path) (out : PackageChecker.single_output) 
       [
         "<!DOCTYPE html>";
         "<html>";
-        Printf.sprintf "<head><title>%s</title></head>" out.module_name;
+        "<head>";
+        Printf.sprintf "<title>%s</title>" out.module_name;
+        "<style>";
+        ".inline-code { font-family: monospace; }";
+        ".keyword { color: #0000AA; }";
+        "</style>";
+        "</head>";
         "<body><ul>";
       ];
       stringify_document_element 0 docelem;

@@ -696,7 +696,7 @@ let display_spec_tty = {
 
 
 let display_spec_html = {
-  token   = (fun s -> Printf.sprintf "<span style=\"color: #0000AA;\">%s</span>" s);
+  token   = (fun s -> Printf.sprintf "<span class=\"keyword\">%s</span>" s);
   arrow   = "-&gt;";
   paren   = (fun s -> Printf.sprintf "(%s)" s);
   bracket = (fun s -> Printf.sprintf "[%s]" s);
