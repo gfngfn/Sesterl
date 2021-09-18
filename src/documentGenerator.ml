@@ -15,6 +15,34 @@ and document_tree_signature =
   | DocFunctor   of { parameter : document_tree_element list; body : document_tree_signature }
 
 
+let trim_indentation (s : string) : string =
+  let lines = Core.String.split_lines s in
+  let acc =
+    lines |> List.fold_left (fun acc line ->
+      (* `res` will be:
+         - `Error(n)` if the indentation depth of `line` is `n`.
+         - `Ok(_)` if `line` consists only of spaces. *)
+      let res =
+        Core.String.fold_result s ~init:0 ~f:(fun n ch ->
+          if Char.equal ch ' ' then Ok(n + 1) else Error(n)
+        )
+      in
+      match (acc, res) with
+      | (Some(min_indent), Ok(_))         -> Some(min_indent)
+      | (Some(min_indent), Error(indent)) -> Some(Stdlib.min min_indent indent)
+      | (None, Ok(_))                     -> None
+      | (None, Error(indent))             -> Some(indent)
+    ) None
+  in
+  match acc with
+  | None ->
+    (* If `s` consists only of space lines. *)
+      ""
+
+  | Some(min_indent) ->
+      lines |> List.map (fun line -> Core.String.drop_prefix line min_indent) |> String.concat "\n"
+
+
 let rec traverse_signature (modsig : module_signature) : document_tree_signature =
   match modsig with
   | ConcStructure(sigr) ->
@@ -79,25 +107,32 @@ let rec stringify_document_element (depth : int) (docelem : document_tree_elemen
       in
       let s_doc =
         match doc_opt with
-        | None      -> ""
-        | Some(doc) -> Printf.sprintf "<div>%s</div>" doc
+        | None ->
+            ""
+
+        | Some(doc_md_raw) ->
+            let doc_md = trim_indentation doc_md_raw in
+            let doc_struct = Omd.of_string doc_md in
+            let doc_html = Omd.to_html doc_struct in
+            Format.printf "!!! %s ---> %s ---> %s / %s\n" doc_md_raw doc_md doc_html (Omd.to_sexp doc_struct); (* for debug *)
+            Printf.sprintf "<div>%s</div>" doc_html
       in
-      [ Printf.sprintf "%s<li><span class=\"inline-code\">%s %s%s : %s</span>%s</li>" indent (spec.token "val") x sq sty s_doc ]
+      [ Printf.sprintf "%s<li><code>%s %s%s : %s</code>%s</li>" indent (spec.token "val") x sq sty s_doc ]
 
   | DocType(tynm, _) ->
-      [ Printf.sprintf "%s<li><span class=\"inline-code\">%s %s</span></li>" indent (spec.token "type") tynm ]
+      [ Printf.sprintf "%s<li><code>%s %s</code></li>" indent (spec.token "type") tynm ]
 
   | DocModule(modnm, docsig) ->
       let ss = docsig |> stringify_document_signature (depth + 1) in
       List.concat [
         [
-          Printf.sprintf "%s<li><span class=\"inline-code\">%s %s :</span>" indent (spec.token "module") modnm;
+          Printf.sprintf "%s<li><code>%s %s :</code>" indent (spec.token "module") modnm;
         ];
         ss;
       ]
 
   | DocSig(signm, _docelems) ->
-      [ Printf.sprintf "%s<li><span class=\"inline-code\">%s %s</span></li>" indent (spec.token "signature") signm ]
+      [ Printf.sprintf "%s<li><code>%s %s</code></li>" indent (spec.token "signature") signm ]
 
 
 and stringify_document_signature (depth : int) (docsig : document_tree_signature) : string list =
@@ -107,26 +142,26 @@ and stringify_document_signature (depth : int) (docsig : document_tree_signature
   | DocStructure(docelems) ->
       List.concat [
         [
-          Printf.sprintf "%s<span class=\"inline-code\">%s</span>" indent (spec.token "sig");
+          Printf.sprintf "%s<code>%s</code>" indent (spec.token "sig");
           Printf.sprintf "%s<ul>" indent;
         ];
         docelems |> List.map (stringify_document_element (depth + 1)) |> List.concat;
         [
           Printf.sprintf "%s</ul>" indent;
-          Printf.sprintf "%s<span class=\"inline-code\">%s</span>" indent (spec.token "end");
+          Printf.sprintf "%s<code>%s</code>" indent (spec.token "end");
         ];
       ]
 
   | DocFunctor{ parameter = docelems; body = docsig } ->
       List.concat [
         [
-          Printf.sprintf "%s<span class=\"inline-code\">%s(%s</span>" indent (spec.token "fun") (spec.token "sig");
+          Printf.sprintf "%s<code>%s(%s</code>" indent (spec.token "fun") (spec.token "sig");
           Printf.sprintf "%s<ul>" indent;
         ];
         docelems |> List.map (stringify_document_element (depth + 1)) |> List.concat;
         [
           Printf.sprintf "%s</ul>" indent;
-          Printf.sprintf "%s<span class=\"inline-code\">%s) -></span>" indent (spec.token "end");
+          Printf.sprintf "%s<code>%s) -></code>" indent (spec.token "end");
         ];
         docsig |> stringify_document_signature (depth + 1);
       ]
@@ -147,7 +182,6 @@ let main (abspath_doc_out : absolute_path) (out : PackageChecker.single_output) 
         "<head>";
         Printf.sprintf "<title>%s</title>" out.module_name;
         "<style>";
-        ".inline-code { font-family: monospace; }";
         ".keyword { color: #0000AA; }";
         "</style>";
         "</head>";

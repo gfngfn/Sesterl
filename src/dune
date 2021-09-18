@@ -10,7 +10,8 @@
     semver2
     core
     uutf
-    yaml)
+    yaml
+    omd)
   (preprocess
     (pps
       ppx_deriving.show)))
