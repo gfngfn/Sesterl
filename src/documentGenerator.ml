@@ -112,9 +112,7 @@ let rec stringify_document_element (depth : int) (docelem : document_tree_elemen
 
         | Some(doc_md_raw) ->
             let doc_md = trim_indentation doc_md_raw in
-            let doc_struct = Omd.of_string doc_md in
-            let doc_html = Omd.to_html doc_struct in
-            Format.printf "!!! %s ---> %s ---> %s / %s\n" doc_md_raw doc_md doc_html (Omd.to_sexp doc_struct); (* for debug *)
+            let doc_html = Omd.to_html (Omd.of_string doc_md) in
             Printf.sprintf "<div>%s</div>" doc_html
       in
       [ Printf.sprintf "%s<li><code>%s %s%s : %s</code>%s</li>" indent (spec.token "val") x sq sty s_doc ]
