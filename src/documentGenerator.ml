@@ -54,9 +54,9 @@ and traverse_structure (sigr : SigRecord.t) : document_tree_element list =
   acc |> Alist.to_list
 
 
-let rec stringify_document_tree (depth : int) (docelems : document_tree_element list) : string list =
+let rec stringify_document_element (depth : int) (docelem : document_tree_element) : string list =
   let indent = String.make (depth * 2) ' ' in
-  docelems |> List.map (function
+  match docelem with
   | DocVal(x, pty, doc_opt) ->
       let dispmap = DisplayMap.empty |> TypeConv.collect_ids_poly pty in
       let sty = Format.asprintf "%a" (TypeConv.pp_poly_type dispmap) pty in
@@ -92,7 +92,7 @@ let rec stringify_document_tree (depth : int) (docelems : document_tree_element 
 
   | DocSig(signm, _docelems) ->
       [ Printf.sprintf "%ssignature %s" indent signm ]
-  ) |> List.concat
+
 
 and stringify_document_signature (depth : int) (docsig : document_tree_signature) : string list =
   let indent = String.make (depth * 2) ' ' in
@@ -100,18 +100,17 @@ and stringify_document_signature (depth : int) (docsig : document_tree_signature
   | DocStructure(docelems) ->
       List.concat [
         [ Printf.sprintf "%ssig" indent ];
-        docelems |> stringify_document_tree (depth + 1);
+        docelems |> List.map (stringify_document_element (depth + 1)) |> List.concat;
         [ Printf.sprintf "%send" indent ];
       ]
 
   | DocFunctor{ parameter = docelems; body = docsig } ->
       List.concat [
         [ Printf.sprintf "%sfun(sig" indent ];
-        docelems |> stringify_document_tree (depth + 1);
+        docelems |> List.map (stringify_document_element (depth + 1)) |> List.concat;
         [ Printf.sprintf "%send) ->" indent ];
         docsig |> stringify_document_signature (depth + 1);
       ]
-
 
 
 let single (out : PackageChecker.single_output) =
@@ -119,9 +118,20 @@ let single (out : PackageChecker.single_output) =
   DocModule(out.module_name, DocStructure(traverse_structure sigr))
 
 
-let main (absdir_doc_out : absolute_path) (outs : PackageChecker.single_output list) : unit =
+let main (abspath_doc_out : absolute_path) (outs : PackageChecker.single_output list) : unit =
   let docelems = outs |> List.map single in
-  let ss = docelems |> stringify_document_tree 0 in
-  print_endline "!!! -------- DocumentGenerator --------";
-  ss |> List.iter print_endline;
-  print_endline "!!! -------- --------"
+  let lines = docelems |> List.map (stringify_document_element 0) |> List.concat in
+(*
+  let fout = open_out abspath_doc_out in
+*)
+  lines |> List.iter (fun line ->
+    print_endline line
+(*
+    output_string fout line;
+    output_string fout "\n"
+*)
+  );
+(*
+  close_out fout;
+*)
+  Logging.output_written abspath_doc_out

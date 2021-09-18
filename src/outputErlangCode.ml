@@ -601,7 +601,8 @@ let write_file (absdir_out : absolute_dir) (smod_basename : string) (lines : str
   let abspath_out = Core.Filename.concat absdir_out (Printf.sprintf "%s.erl" smod_basename) in
   let fout = open_out abspath_out in
   lines |> List.iter (fun line ->
-    output_string fout (line ^ "\n")
+    output_string fout line;
+    output_string fout "\n"
   );
   close_out fout;
   Logging.output_written abspath_out

@@ -62,6 +62,7 @@ type config = {
   main_module_name   : module_name;
   source_directories : relative_dir list;
   test_directories   : relative_dir list;
+  document_target    : relative_dir option;
   dependencies       : dependency list;
   test_dependencies  : dependency list;
   erlang_config      : erlang_config;
@@ -193,6 +194,7 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.t =
   get_or_else "test_directories" (list string) [] >>= fun testdirs ->
   get_or_else "dependencies" (list (dependency_decoder confdir)) [] >>= fun dependencies ->
   get_or_else "test_dependencies" (list (dependency_decoder confdir)) [] >>= fun test_dependencies ->
+  get_opt "document_output_directory" string >>= fun reldir_doc_out_opt ->
   get_or_else "erlang" erlang_config_decoder default_erlang_config >>= fun erlang_config ->
   let config =
     {
@@ -202,6 +204,7 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.t =
       main_module_name   = main_module_name;
       source_directories = srcdirs |> List.map (fun srcdir -> RelativeDir(srcdir));
       test_directories   = testdirs |> List.map (fun testdir -> RelativeDir(testdir));
+      document_target    = reldir_doc_out_opt |> Option.map (fun reldir -> RelativeDir(reldir));
       dependencies       = dependencies;
       test_dependencies  = test_dependencies;
       erlang_config      = erlang_config;

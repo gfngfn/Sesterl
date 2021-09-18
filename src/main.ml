@@ -63,7 +63,7 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
 
       ) ExternalMap.empty
     in
-    let (pkgs, absdir_out, absdir_test_out) =
+    let (pkgs, absdir_out, absdir_test_out, absdir_doc_out_opt) =
         let (_, extopt) = Core.Filename.split_extension abspath_in in
         match extopt with
         | Some("sest") ->
@@ -74,7 +74,7 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
               | None          -> raise (ConfigError(NoOutputSpecForSingleSource))
               | Some(dir_out) -> append_dir current_directory (RelativeDir(dir_out))
             in
-            (pkgs, absdir_out, absdir_out)
+            (pkgs, absdir_out, absdir_out, None)
 
         | Some(ext) ->
             raise (ConfigError(UnrecognizableExtension(ext)))
@@ -95,9 +95,9 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
             in
             (pkgs,
              append_dir absdir_in main_config.erlang_config.output_directory,
-             append_dir absdir_in main_config.erlang_config.test_output_directory)
+             append_dir absdir_in main_config.erlang_config.test_output_directory,
+             main_config.document_target |> Option.map (append_dir absdir_in))
     in
-    let absdir_doc_out = absdir_out in (* TODO: get this value from the config file *)
 
     (* Typecheck each package. *)
     let (tyenv, _) = Primitives.initial_environment in
@@ -120,7 +120,16 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
     Core.Unix.mkdir_p absdir_test_out;
     let (_, gmap) = Primitives.initial_environment in
     pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, outs) ->
-      DocumentGenerator.main absdir_doc_out outs;
+      absdir_doc_out_opt |> Option.map (fun absdir_doc_out ->
+        let absdir_doc_out_for_package =
+          match pkgnameopt with
+          | None          -> absdir_doc_out
+          | Some(pkgname) ->
+              let fname = Printf.sprintf "%s.txt" (OutputIdentifier.output_space_to_snake pkgname) in
+              append_dir absdir_doc_out (RelativeDir(fname))
+        in
+        DocumentGenerator.main absdir_doc_out_for_package outs
+      ) |> ignore;
       outs |> List.fold_left (fun gmap out ->
         let sname = out.PackageChecker.space_name in
         let imod = (out.PackageChecker.attribute, out.PackageChecker.bindings) in
