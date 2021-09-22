@@ -97,7 +97,7 @@ let rec stringify_document_element (depth : int) ((docelem, doc_opt) : document_
     | Some(doc_md_raw) ->
         let doc_md = trim_indentation doc_md_raw in
         let doc_html = Omd.to_html (Omd.of_string doc_md) in
-        Printf.sprintf "<div>%s</div>" doc_html
+        Printf.sprintf "<div class=\"doc-area\">%s</div>" doc_html
   in
   match docelem with
   | DocVal(x, pty) ->
@@ -183,6 +183,7 @@ let main (abspath_doc_out : absolute_path) (out : PackageChecker.single_output) 
         Printf.sprintf "<title>%s</title>" out.module_name;
         "<style>";
         ".keyword { color: #0000AA; }";
+        ".doc-area { background-color: #EEEEEE; padding: 2px 6px 2px 6px; margin: 0px 0px 0px 0px; }";
         "</style>";
         "</head>";
         "<body><ul>";
