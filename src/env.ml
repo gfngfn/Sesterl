@@ -71,11 +71,13 @@ and type_scheme = BoundID.t list * poly_type
 and type_entry = {
   type_scheme : type_scheme;
   type_kind   : kind;
+  type_doc    : string option;
 }
 
 and module_entry = {
   mod_signature : module_signature;
   mod_name      : space_name;
+  mod_doc       : string option;
 }
 
 and constructor_entry = {
@@ -215,7 +217,7 @@ module Typeenv = struct
     let modules =
       tyenv.modules |> ModuleNameMap.map (fun mentry ->
         let (modsig, sname) = fm (mentry.mod_signature, mentry.mod_name) in
-        { mod_signature = modsig; mod_name = sname }
+        { mentry with mod_signature = modsig; mod_name = sname }
       )
     in
     { tyenv with values = values; modules = modules }

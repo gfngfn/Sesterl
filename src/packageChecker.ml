@@ -38,7 +38,14 @@ let check_single (is_verbose : bool) ~(is_main_module : bool) (sigrmap : sig_rec
           raise (ConfigError(ModuleNotFound(rng, depmodnm)))
 
       | Some(((_, sigr), sname)) ->
-          tyenv |> Typeenv.add_module depmodnm { mod_signature = ConcStructure(sigr); mod_name = sname }
+          let mentry =
+            {
+              mod_signature = ConcStructure(sigr);
+              mod_name      = sname;
+              mod_doc       = None;
+            }
+          in
+          tyenv |> Typeenv.add_module depmodnm mentry
     ) tyenv_before
   in
   let absmodsigopt =
@@ -80,7 +87,14 @@ let main (is_verbose : bool) (tyenv_before : Typeenv.t) (submods : SourceLoader.
   let tyenv =
     let (_, mainmod) = mainmod.SourceLoader.module_identifier in
     let mainsname = mainout.space_name in
-    tyenv_before |> Typeenv.add_module mainmod { mod_signature = ConcStructure(mainsigr); mod_name = mainsname }
+    let mentry =
+      {
+        mod_signature = ConcStructure(mainsigr);
+        mod_name      = mainsname;
+        mod_doc       = None;
+      }
+    in
+    tyenv_before |> Typeenv.add_module mainmod mentry
   in
   let subouts = Alist.to_list suboutacc in
   (tyenv, subouts, mainout)

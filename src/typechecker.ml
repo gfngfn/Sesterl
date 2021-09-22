@@ -2942,7 +2942,11 @@ and copy_closure_in_structure (sigr1 : SigRecord.t) (sigr2 : SigRecord.t) : SigR
 
       | Some(mentry1) ->
           let modsig2 = copy_closure mentry1.mod_signature mentry2.mod_signature in
-          { mod_signature = modsig2; mod_name = mentry1.mod_name }
+          {
+            mod_signature = modsig2;
+            mod_name      = mentry1.mod_name;
+            mod_doc       = mentry1.mod_doc;
+          }
     )
     ~s:(fun _signm sentry -> sentry)
 
@@ -3015,6 +3019,7 @@ and substitute_structure ~(cause : Range.t) ~(address : address) (subst : substi
         {
           type_scheme = (bids, pty_body |> substitute_poly_type ~cause subst);
           type_kind   = tentry.type_kind;
+          type_doc    = tentry.type_doc;
         }
       )
       ~m:(fun _ mentry ->
@@ -3147,6 +3152,7 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
         {
           type_scheme = TypeConv.make_opaque_type_scheme_from_base_kinds bkds oid;
           type_kind   = kd;
+          type_doc    = declattr.doc;
         }
       in
       let sigr = SigRecord.empty |> SigRecord.add_type tynm tentry in
@@ -3157,7 +3163,13 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       let absmodsig = typecheck_signature ~address tyenv utsig in
       let (quant, modsig) = absmodsig in
       let sname = get_space_name rngm m in
-      let mentry = { mod_signature = modsig; mod_name = sname } in
+      let mentry =
+        {
+          mod_signature = modsig;
+          mod_name      = sname;
+          mod_doc       = declattr.doc;
+        }
+      in
       let sigr = SigRecord.empty |> SigRecord.add_module m mentry in
       (quant, sigr)
 
@@ -3288,7 +3300,13 @@ and typecheck_signature ~(address : address) (tyenv : Typeenv.t) (utsig : untype
       let abssigcod =
         let (rngm, m) = modident in
         let sname = get_space_name rngm m in
-        let mentry = { mod_signature = sigdom; mod_name = sname } in
+        let mentry =
+          {
+            mod_signature = sigdom;
+            mod_name      = sname;
+            mod_doc       = None;
+          }
+        in
         let tyenv = tyenv |> Typeenv.add_module m mentry in
         typecheck_signature ~address:Alist.empty tyenv utsigcod
       in
@@ -3527,7 +3545,14 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
             coerce_signature ~cause:rngm ~address modsig1 absmodsig2
       in
       let sname = get_space_name rngm m in
-      let sigr = SigRecord.empty |> SigRecord.add_module m { mod_signature = modsig; mod_name = sname } in
+      let mentry =
+        {
+          mod_signature = modsig;
+          mod_name      = sname;
+          mod_doc       = None;
+        }
+      in
+      let sigr = SigRecord.empty |> SigRecord.add_module m mentry in
       let ibinds =
         match ibindssub with
         | []     -> []
@@ -3602,6 +3627,7 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
             {
               type_scheme = TypeConv.make_opaque_type_scheme_from_base_kinds bkds tyid;
               type_kind   = kd;
+              type_doc    = None;
             }
           in
           let tyenv = tyenv |> Typeenv.add_type tynm tentry in
@@ -3649,7 +3675,13 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
       let bids = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
       let ty_body = decode_manual_type pre mtyreal in
       let pty_body = TypeConv.generalize 0 ty_body in
-      let tentry = { type_scheme = (bids, pty_body); type_kind = pkd } in
+      let tentry =
+        {
+          type_scheme = (bids, pty_body);
+          type_kind   = pkd;
+          type_doc    = None;
+        }
+      in
       let tyenv = tyenv |> Typeenv.add_type tynm tentry in
       let tydefacc = Alist.extend tydefacc (tynm, tentry) in
       (tyenv, tydefacc)
@@ -3723,7 +3755,14 @@ and typecheck_module ~(address : address) (tyenv : Typeenv.t) (utmod : untyped_m
         Printf.printf "MOD-FUNCTOR %s\n" m;  (* for debug *)
         display_signature 0 modsigdom;  (* for debug *)
 *)
-        let tyenv = tyenv |> Typeenv.add_module m { mod_signature = modsigdom; mod_name = sname } in
+        let mentry =
+          {
+            mod_signature = modsigdom;
+            mod_name      = sname;
+            mod_doc       = None;
+          }
+        in
+        let tyenv = tyenv |> Typeenv.add_module m mentry in
         typecheck_module Alist.empty tyenv utmod0
       in
       let absmodsig =
@@ -3783,11 +3822,20 @@ and typecheck_module ~(address : address) (tyenv : Typeenv.t) (utmod : untyped_m
                   let ((_, modsig0), ibinds) =
                     let tyenv0 =
                       let (_, m0) = modident0 in
-                      tyenv0 |> Typeenv.add_module m0 { mod_signature = modsig2; mod_name = sname2 }
+                      let mentry =
+                        {
+                          mod_signature = modsig2;
+                          mod_name      = sname2;
+                          mod_doc       = None;
+                        }
+                      in
+                      tyenv0 |> Typeenv.add_module m0 mentry
                     in
                     typecheck_module ~address tyenv0 utmodC
                   in
-                  let (quant1subst, modsigcod1subst) = absmodsigcod1 |> substitute_abstract ~cause:rng ~address subst in
+                  let (quant1subst, modsigcod1subst) =
+                    absmodsigcod1 |> substitute_abstract ~cause:rng ~address subst
+                  in
                   let absmodsig = (quant1subst, copy_closure modsig0 modsigcod1subst) in
                   (absmodsig, ibinds)
             end
@@ -3827,7 +3875,7 @@ and typecheck_binding_list ~(address : address) (tyenv : Typeenv.t) (utbinds : u
 
 
 and coerce_signature ~(cause : Range.t) ~(address : address) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
-  let _wtmap = subtype_signature ~cause ~address modsig1 absmodsig2 in
+  let _subst = subtype_signature ~cause ~address modsig1 absmodsig2 in
   let (quant2, modsig2) = absmodsig2 in
   (quant2, copy_closure modsig1 modsig2)
 
@@ -3848,5 +3896,12 @@ let main (tyenv : Typeenv.t) (modident : module_name ranged) (absmodsigopt2 : (m
       raise_error (RootModuleMustBeStructure(rng))
 
   | ConcStructure(sigr) ->
-      let tyenv = tyenv |> Typeenv.add_module modnm { mod_signature = modsig; mod_name = sname } in
+      let mentry =
+        {
+          mod_signature = modsig;
+          mod_name      = sname;
+          mod_doc       = None; (* TODO: add doc comments *)
+        }
+      in
+      let tyenv = tyenv |> Typeenv.add_module modnm mentry in
       (tyenv, (quant, sigr), sname, imod)

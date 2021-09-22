@@ -120,12 +120,14 @@ type type_scheme = BoundID.t list * poly_type
 type type_entry = {
   type_scheme : type_scheme;
   type_kind   : kind;
+  type_doc    : string option;
 }
 [@@deriving show { with_path = false }]
 
 type module_entry = {
   mod_signature : module_signature;
   mod_name      : space_name;
+  mod_doc       : string option;
 }
 
 type constructor_entry = {

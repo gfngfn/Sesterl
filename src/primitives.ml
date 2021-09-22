@@ -292,6 +292,7 @@ let add_variant_types vntdefs (tyenv, gmap) =
         {
           type_scheme = TypeConv.make_opaque_type_scheme bids vid;
           type_kind   = pkd;
+          type_doc    = None;
         }
       in
       let tyenv = tyenv |> Typeenv.add_type tynm tentry in
