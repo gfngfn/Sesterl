@@ -333,13 +333,13 @@ and untyped_signature_main =
   | SigWith    of untyped_signature * (module_name ranged) list * type_binding list
 
 and untyped_declaration =
-  (attribute list * untyped_declaration_main) ranged
+  untyped_declaration_main ranged
 
 and untyped_declaration_main =
-  | DeclVal        of identifier ranged * type_variable_binder list * (row_variable_name ranged * (label ranged) list) list * manual_type
-  | DeclTypeOpaque of type_name ranged * manual_kind option
-  | DeclModule     of module_name ranged * untyped_signature
-  | DeclSig        of signature_name ranged * untyped_signature
+  | DeclVal        of identifier ranged * type_variable_binder list * (row_variable_name ranged * (label ranged) list) list * manual_type * attribute list
+  | DeclTypeOpaque of type_name ranged * manual_kind option * attribute list
+  | DeclModule     of module_name ranged * untyped_signature * attribute list
+  | DeclSig        of signature_name ranged * untyped_signature * attribute list
   | DeclInclude    of untyped_signature
 
 and labeled_binder =

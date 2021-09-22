@@ -2945,7 +2945,7 @@ and copy_closure_in_structure (sigr1 : SigRecord.t) (sigr2 : SigRecord.t) : SigR
           {
             mod_signature = modsig2;
             mod_name      = mentry1.mod_name;
-            mod_doc       = mentry1.mod_doc;
+            mod_doc       = mentry2.mod_doc; (* Should use `mentry2`, not `mentry1` for doc comments. *)
           }
     )
     ~s:(fun _signm sentry -> sentry)
@@ -3101,11 +3101,11 @@ and substitute_poly_type ~(cause : Range.t) (subst : substitution) (pty : poly_t
 
 
 and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
-  let (_, (attrs, utdeclmain)) = utdecl in
-  let (declattr, warnings) = DeclarationAttribute.decode attrs in
-  warnings |> List.iter Logging.warn_invalid_attribute;
+  let (attrs, utdeclmain) = utdecl in
   match utdeclmain with
-  | DeclVal((_, x), typarams, rowparams, mty) ->
+  | DeclVal((_, x), typarams, rowparams, mty, attrs) ->
+      let (declattr, warnings) = DeclarationAttribute.decode attrs in
+      warnings |> List.iter Logging.warn_invalid_attribute;
       let pre =
         let pre_init =
           {
@@ -3131,7 +3131,9 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       let sigr = SigRecord.empty |> SigRecord.add_value x ventry in
       (OpaqueIDMap.empty, sigr)
 
-  | DeclTypeOpaque(tyident, kdannot) ->
+  | DeclTypeOpaque(tyident, kdannot, attrs) ->
+      let (declattr, warnings) = DeclarationAttribute.decode attrs in
+      warnings |> List.iter Logging.warn_invalid_attribute;
       let (_, tynm) = tyident in
       let pre_init =
         {
@@ -3158,7 +3160,9 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       let sigr = SigRecord.empty |> SigRecord.add_type tynm tentry in
       (OpaqueIDMap.singleton oid kd, sigr)
 
-  | DeclModule(modident, utsig) ->
+  | DeclModule(modident, utsig, attrs) ->
+      let (declattr, warnings) = DeclarationAttribute.decode attrs in
+      warnings |> List.iter Logging.warn_invalid_attribute;
       let (rngm, m) = modident in
       let absmodsig = typecheck_signature ~address tyenv utsig in
       let (quant, modsig) = absmodsig in
@@ -3173,7 +3177,9 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       let sigr = SigRecord.empty |> SigRecord.add_module m mentry in
       (quant, sigr)
 
-  | DeclSig(sigident, utsig) ->
+  | DeclSig(sigident, utsig, attrs) ->
+      let (declattr, warnings) = DeclarationAttribute.decode attrs in
+      warnings |> List.iter Logging.warn_invalid_attribute;
       let (_, signm) = sigident in
       let absmodsig = typecheck_signature ~address tyenv utsig in
       let sigr = SigRecord.empty |> SigRecord.add_signature signm absmodsig in

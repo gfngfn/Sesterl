@@ -77,7 +77,7 @@
       (* TODO: fix such an ad-hoc insertion of kinds *)
 
 
-  let decl_type_transparent tokL tybinds : untyped_declaration_main ranged =
+  let decl_type_transparent (attrs : attribute list) (tokL : Range.t) (tybinds : type_binding list) : untyped_declaration =
     let rng = Range.dummy "decl_type_transparent" in  (* TODO: give appropriate code ranges *)
     let dr = Range.dummy "decl_type_transparent" in
     let decls : untyped_declaration list =
@@ -89,7 +89,7 @@
           )
         in
         let mnkd = (dr, MKind(mnbkddoms, base_kind_o)) in
-        (dr, ([], DeclTypeOpaque(tyident, Some(mnkd))))
+        (dr, DeclTypeOpaque(tyident, Some(mnkd), attrs))
       )
     in
     (rng, DeclInclude((dr, SigWith((dr, SigDecls([], decls)), [], tybinds))))
@@ -127,6 +127,7 @@
 %type<Syntax.untyped_let_binding> bindvalsingle
 %type<Range.t * Syntax.internal_or_external> bindvaltop
 %type<Syntax.rec_or_nonrec> bindvallocal
+%type<Syntax.type_binding> bindtypesingle
 %type<Syntax.untyped_module> modexprbot
 %type<Syntax.untyped_declaration> decl
 
@@ -336,34 +337,29 @@ tyannot:
   | COLON; mty=ty { Some(mty) }
 ;
 decl:
-  | attrs=list(attr); d=declmain {
-      let (rng, declmain) = d in
-      (rng, (attrs, declmain))
-    }
-declmain:
-  | tokL=VAL; ident=LOWER; tyrowparams=typarams; COLON; mty=ty {
+  | attrs=list(attr); tokL=VAL; ident=LOWER; tyrowparams=typarams; COLON; mty=ty {
       let (typarams, rowparams) = tyrowparams in
       let rng = make_range (Token(tokL)) (Ranged(mty)) in
-      (rng, DeclVal(ident, typarams, rowparams, mty))
+      (rng, DeclVal(ident, typarams, rowparams, mty, attrs))
     }
-  | tokL=TYPE; tyident=LOWER; CONS; kd=kd {
+  | attrs=list(attr); tokL=TYPE; tyident=LOWER; CONS; kd=kd {
       let rng = make_range (Token(tokL)) (Ranged(kd)) in
-      (rng, DeclTypeOpaque(tyident, Some(kd)))
+      (rng, DeclTypeOpaque(tyident, Some(kd), attrs))
     }
-  | tokL=TYPE; tyident=LOWER {
+  | attrs=list(attr); tokL=TYPE; tyident=LOWER {
       let rng = make_range (Token(tokL)) (Ranged(tyident)) in
-      (rng, DeclTypeOpaque(tyident, None))
+      (rng, DeclTypeOpaque(tyident, None, attrs))
     }
-  | tokL=TYPE; tybind=bindtypesingle; tybinds=list(bindtypesub) {
-      decl_type_transparent tokL (tybind :: tybinds)
+  | attrs=list(attr); tokL=TYPE; tybind=bindtypesingle; tybinds=list(bindtypesub) {
+      decl_type_transparent attrs tokL (tybind :: tybinds)
     }
-  | tokL=MODULE; modident=UPPER; COLON; utsig=sigexpr {
+  | attrs=list(attr); tokL=MODULE; modident=UPPER; COLON; utsig=sigexpr {
       let rng = make_range (Token(tokL)) (Ranged(utsig)) in
-      (rng, DeclModule(modident, utsig))
+      (rng, DeclModule(modident, utsig, attrs))
     }
-  | tokL=SIGNATURE; sigident=UPPER; DEFEQ; utsig=sigexpr {
+  | attrs=list(attr); tokL=SIGNATURE; sigident=UPPER; DEFEQ; utsig=sigexpr {
       let rng = make_range (Token(tokL)) (Ranged(utsig)) in
-      (rng, DeclSig(sigident, utsig))
+      (rng, DeclSig(sigident, utsig, attrs))
     }
 ;
 modexpr:
