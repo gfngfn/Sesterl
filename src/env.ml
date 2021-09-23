@@ -71,9 +71,14 @@ and type_scheme = BoundID.t list * poly_type
 and constructor_map = (ConstructorID.t * poly_type list) ConstructorMap.t
   [@printer (fun ppf _ -> Format.fprintf ppf "<constructor_map>")]
 
+and type_entity =
+  | Opaque  of TypeID.t
+  | Synonym
+  | Variant of constructor_map
+
 and type_entry = {
   type_scheme : type_scheme;
-  type_body   : constructor_map option;
+  type_entity : type_entity;
   type_kind   : kind;
   type_doc    : string option;
 }

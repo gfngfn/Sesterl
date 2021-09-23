@@ -119,9 +119,14 @@ type type_scheme = BoundID.t list * poly_type
 
 type constructor_map = (ConstructorID.t * poly_type list) ConstructorMap.t
 
+type type_entity =
+  | Opaque  of TypeID.t
+  | Synonym
+  | Variant of constructor_map
+
 type type_entry = {
   type_scheme : type_scheme;
-  type_body   : constructor_map option;
+  type_entity : type_entity;
   type_kind   : kind;
   type_doc    : string option;
 }

@@ -312,7 +312,7 @@ let add_variant_types (vntdefs : (type_name * TypeID.t * BoundID.t list * constr
       let tentry =
         {
           type_scheme = TypeConv.make_opaque_type_scheme bids vid;
-          type_body   = Some(ctormap);
+          type_entity = Variant(ctormap);
           type_kind   = pkd;
           type_doc    = None;
         }

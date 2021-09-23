@@ -6,7 +6,7 @@ open Env
 
 type document_tree_element_main =
   | DocVal    of identifier * poly_type
-  | DocType   of type_name * type_scheme * ((ConstructorID.t * poly_type list) ConstructorMap.t) option
+  | DocType   of type_name * type_scheme * type_entity
   | DocModule of module_name * document_tree_signature
   | DocSig    of signature_name * document_tree_signature
 
@@ -71,7 +71,7 @@ and traverse_structure (sigr : SigRecord.t) : document_tree_element list =
       ~c:(fun _ _ acc -> acc)
       ~f:(fun _ _ acc -> acc)
       ~t:(fun tynm tentry acc ->
-        Alist.extend acc (DocType(tynm, tentry.type_scheme, tentry.type_body), tentry.type_doc)
+        Alist.extend acc (DocType(tynm, tentry.type_scheme, tentry.type_entity), tentry.type_doc)
       )
       ~m:(fun modnm mentry acc ->
         let docelems = traverse_signature mentry.mod_signature in
@@ -121,19 +121,28 @@ let rec stringify_document_element (depth : int) ((docelem, doc_opt) : document_
       in
       [ Printf.sprintf "%s<li><code>%s %s%s : %s</code>%s</li>" indent (spec.token "val") x sq sty s_doc ]
 
-  | DocType(tynm, tyscheme, tybody) ->
+  | DocType(tynm, tyscheme, tyentity) ->
+      let (bids, tybody) = tyscheme in
       let dispmap =
-        let (bids, _) = tyscheme in
         bids |> List.fold_left (fun dispmap bid ->
           dispmap |> DisplayMap.add_bound_id bid
         ) DisplayMap.empty
       in
+      let s_typarams =
+        let ss = bids |> List.map (fun bid -> dispmap |> DisplayMap.find_bound_id bid) in
+        match ss with
+        | []     -> ""
+        | _ :: _ -> Printf.sprintf "&lt;%s&gt;" (String.concat ", " ss)
+      in
       let ss_body =
-        match tybody with
-        | None ->
-            []
+        match tyentity with
+        | Opaque(_tyid) ->
+            [ Printf.sprintf "<code>%s</code>" s_typarams ]
 
-        | Some(ctormap) ->
+        | Synonym ->
+            [ Format.asprintf "<code>%s = %a</code>" s_typarams (TypeConv.pp_poly_type dispmap) tybody ]
+
+        | Variant(ctormap) ->
             let ss_elems =
               ConstructorMap.bindings ctormap |> List.map (fun (ctornm, (_, ptys)) ->
                 let s_param =
@@ -150,7 +159,7 @@ let rec stringify_document_element (depth : int) ((docelem, doc_opt) : document_
               )
             in
             List.concat [
-              [ "<ul>" ];
+              [ Printf.sprintf "<code>%s =</code><ul>" s_typarams ];
               ss_elems;
               [ "</ul>" ];
             ]
