@@ -23,7 +23,7 @@ type subtyping_error = unit
 
 type binding_map = (mono_type * local_name * Range.t) BindingMap.t
 
-type variant_definition = type_name * TypeID.t * BoundID.t list * constructor_branch_map
+type variant_definition = type_name * TypeID.t * BoundID.t list * constructor_map
 
 type rec_morph =
   | MonoRec of mono_type
@@ -76,7 +76,7 @@ let internbridf (_bidmap : BoundID.t BoundIDMap.t) (_brid1 : BoundRowID.t) (_nom
   false
 
 
-let add_dummy_fold (tynm : type_name) (tyid : TypeID.t) (bids : BoundID.t list) (ctorbrmap : constructor_branch_map) (sigr : SigRecord.t) : SigRecord.t =
+let add_dummy_fold (tynm : type_name) (tyid : TypeID.t) (bids : BoundID.t list) (ctormap : constructor_map) (sigr : SigRecord.t) : SigRecord.t =
   let bid = BoundID.fresh () in
   let dr = Range.dummy "add_dummy_fold" in
   let plabmap =
@@ -89,7 +89,7 @@ let add_dummy_fold (tynm : type_name) (tyid : TypeID.t) (bids : BoundID.t list) 
         }
       in
       plabmap |> LabelAssoc.add ctornm (dr, FuncType(domty, (dr, TypeVar(Bound(bid)))))
-    ) ctorbrmap LabelAssoc.empty
+    ) ctormap LabelAssoc.empty
   in
   let domty =
     {
@@ -2329,7 +2329,7 @@ and typecheck_letrec_single (preS : pre) (letbind : untyped_let_binding) (morph 
   (ptyf, e1)
 
 
-and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) : constructor_branch_map =
+and make_constructor_branch_map (pre : pre) (ctorbrs : constructor_branch list) : constructor_map =
   ctorbrs |> List.fold_left (fun ctormap ctorbr ->
     match ctorbr with
     | ConstructorBranch(attrs, (rng, ctornm), mtyargs) ->
@@ -2929,8 +2929,8 @@ and copy_closure_in_structure (sigr1 : SigRecord.t) (sigr2 : SigRecord.t) : SigR
   sigr2 |> SigRecord.map
     ~v:(fun x ventry2 ->
       match sigr1 |> SigRecord.find_value x with
-      | None              -> assert false
-      | Some(ventry1)     -> { ventry2 with val_global = ventry1.val_global }
+      | None          -> assert false
+      | Some(ventry1) -> { ventry2 with val_global = ventry1.val_global }
     )
     ~c:(fun _ctornm centry2 -> centry2)
     ~f:(fun _tynm pty2 -> pty2)
@@ -3016,8 +3016,14 @@ and substitute_structure ~(cause : Range.t) ~(address : address) (subst : substi
       )
       ~t:(fun _tynm tentry ->
         let (bids, pty_body) = tentry.type_scheme in
+        let tbody =
+          tentry.type_body |> Option.map (ConstructorMap.map (fun (ctorid, ptys) ->
+            (ctorid, ptys |> List.map (substitute_poly_type ~cause subst))
+          ))
+        in
         {
           type_scheme = (bids, pty_body |> substitute_poly_type ~cause subst);
+          type_body   = tbody;
           type_kind   = tentry.type_kind;
           type_doc    = tentry.type_doc;
         }
@@ -3153,6 +3159,7 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       let tentry =
         {
           type_scheme = TypeConv.make_opaque_type_scheme_from_base_kinds bkds oid;
+          type_body   = None;
           type_kind   = kd;
           type_doc    = declattr.doc;
         }
@@ -3636,6 +3643,7 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
           let tentry =
             {
               type_scheme = TypeConv.make_opaque_type_scheme_from_base_kinds bkds tyid;
+              type_body   = None; (* Will be added afterwards. *)
               type_kind   = kd;
               type_doc    = None;
             }
@@ -3688,6 +3696,7 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
       let tentry =
         {
           type_scheme = (bids, pty_body);
+          type_body   = None;
           type_kind   = pkd;
           type_doc    = None;
         }
@@ -3706,9 +3715,10 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
       let (_, tynm) = tyident in
       let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
       let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
-      let ctorbrmap = make_constructor_branch_map pre ctorbrs in
+      let ctormap = make_constructor_branch_map pre ctorbrs in
+      let tentry = { tentry with type_body = Some(ctormap) } in
       let tydefacc = Alist.extend tydefacc (tynm, tentry) in
-      let ctordefacc = Alist.extend ctordefacc (tynm, tyid, typarams, ctorbrmap) in
+      let ctordefacc = Alist.extend ctordefacc (tynm, tyid, typarams, ctormap) in
       (tydefacc, ctordefacc)
     ) (tydefacc, Alist.empty)
   in

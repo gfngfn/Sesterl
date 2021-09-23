@@ -68,8 +68,12 @@ and value_entry = {
 
 and type_scheme = BoundID.t list * poly_type
 
+and constructor_map = (ConstructorID.t * poly_type list) ConstructorMap.t
+  [@printer (fun ppf _ -> Format.fprintf ppf "<constructor_map>")]
+
 and type_entry = {
   type_scheme : type_scheme;
+  type_body   : constructor_map option;
   type_kind   : kind;
   type_doc    : string option;
 }
@@ -179,14 +183,7 @@ type normalized_mono_row = (mono_type_var, mono_row_var) normalized_row
 
 type normalized_poly_row = (poly_type_var, poly_row_var) normalized_row
 
-type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorMap.t
-
 type local_row_parameter_map = (MustBeBoundRowID.t * LabelSet.t) RowParameterMap.t
-
-type variant_entry = {
-  v_type_parameters : BoundID.t list;
-  v_branches        : constructor_branch_map;
-}
 
 
 module Typeenv = struct

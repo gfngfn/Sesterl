@@ -117,8 +117,11 @@ type value_entry = {
 
 type type_scheme = BoundID.t list * poly_type
 
+type constructor_map = (ConstructorID.t * poly_type list) ConstructorMap.t
+
 type type_entry = {
   type_scheme : type_scheme;
+  type_body   : constructor_map option;
   type_kind   : kind;
   type_doc    : string option;
 }
@@ -136,8 +139,6 @@ type constructor_entry = {
   type_variables  : BoundID.t list;
   parameter_types : poly_type list;
 }
-
-type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorMap.t
 
 type local_row_parameter_map = (MustBeBoundRowID.t * LabelSet.t) RowParameterMap.t
 
