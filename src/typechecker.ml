@@ -3148,7 +3148,7 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
         | None       -> Kind([], TypeKind)
         | Some(mnkd) -> decode_manual_kind pre_init mnkd
       in
-      let oid = TypeID.fresh (Alist.to_list address) tynm in
+      let oid = TypeID.fresh ~message:"DeclTypeOpaque" (Alist.to_list address) tynm in
       let Kind(bkds, _) = kd in
       let tentry =
         {
@@ -3164,7 +3164,7 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       let (declattr, warnings) = DeclarationAttribute.decode attrs in
       warnings |> List.iter Logging.warn_invalid_attribute;
       let (rngm, m) = modident in
-      let absmodsig = typecheck_signature ~address tyenv utsig in
+      let absmodsig = typecheck_signature ~address:(Alist.extend address m) tyenv utsig in
       let (quant, modsig) = absmodsig in
       let sname = get_space_name rngm m in
       let mentry =
@@ -3181,7 +3181,7 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       let (declattr, warnings) = DeclarationAttribute.decode attrs in
       warnings |> List.iter Logging.warn_invalid_attribute;
       let (_, signm) = sigident in
-      let absmodsig = typecheck_signature ~address tyenv utsig in
+      let absmodsig = typecheck_signature ~address:Alist.empty tyenv utsig in
       let sigr = SigRecord.empty |> SigRecord.add_signature signm absmodsig in
       (OpaqueIDMap.empty, sigr)
 
@@ -3215,13 +3215,15 @@ and typecheck_declaration_list ~(address : address) (tyenv : Typeenv.t) (utdecls
   in
   (quantacc, sigracc)
 
+
 and copy_abstract_signature ~(cause : Range.t) ~(address : address) (absmodsig_from : module_signature abstracted) : module_signature abstracted =
   let (quant_from, modsig_from) = absmodsig_from in
   let (quant_to, subst) =
     OpaqueIDMap.fold (fun oid_from pkd (quant_to, subst) ->
       let oid_to =
         let s = TypeID.name oid_from in
-        TypeID.fresh (Alist.to_list address) s
+        let address_from = TypeID.address oid_from in
+        TypeID.fresh ~message:"copy_abstract_signature" address_from s
       in
       let quant_to = quant_to |> OpaqueIDMap.add oid_to pkd in
       let Kind(pbkds, _) = pkd in
@@ -3302,9 +3304,11 @@ and typecheck_signature ~(address : address) (tyenv : Typeenv.t) (utsig : untype
       (quant, ConcStructure(sigr))
 
   | SigFunctor(modident, utsigdom, utsigcod) ->
-      let (quant, sigdom) = typecheck_signature ~address:Alist.empty tyenv utsigdom in
+      let (rngm, m) = modident in
+      let (quant, sigdom) =
+        let address = Alist.extend Alist.empty m in
+        typecheck_signature ~address tyenv utsigdom in
       let abssigcod =
-        let (rngm, m) = modident in
         let sname = get_space_name rngm m in
         let mentry =
           {
@@ -3581,7 +3585,7 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
 
   | BindSig(sigident, sigbind) ->
       let (_, signm) = sigident in
-      let absmodsig = typecheck_signature ~address tyenv sigbind in
+      let absmodsig = typecheck_signature ~address:Alist.empty tyenv sigbind in
       let sigr = SigRecord.empty |> SigRecord.add_signature signm absmodsig in
       ((OpaqueIDMap.empty, sigr), (ModuleAttribute.empty, []))
 
@@ -3628,7 +3632,7 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
 
       | BindVariant(vntbind) ->
           let Kind(bkds, _) = kd in
-          let tyid = TypeID.fresh (Alist.to_list address) tynm in
+          let tyid = TypeID.fresh ~message:"BindVariant" (Alist.to_list address) tynm in
           let tentry =
             {
               type_scheme = TypeConv.make_opaque_type_scheme_from_base_kinds bkds tyid;

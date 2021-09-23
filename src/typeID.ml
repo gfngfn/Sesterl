@@ -7,8 +7,9 @@ type t = {
 
 let fresh =
   let current_max = ref 0 in
-  (fun (modules : string list) (name : string) ->
+  (fun ?(message : string = "none") (modules : string list) (name : string) ->
     incr current_max;
+    Format.printf "!!! %s/%s (%s)\n" (String.concat ":" modules) name message;
     {
       number  = !current_max;
       modules = modules;
@@ -27,6 +28,9 @@ let equal tyid1 tyid2 =
 
 let name tyid =
   tyid.name
+
+let address tyid =
+  tyid.modules
 
 let pp ppf tyid =
   let prefix = tyid.modules |> List.map (fun s -> s ^ ".") |> String.concat "" in

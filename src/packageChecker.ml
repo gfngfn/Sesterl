@@ -48,13 +48,14 @@ let check_single (is_verbose : bool) ~(is_main_module : bool) (sigrmap : sig_rec
           tyenv |> Typeenv.add_module depmodnm mentry
     ) tyenv_before
   in
+  let (_, modnm) = modident in
   let absmodsigopt =
     let tyenv_for_sig = if is_main_module then tyenv_before else tyenv_for_mod in
-    utsigopt |> Option.map (Typechecker.typecheck_signature ~address:Alist.empty tyenv_for_sig)
+    let address = Alist.extend Alist.empty modnm in
+    utsigopt |> Option.map (Typechecker.typecheck_signature ~address tyenv_for_sig)
   in
   let (_, abssigr, sname, (modattr, ibinds)) = Typechecker.main tyenv_for_mod modident absmodsigopt utmod in
   let out =
-    let (_, modnm) = modident in
     {
       module_name = modnm;
       signature   = abssigr;

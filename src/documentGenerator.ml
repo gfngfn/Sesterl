@@ -127,14 +127,18 @@ let rec stringify_document_element (depth : int) ((docelem, doc_opt) : document_
   | DocModule(modnm, docsig) ->
       let ss = docsig |> stringify_document_signature (depth + 1) in
       List.concat [
-        [
-          Printf.sprintf "%s<li><code>%s %s</code>%s<code> :</code>" indent (spec.token "module") modnm s_doc;
-        ];
+        [ Printf.sprintf "%s<li><code>%s %s</code>%s<code> :</code>" indent (spec.token "module") modnm s_doc ];
         ss;
+        [ "</li>" ];
       ]
 
-  | DocSig(signm, _docelems) ->
-      [ Printf.sprintf "%s<li><code>%s %s</code>%s</li>" indent (spec.token "signature") signm s_doc ]
+  | DocSig(signm, docsig) ->
+      let ss = docsig |> stringify_document_signature (depth + 1) in
+      List.concat [
+        [ Printf.sprintf "%s<li><code>%s %s</code>%s<code> =</code>" indent (spec.token "signature") signm s_doc ];
+        ss;
+        [ "</li>" ];
+      ]
 
 
 and stringify_document_signature (depth : int) (docsig : document_tree_signature) : string list =
