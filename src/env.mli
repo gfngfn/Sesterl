@@ -124,9 +124,10 @@ type type_entity =
   | Synonym
   | Variant of constructor_map
 
+type type_scheme_with_entity = BoundID.t list * poly_type * type_entity
+
 type type_entry = {
-  type_scheme : type_scheme;
-  type_entity : type_entity;
+  type_scheme : type_scheme_with_entity;
   type_kind   : kind;
   type_doc    : string option;
 }

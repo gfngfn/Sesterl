@@ -6,7 +6,7 @@ open Env
 
 type document_tree_element_main =
   | DocVal    of identifier * poly_type
-  | DocType   of type_name * type_scheme * type_entity
+  | DocType   of type_name * type_scheme_with_entity
   | DocModule of module_name * document_tree_signature
   | DocSig    of signature_name * document_tree_signature
 
@@ -71,7 +71,7 @@ and traverse_structure (sigr : SigRecord.t) : document_tree_element list =
       ~c:(fun _ _ acc -> acc)
       ~f:(fun _ _ acc -> acc)
       ~t:(fun tynm tentry acc ->
-        Alist.extend acc (DocType(tynm, tentry.type_scheme, tentry.type_entity), tentry.type_doc)
+        Alist.extend acc (DocType(tynm, tentry.type_scheme), tentry.type_doc)
       )
       ~m:(fun modnm mentry acc ->
         let docelems = traverse_signature mentry.mod_signature in
@@ -121,8 +121,8 @@ let rec stringify_document_element (depth : int) ((docelem, doc_opt) : document_
       in
       [ Printf.sprintf "%s<li><code>%s %s%s : %s</code>%s</li>" indent (spec.token "val") x sq sty s_doc ]
 
-  | DocType(tynm, tyscheme, tyentity) ->
-      let (bids, tybody) = tyscheme in
+  | DocType(tynm, tyscheme) ->
+      let (bids, tybody, tyentity) = tyscheme in
       let dispmap =
         bids |> List.fold_left (fun dispmap bid ->
           dispmap |> DisplayMap.add_bound_id bid

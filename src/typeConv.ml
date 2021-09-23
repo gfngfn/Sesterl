@@ -622,7 +622,7 @@ let make_opaque_type_scheme_from_base_kinds (bkds : base_kind list) (tyid : Type
   make_opaque_type_scheme bids tyid
 
 
-let get_opaque_type ((bids, pty_body) : type_scheme) : TypeID.t option =
+let get_opaque_type ((bids, pty_body, _) : type_scheme_with_entity) : TypeID.t option =
   match pty_body with
   | (_, TypeApp(tyid, ptyargs)) ->
       begin

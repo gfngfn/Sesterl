@@ -310,9 +310,9 @@ let add_variant_types (vntdefs : (type_name * TypeID.t * BoundID.t list * constr
         ) (Alist.empty, ConstructorMap.empty)
       in
       let tentry =
+        let (bids, tybody) = TypeConv.make_opaque_type_scheme bids vid in
         {
-          type_scheme = TypeConv.make_opaque_type_scheme bids vid;
-          type_entity = Variant(ctormap);
+          type_scheme = (bids, tybody, Variant(ctormap));
           type_kind   = pkd;
           type_doc    = None;
         }

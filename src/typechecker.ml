@@ -13,7 +13,7 @@ module BindingMap = Map.Make(String)
 
 module SubstMap = Map.Make(TypeID)
 
-type substitution = (type_scheme * type_entity) SubstMap.t
+type substitution = type_scheme_with_entity SubstMap.t
 
 type type_intern = BoundID.t -> poly_type -> bool
 
@@ -633,7 +633,7 @@ and opaque_occurs_in_structure (quant : quantifier) (sigr : SigRecord.t) : bool 
         b
       )
       ~t:(fun _tynm tentry b ->
-        let (_bids, pty_body) = tentry.type_scheme in
+        let (_bids, pty_body, _tyentity) = tentry.type_scheme in
         b || opaque_occurs_in_poly_type quant pty_body
       )
       ~m:(fun _modnm mentry b ->
@@ -1221,7 +1221,10 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
 
             | Some(tentry) ->
                 let len_expected = TypeConv.arity_of_kind tentry.type_kind in
-                let tyscheme = tentry.type_scheme in
+                let tyscheme =
+                  let (bids, tybody, _) = tentry.type_scheme in
+                  (bids, tybody)
+                in
                 begin
                   match TypeConv.apply_type_scheme_mono tyscheme tyargs with
                   | Some((_, tymain)) -> tymain
@@ -1277,7 +1280,10 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                       let tyargs = mtyargs |> List.map aux in
                       let len_actual = List.length tyargs in
                       let len_expected = TypeConv.arity_of_kind tentry2.type_kind in
-                      let tyscheme = tentry2.type_scheme in
+                      let tyscheme =
+                        let (bids, tybody, _) = tentry2.type_scheme in
+                        (bids, tybody)
+                      in
                       begin
                         match TypeConv.apply_type_scheme_mono tyscheme tyargs with
                         | Some((_, tymain) as ty) ->
@@ -2695,7 +2701,7 @@ and lookup_type_entry (tynm : type_name) (tentry1 : type_entry) (tentry2 : type_
     let subst =
       match TypeConv.get_opaque_type tentry2.type_scheme with
       | None        -> SubstMap.empty
-      | Some(tyid2) -> SubstMap.empty |> SubstMap.add tyid2 (tentry1.type_scheme, tentry1.type_entity)
+      | Some(tyid2) -> SubstMap.empty |> SubstMap.add tyid2 tentry1.type_scheme
     in
     Some(subst)
   else
@@ -2828,8 +2834,14 @@ and subtype_concrete_with_concrete ~(cause : Range.t) ~(address : address) (mods
                 raise_error (MissingRequiredTypeName(cause, tynm2, tentry2))
 
             | Some(tentry1) ->
-                let tyscheme1 = tentry1.type_scheme in
-                let tyscheme2 = tentry2.type_scheme in
+                let tyscheme1 =
+                  let (bids1, pty_body1, _) = tentry1.type_scheme in
+                  (bids1, pty_body1)
+                in
+                let tyscheme2 =
+                  let (bids2, pty_body2, _) = tentry2.type_scheme in
+                  (bids2, pty_body2)
+                in
                 let (b1, bidmap1) = subtype_type_scheme tyscheme1 tyscheme2 in
                 let (b2, _) = subtype_type_scheme tyscheme2 tyscheme1 in
                 let Kind(_, bkdcod1) = tentry1.type_kind in
@@ -2956,7 +2968,7 @@ and substitute_type_id (subst : substitution) (tyid_from : TypeID.t) : TypeID.t 
   | None ->
       tyid_from
 
-  | Some((tyscheme, _)) ->
+  | Some(tyscheme) ->
       begin
         match TypeConv.get_opaque_type tyscheme with
         | None ->
@@ -3000,6 +3012,60 @@ and update_subsignature (modnms : module_name list) (updater : module_signature 
       end
 
 
+and substitute_type_entity ~(cause : Range.t) (bids_from : BoundID.t list) (subst : substitution) (tyentity : type_entity) : type_entity =
+  match tyentity with
+  | Opaque(tyid_from) ->
+      begin
+        match subst |> SubstMap.find_opt tyid_from with
+        | None ->
+            Opaque(tyid_from)
+
+        | Some((bids_to, _, tyentity_to)) ->
+            begin
+              match tyentity_to with
+              | Opaque(tyid_to) ->
+                  Opaque(tyid_to)
+
+              | Synonym ->
+                  Synonym
+
+              | Variant(ctormap_to) ->
+                  let bidmap =
+                    match List.combine bids_from bids_to with
+                    | exception Invalid_argument(_) ->
+                        assert false
+
+                    | zipped ->
+                        zipped |> List.fold_left (fun bidmap (bid_from, bid_to) ->
+                          let pty_to = (Range.dummy "substitute_type_entity", TypeVar(Bound(bid_to))) in
+                          Format.printf "!!! SUBST ENTITY %a ---> %a\n" BoundID.pp bid_from BoundID.pp bid_to;
+                          bidmap |> BoundIDMap.add bid_from pty_to
+                        ) BoundIDMap.empty
+                  in
+                  let ctormap =
+                    ctormap_to |> ConstructorMap.map (fun (ctorid, ptys) ->
+                      (ctorid, ptys |> List.map (fun pty ->
+                        Format.printf "!!! SUBST PTY %a\n" (TypeConv.pp_poly_type DisplayMap.empty) pty;
+                        TypeConv.substitute_poly_type bidmap pty)
+                      )
+                    )
+                  in
+                  Variant(ctormap)
+            end
+      end
+
+  | Synonym ->
+      Synonym
+
+  | Variant(ctormap) ->
+      let ctormap =
+        ctormap |> ConstructorMap.map (fun (ctorid, ptys) ->
+          (ctorid, ptys |> List.map (substitute_poly_type ~cause subst))
+        )
+      in
+      Variant(ctormap)
+
+
 and substitute_structure ~(cause : Range.t) ~(address : address) (subst : substitution) (sigr : SigRecord.t) : SigRecord.t =
   sigr |> SigRecord.map
       ~v:(fun _x ventry ->
@@ -3015,30 +3081,11 @@ and substitute_structure ~(cause : Range.t) ~(address : address) (subst : substi
         pty |> substitute_poly_type ~cause subst
       )
       ~t:(fun _tynm tentry ->
-        let (bids, pty_body) = tentry.type_scheme in
-        let tyentity =
-          match tentry.type_entity with
-          | Opaque(tyid_from) ->
-              begin
-                match subst |> SubstMap.find_opt tyid_from with
-                | None                   -> Opaque(tyid_from)
-                | Some((_, tyentity_to)) -> tyentity_to
-              end
-
-          | Synonym ->
-              Synonym
-
-          | Variant(ctormap) ->
-              let ctormap =
-                ctormap |> ConstructorMap.map (fun (ctorid, ptys) ->
-                  (ctorid, ptys |> List.map (substitute_poly_type ~cause subst))
-                )
-              in
-              Variant(ctormap)
-        in
+        let (bids, pty_body, tyentity) = tentry.type_scheme in
+        let pty_body = pty_body |> substitute_poly_type ~cause subst in
+        let tyentity = tyentity |> substitute_type_entity ~cause bids subst in
         {
-          type_scheme = (bids, pty_body |> substitute_poly_type ~cause subst);
-          type_entity = tyentity;
+          type_scheme = (bids, pty_body, tyentity);
           type_kind   = tentry.type_kind;
           type_doc    = tentry.type_doc;
         }
@@ -3083,7 +3130,8 @@ and substitute_poly_type ~(cause : Range.t) (subst : substitution) (pty : poly_t
             | None ->
                 TypeApp(tyid_from, ptyargs |> List.map aux)
 
-            | Some((tyscheme, _)) ->
+            | Some((bids, pty_body, _)) ->
+                let tyscheme = (bids, pty_body) in
                 begin
                   match TypeConv.apply_type_scheme_poly tyscheme (ptyargs |> List.map aux) with
                   | None               -> assert false (* Arity mismatch; this cannot happen. *)
@@ -3172,9 +3220,9 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       let oid = TypeID.fresh ~message:"DeclTypeOpaque" (Alist.to_list address) tynm in
       let Kind(bkds, _) = kd in
       let tentry =
+        let (bids, pty_body) = TypeConv.make_opaque_type_scheme_from_base_kinds bkds oid in
         {
-          type_scheme = TypeConv.make_opaque_type_scheme_from_base_kinds bkds oid;
-          type_entity = Opaque(oid);
+          type_scheme = (bids, pty_body, Opaque(oid));
           type_kind   = kd;
           type_doc    = declattr.doc;
         }
@@ -3249,8 +3297,8 @@ and copy_abstract_signature ~(cause : Range.t) ~(address : address) (absmodsig_f
       in
       let quant_to = quant_to |> OpaqueIDMap.add oid_to pkd in
       let Kind(pbkds, _) = pkd in
-      let tyscheme = TypeConv.make_opaque_type_scheme_from_base_kinds pbkds oid_to in
-      let subst = subst |> SubstMap.add oid_from (tyscheme, Opaque(oid_to)) in
+      let (bids, pty_body) = TypeConv.make_opaque_type_scheme_from_base_kinds pbkds oid_to in
+      let subst = subst |> SubstMap.add oid_from (bids, pty_body, Opaque(oid_to)) in
       (quant_to, subst)
     ) quant_from (OpaqueIDMap.empty, SubstMap.empty)
   in
@@ -3403,7 +3451,7 @@ and typecheck_signature ~(address : address) (tyenv : Typeenv.t) (utsig : untype
           in
           let pkd_actual = tentry1.type_kind in
           unify_kind rng tynm1 ~actual:pkd_actual ~expected:pkd_expected;
-          let subst = subst |> SubstMap.add tyid0 (tentry1.type_scheme, tentry1.type_entity) in
+          let subst = subst |> SubstMap.add tyid0 tentry1.type_scheme in
           let quant = quant |> OpaqueIDMap.remove tyid0 in
           (subst, quant)
         ) (SubstMap.empty, quant0)
@@ -3656,12 +3704,13 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
           let Kind(bkds, _) = kd in
           let tyid = TypeID.fresh ~message:"BindVariant" (Alist.to_list address) tynm in
           let tentry =
+            let (bids, pty_body) = TypeConv.make_opaque_type_scheme_from_base_kinds bkds tyid in
             {
-              type_scheme = TypeConv.make_opaque_type_scheme_from_base_kinds bkds tyid;
-              type_entity = Opaque(tyid); (* Will be changed to `Variant(_)` afterwards. *)
+              type_scheme = (bids, pty_body, Opaque(tyid));
               type_kind   = kd;
               type_doc    = None;
             }
+              (* The entity will be changed to `Variant(_)` afterwards. *)
           in
           let tyenv = tyenv |> Typeenv.add_type tynm tentry in
           let vntacc = Alist.extend vntacc (tyident, tyvars, vntbind, tyid, kd, tentry) in
@@ -3710,8 +3759,7 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
       let pty_body = TypeConv.generalize 0 ty_body in
       let tentry =
         {
-          type_scheme = (bids, pty_body);
-          type_entity = Synonym;
+          type_scheme = (bids, pty_body, Synonym);
           type_kind   = pkd;
           type_doc    = None;
         }
@@ -3731,7 +3779,10 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
       let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
       let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
       let ctormap = make_constructor_branch_map pre ctorbrs in
-      let tentry = { tentry with type_entity = Variant(ctormap) } in
+      let tentry =
+        let (bids, pty_body, _) = tentry.type_scheme in
+        { tentry with type_scheme = (bids, pty_body, Variant(ctormap)) }
+      in
       let tydefacc = Alist.extend tydefacc (tynm, tentry) in
       let ctordefacc = Alist.extend ctordefacc (tynm, tyid, typarams, ctormap) in
       (tydefacc, ctordefacc)
