@@ -77,7 +77,7 @@ let internbridf (_bidmap : BoundID.t BoundIDMap.t) (_brid1 : BoundRowID.t) (_nom
 
 
 let add_dummy_fold (tynm : type_name) (tyid : TypeID.t) (bids : BoundID.t list) (ctormap : constructor_map) (sigr : SigRecord.t) : SigRecord.t =
-  let bid = BoundID.fresh () in
+  let bid = BoundID.fresh ~message:("add_dummy_fold, " ^ tynm) () in
   let dr = Range.dummy "add_dummy_fold" in
   let plabmap =
     ConstructorMap.fold (fun ctornm (_ctorid, ptyargs) plabmap ->
@@ -1067,14 +1067,14 @@ and unify_effect (Effect(tyact) : mono_effect) (Effect(tyexp) : mono_effect) : u
 
 
 and make_rec_initial_type_from_annotation (preL : pre) (letbind : untyped_let_binding) : pre * poly_type option =
-  let (rngv, _) = letbind.vb_identifier in
+  let (rngv, x) = letbind.vb_identifier in
   let ordparams = letbind.vb_parameters in
   let mndparams = letbind.vb_mandatories in
   let optparams = letbind.vb_optionals in
 
   (* First, add local type/row parameters at level `levS`. *)
   let preS =
-    let (pre, _assoc) = make_type_parameter_assoc preL letbind.vb_forall in
+    let (pre, _assoc) = make_type_parameter_assoc ~message:("make_rec_initial_type_from_annotation/" ^ x) preL letbind.vb_forall in
     let levS = pre.level + 1 in
     let preS = { pre with level = levS } in
     preS |> add_local_row_parameter letbind.vb_forall_row
@@ -1145,9 +1145,9 @@ and make_rec_initial_type_from_annotation (preL : pre) (letbind : untyped_let_bi
   (preS, ptyopt)
 
 
-and make_type_parameter_assoc (pre : pre) (tyvarnms : type_variable_binder list) : pre * type_parameter_assoc =
+and make_type_parameter_assoc ~message (pre : pre) (tyvarnms : type_variable_binder list) : pre * type_parameter_assoc =
   tyvarnms |> List.fold_left (fun (pre, assoc) ((rng, tyvarnm), kdannot) ->
-    let mbbid = MustBeBoundID.fresh ("$" ^ tyvarnm) (pre.level + 1) in
+    let mbbid = MustBeBoundID.fresh ~message ("$" ^ tyvarnm) (pre.level + 1) in
     match assoc |> TypeParameterAssoc.add_last tyvarnm mbbid with
     | None ->
         raise_error (TypeParameterBoundMoreThanOnce(rng, tyvarnm))
@@ -1223,6 +1223,7 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                 let len_expected = TypeConv.arity_of_kind tentry.type_kind in
                 let tyscheme =
                   let (bids, tybody, _) = tentry.type_scheme in
+                  Format.printf "!!! TYSCHEME %a %a\n" (Format.pp_print_list BoundID.pp) bids (TypeConv.pp_poly_type DisplayMap.empty) tybody;
                   (bids, tybody)
                 in
                 begin
@@ -1352,7 +1353,7 @@ and add_local_row_parameter (rowvars : (row_variable_name ranged * (label ranged
     if rowparams |> RowParameterMap.mem rowvarnm then
       raise_error (RowParameterBoundMoreThanOnce(rng, rowvarnm))
     else
-      let mbbrid = MustBeBoundRowID.fresh ("?$" ^ rowvarnm) pre.level in
+      let mbbrid = MustBeBoundRowID.fresh ~message:"add_local_row_parameter" ("?$" ^ rowvarnm) pre.level in
       let labset =
         mkind |> List.fold_left (fun labset rlabel ->
           let (rnglabel, label) = rlabel in
@@ -2202,7 +2203,7 @@ fun namef preL letbind ->
 
    (* First, add local type/row parameters at level `levS`. *)
     let preS =
-      let (preL, _assoc) = make_type_parameter_assoc preL letbind.vb_forall in
+      let (preL, _assoc) = make_type_parameter_assoc ~message:("typecheck_let1/" ^ x) preL letbind.vb_forall in
       { preL with level = preL.level + 1 } |> add_local_row_parameter letbind.vb_forall_row
     in
 
@@ -3012,7 +3013,7 @@ and update_subsignature (modnms : module_name list) (updater : module_signature 
       end
 
 
-and substitute_type_entity ~(cause : Range.t) (bids_from : BoundID.t list) (subst : substitution) (tyentity : type_entity) : type_entity =
+and substitute_type_entity ~(cause : Range.t) (bids_source : BoundID.t list) (subst : substitution) (tyentity : type_entity) : type_entity =
   match tyentity with
   | Opaque(tyid_from) ->
       begin
@@ -3020,18 +3021,18 @@ and substitute_type_entity ~(cause : Range.t) (bids_from : BoundID.t list) (subs
         | None ->
             Opaque(tyid_from)
 
-        | Some((bids_to, _, tyentity_to)) ->
+        | Some((bids_target, _, tyentity_target)) ->
             begin
-              match tyentity_to with
+              match tyentity_target with
               | Opaque(tyid_to) ->
                   Opaque(tyid_to)
 
               | Synonym ->
                   Synonym
 
-              | Variant(ctormap_to) ->
+              | Variant(ctormap_target) ->
                   let bidmap =
-                    match List.combine bids_from bids_to with
+                    match List.combine bids_target bids_source with
                     | exception Invalid_argument(_) ->
                         assert false
 
@@ -3043,9 +3044,9 @@ and substitute_type_entity ~(cause : Range.t) (bids_from : BoundID.t list) (subs
                         ) BoundIDMap.empty
                   in
                   let ctormap =
-                    ctormap_to |> ConstructorMap.map (fun (ctorid, ptys) ->
+                    ctormap_target |> ConstructorMap.map (fun (ctorid, ptys) ->
                       (ctorid, ptys |> List.map (fun pty ->
-                        Format.printf "!!! SUBST PTY %a\n" (TypeConv.pp_poly_type DisplayMap.empty) pty;
+                        Format.printf "!!! SUBST PTY %a %a\n" ConstructorID.pp ctorid (TypeConv.pp_poly_type DisplayMap.empty) pty;
                         TypeConv.substitute_poly_type bidmap pty)
                       )
                     )
@@ -3184,7 +3185,7 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
             local_row_parameters  = RowParameterMap.empty;
           }
         in
-        let (pre, _) = make_type_parameter_assoc pre_init typarams in
+        let (pre, _) = make_type_parameter_assoc ~message:("typecheck_declaration/" ^ x) pre_init typarams in
         { pre with level = 1 } |> add_local_row_parameter rowparams
       in
       let ty = decode_manual_type pre mty in
@@ -3220,7 +3221,7 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       let oid = TypeID.fresh ~message:"DeclTypeOpaque" (Alist.to_list address) tynm in
       let Kind(bkds, _) = kd in
       let tentry =
-        let (bids, pty_body) = TypeConv.make_opaque_type_scheme_from_base_kinds bkds oid in
+        let (bids, pty_body) = TypeConv.make_opaque_type_scheme_from_base_kinds ~message:("DeclTypeOpaque/" ^ tynm) bkds oid in
         {
           type_scheme = (bids, pty_body, Opaque(oid));
           type_kind   = kd;
@@ -3297,7 +3298,7 @@ and copy_abstract_signature ~(cause : Range.t) ~(address : address) (absmodsig_f
       in
       let quant_to = quant_to |> OpaqueIDMap.add oid_to pkd in
       let Kind(pbkds, _) = pkd in
-      let (bids, pty_body) = TypeConv.make_opaque_type_scheme_from_base_kinds pbkds oid_to in
+      let (bids, pty_body) = TypeConv.make_opaque_type_scheme_from_base_kinds ~message:"copy_abstract_signature" pbkds oid_to in
       let subst = subst |> SubstMap.add oid_from (bids, pty_body, Opaque(oid_to)) in
       (quant_to, subst)
     ) quant_from (OpaqueIDMap.empty, SubstMap.empty)
@@ -3430,7 +3431,7 @@ and typecheck_signature ~(address : address) (tyenv : Typeenv.t) (utsig : untype
         | ConcFunctor(_)           -> raise_error (NotAStructureSignature(rng_last, modsig_last))
         | ConcStructure(sigr_last) -> sigr_last
       in
-      let (tydefs, ctordefs) = bind_types ~address tyenv tybinds in
+      let (tydefs, ctordefs) = bind_types ~message:"SigWith" ~address tyenv tybinds in
       let (subst, quant) =
         tydefs |> List.fold_left (fun (subst, quant) (tynm1, tentry1) ->
           let (tyid0, pkd_expected) =
@@ -3515,7 +3516,7 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
               local_row_parameters  = RowParameterMap.empty;
             }
           in
-          let (pre, _) = make_type_parameter_assoc pre_init extbind.ext_type_params in
+          let (pre, _) = make_type_parameter_assoc ~message:("BindValExternal/" ^ x) pre_init extbind.ext_type_params in
           { pre with level = 1 } |> add_local_row_parameter extbind.ext_row_params
         in
         let ty = decode_manual_type pre mty in
@@ -3602,7 +3603,7 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
       assert false
 
   | BindType((_ :: _) as tybinds) ->
-      let (tydefs, ctordefs) = bind_types ~address tyenv tybinds in
+      let (tydefs, ctordefs) = bind_types ~message:"BindType" ~address tyenv tybinds in
       let sigr =
         tydefs |> List.fold_left (fun sigr (tynm, tentry) ->
           sigr |> SigRecord.add_type tynm tentry
@@ -3660,7 +3661,7 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
       ((OpaqueIDMap.empty, sigr), (ModuleAttribute.empty, []))
 
 
-and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding list) : (type_name * type_entry) list * variant_definition list =
+and bind_types ~message ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding list) : (type_name * type_entry) list * variant_definition list =
   let pre_init =
     {
       level                 = 0;
@@ -3702,15 +3703,15 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
 
       | BindVariant(vntbind) ->
           let Kind(bkds, _) = kd in
-          let tyid = TypeID.fresh ~message:"BindVariant" (Alist.to_list address) tynm in
+          let tyid = TypeID.fresh ~message:(message ^ "/BindVariant") (Alist.to_list address) tynm in
           let tentry =
-            let (bids, pty_body) = TypeConv.make_opaque_type_scheme_from_base_kinds bkds tyid in
+            let (bids_temp, pty_body_temp) = TypeConv.make_opaque_type_scheme_from_base_kinds ~message:(message ^ "/BindVariant/" ^ tynm) bkds tyid in
             {
-              type_scheme = (bids, pty_body, Opaque(tyid));
+              type_scheme = (bids_temp, pty_body_temp, Opaque(tyid));
               type_kind   = kd;
               type_doc    = None;
             }
-              (* The entity will be changed to `Variant(_)` afterwards. *)
+              (* `type_scheme` will be changed to `(_, _, Variant(_))` afterwards. *)
           in
           let tyenv = tyenv |> Typeenv.add_type tynm tentry in
           let vntacc = Alist.extend vntacc (tyident, tyvars, vntbind, tyid, kd, tentry) in
@@ -3753,7 +3754,7 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
           _
         } = syndata
       in
-      let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
+      let (pre, typaramassoc) = make_type_parameter_assoc ~message:("bind_types/syn/" ^ tynm) pre tyvars in
       let bids = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
       let ty_body = decode_manual_type pre mtyreal in
       let pty_body = TypeConv.generalize 0 ty_body in
@@ -3776,15 +3777,29 @@ and bind_types ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding 
     vntacc |> Alist.to_list |> List.fold_left (fun (tydefacc, ctordefacc) vnt ->
       let (tyident, tyvars, ctorbrs, tyid, pkd, tentry) = vnt in
       let (_, tynm) = tyident in
-      let (pre, typaramassoc) = make_type_parameter_assoc pre tyvars in
-      let typarams = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
+      let (pre, typaramassoc) = make_type_parameter_assoc ~message:("bind_types/vnt/" ^ tynm) pre tyvars in
+      let bids = typaramassoc |> TypeParameterAssoc.values |> List.map MustBeBoundID.to_bound in
       let ctormap = make_constructor_branch_map pre ctorbrs in
       let tentry =
-        let (bids, pty_body, _) = tentry.type_scheme in
+        let (bids_temp, pty_body_temp, _) = tentry.type_scheme in
+        let bidmap =
+          match List.combine bids_temp bids with
+          | exception Invalid_argument(_) ->
+              assert false
+
+          | zipped ->
+              zipped |> List.fold_left (fun bidmap (bid_from, bid_to) ->
+                let pty_to = (Range.dummy "substitute_type_entity", TypeVar(Bound(bid_to))) in
+                Format.printf "!!! SUBST BIDS %a ---> %a\n" BoundID.pp bid_from BoundID.pp bid_to;
+                bidmap |> BoundIDMap.add bid_from pty_to
+              ) BoundIDMap.empty
+        in
+        let pty_body = TypeConv.substitute_poly_type bidmap pty_body_temp in
+        Format.printf "!!! SUBST PTY %a ===> %a\n" (TypeConv.pp_poly_type DisplayMap.empty) pty_body_temp (TypeConv.pp_poly_type DisplayMap.empty) pty_body;
         { tentry with type_scheme = (bids, pty_body, Variant(ctormap)) }
       in
       let tydefacc = Alist.extend tydefacc (tynm, tentry) in
-      let ctordefacc = Alist.extend ctordefacc (tynm, tyid, typarams, ctormap) in
+      let ctordefacc = Alist.extend ctordefacc (tynm, tyid, bids, ctormap) in
       (tydefacc, ctordefacc)
     ) (tydefacc, Alist.empty)
   in

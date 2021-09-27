@@ -6,8 +6,8 @@ type t = {
 }
 
 
-let fresh (name : string) (lev : int) : t =
-  let bid = BoundID.fresh () in
+let fresh ~message (name : string) (lev : int) : t =
+  let bid = BoundID.fresh ~message:("MustBeBound, " ^ name ^ ", " ^ message) () in
   { main = bid; name = name; level = lev; }
 
 

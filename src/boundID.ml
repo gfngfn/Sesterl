@@ -23,8 +23,9 @@ let initialize () =
   current_max := 0
 
 
-let fresh () =
+let fresh ~message () =
   incr current_max;
+  Format.printf "!!! BOUND '#%d (%s)\n" (!current_max) message;
   { id = !current_max; }
 
 
