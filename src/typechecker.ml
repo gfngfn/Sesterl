@@ -1223,7 +1223,6 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
                 let len_expected = TypeConv.arity_of_kind tentry.type_kind in
                 let tyscheme =
                   let (bids, tybody, _) = tentry.type_scheme in
-                  Format.printf "!!! TYSCHEME %a %a\n" (Format.pp_print_list BoundID.pp) bids (TypeConv.pp_poly_type DisplayMap.empty) tybody;
                   (bids, tybody)
                 in
                 begin
@@ -3039,14 +3038,12 @@ and substitute_type_entity ~(cause : Range.t) (bids_source : BoundID.t list) (su
                     | zipped ->
                         zipped |> List.fold_left (fun bidmap (bid_from, bid_to) ->
                           let pty_to = (Range.dummy "substitute_type_entity", TypeVar(Bound(bid_to))) in
-                          Format.printf "!!! SUBST ENTITY %a ---> %a\n" BoundID.pp bid_from BoundID.pp bid_to;
                           bidmap |> BoundIDMap.add bid_from pty_to
                         ) BoundIDMap.empty
                   in
                   let ctormap =
                     ctormap_target |> ConstructorMap.map (fun (ctorid, ptys) ->
                       (ctorid, ptys |> List.map (fun pty ->
-                        Format.printf "!!! SUBST PTY %a %a\n" ConstructorID.pp ctorid (TypeConv.pp_poly_type DisplayMap.empty) pty;
                         TypeConv.substitute_poly_type bidmap pty)
                       )
                     )
@@ -3790,12 +3787,10 @@ and bind_types ~message ~(address : address) (tyenv : Typeenv.t) (tybinds : type
           | zipped ->
               zipped |> List.fold_left (fun bidmap (bid_from, bid_to) ->
                 let pty_to = (Range.dummy "substitute_type_entity", TypeVar(Bound(bid_to))) in
-                Format.printf "!!! SUBST BIDS %a ---> %a\n" BoundID.pp bid_from BoundID.pp bid_to;
                 bidmap |> BoundIDMap.add bid_from pty_to
               ) BoundIDMap.empty
         in
         let pty_body = TypeConv.substitute_poly_type bidmap pty_body_temp in
-        Format.printf "!!! SUBST PTY %a ===> %a\n" (TypeConv.pp_poly_type DisplayMap.empty) pty_body_temp (TypeConv.pp_poly_type DisplayMap.empty) pty_body;
         { tentry with type_scheme = (bids, pty_body, Variant(ctormap)) }
       in
       let tydefacc = Alist.extend tydefacc (tynm, tentry) in

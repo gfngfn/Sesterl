@@ -609,7 +609,7 @@ let apply_type_scheme_poly ((bids, pty_body) : type_scheme) (ptyargs : poly_type
     in
     Some(substitute_poly_type substmap pty_body)
   with
-  | _ -> None
+  | Invalid_argument(_) -> None
 
 let make_opaque_type_scheme (bids : BoundID.t list) (tyid : TypeID.t) : type_scheme =
   let dr = Range.dummy "make_opaque_type_scheme" in
