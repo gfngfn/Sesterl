@@ -2,6 +2,7 @@
 open MyUtil
 open Syntax
 open Env
+open IntermediateSyntax
 
 
 type document_tree_element_main =
@@ -14,8 +15,11 @@ and document_tree_element =
   document_tree_element_main * string option
 
 and document_tree_signature =
-  | DocStructure of document_tree_element list
-  | DocFunctor   of { parameter : document_tree_element list; body : document_tree_signature }
+  | DocSigVar     of Address.t * signature_name
+  | DocSigPath    of signature_name (* TODO *)
+  | DocSigFunctor of module_name * document_tree_signature * document_tree_signature
+  | DocSigWith    of document_tree_signature * (type_name * type_scheme_with_entity) list
+  | DocSigDecls   of document_tree_element list
 
 
 let trim_indentation (s : string) : string =
@@ -46,9 +50,11 @@ let trim_indentation (s : string) : string =
       lines |> List.map (fun line -> Core.String.drop_prefix line min_indent) |> String.concat "\n"
 
 
+
 let rec traverse_signature (modsig : module_signature) : document_tree_signature =
+(*
   match modsig with
-  | ConcStructure(sigr) ->
+  | (isig, ConcStructure(_sigr)) ->
       let docelems = traverse_structure sigr in
       DocStructure(docelems)
 
@@ -60,6 +66,30 @@ let rec traverse_signature (modsig : module_signature) : document_tree_signature
         traverse_signature modsig_body
       in
       DocFunctor{ parameter = docelems_param; body = docsig }
+*)
+  let (isig, _) = modsig in
+  traverse_signature_source isig
+
+
+and traverse_signature_source (isig : signature_source) : document_tree_signature =
+  match isig with
+  | ISigVar(address, signm) ->
+      DocSigVar(address, signm)
+
+  | ISigPath(proj) ->
+      DocSigPath(proj)
+
+  | ISigWith(isig0, tydefs) ->
+      let withs = tydefs |> List.map (fun (tynm, tentry) -> (tynm, tentry.type_scheme)) in
+      DocSigWith(traverse_signature_source isig0, withs)
+
+  | ISigFunctor(m, isigdom, isigcod) ->
+      let docsigdom = traverse_signature_source isigdom in
+      let docsigcod = traverse_signature_source isigcod in
+      DocSigFunctor(m, docsigdom, docsigcod)
+
+  | ISigDecls(sigr) ->
+      DocSigDecls(traverse_structure sigr)
 
 
 and traverse_structure (sigr : SigRecord.t) : document_tree_element list =
@@ -85,6 +115,56 @@ and traverse_structure (sigr : SigRecord.t) : document_tree_element list =
       Alist.empty
   in
   acc |> Alist.to_list
+
+
+let stringify_type (depth : int) ~token:(s_token : string) ~doc:(s_doc : string) (tynm : type_name) (tyscheme : type_scheme_with_entity) : string list =
+  let spec = TypeConv.display_spec_html in
+  let indent = String.make (depth * 2) ' ' in
+  let (bids, tybody, tyentity) = tyscheme in
+  let dispmap =
+    bids |> List.fold_left (fun dispmap bid ->
+      dispmap |> DisplayMap.add_bound_id bid
+    ) DisplayMap.empty
+  in
+  let s_typarams =
+    let ss = bids |> List.map (fun bid -> dispmap |> DisplayMap.find_bound_id bid) in
+    match ss with
+    | []     -> ""
+    | _ :: _ -> Printf.sprintf "&lt;%s&gt;" (String.concat ", " ss)
+  in
+  let ss_body =
+    match tyentity with
+    | Opaque(_tyid) ->
+        [ Printf.sprintf "<code>%s</code>" s_typarams ]
+
+    | Synonym ->
+        [ Format.asprintf "<code>%s = %a</code>" s_typarams (TypeConv.pp_poly_type dispmap) tybody ]
+
+    | Variant(ctormap) ->
+        let ss_elems =
+          ConstructorMap.bindings ctormap |> List.map (fun (ctornm, (_, ptys)) ->
+            let s_param =
+              match ptys with
+              | [] ->
+                  ""
+
+              | _ :: _ ->
+                  let pp_sep = (fun ppf () -> Format.fprintf ppf ", ") in
+                  Format.asprintf "(%a)"
+                    (Format.pp_print_list ~pp_sep:pp_sep (TypeConv.pp_poly_type dispmap)) ptys
+            in
+            Printf.sprintf "<li><code>| %s%s</code></li>" ctornm s_param
+          )
+        in
+        List.concat [
+          [ Printf.sprintf "<code>%s =</code><ul>" s_typarams ];
+          ss_elems;
+          [ "</ul>" ];
+        ]
+  in
+  [ Printf.sprintf "%s<li><code>%s %s</code>%s%s</li>"
+      indent (spec.token s_token) tynm (String.concat "" ss_body) s_doc;
+  ]
 
 
 let rec stringify_document_element (depth : int) ((docelem, doc_opt) : document_tree_element) : string list =
@@ -123,51 +203,7 @@ let rec stringify_document_element (depth : int) ((docelem, doc_opt) : document_
       [ Printf.sprintf "%s<li><code>%s %s%s : %s</code>%s</li>" indent (spec.token "val") x sq sty s_doc ]
 
   | DocType(tynm, tyscheme) ->
-      let (bids, tybody, tyentity) = tyscheme in
-      let dispmap =
-        bids |> List.fold_left (fun dispmap bid ->
-          dispmap |> DisplayMap.add_bound_id bid
-        ) DisplayMap.empty
-      in
-      let s_typarams =
-        let ss = bids |> List.map (fun bid -> dispmap |> DisplayMap.find_bound_id bid) in
-        match ss with
-        | []     -> ""
-        | _ :: _ -> Printf.sprintf "&lt;%s&gt;" (String.concat ", " ss)
-      in
-      let ss_body =
-        match tyentity with
-        | Opaque(_tyid) ->
-            [ Printf.sprintf "<code>%s</code>" s_typarams ]
-
-        | Synonym ->
-            [ Format.asprintf "<code>%s = %a</code>" s_typarams (TypeConv.pp_poly_type dispmap) tybody ]
-
-        | Variant(ctormap) ->
-            let ss_elems =
-              ConstructorMap.bindings ctormap |> List.map (fun (ctornm, (_, ptys)) ->
-                let s_param =
-                  match ptys with
-                  | [] ->
-                      ""
-
-                  | _ :: _ ->
-                      let pp_sep = (fun ppf () -> Format.fprintf ppf ", ") in
-                      Format.asprintf "(%a)"
-                        (Format.pp_print_list ~pp_sep:pp_sep (TypeConv.pp_poly_type dispmap)) ptys
-                in
-                Printf.sprintf "<li><code>| %s%s</code></li>" ctornm s_param
-              )
-            in
-            List.concat [
-              [ Printf.sprintf "<code>%s =</code><ul>" s_typarams ];
-              ss_elems;
-              [ "</ul>" ];
-            ]
-      in
-      [ Printf.sprintf "%s<li><code>%s %s</code>%s%s</li>"
-          indent (spec.token "type") tynm (String.concat "" ss_body) s_doc;
-      ]
+      stringify_type depth ~token:"type" ~doc:s_doc tynm tyscheme
 
   | DocModule(modnm, docsig) ->
       let ss = docsig |> stringify_document_signature (depth + 1) in
@@ -190,7 +226,37 @@ and stringify_document_signature (depth : int) (docsig : document_tree_signature
   let spec = TypeConv.display_spec_html in
   let indent = String.make (depth * 2) ' ' in
   match docsig with
-  | DocStructure(docelems) ->
+  | DocSigVar(address, signm) ->
+      let adelems = Address.to_list address in
+      let ss =
+        adelems |> List.map (function
+        | Address.Member(modnm)  -> modnm
+        | Address.FunctorBody(r) -> Printf.sprintf "(%s = ...)" r.arg
+        )
+      in
+      [ Printf.sprintf "%s<code>%s</code>" indent (String.concat "." (List.append ss [ signm ])) ]
+
+  | DocSigPath(proj) ->
+      [ Printf.sprintf "%s<code>(...).%s</code>" indent proj ]
+
+  | DocSigWith(docsig0, withs) ->
+      let ss1 = stringify_document_signature (depth + 1) docsig0 in
+      let ss2 =
+        withs |> List.mapi (fun index (tynm, tyscheme) ->
+          let token = if index == 0 then "type" else "and" in
+          stringify_type (depth + 1) ~token ~doc:"" tynm tyscheme
+        ) |> List.concat
+      in
+      List.concat [
+        [ Printf.sprintf "%s<code>(</code>" indent ];
+        ss1;
+        [ Printf.sprintf "%s<code>%s</code>" indent (spec.token "with") ];
+        ss2;
+        [ Printf.sprintf "%s<code>)</code>" indent ];
+      ]
+
+
+  | DocSigDecls(docelems) ->
       List.concat [
         [
           Printf.sprintf "%s<code>%s</code>" indent (spec.token "sig");
@@ -203,25 +269,19 @@ and stringify_document_signature (depth : int) (docsig : document_tree_signature
         ];
       ]
 
-  | DocFunctor{ parameter = docelems; body = docsig } ->
+  | DocSigFunctor(m, docsig1, docsig2) ->
       List.concat [
-        [
-          Printf.sprintf "%s<code>%s(%s</code>" indent (spec.token "fun") (spec.token "sig");
-          Printf.sprintf "%s<ul>" indent;
-        ];
-        docelems |> List.map (stringify_document_element (depth + 1)) |> List.concat;
-        [
-          Printf.sprintf "%s</ul>" indent;
-          Printf.sprintf "%s<code>%s) -></code>" indent (spec.token "end");
-        ];
-        docsig |> stringify_document_signature (depth + 1);
+        [ Printf.sprintf "%s<code>%s(%s :</code>" indent (spec.token "fun") m ];
+        stringify_document_signature (depth + 1) docsig1;
+        [ Printf.sprintf "%s<code>) -></code>" indent ];
+        stringify_document_signature (depth + 1) docsig2;
       ]
 
 
 let main (abspath_doc_out : absolute_path) (out : PackageChecker.single_output) : unit =
-  let (_, sigr) = out.signature in
+  let (_, (isig, _sigr)) = out.signature in
   let docelem =
-    (DocModule(out.module_name, DocStructure(traverse_structure sigr)), None)
+    (DocModule(out.module_name, traverse_signature_source isig), None)
   in
   let lines =
     List.concat [

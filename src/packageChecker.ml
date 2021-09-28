@@ -8,11 +8,11 @@ open Errors
 
 module SigRecordMap = Map.Make(String)
 
-type sig_record_map = (SigRecord.t abstracted * space_name) SigRecordMap.t
+type sig_record_map = ((signature_source * SigRecord.t) abstracted * space_name) SigRecordMap.t
 
 type single_output = {
   module_name : module_name;
-  signature   : SigRecord.t abstracted;
+  signature   : (signature_source * SigRecord.t) abstracted;
   space_name  : space_name;
   attribute   : ModuleAttribute.t;
   bindings    : binding list;
@@ -20,7 +20,7 @@ type single_output = {
 }
 
 
-let check_single (is_verbose : bool) ~(is_main_module : bool) (sigrmap : sig_record_map) (tyenv_before : Typeenv.t) (source : SourceLoader.loaded_module) : SigRecord.t abstracted * single_output =
+let check_single (is_verbose : bool) ~(is_main_module : bool) (sigrmap : sig_record_map) (tyenv_before : Typeenv.t) (source : SourceLoader.loaded_module) : (signature_source * SigRecord.t) abstracted * single_output =
   let abspath  = source.SourceLoader.source_path in
   let modident = source.SourceLoader.module_identifier in
   let utsigopt = source.SourceLoader.signature in
@@ -37,10 +37,10 @@ let check_single (is_verbose : bool) ~(is_main_module : bool) (sigrmap : sig_rec
            when submodules are topologically sorted. *)
           raise (ConfigError(ModuleNotFound(rng, depmodnm)))
 
-      | Some(((_, sigr), sname)) ->
+      | Some(((_, (isig, sigr)), sname)) ->
           let mentry =
             {
-              mod_signature = ConcStructure(sigr);
+              mod_signature = (isig, ConcStructure(sigr));
               mod_name      = sname;
               mod_doc       = None;
             }
@@ -82,7 +82,7 @@ let main (is_verbose : bool) (tyenv_before : Typeenv.t) (submods : SourceLoader.
     ) (SigRecordMap.empty, Alist.empty)
   in
 
-  let ((_, mainsigr), mainout) =
+  let ((_, (mainisig, mainsigr)), mainout) =
     check_single is_verbose ~is_main_module:true sigrmap tyenv_before mainmod
   in
   let tyenv =
@@ -90,7 +90,7 @@ let main (is_verbose : bool) (tyenv_before : Typeenv.t) (submods : SourceLoader.
     let mainsname = mainout.space_name in
     let mentry =
       {
-        mod_signature = ConcStructure(mainsigr);
+        mod_signature = (mainisig, ConcStructure(mainsigr));
         mod_name      = mainsname;
         mod_doc       = None;
       }

@@ -38,9 +38,19 @@ and base_kind =
   | TypeKind
   | RowKind  of LabelSet.t
 
-and module_signature =
+and module_signature_main =
   | ConcStructure of record_signature
   | ConcFunctor   of functor_signature
+
+and module_signature =
+  signature_source * module_signature_main
+
+and signature_source =
+  | ISigVar     of Address.t * signature_name
+  | ISigPath    of signature_name (* TODO *)
+  | ISigWith    of signature_source * (type_name * type_entry) list
+  | ISigFunctor of signature_name * signature_source * signature_source
+  | ISigDecls   of record_signature
 
 and functor_signature = {
   opaques  : quantifier;
@@ -52,7 +62,7 @@ and functor_signature = {
 }
 
 and functor_domain =
-  | Domain of record_signature
+  | Domain of signature_source * record_signature
 
 and env_value_entry = {
   typ  : poly_type;
@@ -92,6 +102,7 @@ and module_entry = {
 
 and signature_entry = {
   sig_signature : module_signature abstracted;
+  sig_address   : Address.t;
 }
 
 and constructor_entry = {

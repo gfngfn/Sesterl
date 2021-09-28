@@ -40,9 +40,19 @@ and base_kind =
   | TypeKind
   | RowKind  of LabelSet.t
 
-and module_signature =
+and module_signature_main =
   | ConcStructure of record_signature
   | ConcFunctor   of functor_signature
+
+and module_signature =
+  signature_source * module_signature_main
+
+and signature_source =
+  | ISigVar     of Address.t * signature_name
+  | ISigPath    of signature_name (* TODO *)
+  | ISigWith    of signature_source * (type_name * type_entry) list
+  | ISigFunctor of signature_name * signature_source * signature_source
+  | ISigDecls   of record_signature
 
 and functor_signature = {
   opaques  : quantifier;
@@ -52,7 +62,7 @@ and functor_signature = {
 }
 
 and functor_domain =
-  | Domain of record_signature
+  | Domain of signature_source * record_signature
 
 and kind =
   | Kind of (base_kind) list * base_kind
@@ -100,6 +110,22 @@ and quantifier = kind OpaqueIDMap.t
 
 and 'a abstracted = quantifier * 'a
 
+and type_entry = {
+  type_scheme : type_scheme_with_entity;
+  type_kind   : kind;
+  type_doc    : string option;
+}
+[@@deriving show { with_path = false }]
+
+and type_scheme_with_entity = BoundID.t list * poly_type * type_entity
+
+and type_entity =
+  | Opaque  of TypeID.t
+  | Synonym
+  | Variant of constructor_map
+
+and constructor_map = (ConstructorID.t * poly_type list) ConstructorMap.t
+
 val pp_module_signature : Format.formatter -> module_signature -> unit
 
 type ('a, 'b) normalized_row =
@@ -117,22 +143,6 @@ type value_entry = {
 
 type type_scheme = BoundID.t list * poly_type
 
-type constructor_map = (ConstructorID.t * poly_type list) ConstructorMap.t
-
-type type_entity =
-  | Opaque  of TypeID.t
-  | Synonym
-  | Variant of constructor_map
-
-type type_scheme_with_entity = BoundID.t list * poly_type * type_entity
-
-type type_entry = {
-  type_scheme : type_scheme_with_entity;
-  type_kind   : kind;
-  type_doc    : string option;
-}
-[@@deriving show { with_path = false }]
-
 type module_entry = {
   mod_signature : module_signature;
   mod_name      : space_name;
@@ -141,6 +151,7 @@ type module_entry = {
 
 type signature_entry = {
   sig_signature : module_signature abstracted;
+  sig_address   : Address.t;
 }
 
 type constructor_entry = {

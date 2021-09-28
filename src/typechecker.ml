@@ -235,10 +235,10 @@ let find_module_from_chain (tyenv : Typeenv.t) ((modident, projs) : module_name_
     projs |> List.fold_left (fun (mentry, rng) proj ->
       let modsig = mentry.mod_signature in
       match modsig with
-      | ConcFunctor(_) ->
+      | (_, ConcFunctor(_)) ->
           raise_error (NotOfStructureType(rng, modsig))
 
-      | ConcStructure(sigr) ->
+      | (_, ConcStructure(sigr)) ->
           let (rngproj, modnm) = proj in
           begin
             match sigr |> SigRecord.find_module modnm with
@@ -284,11 +284,11 @@ let add_open_specs_to_type_environment (openspecs : module_name_chain list) (tye
     let mentry = find_module_from_chain tyenv openspec in
     let modsig = mentry.mod_signature in
     match modsig with
-    | ConcFunctor(_) ->
+    | (_, ConcFunctor(_)) ->
         let rng0 = get_module_name_chain_position openspec in
         raise_error (NotOfStructureType(rng0, modsig))
 
-    | ConcStructure(sigr) ->
+    | (_, ConcStructure(sigr)) ->
         tyenv |> update_type_environment_by_signature_record sigr
   ) tyenv
 
@@ -618,11 +618,11 @@ and opaque_occurs_in_type_id (quant : quantifier) (tyid : TypeID.t) : bool =
 
 and opaque_occurs (quant : quantifier) (modsig : module_signature) : bool =
   match modsig with
-  | ConcStructure(sigr) ->
+  | (_, ConcStructure(sigr)) ->
       opaque_occurs_in_structure quant sigr
 
-  | ConcFunctor(sigftor) ->
-      let Domain(sigr) = sigftor.domain in
+  | (_, ConcFunctor(sigftor)) ->
+      let Domain(_, sigr) = sigftor.domain in
       let (_quantcod, modsigcod) = sigftor.codomain in
       opaque_occurs_in_structure quant sigr || opaque_occurs quant modsigcod
 
@@ -1275,11 +1275,11 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
           let (quant1, modsig1) = absmodsig1 in
           begin
             match modsig1 with
-            | ConcFunctor(_) ->
+            | (_, ConcFunctor(_)) ->
                 let (rng1, _) = utmod1 in
                 raise_error (NotOfStructureType(rng1, modsig1))
 
-            | ConcStructure(sigr) ->
+            | (_, ConcStructure(sigr)) ->
                 begin
                   match sigr |> SigRecord.find_type tynm2 with
                   | None ->
@@ -1553,11 +1553,11 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
             let modsig1 = mentry.mod_signature in
             begin
               match modsig1 with
-              | ConcFunctor(_) ->
+              | (_, ConcFunctor(_)) ->
                   let ((rng1, _), _) = modidentchain1 in
                   raise_error (NotOfStructureType(rng1, modsig1))
 
-              | ConcStructure(sigr) ->
+              | (_, ConcStructure(sigr)) ->
                   let (rng2, x) = ident2 in
                   begin
                     match sigr |> SigRecord.find_value x with
@@ -1886,10 +1886,10 @@ and get_structure_signature (tyenv : Typeenv.t) (modident : module_name ranged) 
   let (modsig, rnglast) =
     projs |> List.fold_left (fun (modsig, rnglast) proj ->
       match modsig with
-      | ConcFunctor(_) ->
+      | (_, ConcFunctor(_)) ->
           raise_error (NotOfStructureType(rnglast, modsig))
 
-      | ConcStructure(sigr) ->
+      | (_, ConcStructure(sigr)) ->
           let (rng, modnm) = proj in
           begin
             match sigr |> SigRecord.find_module modnm with
@@ -1900,8 +1900,8 @@ and get_structure_signature (tyenv : Typeenv.t) (modident : module_name ranged) 
   in
   begin
     match modsig with
-    | ConcFunctor(_)      -> raise_error (NotOfStructureType(rnglast, modsig))
-    | ConcStructure(sigr) -> sigr
+    | (_, ConcFunctor(_))      -> raise_error (NotOfStructureType(rnglast, modsig))
+    | (_, ConcStructure(sigr)) -> sigr
   end
 
 
@@ -2720,7 +2720,7 @@ and lookup_type_entry (tynm : type_name) (tentry1 : type_entry) (tentry2 : type_
 and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module_signature) : substitution =
   let take_left = (fun _tyid to1 _to2 -> Some(to1)) in
   match (modsig1, modsig2) with
-  | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
+  | ((_, ConcStructure(sigr1)), (_, ConcStructure(sigr2))) ->
       sigr2 |> SigRecord.fold
           ~v:(fun _x2 _ventry2 subst ->
             subst
@@ -2775,18 +2775,18 @@ and subtype_abstract_with_abstract ~(cause : Range.t) ~(address : Address.t) (ab
 (* `subtype_concrete_with_concrete address rng modsig1 modsig2` asserts that `modsig1 <= modsig2` holds. *)
 and subtype_concrete_with_concrete ~(cause : Range.t) ~(address : Address.t) (modsig1 : module_signature) (modsig2 : module_signature) : unit =
   match (modsig1, modsig2) with
-  | (ConcFunctor(sigftor1), ConcFunctor(sigftor2)) ->
-      let (quant1, Domain(sigr1), absmodsigcod1) = (sigftor1.opaques, sigftor1.domain, sigftor1.codomain) in
-      let (quant2, Domain(sigr2), absmodsigcod2) = (sigftor2.opaques, sigftor2.domain, sigftor2.codomain) in
+  | ((_, ConcFunctor(sigftor1)), (_, ConcFunctor(sigftor2))) ->
+      let (quant1, Domain(isig1, sigr1), absmodsigcod1) = (sigftor1.opaques, sigftor1.domain, sigftor1.codomain) in
+      let (quant2, Domain(isig2, sigr2), absmodsigcod2) = (sigftor2.opaques, sigftor2.domain, sigftor2.codomain) in
       let subst =
-        let modsigdom1 = ConcStructure(sigr1) in
-        let modsigdom2 = ConcStructure(sigr2) in
+        let modsigdom1 = (isig1, ConcStructure(sigr1)) in
+        let modsigdom2 = (isig2, ConcStructure(sigr2)) in
         subtype_concrete_with_abstract ~cause ~address modsigdom2 (quant1, modsigdom1)
       in
       let absmodsigcod1 = absmodsigcod1 |> substitute_abstract ~cause subst in
       subtype_abstract_with_abstract ~cause ~address absmodsigcod1 absmodsigcod2
 
-  | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
+  | ((_, ConcStructure(sigr1)), (_, ConcStructure(sigr2))) ->
       sigr2 |> SigRecord.fold
           ~v:(fun x2 ventry2 () ->
             let pty2 = ventry2.val_type in
@@ -2901,25 +2901,29 @@ and subtype_signature ~(cause : Range.t) ~(address : Address.t) (modsig1 : modul
   subtype_concrete_with_abstract ~cause ~address modsig1 absmodsig2
 
 
-and substitute_concrete ~(cause : Range.t) (subst : substitution) (modsig : module_signature) =
+and substitute_signature_source (subst : substitution) (isig : signature_source) : signature_source =
+  isig (* TODO *)
+
+
+and substitute_concrete ~(cause : Range.t) (subst : substitution) (modsig : module_signature) : module_signature =
   match modsig with
-  | ConcFunctor(sigftor) ->
-      let (quant, Domain(sigr), absmodsigcod) = (sigftor.opaques, sigftor.domain, sigftor.codomain) in
+  | (isig, ConcFunctor(sigftor)) ->
+      let (quant, Domain(isigdom, sigr), absmodsigcod) = (sigftor.opaques, sigftor.domain, sigftor.codomain) in
       let sigr = sigr |> substitute_structure ~cause subst in
       let absmodsigcod = absmodsigcod |> substitute_abstract ~cause subst in
       let sigftor =
         { sigftor with
           opaques  = quant;
-          domain   = Domain(sigr);
+          domain   = Domain(isigdom |> substitute_signature_source subst, sigr);
           codomain = absmodsigcod;
         }
       in
-      ConcFunctor(sigftor)
+      (isig |> substitute_signature_source subst, ConcFunctor(sigftor))
         (* Strictly speaking, we should assert that `quant` and the domain of `subst` be disjoint. *)
 
-  | ConcStructure(sigr) ->
+  | (isig, ConcStructure(sigr)) ->
       let sigr = sigr |> substitute_structure ~cause subst in
-      ConcStructure(sigr)
+      (isig |> substitute_signature_source subst, ConcStructure(sigr))
 
 
 (* Given `modsig1` and `modsig2` which are already known to satisfy `modsig1 <= modsig2`,
@@ -2927,22 +2931,22 @@ and substitute_concrete ~(cause : Range.t) (subst : substitution) (modsig : modu
    into the corresponding occurrence in `modsig2`. *)
 and copy_closure (modsig1 : module_signature) (modsig2 : module_signature) : module_signature =
   match (modsig1, modsig2) with
-  | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
+  | ((_isig1, ConcStructure(sigr1)), (isig2, ConcStructure(sigr2))) ->
       let sigr2new = copy_closure_in_structure sigr1 sigr2 in
-      ConcStructure(sigr2new)
+      (isig2, ConcStructure(sigr2new))
 
-  | (ConcFunctor(sigftor1), ConcFunctor(sigftor2)) ->
-      let Domain(sigrdom1) = sigftor1.domain in
-      let Domain(sigrdom2) = sigftor2.domain in
+  | ((_isig1, ConcFunctor(sigftor1)), (isig2, ConcFunctor(sigftor2))) ->
+      let Domain(_isigdom1, sigrdom1) = sigftor1.domain in
+      let Domain(isigdom2, sigrdom2) = sigftor2.domain in
       let sigrdom2new = copy_closure_in_structure sigrdom1 sigrdom2 in
       let (_, modsig1) = sigftor1.codomain in
       let (quant2, modsig2) = sigftor2.codomain in
       let modsig2new = copy_closure modsig1 modsig2 in
-      ConcFunctor({ sigftor2 with
-        domain   = Domain(sigrdom2new);
+      (isig2, ConcFunctor({ sigftor2 with
+        domain   = Domain(isigdom2, sigrdom2new);
         codomain = (quant2, modsig2new);
         closure  = sigftor1.closure;
-      })
+      }))
 
   | _ ->
       assert false
@@ -2998,10 +3002,10 @@ and update_subsignature (modnms : module_name list) (updater : module_signature 
   | modnm0 :: modnms ->
       begin
         match modsig with
-        | ConcFunctor(_) ->
+        | (_, ConcFunctor(_)) ->
             modsig
 
-        | ConcStructure(sigr) ->
+        | (isig, ConcStructure(sigr)) ->
             begin
               let sigr =
                 sigr |> SigRecord.map
@@ -3018,7 +3022,7 @@ and update_subsignature (modnms : module_name list) (updater : module_signature 
                   )
                   ~s:(fun _signm absmodsig -> absmodsig)
               in
-              ConcStructure(sigr)
+              (isig, ConcStructure(sigr))
             end
       end
 
@@ -3104,7 +3108,7 @@ and substitute_structure ~(cause : Range.t) (subst : substitution) (sigr : SigRe
       )
       ~s:(fun _ sentry ->
         let absmodsig = sentry.sig_signature |> substitute_abstract ~cause subst in
-        { sig_signature = absmodsig }
+        { sentry with sig_signature = absmodsig }
       )
 
 
@@ -3263,7 +3267,12 @@ and typecheck_declaration ~(address : Address.t) (tyenv : Typeenv.t) (utdecl : u
       let (_, signm) = sigident in
       let absmodsig = typecheck_signature ~address:Address.root tyenv utsig in
       let sigr =
-        let sentry = { sig_signature = absmodsig } in
+        let sentry =
+          {
+            sig_signature = absmodsig;
+            sig_address   = address;
+          }
+        in
         SigRecord.empty |> SigRecord.add_signature signm sentry
       in
       (OpaqueIDMap.empty, sigr)
@@ -3273,11 +3282,11 @@ and typecheck_declaration ~(address : Address.t) (tyenv : Typeenv.t) (utdecl : u
       let (quant, modsig) = absmodsig in
       begin
         match modsig with
-        | ConcFunctor(_) ->
+        | (_, ConcFunctor(_)) ->
             let (rng, _) = utsig in
             raise_error (NotAStructureSignature(rng, modsig))
 
-        | ConcStructure(sigr) ->
+        | (isig, ConcStructure(sigr)) ->
             (quant, sigr)
       end
 
@@ -3329,7 +3338,10 @@ and typecheck_signature ~(address : Address.t) (tyenv : Typeenv.t) (utsig : unty
 
         | Some(sentry_from) ->
             let absmodsig_from = sentry_from.sig_signature in
-            copy_abstract_signature ~cause:rng ~address_to:address absmodsig_from
+            let address_sigvar = sentry_from.sig_address in
+            let absmodsig_to = copy_abstract_signature ~cause:rng ~address_to:address absmodsig_from in
+            let (quant, (_, modsigmain)) = absmodsig_to in
+            (quant, (ISigVar(address_sigvar, signm), modsigmain))
               (* We need to rename opaque IDs here, since otherwise
                  we would mistakenly make the following program pass:
 
@@ -3353,11 +3365,11 @@ and typecheck_signature ~(address : Address.t) (tyenv : Typeenv.t) (utsig : unty
       let (quant1, modsig1) = absmodsig1 in
       begin
         match modsig1 with
-        | ConcFunctor(_) ->
+        | (_, ConcFunctor(_)) ->
             let (rng1, _) = utmod1 in
             raise_error (NotOfStructureType(rng1, modsig1))
 
-        | ConcStructure(sigr1) ->
+        | (_, ConcStructure(sigr1)) ->
             let (rng2, signm2) = sigident2 in
             begin
               match sigr1 |> SigRecord.find_signature signm2 with
@@ -3386,7 +3398,7 @@ and typecheck_signature ~(address : Address.t) (tyenv : Typeenv.t) (utsig : unty
   | SigDecls(openspecs, utdecls) ->
       let tyenv = tyenv |> add_open_specs_to_type_environment openspecs in
       let (quant, sigr) = typecheck_declaration_list ~address tyenv utdecls in
-      (quant, ConcStructure(sigr))
+      (quant, (ISigDecls(sigr), ConcStructure(sigr)))
 
   | SigFunctor(modident, utsigdom, utsigcod) ->
       let (rngm, m) = modident in
@@ -3409,16 +3421,17 @@ and typecheck_signature ~(address : Address.t) (tyenv : Typeenv.t) (utsig : unty
       in
       begin
         match sigdom with
-        | ConcStructure(sigr) ->
+        | (isigdom, ConcStructure(sigr)) ->
             let sigftor =
               {
                 opaques  = quant;
-                domain   = Domain(sigr);
+                domain   = Domain(isigdom, sigr);
                 codomain = abssigcod;
                 closure  = None;
               }
             in
-            (OpaqueIDMap.empty, ConcFunctor(sigftor))
+            let (_, (isigcod, _)) = abssigcod in
+            (OpaqueIDMap.empty, (ISigFunctor(m, isigdom, isigcod), ConcFunctor(sigftor)))
 
         | _ ->
             raise_error (SupportOnlyFirstOrderFunctor(rng))
@@ -3432,10 +3445,10 @@ and typecheck_signature ~(address : Address.t) (tyenv : Typeenv.t) (utsig : unty
         let (rng_last, modsig_last) =
           modidents |> List.fold_left (fun (rngpre, modsig) (rng, modnm) ->
             match modsig with
-            | ConcFunctor(_) ->
+            | (_, ConcFunctor(_)) ->
                 raise_error (NotAStructureSignature(rngpre, modsig))
 
-            | ConcStructure(sigr) ->
+            | (_, ConcStructure(sigr)) ->
                 begin
                   match sigr |> SigRecord.find_module modnm with
                   | None         -> raise_error (UnboundModuleName(rng, modnm))
@@ -3444,8 +3457,8 @@ and typecheck_signature ~(address : Address.t) (tyenv : Typeenv.t) (utsig : unty
           ) (rng0, modsig0)
         in
         match modsig_last with
-        | ConcFunctor(_)           -> raise_error (NotAStructureSignature(rng_last, modsig_last))
-        | ConcStructure(sigr_last) -> sigr_last
+        | (_, ConcFunctor(_))           -> raise_error (NotAStructureSignature(rng_last, modsig_last))
+        | (_, ConcStructure(sigr_last)) -> sigr_last
       in
       let (tydefs, ctordefs) = bind_types ~message:"SigWith" ~address tyenv tybinds in
       let (subst, quant) =
@@ -3477,12 +3490,13 @@ and typecheck_signature ~(address : Address.t) (tyenv : Typeenv.t) (utsig : unty
       let modsig_ret =
         modsig_ret |> update_subsignature (modidents |> List.map snd) (fun modsig_last ->
           match modsig_last with
-          | ConcFunctor(_) ->
+          | (_, ConcFunctor(_)) ->
               assert false
 
-          | ConcStructure(sigr_last) ->
+          | (_, ConcStructure(sigr_last)) ->
               let sigr_last = sigr_last |> add_constructor_definitions ctordefs in
-              ConcStructure(sigr_last)
+              let (_, (isig0, _)) = absmodsig0 in
+              (ISigWith(isig0, tydefs), ConcStructure(sigr_last))
         )
       in
       (quant, modsig_ret)
@@ -3665,11 +3679,11 @@ and typecheck_binding ~(address : Address.t) (tyenv : Typeenv.t) (utbind : untyp
       let (quant, modsig) = absmodsig in
       begin
         match modsig with
-        | ConcFunctor(_) ->
+        | (_, ConcFunctor(_)) ->
             let (rng, _) = utmod in
             raise_error (NotOfStructureType(rng, modsig))
 
-        | ConcStructure(sigr) ->
+        | (_, ConcStructure(sigr)) ->
             ((quant, sigr), (attrs, ibinds))
       end
 
@@ -3677,7 +3691,12 @@ and typecheck_binding ~(address : Address.t) (tyenv : Typeenv.t) (utbind : untyp
       let (_, signm) = sigident in
       let absmodsig = typecheck_signature ~address:Address.root tyenv sigbind in
       let sigr =
-        let sentry = { sig_signature = absmodsig } in
+        let sentry =
+          {
+            sig_signature = absmodsig;
+            sig_address   = address;
+          }
+        in
         SigRecord.empty |> SigRecord.add_signature signm sentry
       in
       ((OpaqueIDMap.empty, sigr), (ModuleAttribute.empty, []))
@@ -3841,7 +3860,8 @@ and typecheck_module ~(address : Address.t) (tyenv : Typeenv.t) (utmod : untyped
       let tyenv = tyenv |> add_open_specs_to_type_environment openspecs in
       let (abssigr, (modattr_included, ibinds)) = typecheck_binding_list ~address tyenv utbinds in
       let (quant, sigr) = abssigr in
-      let absmodsig = (quant, ConcStructure(sigr)) in
+      let isig = ISigDecls(sigr) in
+      let absmodsig = (quant, (isig, ConcStructure(sigr))) in
       (absmodsig, (ModuleAttribute.merge modattr modattr_included, ibinds))
 
   | ModProjMod(utmod, modident) ->
@@ -3849,11 +3869,11 @@ and typecheck_module ~(address : Address.t) (tyenv : Typeenv.t) (utmod : untyped
       let (quant, modsig) = absmodsig in
       begin
         match modsig with
-        | ConcFunctor(_) ->
+        | (_, ConcFunctor(_)) ->
             let (rng, _) = utmod in
             raise_error (NotOfStructureType(rng, modsig))
 
-        | ConcStructure(sigr) ->
+        | (_, ConcStructure(sigr)) ->
             let (rng, m) = modident in
             begin
               match sigr |> SigRecord.find_module m with
@@ -3893,16 +3913,18 @@ and typecheck_module ~(address : Address.t) (tyenv : Typeenv.t) (utmod : untyped
       let absmodsig =
         begin
           match modsigdom with
-          | ConcStructure(sigrdom) ->
+          | (isigdom, ConcStructure(sigrdom)) ->
               let sigftor =
                 {
                   opaques  = quant;
-                  domain   = Domain(sigrdom);
+                  domain   = Domain(isigdom, sigrdom);
                   codomain = absmodsigcod;
                   closure  = Some(modident, utmod0, tyenv);
                 }
               in
-              (OpaqueIDMap.empty, ConcFunctor(sigftor))
+              let (_, (isigcod, _)) = absmodsigcod in
+              let isig = ISigFunctor(m, isigdom, isigcod) in
+              (OpaqueIDMap.empty, (isig, ConcFunctor(sigftor)))
 
           | _ ->
               raise_error (SupportOnlyFirstOrderFunctor(rng))
@@ -3918,15 +3940,15 @@ and typecheck_module ~(address : Address.t) (tyenv : Typeenv.t) (utmod : untyped
       let sname2 = mentry2.mod_name in
       begin
         match modsig1 with
-        | ConcStructure(_) ->
+        | (_, ConcStructure(_)) ->
             let rng1 = get_module_name_chain_position modidentchain1 in
             raise_error (NotOfFunctorType(rng1, modsig1))
 
-        | ConcFunctor(sigftor1) ->
+        | (_, ConcFunctor(sigftor1)) ->
             let
                 {
                   opaques  = quant;
-                  domain   = Domain(sigrdom1);
+                  domain   = Domain(_, sigrdom1);
                   codomain = absmodsigcod1;
                   _
                 } = sigftor1
@@ -3941,7 +3963,8 @@ and typecheck_module ~(address : Address.t) (tyenv : Typeenv.t) (utmod : untyped
                      and the domain `modsigdom1` of the applied functor. *)
                   let subst =
                     let ((rng2, _), _) = modidentchain2 in
-                    let modsigdom1 = ConcStructure(sigrdom1) in
+                    let isig = ISigDecls(sigrdom1) in
+                    let modsigdom1 = (isig, ConcStructure(sigrdom1)) in
                     subtype_signature ~cause:rng2 ~address modsig2 (quant, modsigdom1)
                   in
                   let ((_, modsig0), ibinds) =
@@ -4003,7 +4026,7 @@ and coerce_signature ~(cause : Range.t) ~(address : Address.t) (modsig1 : module
   (quant2, copy_closure modsig1 modsig2)
 
 
-let main (tyenv : Typeenv.t) (modident : module_name ranged) (absmodsigopt2 : (module_signature abstracted) option) (utmod1 : untyped_module) : Typeenv.t * SigRecord.t abstracted * space_name * (ModuleAttribute.t * binding list) =
+let main (tyenv : Typeenv.t) (modident : module_name ranged) (absmodsigopt2 : (module_signature abstracted) option) (utmod1 : untyped_module) : Typeenv.t * (signature_source * SigRecord.t) abstracted * space_name * (ModuleAttribute.t * binding list) =
   let (rng, modnm) = modident in
   let address = Address.root |> Address.append_member modnm in
   let (absmodsig1, imod) = typecheck_module ~address tyenv utmod1 in
@@ -4014,11 +4037,11 @@ let main (tyenv : Typeenv.t) (modident : module_name ranged) (absmodsigopt2 : (m
     | Some(absmodsig2) -> let (_, modsig1) = absmodsig1 in coerce_signature ~cause:rng ~address modsig1 absmodsig2
   in
   match modsig with
-  | ConcFunctor(_) ->
+  | (_, ConcFunctor(_)) ->
       let (rng, _) = utmod1 in
       raise_error (RootModuleMustBeStructure(rng))
 
-  | ConcStructure(sigr) ->
+  | (isig, ConcStructure(sigr)) ->
       let mentry =
         {
           mod_signature = modsig;
@@ -4027,4 +4050,4 @@ let main (tyenv : Typeenv.t) (modident : module_name ranged) (absmodsigopt2 : (m
         }
       in
       let tyenv = tyenv |> Typeenv.add_module modnm mentry in
-      (tyenv, (quant, sigr), sname, imod)
+      (tyenv, (quant, (isig, sigr)), sname, imod)
