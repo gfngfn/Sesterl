@@ -377,8 +377,8 @@ module SigRecord = struct
 
   let find_signature (signm0 : signature_name) (sigr : t) : signature_entry option =
     sigr |> Alist.to_list |> List.find_map (function
-    | SRSig(signm, absmodsig) -> if String.equal signm signm0 then Some(absmodsig) else None
-    | _                       -> None
+    | SRSig(signm, sentry) -> if String.equal signm signm0 then Some(sentry) else None
+    | _                    -> None
     )
 
 
@@ -432,7 +432,7 @@ module SigRecord = struct
             (Alist.extend sigracc (SRModule(modnm, mentry)), acc)
 
         | SRSig(signm, sentry) ->
-            let (absmodsig, acc) = fs signm sentry acc in
+            let (sentry, acc) = fs signm sentry acc in
             (Alist.extend sigracc (SRSig(signm, sentry)), acc)
 
       ) (Alist.empty, init)
