@@ -139,6 +139,10 @@ type module_entry = {
   mod_doc       : string option;
 }
 
+type signature_entry = {
+  sig_signature : module_signature abstracted;
+}
+
 type constructor_entry = {
   belongs         : TypeID.t;
   constructor_id  : ConstructorID.t;
@@ -181,9 +185,9 @@ module Typeenv : sig
 
   val find_module : module_name -> t -> module_entry option
 
-  val add_signature : signature_name -> module_signature abstracted -> t -> t
+  val add_signature : signature_name -> signature_entry -> t -> t
 
-  val find_signature : signature_name -> t -> (module_signature abstracted) option
+  val find_signature : signature_name -> t -> signature_entry option
 
 end
 
@@ -213,9 +217,9 @@ module SigRecord : sig
 
   val find_module : module_name -> t -> module_entry option
 
-  val add_signature : signature_name -> module_signature abstracted -> t -> t
+  val add_signature : signature_name -> signature_entry -> t -> t
 
-  val find_signature : signature_name -> t -> (module_signature abstracted) option
+  val find_signature : signature_name -> t -> signature_entry option
 
   val fold :
     v:(identifier -> value_entry -> 'a -> 'a) ->
@@ -223,7 +227,7 @@ module SigRecord : sig
     f:(type_name -> poly_type -> 'a -> 'a) ->
     t:(type_name -> type_entry -> 'a -> 'a) ->
     m:(module_name -> module_entry -> 'a -> 'a) ->
-    s:(signature_name -> module_signature abstracted -> 'a -> 'a) ->
+    s:(signature_name -> signature_entry -> 'a -> 'a) ->
     'a -> t -> 'a
 
   val map_and_fold :
@@ -232,7 +236,7 @@ module SigRecord : sig
     f:(type_name -> poly_type -> 'a -> poly_type * 'a) ->
     t:(type_name -> type_entry -> 'a -> type_entry * 'a) ->
     m:(module_name -> module_entry -> 'a -> module_entry * 'a) ->
-    s:(signature_name -> module_signature abstracted -> 'a -> module_signature abstracted * 'a) ->
+    s:(signature_name -> signature_entry -> 'a -> signature_entry * 'a) ->
     'a -> t -> t * 'a
 
   val map :
@@ -241,7 +245,7 @@ module SigRecord : sig
     f:(type_name -> poly_type -> poly_type) ->
     t:(type_name -> type_entry -> type_entry) ->
     m:(module_name -> module_entry -> module_entry) ->
-    s:(signature_name -> module_signature abstracted -> module_signature abstracted) ->
+    s:(signature_name -> signature_entry -> signature_entry) ->
     t -> t
 
   val disjoint_union : t -> t -> (t, string) result

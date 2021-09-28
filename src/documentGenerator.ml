@@ -77,7 +77,8 @@ and traverse_structure (sigr : SigRecord.t) : document_tree_element list =
         let docelems = traverse_signature mentry.mod_signature in
         Alist.extend acc (DocModule(modnm, docelems), mentry.mod_doc)
       )
-      ~s:(fun signm (_, modsig) acc ->
+      ~s:(fun signm sentry acc ->
+        let (_, modsig) = sentry.sig_signature in
         let docsig = traverse_signature modsig in
         Alist.extend acc (DocSig(signm, docsig), None)
       )

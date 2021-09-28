@@ -640,7 +640,8 @@ and opaque_occurs_in_structure (quant : quantifier) (sigr : SigRecord.t) : bool 
         let modsig = mentry.mod_signature in
         b || opaque_occurs quant modsig
       )
-      ~s:(fun _ (_quant, modsig) b ->
+      ~s:(fun _ sentry b ->
+        let (_quant, modsig) = sentry.sig_signature in
         b || opaque_occurs quant modsig
       )
       false
@@ -2862,12 +2863,14 @@ and subtype_concrete_with_concrete ~(cause : Range.t) ~(address : address) (mods
                 let modsig1 = mentry1.mod_signature in
                 subtype_concrete_with_concrete ~cause ~address modsig1 modsig2
           )
-          ~s:(fun signm2 absmodsig2 () ->
+          ~s:(fun signm2 sentry2 () ->
+            let absmodsig2 = sentry2.sig_signature in
             match sigr1 |> SigRecord.find_signature signm2 with
             | None ->
                 raise_error (MissingRequiredSignatureName(cause, signm2, absmodsig2))
 
-            | Some(absmodsig1) ->
+            | Some(sentry1) ->
+                let absmodsig1 = sentry1.sig_signature in
                 subtype_abstract_with_abstract ~cause ~address absmodsig1 absmodsig2;
                 subtype_abstract_with_abstract ~cause ~address absmodsig2 absmodsig1;
                 ()
@@ -3091,8 +3094,9 @@ and substitute_structure ~(cause : Range.t) ~(address : address) (subst : substi
       ~m:(fun _ mentry ->
         { mentry with mod_signature = mentry.mod_signature |> substitute_concrete ~cause ~address subst }
       )
-      ~s:(fun _ absmodsig ->
-        absmodsig |> substitute_abstract ~cause ~address subst
+      ~s:(fun _ sentry ->
+        let absmodsig = sentry.sig_signature |> substitute_abstract ~cause ~address subst in
+        { sig_signature = absmodsig }
       )
 
 
@@ -3250,7 +3254,10 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       warnings |> List.iter Logging.warn_invalid_attribute;
       let (_, signm) = sigident in
       let absmodsig = typecheck_signature ~address:Alist.empty tyenv utsig in
-      let sigr = SigRecord.empty |> SigRecord.add_signature signm absmodsig in
+      let sigr =
+        let sentry = { sig_signature = absmodsig } in
+        SigRecord.empty |> SigRecord.add_signature signm sentry
+      in
       (OpaqueIDMap.empty, sigr)
 
   | DeclInclude(utsig) ->
@@ -3313,18 +3320,19 @@ and typecheck_signature ~(address : address) (tyenv : Typeenv.t) (utsig : untype
         | None ->
             raise_error (UnboundSignatureName(rng, signm))
 
-        | Some(absmodsig_from) ->
+        | Some(sentry_from) ->
+            let absmodsig_from = sentry_from.sig_signature in
             copy_abstract_signature ~cause:rng ~address absmodsig_from
               (* We need to rename opaque IDs here, since otherwise
                  we would mistakenly make the following program pass:
 
                  ```
                  signature S = sig
-                   type t:: 0
+                   type t :: 0
                  end
 
-                 module F = fun(X: S) -> fun(Y: S) -> struct
-                   type f(x: X.t): Y.t = x
+                 module F = fun(X : S) -> fun(Y : S) -> struct
+                   type f(x : X.t) : Y.t = x
                  end
                  ```
 
@@ -3349,7 +3357,9 @@ and typecheck_signature ~(address : address) (tyenv : Typeenv.t) (utsig : untype
               | None ->
                   raise_error (UnboundSignatureName(rng2, signm2))
 
-              | Some((_, modsig2) as absmodsig2) ->
+              | Some(sentry2) ->
+                  let absmodsig2 = sentry2.sig_signature in
+                  let (_, modsig2) = absmodsig2 in
                   if opaque_occurs quant1 modsig2 then
                     raise_error (OpaqueIDExtrudesScopeViaSignature(rng, absmodsig2))
                   else
@@ -3654,7 +3664,10 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
   | BindSig(sigident, sigbind) ->
       let (_, signm) = sigident in
       let absmodsig = typecheck_signature ~address:Alist.empty tyenv sigbind in
-      let sigr = SigRecord.empty |> SigRecord.add_signature signm absmodsig in
+      let sigr =
+        let sentry = { sig_signature = absmodsig } in
+        SigRecord.empty |> SigRecord.add_signature signm sentry
+      in
       ((OpaqueIDMap.empty, sigr), (ModuleAttribute.empty, []))
 
 
