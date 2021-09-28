@@ -51,7 +51,7 @@ let check_single (is_verbose : bool) ~(is_main_module : bool) (sigrmap : sig_rec
   let (_, modnm) = modident in
   let absmodsigopt =
     let tyenv_for_sig = if is_main_module then tyenv_before else tyenv_for_mod in
-    let address = Alist.extend Alist.empty modnm in
+    let address = Address.root |> Address.append_member modnm in
     utsigopt |> Option.map (Typechecker.typecheck_signature ~address tyenv_for_sig)
   in
   let (_, abssigr, sname, (modattr, ibinds)) = Typechecker.main tyenv_for_mod modident absmodsigopt utmod in

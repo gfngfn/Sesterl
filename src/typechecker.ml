@@ -143,6 +143,14 @@ let make_type_scheme_from_constructor_entry (centry : constructor_entry) : type_
   (bids, (dr, FuncType(domty, ty_cod)))
 
 
+let make_address_module_list (address : Address.t) : module_name list =
+  address |> Address.to_list |> List.fold_left (fun opt adelem ->
+    match (opt, adelem) with
+    | (Some(acc), Address.Member(modnm)) -> Some(Alist.extend acc modnm)
+    | _                                  -> None
+  ) (Some(Alist.empty)) |> Option.value ~default:Alist.empty |> Alist.to_list
+
+
 let get_module_name_chain_position (modchain : module_name_chain) : Range.t =
   let ((rngL, _), projs) = modchain in
   match List.rev projs with
@@ -814,11 +822,11 @@ let rec unify_aux (ty1 : mono_type) (ty2 : mono_type) : (unit, unification_error
         try
           subtype_abstract_with_abstract
             ~cause:(Range.dummy "unify1")
-            ~address:Alist.empty
+            ~address:Address.root
             absmodsig1 absmodsig2;
           subtype_abstract_with_abstract
             ~cause:(Range.dummy "unify2")
-            ~address:Alist.empty
+            ~address:Address.root
             absmodsig2 absmodsig1;
           return ()
         with
@@ -1263,7 +1271,7 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
 
       | MModProjType(utmod1, tyident2, mtyargs) ->
           let (rng2, tynm2) = tyident2 in
-          let (absmodsig1, _) = typecheck_module Alist.empty tyenv utmod1 in
+          let (absmodsig1, _) = typecheck_module ~address:Address.root tyenv utmod1 in
           let (quant1, modsig1) = absmodsig1 in
           begin
             match modsig1 with
@@ -1303,7 +1311,7 @@ and decode_manual_type (pre : pre) (mty : manual_type) : mono_type =
           end
 
       | MPackType(utsig) ->
-          let absmodsig = typecheck_signature ~address:Alist.empty tyenv utsig in
+          let absmodsig = typecheck_signature ~address:Address.root tyenv utsig in
           PackType(absmodsig)
     in
     (rng, tymain)
@@ -1758,8 +1766,8 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
       let mentry = find_module_from_chain pre.tyenv modidentchain1 in
       let modsig1 = mentry.mod_signature in
       let sname1 = mentry.mod_name in
-      let absmodsig2 = typecheck_signature ~address:Alist.empty pre.tyenv utsig2 in
-      let absmodsig = coerce_signature ~cause:rng ~address:Alist.empty modsig1 absmodsig2 in
+      let absmodsig2 = typecheck_signature ~address:Address.root pre.tyenv utsig2 in
+      let absmodsig = coerce_signature ~cause:rng ~address:Address.root modsig1 absmodsig2 in
       ((rng, PackType(absmodsig)), IPack(sname1))
 
   | Assert(utast0) ->
@@ -2416,11 +2424,11 @@ and subtype_poly_type_impl (internbid : type_intern) (internbrid : row_intern) (
           try
             subtype_abstract_with_abstract
               ~cause:(Range.dummy "subtype_poly_type1")
-              ~address:Alist.empty
+              ~address:Address.root
               absmodsig1 absmodsig2;
             subtype_abstract_with_abstract
               ~cause:(Range.dummy "subtype_poly_type2")
-              ~address:Alist.empty
+              ~address:Address.root
               absmodsig2 absmodsig1;
             true
           with
@@ -2608,11 +2616,11 @@ and poly_type_equal (pty1 : poly_type) (pty2 : poly_type) : bool =
           try
             subtype_abstract_with_abstract
               ~cause:(Range.dummy "poly_type_equal1")
-              ~address:Alist.empty
+              ~address:Address.root
               absmodsig1 absmodsig2;
             subtype_abstract_with_abstract
               ~cause:(Range.dummy "poly_type_equal2")
-              ~address:Alist.empty
+              ~address:Address.root
               absmodsig2 absmodsig1;
             true
           with
@@ -2758,14 +2766,14 @@ and lookup_record (rng : Range.t) (modsig1 : module_signature) (modsig2 : module
       SubstMap.empty
 
 
-and subtype_abstract_with_abstract ~(cause : Range.t) ~(address : address) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : unit =
+and subtype_abstract_with_abstract ~(cause : Range.t) ~(address : Address.t) (absmodsig1 : module_signature abstracted) (absmodsig2 : module_signature abstracted) : unit =
   let (_, modsig1) = absmodsig1 in
   let _ = subtype_concrete_with_abstract ~cause ~address modsig1 absmodsig2 in
   ()
 
 
 (* `subtype_concrete_with_concrete address rng modsig1 modsig2` asserts that `modsig1 <= modsig2` holds. *)
-and subtype_concrete_with_concrete ~(cause : Range.t) ~(address : address) (modsig1 : module_signature) (modsig2 : module_signature) : unit =
+and subtype_concrete_with_concrete ~(cause : Range.t) ~(address : Address.t) (modsig1 : module_signature) (modsig2 : module_signature) : unit =
   match (modsig1, modsig2) with
   | (ConcFunctor(sigftor1), ConcFunctor(sigftor2)) ->
       let (quant1, Domain(sigr1), absmodsigcod1) = (sigftor1.opaques, sigftor1.domain, sigftor1.codomain) in
@@ -2881,7 +2889,7 @@ and subtype_concrete_with_concrete ~(cause : Range.t) ~(address : address) (mods
       raise_error (NotASubtype(cause, modsig1, modsig2))
 
 
-and subtype_concrete_with_abstract ~(cause : Range.t) ~(address : address) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : substitution =
+and subtype_concrete_with_abstract ~(cause : Range.t) ~(address : Address.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : substitution =
   let (quant2, modsig2) = absmodsig2 in
   let subst = lookup_record cause modsig1 modsig2 in
   let modsig2 = modsig2 |> substitute_concrete ~cause ~address subst in
@@ -2889,11 +2897,11 @@ and subtype_concrete_with_abstract ~(cause : Range.t) ~(address : address) (mods
   subst
 
 
-and subtype_signature ~(cause : Range.t) ~(address : address) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
+and subtype_signature ~(cause : Range.t) ~(address : Address.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
   subtype_concrete_with_abstract ~cause ~address modsig1 absmodsig2
 
 
-and substitute_concrete ~(cause : Range.t) ~(address : address) (subst : substitution) (modsig : module_signature) =
+and substitute_concrete ~(cause : Range.t) ~(address : Address.t) (subst : substitution) (modsig : module_signature) =
   match modsig with
   | ConcFunctor(sigftor) ->
       let (quant, Domain(sigr), absmodsigcod) = (sigftor.opaques, sigftor.domain, sigftor.codomain) in
@@ -3067,7 +3075,7 @@ and substitute_type_entity ~(cause : Range.t) (bids_source : BoundID.t list) (su
       Variant(ctormap)
 
 
-and substitute_structure ~(cause : Range.t) ~(address : address) (subst : substitution) (sigr : SigRecord.t) : SigRecord.t =
+and substitute_structure ~(cause : Range.t) ~(address : Address.t) (subst : substitution) (sigr : SigRecord.t) : SigRecord.t =
   sigr |> SigRecord.map
       ~v:(fun _x ventry ->
         { ventry with val_type = ventry.val_type |> substitute_poly_type ~cause subst }
@@ -3100,7 +3108,7 @@ and substitute_structure ~(cause : Range.t) ~(address : address) (subst : substi
       )
 
 
-and substitute_abstract ~(cause : Range.t) ~(address : address) (subst : substitution) (absmodsig : module_signature abstracted) : module_signature abstracted =
+and substitute_abstract ~(cause : Range.t) ~(address : Address.t) (subst : substitution) (absmodsig : module_signature abstracted) : module_signature abstracted =
   let (quant, modsig) = absmodsig in
   let modsig = substitute_concrete ~cause ~address subst modsig in
   (quant, modsig)
@@ -3143,7 +3151,7 @@ and substitute_poly_type ~(cause : Range.t) (subst : substitution) (pty : poly_t
           end
 
       | PackType(absmodsig) ->
-          let absmodsig = substitute_abstract ~cause ~address:Alist.empty subst absmodsig in
+          let absmodsig = substitute_abstract ~cause ~address:Address.root subst absmodsig in
           PackType(absmodsig)
     in
     (rng, ptymain)
@@ -3171,7 +3179,7 @@ and substitute_poly_type ~(cause : Range.t) (subst : substitution) (pty : poly_t
   aux pty
 
 
-and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
+and typecheck_declaration ~(address : Address.t) (tyenv : Typeenv.t) (utdecl : untyped_declaration) : SigRecord.t abstracted =
   let (attrs, utdeclmain) = utdecl in
   match utdeclmain with
   | DeclVal((_, x), typarams, rowparams, mty, attrs) ->
@@ -3219,7 +3227,7 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
         | None       -> Kind([], TypeKind)
         | Some(mnkd) -> decode_manual_kind pre_init mnkd
       in
-      let oid = TypeID.fresh ~message:"DeclTypeOpaque" (Alist.to_list address) tynm in
+      let oid = TypeID.fresh ~message:"DeclTypeOpaque" (make_address_module_list address) tynm in
       let Kind(bkds, _) = kd in
       let tentry =
         let (bids, pty_body) = TypeConv.make_opaque_type_scheme_from_base_kinds ~message:("DeclTypeOpaque/" ^ tynm) bkds oid in
@@ -3236,7 +3244,7 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       let (declattr, warnings) = DeclarationAttribute.decode attrs in
       warnings |> List.iter Logging.warn_invalid_attribute;
       let (rngm, m) = modident in
-      let absmodsig = typecheck_signature ~address:(Alist.extend address m) tyenv utsig in
+      let absmodsig = typecheck_signature ~address:(address |> Address.append_member m) tyenv utsig in
       let (quant, modsig) = absmodsig in
       let sname = get_space_name rngm m in
       let mentry =
@@ -3253,7 +3261,7 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       let (declattr, warnings) = DeclarationAttribute.decode attrs in
       warnings |> List.iter Logging.warn_invalid_attribute;
       let (_, signm) = sigident in
-      let absmodsig = typecheck_signature ~address:Alist.empty tyenv utsig in
+      let absmodsig = typecheck_signature ~address:Address.root tyenv utsig in
       let sigr =
         let sentry = { sig_signature = absmodsig } in
         SigRecord.empty |> SigRecord.add_signature signm sentry
@@ -3274,7 +3282,7 @@ and typecheck_declaration ~(address : address) (tyenv : Typeenv.t) (utdecl : unt
       end
 
 
-and typecheck_declaration_list ~(address : address) (tyenv : Typeenv.t) (utdecls : untyped_declaration list) : SigRecord.t abstracted =
+and typecheck_declaration_list ~(address : Address.t) (tyenv : Typeenv.t) (utdecls : untyped_declaration list) : SigRecord.t abstracted =
   let (quantacc, sigracc, _) =
     utdecls |> List.fold_left (fun (quantacc, sigracc, tyenv) ((rng, _) as utdecl) ->
       let (quant, sigr) = typecheck_declaration ~address tyenv utdecl in
@@ -3291,7 +3299,7 @@ and typecheck_declaration_list ~(address : address) (tyenv : Typeenv.t) (utdecls
   (quantacc, sigracc)
 
 
-and copy_abstract_signature ~(cause : Range.t) ~(address : address) (absmodsig_from : module_signature abstracted) : module_signature abstracted =
+and copy_abstract_signature ~(cause : Range.t) ~(address : Address.t) (absmodsig_from : module_signature abstracted) : module_signature abstracted =
   let (quant_from, modsig_from) = absmodsig_from in
   let (quant_to, subst) =
     OpaqueIDMap.fold (fun oid_from pkd (quant_to, subst) ->
@@ -3311,7 +3319,7 @@ and copy_abstract_signature ~(cause : Range.t) ~(address : address) (absmodsig_f
   (quant_to, modsig_to)
 
 
-and typecheck_signature ~(address : address) (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
+and typecheck_signature ~(address : Address.t) (tyenv : Typeenv.t) (utsig : untyped_signature) : module_signature abstracted =
   let (rng, utsigmain) = utsig in
   match utsigmain with
   | SigVar(signm) ->
@@ -3342,7 +3350,7 @@ and typecheck_signature ~(address : address) (tyenv : Typeenv.t) (utsig : untype
       end
 
   | SigPath(utmod1, sigident2) ->
-      let (absmodsig1, _) = typecheck_module Alist.empty tyenv utmod1 in
+      let (absmodsig1, _) = typecheck_module ~address:Address.root tyenv utmod1 in
       let (quant1, modsig1) = absmodsig1 in
       begin
         match modsig1 with
@@ -3384,8 +3392,9 @@ and typecheck_signature ~(address : address) (tyenv : Typeenv.t) (utsig : untype
   | SigFunctor(modident, utsigdom, utsigcod) ->
       let (rngm, m) = modident in
       let (quant, sigdom) =
-        let address = Alist.extend Alist.empty m in
-        typecheck_signature ~address tyenv utsigdom in
+        let address = Address.root |> Address.append_member m in
+        typecheck_signature ~address tyenv utsigdom
+      in
       let abssigcod =
         let sname = get_space_name rngm m in
         let mentry =
@@ -3396,7 +3405,7 @@ and typecheck_signature ~(address : address) (tyenv : Typeenv.t) (utsig : untype
           }
         in
         let tyenv = tyenv |> Typeenv.add_module m mentry in
-        typecheck_signature ~address:Alist.empty tyenv utsigcod
+        typecheck_signature ~address:Address.root tyenv utsigcod
       in
       begin
         match sigdom with
@@ -3504,7 +3513,7 @@ and base_kind_equal (bkd1 : base_kind) (bkd2 : base_kind) : bool =
   | _                                    -> false
 
 
-and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * (ModuleAttribute.t * binding list) =
+and typecheck_binding ~(address : Address.t) (tyenv : Typeenv.t) (utbind : untyped_binding) : SigRecord.t abstracted * (ModuleAttribute.t * binding list) =
   let (_, utbindmain) = utbind in
   match utbindmain with
   | BindVal(attrs, External(extbind)) ->
@@ -3621,7 +3630,10 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
 
   | BindModule(modident, utsigopt2, utmod1) ->
       let (rngm, m) = modident in
-      let (absmodsig1, (modattrsub, ibindssub)) = typecheck_module ~address:(Alist.extend address m) tyenv utmod1 in
+      let (absmodsig1, (modattrsub, ibindssub)) =
+        let address = address |> Address.append_member m in
+        typecheck_module ~address tyenv utmod1
+      in
       let (quant, modsig) =
         match utsigopt2 with
         | None ->
@@ -3629,7 +3641,7 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
 
         | Some(utsig2) ->
             let (_, modsig1) = absmodsig1 in
-            let absmodsig2 = typecheck_signature ~address:(Alist.extend address m) tyenv utsig2 in
+            let absmodsig2 = typecheck_signature ~address:(address |> Address.append_member m) tyenv utsig2 in
             coerce_signature ~cause:rngm ~address modsig1 absmodsig2
       in
       let sname = get_space_name rngm m in
@@ -3663,7 +3675,7 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
 
   | BindSig(sigident, sigbind) ->
       let (_, signm) = sigident in
-      let absmodsig = typecheck_signature ~address:Alist.empty tyenv sigbind in
+      let absmodsig = typecheck_signature ~address:Address.root tyenv sigbind in
       let sigr =
         let sentry = { sig_signature = absmodsig } in
         SigRecord.empty |> SigRecord.add_signature signm sentry
@@ -3671,7 +3683,7 @@ and typecheck_binding ~(address : address) (tyenv : Typeenv.t) (utbind : untyped
       ((OpaqueIDMap.empty, sigr), (ModuleAttribute.empty, []))
 
 
-and bind_types ~message ~(address : address) (tyenv : Typeenv.t) (tybinds : type_binding list) : (type_name * type_entry) list * variant_definition list =
+and bind_types ~message ~(address : Address.t) (tyenv : Typeenv.t) (tybinds : type_binding list) : (type_name * type_entry) list * variant_definition list =
   let pre_init =
     {
       level                 = 0;
@@ -3713,7 +3725,7 @@ and bind_types ~message ~(address : address) (tyenv : Typeenv.t) (tybinds : type
 
       | BindVariant(vntbind) ->
           let Kind(bkds, _) = kd in
-          let tyid = TypeID.fresh ~message:(message ^ "/BindVariant") (Alist.to_list address) tynm in
+          let tyid = TypeID.fresh ~message:(message ^ "/BindVariant") (make_address_module_list address) tynm in
           let tentry =
             let (bids_temp, pty_body_temp) = TypeConv.make_opaque_type_scheme_from_base_kinds ~message:(message ^ "/BindVariant/" ^ tynm) bkds tyid in
             {
@@ -3814,7 +3826,7 @@ and bind_types ~message ~(address : address) (tyenv : Typeenv.t) (tybinds : type
   (Alist.to_list tydefacc, Alist.to_list ctordefacc)
 
 
-and typecheck_module ~(address : address) (tyenv : Typeenv.t) (utmod : untyped_module) : module_signature abstracted * (ModuleAttribute.t * binding list) =
+and typecheck_module ~(address : Address.t) (tyenv : Typeenv.t) (utmod : untyped_module) : module_signature abstracted * (ModuleAttribute.t * binding list) =
   let (rng, utmodmain) = utmod in
   match utmodmain with
   | ModVar(m) ->
@@ -3856,7 +3868,7 @@ and typecheck_module ~(address : address) (tyenv : Typeenv.t) (utmod : untyped_m
 
   | ModFunctor(modident, utsigdom, utmod0) ->
       let (rngm, m) = modident in
-      let absmodsigdom = typecheck_signature ~address:(Alist.extend Alist.empty m) tyenv utsigdom in
+      let absmodsigdom = typecheck_signature ~address:(Address.root |> Address.append_member m) tyenv utsigdom in
       let (quant, modsigdom) = absmodsigdom in
       let (absmodsigcod, _) =
         let sname = get_space_name rngm m in
@@ -3872,7 +3884,7 @@ and typecheck_module ~(address : address) (tyenv : Typeenv.t) (utmod : untyped_m
           }
         in
         let tyenv = tyenv |> Typeenv.add_module m mentry in
-        typecheck_module Alist.empty tyenv utmod0
+        typecheck_module ~address:Address.root tyenv utmod0
       in
       let absmodsig =
         begin
@@ -3959,7 +3971,7 @@ and typecheck_module ~(address : address) (tyenv : Typeenv.t) (utmod : untyped_m
       (absmodsig, (ModuleAttribute.empty, []))
 
 
-and typecheck_binding_list ~(address : address) (tyenv : Typeenv.t) (utbinds : untyped_binding list) : SigRecord.t abstracted * (ModuleAttribute.t * binding list) =
+and typecheck_binding_list ~(address : Address.t) (tyenv : Typeenv.t) (utbinds : untyped_binding list) : SigRecord.t abstracted * (ModuleAttribute.t * binding list) =
   let (_tyenv, quantacc, sigracc, (modattracc, ibindacc)) =
     utbinds |> List.fold_left (fun (tyenv, quantacc, sigracc, (modattracc, ibindacc)) utbind ->
       let (abssigr, (modattr, ibinds)) = typecheck_binding ~address tyenv utbind in
@@ -3983,7 +3995,7 @@ and typecheck_binding_list ~(address : address) (tyenv : Typeenv.t) (utbinds : u
   ((quantacc, sigracc), (modattracc, Alist.to_list ibindacc))
 
 
-and coerce_signature ~(cause : Range.t) ~(address : address) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
+and coerce_signature ~(cause : Range.t) ~(address : Address.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) =
   let _subst = subtype_signature ~cause ~address modsig1 absmodsig2 in
   let (quant2, modsig2) = absmodsig2 in
   (quant2, copy_closure modsig1 modsig2)
@@ -3991,7 +4003,7 @@ and coerce_signature ~(cause : Range.t) ~(address : address) (modsig1 : module_s
 
 let main (tyenv : Typeenv.t) (modident : module_name ranged) (absmodsigopt2 : (module_signature abstracted) option) (utmod1 : untyped_module) : Typeenv.t * SigRecord.t abstracted * space_name * (ModuleAttribute.t * binding list) =
   let (rng, modnm) = modident in
-  let address = Alist.extend Alist.empty modnm in
+  let address = Address.root |> Address.append_member modnm in
   let (absmodsig1, imod) = typecheck_module ~address tyenv utmod1 in
   let sname = get_space_name rng modnm in
   let (quant, modsig) =
