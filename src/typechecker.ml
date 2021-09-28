@@ -2783,7 +2783,7 @@ and subtype_concrete_with_concrete ~(cause : Range.t) ~(address : Address.t) (mo
         let modsigdom2 = ConcStructure(sigr2) in
         subtype_concrete_with_abstract ~cause ~address modsigdom2 (quant1, modsigdom1)
       in
-      let absmodsigcod1 = absmodsigcod1 |> substitute_abstract ~cause ~address subst in
+      let absmodsigcod1 = absmodsigcod1 |> substitute_abstract ~cause subst in
       subtype_abstract_with_abstract ~cause ~address absmodsigcod1 absmodsigcod2
 
   | (ConcStructure(sigr1), ConcStructure(sigr2)) ->
@@ -2892,7 +2892,7 @@ and subtype_concrete_with_concrete ~(cause : Range.t) ~(address : Address.t) (mo
 and subtype_concrete_with_abstract ~(cause : Range.t) ~(address : Address.t) (modsig1 : module_signature) (absmodsig2 : module_signature abstracted) : substitution =
   let (quant2, modsig2) = absmodsig2 in
   let subst = lookup_record cause modsig1 modsig2 in
-  let modsig2 = modsig2 |> substitute_concrete ~cause ~address subst in
+  let modsig2 = modsig2 |> substitute_concrete ~cause subst in
   subtype_concrete_with_concrete ~cause ~address modsig1 modsig2;
   subst
 
@@ -2901,12 +2901,12 @@ and subtype_signature ~(cause : Range.t) ~(address : Address.t) (modsig1 : modul
   subtype_concrete_with_abstract ~cause ~address modsig1 absmodsig2
 
 
-and substitute_concrete ~(cause : Range.t) ~(address : Address.t) (subst : substitution) (modsig : module_signature) =
+and substitute_concrete ~(cause : Range.t) (subst : substitution) (modsig : module_signature) =
   match modsig with
   | ConcFunctor(sigftor) ->
       let (quant, Domain(sigr), absmodsigcod) = (sigftor.opaques, sigftor.domain, sigftor.codomain) in
-      let sigr = sigr |> substitute_structure ~cause ~address subst in
-      let absmodsigcod = absmodsigcod |> substitute_abstract ~cause ~address subst in
+      let sigr = sigr |> substitute_structure ~cause subst in
+      let absmodsigcod = absmodsigcod |> substitute_abstract ~cause subst in
       let sigftor =
         { sigftor with
           opaques  = quant;
@@ -2918,7 +2918,7 @@ and substitute_concrete ~(cause : Range.t) ~(address : Address.t) (subst : subst
         (* Strictly speaking, we should assert that `quant` and the domain of `subst` be disjoint. *)
 
   | ConcStructure(sigr) ->
-      let sigr = sigr |> substitute_structure ~cause ~address subst in
+      let sigr = sigr |> substitute_structure ~cause subst in
       ConcStructure(sigr)
 
 
@@ -3075,7 +3075,7 @@ and substitute_type_entity ~(cause : Range.t) (bids_source : BoundID.t list) (su
       Variant(ctormap)
 
 
-and substitute_structure ~(cause : Range.t) ~(address : Address.t) (subst : substitution) (sigr : SigRecord.t) : SigRecord.t =
+and substitute_structure ~(cause : Range.t) (subst : substitution) (sigr : SigRecord.t) : SigRecord.t =
   sigr |> SigRecord.map
       ~v:(fun _x ventry ->
         { ventry with val_type = ventry.val_type |> substitute_poly_type ~cause subst }
@@ -3100,17 +3100,17 @@ and substitute_structure ~(cause : Range.t) ~(address : Address.t) (subst : subs
         }
       )
       ~m:(fun _ mentry ->
-        { mentry with mod_signature = mentry.mod_signature |> substitute_concrete ~cause ~address subst }
+        { mentry with mod_signature = mentry.mod_signature |> substitute_concrete ~cause subst }
       )
       ~s:(fun _ sentry ->
-        let absmodsig = sentry.sig_signature |> substitute_abstract ~cause ~address subst in
+        let absmodsig = sentry.sig_signature |> substitute_abstract ~cause subst in
         { sig_signature = absmodsig }
       )
 
 
-and substitute_abstract ~(cause : Range.t) ~(address : Address.t) (subst : substitution) (absmodsig : module_signature abstracted) : module_signature abstracted =
+and substitute_abstract ~(cause : Range.t) (subst : substitution) (absmodsig : module_signature abstracted) : module_signature abstracted =
   let (quant, modsig) = absmodsig in
-  let modsig = substitute_concrete ~cause ~address subst modsig in
+  let modsig = substitute_concrete ~cause subst modsig in
   (quant, modsig)
     (* Strictly speaking, we should assert that `quant` and the domain of `subst` be disjoint. *)
 
@@ -3151,7 +3151,7 @@ and substitute_poly_type ~(cause : Range.t) (subst : substitution) (pty : poly_t
           end
 
       | PackType(absmodsig) ->
-          let absmodsig = substitute_abstract ~cause ~address:Address.root subst absmodsig in
+          let absmodsig = substitute_abstract ~cause subst absmodsig in
           PackType(absmodsig)
     in
     (rng, ptymain)
@@ -3299,14 +3299,13 @@ and typecheck_declaration_list ~(address : Address.t) (tyenv : Typeenv.t) (utdec
   (quantacc, sigracc)
 
 
-and copy_abstract_signature ~(cause : Range.t) ~(address : Address.t) (absmodsig_from : module_signature abstracted) : module_signature abstracted =
+and copy_abstract_signature ~(cause : Range.t) ~(address_to : Address.t) (absmodsig_from : module_signature abstracted) : module_signature abstracted =
   let (quant_from, modsig_from) = absmodsig_from in
   let (quant_to, subst) =
     OpaqueIDMap.fold (fun oid_from pkd (quant_to, subst) ->
       let oid_to =
         let s = TypeID.name oid_from in
-        let address_from = TypeID.address oid_from in
-        TypeID.fresh ~message:"copy_abstract_signature" address_from s
+        TypeID.fresh ~message:"copy_abstract_signature" (make_address_module_list address_to) s
       in
       let quant_to = quant_to |> OpaqueIDMap.add oid_to pkd in
       let Kind(pbkds, _) = pkd in
@@ -3315,7 +3314,7 @@ and copy_abstract_signature ~(cause : Range.t) ~(address : Address.t) (absmodsig
       (quant_to, subst)
     ) quant_from (OpaqueIDMap.empty, SubstMap.empty)
   in
-  let modsig_to = modsig_from |> substitute_concrete ~cause ~address subst in
+  let modsig_to = modsig_from |> substitute_concrete ~cause subst in
   (quant_to, modsig_to)
 
 
@@ -3330,7 +3329,7 @@ and typecheck_signature ~(address : Address.t) (tyenv : Typeenv.t) (utsig : unty
 
         | Some(sentry_from) ->
             let absmodsig_from = sentry_from.sig_signature in
-            copy_abstract_signature ~cause:rng ~address absmodsig_from
+            copy_abstract_signature ~cause:rng ~address_to:address absmodsig_from
               (* We need to rename opaque IDs here, since otherwise
                  we would mistakenly make the following program pass:
 
@@ -3405,7 +3404,8 @@ and typecheck_signature ~(address : Address.t) (tyenv : Typeenv.t) (utsig : unty
           }
         in
         let tyenv = tyenv |> Typeenv.add_module m mentry in
-        typecheck_signature ~address:Address.root tyenv utsigcod
+        let address = Address.root |> Address.append_functor_body ~arg:m in
+        typecheck_signature ~address tyenv utsigcod
       in
       begin
         match sigdom with
@@ -3473,7 +3473,7 @@ and typecheck_signature ~(address : Address.t) (tyenv : Typeenv.t) (utsig : unty
           (subst, quant)
         ) (SubstMap.empty, quant0)
       in
-      let modsig_ret = modsig0 |> substitute_concrete ~cause:rng ~address subst in
+      let modsig_ret = modsig0 |> substitute_concrete ~cause:rng subst in
       let modsig_ret =
         modsig_ret |> update_subsignature (modidents |> List.map snd) (fun modsig_last ->
           match modsig_last with
@@ -3868,7 +3868,10 @@ and typecheck_module ~(address : Address.t) (tyenv : Typeenv.t) (utmod : untyped
 
   | ModFunctor(modident, utsigdom, utmod0) ->
       let (rngm, m) = modident in
-      let absmodsigdom = typecheck_signature ~address:(Address.root |> Address.append_member m) tyenv utsigdom in
+      let absmodsigdom =
+        let address = Address.root |> Address.append_member m in
+        typecheck_signature ~address tyenv utsigdom
+      in
       let (quant, modsigdom) = absmodsigdom in
       let (absmodsigcod, _) =
         let sname = get_space_name rngm m in
@@ -3884,7 +3887,8 @@ and typecheck_module ~(address : Address.t) (tyenv : Typeenv.t) (utmod : untyped
           }
         in
         let tyenv = tyenv |> Typeenv.add_module m mentry in
-        typecheck_module ~address:Address.root tyenv utmod0
+        let address = address |> Address.append_functor_body ~arg:m in
+        typecheck_module ~address tyenv utmod0
       in
       let absmodsig =
         begin
@@ -3954,9 +3958,7 @@ and typecheck_module ~(address : Address.t) (tyenv : Typeenv.t) (utmod : untyped
                     in
                     typecheck_module ~address tyenv0 utmodC
                   in
-                  let (quant1subst, modsigcod1subst) =
-                    absmodsigcod1 |> substitute_abstract ~cause:rng ~address subst
-                  in
+                  let (quant1subst, modsigcod1subst) = absmodsigcod1 |> substitute_abstract ~cause:rng subst in
                   let absmodsig = (quant1subst, copy_closure modsig0 modsigcod1subst) in
                   (absmodsig, ibinds)
             end
