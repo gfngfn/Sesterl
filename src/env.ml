@@ -102,6 +102,7 @@ and module_entry = {
 
 and signature_entry = {
   sig_signature : module_signature abstracted;
+  sig_doc       : string option;
   sig_address   : Address.t;
 }
 

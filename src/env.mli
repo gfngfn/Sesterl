@@ -151,6 +151,7 @@ type module_entry = {
 
 type signature_entry = {
   sig_signature : module_signature abstracted;
+  sig_doc       : string option;
   sig_address   : Address.t;
 }
 

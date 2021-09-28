@@ -2975,7 +2975,18 @@ and copy_closure_in_structure (sigr1 : SigRecord.t) (sigr2 : SigRecord.t) : SigR
             mod_doc       = mentry2.mod_doc; (* Should use `mentry2`, not `mentry1` for doc comments. *)
           }
     )
-    ~s:(fun _signm sentry -> sentry)
+    ~s:(fun signm sentry2 ->
+      match sigr1 |> SigRecord.find_signature signm with
+      | None ->
+          assert false
+
+      | Some(sentry1) ->
+          {
+            sig_signature = sentry2.sig_signature;
+            sig_doc       = sentry2.sig_doc;
+            sig_address   = sentry1.sig_address;
+          }
+    )
 
 
 and substitute_type_id (subst : substitution) (tyid_from : TypeID.t) : TypeID.t =
@@ -3270,6 +3281,7 @@ and typecheck_declaration ~(address : Address.t) (tyenv : Typeenv.t) (utdecl : u
         let sentry =
           {
             sig_signature = absmodsig;
+            sig_doc       = declattr.doc;
             sig_address   = address;
           }
         in
@@ -3694,6 +3706,7 @@ and typecheck_binding ~(address : Address.t) (tyenv : Typeenv.t) (utbind : untyp
         let sentry =
           {
             sig_signature = absmodsig;
+            sig_doc       = None;
             sig_address   = address;
           }
         in

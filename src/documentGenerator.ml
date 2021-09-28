@@ -50,7 +50,6 @@ let trim_indentation (s : string) : string =
       lines |> List.map (fun line -> Core.String.drop_prefix line min_indent) |> String.concat "\n"
 
 
-
 let rec traverse_signature (modsig : module_signature) : document_tree_signature =
   let (isig, _) = modsig in
   traverse_signature_source isig
@@ -95,16 +94,15 @@ and traverse_structure (sigr : SigRecord.t) : document_tree_element list =
       ~s:(fun signm sentry acc ->
         let (_, modsig) = sentry.sig_signature in
         let docsig = traverse_signature modsig in
-        Alist.extend acc (DocSig(signm, docsig), None)
+        Alist.extend acc (DocSig(signm, docsig), sentry.sig_doc)
       )
       Alist.empty
   in
   acc |> Alist.to_list
 
 
-let stringify_type (depth : int) ~token:(s_token : string) ~doc:(s_doc : string) (tynm : type_name) (tyscheme : type_scheme_with_entity) : string list =
+let stringify_type ~token:(s_token : string) ~doc:(s_doc : string) (tynm : type_name) (tyscheme : type_scheme_with_entity) : string list =
   let spec = TypeConv.display_spec_html in
-  let indent = "" in
   let (bids, tybody, tyentity) = tyscheme in
   let dispmap =
     bids |> List.fold_left (fun dispmap bid ->
@@ -147,14 +145,13 @@ let stringify_type (depth : int) ~token:(s_token : string) ~doc:(s_doc : string)
           [ "</ul>" ];
         ]
   in
-  [ Printf.sprintf "%s<li><code>%s %s</code>%s%s</li>"
-      indent (spec.token s_token) tynm (String.concat "" ss_body) s_doc;
+  [ Printf.sprintf "<li><code>%s %s</code>%s%s</li>"
+      (spec.token s_token) tynm (String.concat "" ss_body) s_doc;
   ]
 
 
-let rec stringify_document_element (depth : int) ((docelem, doc_opt) : document_tree_element) : string list =
+let rec stringify_document_element ((docelem, doc_opt) : document_tree_element) : string list =
   let spec = TypeConv.display_spec_html in
-  let indent = "" in
   let s_doc =
     match doc_opt with
     | None ->
@@ -185,31 +182,30 @@ let rec stringify_document_element (depth : int) ((docelem, doc_opt) : document_
         | [] -> ""
         | ss -> Printf.sprintf "&lt;%s&gt;" (String.concat ", " ss)
       in
-      [ Printf.sprintf "%s<li><code>%s %s%s : %s</code>%s</li>" indent (spec.token "val") x sq sty s_doc ]
+      [ Printf.sprintf "<li><code>%s %s%s : %s</code>%s</li>" (spec.token "val") x sq sty s_doc ]
 
   | DocType(tynm, tyscheme) ->
-      stringify_type depth ~token:"type" ~doc:s_doc tynm tyscheme
+      stringify_type ~token:"type" ~doc:s_doc tynm tyscheme
 
   | DocModule(modnm, docsig) ->
-      let ss = docsig |> stringify_document_signature (depth + 1) in
+      let ss = docsig |> stringify_document_signature in
       List.concat [
-        [ Printf.sprintf "%s<li><code>%s %s</code>%s<code> : </code>" indent (spec.token "module") modnm s_doc ];
+        [ Printf.sprintf "<li><code>%s %s</code>%s<code> : </code>" (spec.token "module") modnm s_doc ];
         ss;
         [ "</li>" ];
       ]
 
   | DocSig(signm, docsig) ->
-      let ss = docsig |> stringify_document_signature (depth + 1) in
+      let ss = docsig |> stringify_document_signature in
       List.concat [
-        [ Printf.sprintf "%s<li><code>%s %s</code>%s<code> = </code>" indent (spec.token "signature") signm s_doc ];
+        [ Printf.sprintf "<li><code>%s %s</code>%s<code> = </code>" (spec.token "signature") signm s_doc ];
         ss;
         [ "</li>" ];
       ]
 
 
-and stringify_document_signature (depth : int) (docsig : document_tree_signature) : string list =
+and stringify_document_signature (docsig : document_tree_signature) : string list =
   let spec = TypeConv.display_spec_html in
-  let indent = "" in
   match docsig with
   | DocSigVar(address, signm) ->
       let adelems = Address.to_list address in
@@ -219,47 +215,47 @@ and stringify_document_signature (depth : int) (docsig : document_tree_signature
         | Address.FunctorBody(r) -> Printf.sprintf "(%s = ...)" r.arg
         )
       in
-      [ Printf.sprintf "%s<code>%s</code>" indent (String.concat "." (List.append ss [ signm ])) ]
+      [ Printf.sprintf "<code>%s</code>" (String.concat "." (List.append ss [ signm ])) ]
 
   | DocSigPath(proj) ->
-      [ Printf.sprintf "%s<code>(...).%s</code>" indent proj ]
+      [ Printf.sprintf "<code>(...).%s</code>" proj ]
 
   | DocSigWith(docsig0, withs) ->
-      let ss1 = stringify_document_signature (depth + 1) docsig0 in
+      let ss1 = stringify_document_signature docsig0 in
       let ss2 =
         withs |> List.mapi (fun index (tynm, tyscheme) ->
           let token = if index == 0 then "type" else "and" in
-          stringify_type (depth + 1) ~token ~doc:"" tynm tyscheme
+          stringify_type ~token ~doc:"" tynm tyscheme
         ) |> List.concat
       in
       List.concat [
-        [ Printf.sprintf "%s<code>(</code>" indent ];
+        [ Printf.sprintf "<code>(</code>" ];
         ss1;
-        [ Printf.sprintf "%s<code>%s</code>" indent (spec.token "with") ];
+        [ Printf.sprintf "<code>%s</code>" (spec.token "with") ];
         ss2;
-        [ Printf.sprintf "%s<code>)</code>" indent ];
+        [ Printf.sprintf "<code>)</code>" ];
       ]
 
 
   | DocSigDecls(docelems) ->
       List.concat [
         [
-          Printf.sprintf "%s<code>%s</code>" indent (spec.token "sig");
-          Printf.sprintf "%s<ul>" indent;
+          Printf.sprintf "<code>%s</code>" (spec.token "sig");
+          "<ul>";
         ];
-        docelems |> List.map (stringify_document_element (depth + 1)) |> List.concat;
+        docelems |> List.map stringify_document_element |> List.concat;
         [
-          Printf.sprintf "%s</ul>" indent;
-          Printf.sprintf "%s<code>%s</code>" indent (spec.token "end");
+          "</ul>";
+          Printf.sprintf "<code>%s</code>" (spec.token "end");
         ];
       ]
 
   | DocSigFunctor(m, docsig1, docsig2) ->
       List.concat [
-        [ Printf.sprintf "%s<code>%s(%s : </code>" indent (spec.token "fun") m ];
-        stringify_document_signature (depth + 1) docsig1;
-        [ Printf.sprintf "%s<code>) -&gt; </code>" indent ];
-        stringify_document_signature (depth + 1) docsig2;
+        [ Printf.sprintf "<code>%s(%s : </code>" (spec.token "fun") m ];
+        stringify_document_signature docsig1;
+        [ Printf.sprintf "<code>) -&gt; </code>" ];
+        stringify_document_signature docsig2;
       ]
 
 
@@ -282,7 +278,7 @@ let main (abspath_doc_out : absolute_path) (out : PackageChecker.single_output) 
         "</head>";
         "<body><ul>";
       ];
-      stringify_document_element 0 docelem;
+      stringify_document_element docelem;
       [
         "</ul></body>";
         "</html>";
