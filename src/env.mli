@@ -49,7 +49,6 @@ and module_signature =
 
 and signature_source =
   | ISigVar     of Address.t * signature_name
-  | ISigPath    of signature_name (* TODO *)
   | ISigWith    of signature_source * (type_name * type_entry) list
   | ISigFunctor of signature_name * signature_source * signature_source
   | ISigDecls   of record_signature

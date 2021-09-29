@@ -16,7 +16,6 @@ and document_tree_element =
 
 and document_tree_signature =
   | DocSigVar     of Address.t * signature_name
-  | DocSigPath    of signature_name (* TODO *)
   | DocSigFunctor of module_name * document_tree_signature * document_tree_signature
   | DocSigWith    of document_tree_signature * (type_name * type_scheme_with_entity) list
   | DocSigDecls   of document_tree_element list
@@ -59,9 +58,6 @@ and traverse_signature_source (isig : signature_source) : document_tree_signatur
   match isig with
   | ISigVar(address, signm) ->
       DocSigVar(address, signm)
-
-  | ISigPath(proj) ->
-      DocSigPath(proj)
 
   | ISigWith(isig0, tydefs) ->
       let withs = tydefs |> List.map (fun (tynm, tentry) -> (tynm, tentry.type_scheme)) in
@@ -210,21 +206,20 @@ and stringify_document_signature (docsig : document_tree_signature) : string lis
   | DocSigVar(address, signm) ->
       let adelems = Address.to_list address in
       let ss =
-        adelems |> List.map (function
-        | Address.Member(modnm)  -> modnm
-        | Address.FunctorBody(r) -> Printf.sprintf "(%s = ...)" r.arg
+        adelems |> List.mapi (fun index adelem ->
+          match adelem with
+          | Address.Member(modnm)  -> if index = 0 then modnm else Printf.sprintf ".%s" modnm
+          | Address.FunctorBody(r) -> Printf.sprintf "(%s = ...)" r.arg
         )
       in
-      [ Printf.sprintf "<code>%s</code>" (String.concat "." (List.append ss [ signm ])) ]
-
-  | DocSigPath(proj) ->
-      [ Printf.sprintf "<code>(...).%s</code>" proj ]
+      let s_last = if List.length adelems = 0 then signm else Printf.sprintf ".%s" signm in
+      [ Printf.sprintf "<code>%s%s</code>" (String.concat "" ss) s_last ]
 
   | DocSigWith(docsig0, withs) ->
       let ss1 = stringify_document_signature docsig0 in
       let ss2 =
         withs |> List.mapi (fun index (tynm, tyscheme) ->
-          let token = if index == 0 then "type" else "and" in
+          let token = if index = 0 then "type" else "and" in
           stringify_type ~token ~doc:"" tynm tyscheme
         ) |> List.concat
       in
