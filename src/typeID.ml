@@ -7,9 +7,8 @@ type t = {
 
 let fresh =
   let current_max = ref 0 in
-  (fun ?(message : string = "none") (modules : string list) (name : string) ->
+  (fun (modules : string list) (name : string) ->
     incr current_max;
-    Format.printf "!!! %s/%s (%s)\n" (String.concat ":" modules) name message;
     {
       number  = !current_max;
       modules = modules;

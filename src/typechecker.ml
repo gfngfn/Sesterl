@@ -77,7 +77,7 @@ let internbridf (_bidmap : BoundID.t BoundIDMap.t) (_brid1 : BoundRowID.t) (_nom
 
 
 let add_dummy_fold (tynm : type_name) (tyid : TypeID.t) (bids : BoundID.t list) (ctormap : constructor_map) (sigr : SigRecord.t) : SigRecord.t =
-  let bid = BoundID.fresh ~message:("add_dummy_fold, " ^ tynm) () in
+  let bid = BoundID.fresh () in
   let dr = Range.dummy "add_dummy_fold" in
   let plabmap =
     ConstructorMap.fold (fun ctornm (_ctorid, ptyargs) plabmap ->
@@ -1156,7 +1156,7 @@ and make_rec_initial_type_from_annotation (preL : pre) (letbind : untyped_let_bi
 
 and make_type_parameter_assoc ~message (pre : pre) (tyvarnms : type_variable_binder list) : pre * type_parameter_assoc =
   tyvarnms |> List.fold_left (fun (pre, assoc) ((rng, tyvarnm), kdannot) ->
-    let mbbid = MustBeBoundID.fresh ~message ("$" ^ tyvarnm) (pre.level + 1) in
+    let mbbid = MustBeBoundID.fresh ("$" ^ tyvarnm) (pre.level + 1) in
     match assoc |> TypeParameterAssoc.add_last tyvarnm mbbid with
     | None ->
         raise_error (TypeParameterBoundMoreThanOnce(rng, tyvarnm))
@@ -1361,7 +1361,7 @@ and add_local_row_parameter (rowvars : (row_variable_name ranged * (label ranged
     if rowparams |> RowParameterMap.mem rowvarnm then
       raise_error (RowParameterBoundMoreThanOnce(rng, rowvarnm))
     else
-      let mbbrid = MustBeBoundRowID.fresh ~message:"add_local_row_parameter" ("?$" ^ rowvarnm) pre.level in
+      let mbbrid = MustBeBoundRowID.fresh ("?$" ^ rowvarnm) pre.level in
       let labset =
         mkind |> List.fold_left (fun labset rlabel ->
           let (rnglabel, label) = rlabel in
@@ -3242,7 +3242,7 @@ and typecheck_declaration ~(address : Address.t) (tyenv : Typeenv.t) (utdecl : u
         | None       -> Kind([], TypeKind)
         | Some(mnkd) -> decode_manual_kind pre_init mnkd
       in
-      let oid = TypeID.fresh ~message:"DeclTypeOpaque" (make_address_module_list address) tynm in
+      let oid = TypeID.fresh (make_address_module_list address) tynm in
       let Kind(bkds, _) = kd in
       let tentry =
         let (bids, pty_body) = TypeConv.make_opaque_type_scheme_from_base_kinds ~message:("DeclTypeOpaque/" ^ tynm) bkds oid in
@@ -3326,7 +3326,7 @@ and copy_abstract_signature ~(cause : Range.t) ~(address_to : Address.t) (absmod
     OpaqueIDMap.fold (fun oid_from pkd (quant_to, subst) ->
       let oid_to =
         let s = TypeID.name oid_from in
-        TypeID.fresh ~message:"copy_abstract_signature" (make_address_module_list address_to) s
+        TypeID.fresh (make_address_module_list address_to) s
       in
       let quant_to = quant_to |> OpaqueIDMap.add oid_to pkd in
       let Kind(pbkds, _) = pkd in
@@ -3757,7 +3757,7 @@ and bind_types ~message ~(address : Address.t) (tyenv : Typeenv.t) (tybinds : ty
 
       | BindVariant(vntbind) ->
           let Kind(bkds, _) = kd in
-          let tyid = TypeID.fresh ~message:(message ^ "/BindVariant") (make_address_module_list address) tynm in
+          let tyid = TypeID.fresh (make_address_module_list address) tynm in
           let tentry =
             let (bids_temp, pty_body_temp) = TypeConv.make_opaque_type_scheme_from_base_kinds ~message:(message ^ "/BindVariant/" ^ tynm) bkds tyid in
             {

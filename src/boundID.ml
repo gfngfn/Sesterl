@@ -23,7 +23,7 @@ let initialize () =
   current_max := 0
 
 
-let fresh ~message () =
+let fresh () =
   incr current_max;
   { id = !current_max; }
 

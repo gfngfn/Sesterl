@@ -254,7 +254,7 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         bid
 
     | None ->
-        let bid = BoundID.fresh ~message:"lift_scheme" () in
+        let bid = BoundID.fresh () in
         FreeIDHashTable.add fidht fid bid;
         bid
 
@@ -264,7 +264,7 @@ let lift_scheme (rngf : Range.t -> Range.t) (levpred : int -> bool) (ty : mono_t
         brid
 
     | None ->
-        let brid = BoundRowID.fresh ~message:"lift_scheme/row" () in
+        let brid = BoundRowID.fresh () in
         FreeRowIDHashTable.add fridht frid brid;
         let labset = KindStore.get_free_row frid in
         KindStore.register_bound_row brid labset;
@@ -618,7 +618,7 @@ let make_opaque_type_scheme (bids : BoundID.t list) (tyid : TypeID.t) : type_sch
 
 
 let make_opaque_type_scheme_from_base_kinds ~message (bkds : base_kind list) (tyid : TypeID.t) : type_scheme =
-  let bids = bkds |> List.map (fun _bkd -> BoundID.fresh ~message:("make_opaque_type_scheme_from_base_kinds, " ^ message) ()) in
+  let bids = bkds |> List.map (fun _bkd -> BoundID.fresh ()) in
   make_opaque_type_scheme bids tyid
 
 

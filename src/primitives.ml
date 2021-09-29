@@ -64,7 +64,7 @@ let assertion_function_type : mono_type =
 
 
 let fresh_bound () =
-  let bid = BoundID.fresh ~message:"Primitives" () in
+  let bid = BoundID.fresh () in
   (Range.dummy "primitives-bound", TypeVar(Bound(bid)))
 
 
@@ -370,36 +370,36 @@ let initial_environment =
   (Typeenv.empty, (GlobalNameMap.empty, SpaceNameMap.empty))
     |> add_variant_types [
       begin
-        let bid = BoundID.fresh ~message:"option" () in
+        let bid = BoundID.fresh () in
         ("option", vid_option, [bid], [
           ("None", Some("error"), []);
           ("Some", Some("ok"),    [(dr, TypeVar(Bound(bid)))]);
         ])
       end;
       begin
-        let bid_ok = BoundID.fresh ~message:"result/ok" () in
-        let bid_error = BoundID.fresh ~message:"result/error" () in
+        let bid_ok = BoundID.fresh () in
+        let bid_error = BoundID.fresh () in
         ("result", vid_result, [bid_ok; bid_error], [
           ("Ok",    None, [(dr, TypeVar(Bound(bid_ok)))]);
           ("Error", None, [(dr, TypeVar(Bound(bid_error)))]);
         ])
       end;
       begin
-        let bid = BoundID.fresh ~message:"list" () in
+        let bid = BoundID.fresh () in
         ("list", vid_list, [bid], [
           (* Here is no constructor definition
              because `ListNil` and `ListCons` are provided for type `untyped_ast`. *)
         ])
       end;
       begin
-        let bid = BoundID.fresh ~message:"format" () in
+        let bid = BoundID.fresh () in
         ("format", vid_format, [bid], [
         ])
       end;
       begin
-        let bid1 = BoundID.fresh ~message:"frozen1" () in
-        let bid2 = BoundID.fresh ~message:"frozen2" () in
-        let bid3 = BoundID.fresh ~message:"frozen3" () in
+        let bid1 = BoundID.fresh () in
+        let bid2 = BoundID.fresh () in
+        let bid3 = BoundID.fresh () in
         ("frozen", vid_frozen, [bid1; bid2; bid3], [
         ])
       end;

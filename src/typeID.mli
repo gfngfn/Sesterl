@@ -1,7 +1,7 @@
 
 type t
 
-val fresh : ?message:string -> string list -> string -> t
+val fresh : string list -> string -> t
 
 val hash : t -> int
 

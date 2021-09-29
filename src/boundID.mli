@@ -3,7 +3,7 @@ type t
 
 val initialize : unit -> unit
 
-val fresh : message:string -> unit -> t
+val fresh : unit -> t
 
 val equal : t -> t -> bool
 
