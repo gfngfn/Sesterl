@@ -617,7 +617,7 @@ let make_opaque_type_scheme (bids : BoundID.t list) (tyid : TypeID.t) : type_sch
   (bids, (dr, TypeApp(tyid, ptyargs)))
 
 
-let make_opaque_type_scheme_from_base_kinds ~message (bkds : base_kind list) (tyid : TypeID.t) : type_scheme =
+let make_opaque_type_scheme_from_base_kinds (bkds : base_kind list) (tyid : TypeID.t) : type_scheme =
   let bids = bkds |> List.map (fun _bkd -> BoundID.fresh ()) in
   make_opaque_type_scheme bids tyid
 
