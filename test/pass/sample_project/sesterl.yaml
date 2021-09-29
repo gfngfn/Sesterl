@@ -4,6 +4,8 @@ source_directories:
 
 main_module: "SampleProject"
 
+document_output_directory: "./_doc"
+
 dependencies:
   - name: "stdlib"
     source:
