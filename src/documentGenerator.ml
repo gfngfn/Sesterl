@@ -97,7 +97,7 @@ and traverse_structure (sigr : SigRecord.t) : document_tree_element list =
   acc |> Alist.to_list
 
 
-let stringify_type ~token:(s_token : string) ~doc:(s_doc : string) (tynm : type_name) (tyscheme : type_scheme_with_entity) : string list =
+let stringify_type ~token:(s_token : string) ~doc:(s_doc : string) ~(seen_from : Address.t) (tynm : type_name) (tyscheme : type_scheme_with_entity) : string list =
   let spec = TypeConv.display_spec_html in
   let (bids, tybody, tyentity) = tyscheme in
   let dispmap =
@@ -117,7 +117,7 @@ let stringify_type ~token:(s_token : string) ~doc:(s_doc : string) (tynm : type_
         [ Printf.sprintf "<code>%s</code>" s_typarams ]
 
     | Synonym ->
-        [ Format.asprintf "<code>%s = %a</code>" s_typarams (TypeConv.pp_poly_type dispmap) tybody ]
+        [ Format.asprintf "<code>%s = %a</code>" s_typarams (TypeConv.pp_poly_type ~spec ~seen_from dispmap) tybody ]
 
     | Variant(ctormap) ->
         let ss_elems =
@@ -130,7 +130,7 @@ let stringify_type ~token:(s_token : string) ~doc:(s_doc : string) (tynm : type_
               | _ :: _ ->
                   let pp_sep = (fun ppf () -> Format.fprintf ppf ", ") in
                   Format.asprintf "(%a)"
-                    (Format.pp_print_list ~pp_sep:pp_sep (TypeConv.pp_poly_type dispmap)) ptys
+                    (Format.pp_print_list ~pp_sep:pp_sep (TypeConv.pp_poly_type ~spec ~seen_from dispmap)) ptys
             in
             Printf.sprintf "<li><code>| %s%s</code></li>" ctornm s_param
           )
@@ -146,7 +146,7 @@ let stringify_type ~token:(s_token : string) ~doc:(s_doc : string) (tynm : type_
   ]
 
 
-let rec stringify_document_element ((docelem, doc_opt) : document_tree_element) : string list =
+let rec stringify_document_element ~(seen_from : Address.t) ((docelem, doc_opt) : document_tree_element) : string list =
   let spec = TypeConv.display_spec_html in
   let s_doc =
     match doc_opt with
@@ -161,7 +161,7 @@ let rec stringify_document_element ((docelem, doc_opt) : document_tree_element) 
   match docelem with
   | DocVal(x, pty) ->
       let dispmap = DisplayMap.empty |> TypeConv.collect_ids_poly pty in
-      let sty = Format.asprintf "%a" (TypeConv.pp_poly_type ~spec dispmap) pty in
+      let sty = Format.asprintf "%a" (TypeConv.pp_poly_type ~spec ~seen_from dispmap) pty in
       let sq =
         let acc =
           dispmap |> DisplayMap.fold_bound_id (fun bid name acc ->
@@ -181,10 +181,10 @@ let rec stringify_document_element ((docelem, doc_opt) : document_tree_element) 
       [ Printf.sprintf "<li><code>%s %s%s : %s</code>%s</li>" (spec.token "val") x sq sty s_doc ]
 
   | DocType(tynm, tyscheme) ->
-      stringify_type ~token:"type" ~doc:s_doc tynm tyscheme
+      stringify_type ~token:"type" ~doc:s_doc ~seen_from tynm tyscheme
 
   | DocModule(modnm, docsig) ->
-      let ss = docsig |> stringify_document_signature in
+      let ss = docsig |> (stringify_document_signature ~seen_from:(seen_from |> Address.append_member modnm)) in
       List.concat [
         [ Printf.sprintf "<li><code>%s %s</code>%s<code> : </code>" (spec.token "module") modnm s_doc ];
         ss;
@@ -192,7 +192,7 @@ let rec stringify_document_element ((docelem, doc_opt) : document_tree_element) 
       ]
 
   | DocSig(signm, docsig) ->
-      let ss = docsig |> stringify_document_signature in
+      let ss = docsig |> (stringify_document_signature ~seen_from) in
       List.concat [
         [ Printf.sprintf "<li><code>%s %s</code>%s<code> = </code>" (spec.token "signature") signm s_doc ];
         ss;
@@ -200,27 +200,19 @@ let rec stringify_document_element ((docelem, doc_opt) : document_tree_element) 
       ]
 
 
-and stringify_document_signature (docsig : document_tree_signature) : string list =
+and stringify_document_signature ~(seen_from : Address.t) (docsig : document_tree_signature) : string list =
   let spec = TypeConv.display_spec_html in
   match docsig with
   | DocSigVar(address, signm) ->
-      let adelems = Address.to_list address in
-      let ss =
-        adelems |> List.mapi (fun index adelem ->
-          match adelem with
-          | Address.Member(modnm)  -> if index = 0 then modnm else Printf.sprintf ".%s" modnm
-          | Address.FunctorBody(r) -> Printf.sprintf "(%s = ...)" r.arg
-        )
-      in
-      let s_last = if List.length adelems = 0 then signm else Printf.sprintf ".%s" signm in
-      [ Printf.sprintf "<code>%s%s</code>" (String.concat "" ss) s_last ]
+      let diff_address = Address.subtract ~long:address ~short:seen_from in
+      [ Printf.sprintf "<code>%s%s</code>" (Address.show diff_address) signm ]
 
   | DocSigWith(docsig0, withs) ->
-      let ss1 = stringify_document_signature docsig0 in
+      let ss1 = stringify_document_signature ~seen_from docsig0 in
       let ss2 =
         withs |> List.mapi (fun index (tynm, tyscheme) ->
           let token = if index = 0 then "type" else "and" in
-          stringify_type ~token ~doc:"" tynm tyscheme
+          stringify_type ~token ~doc:"" ~seen_from tynm tyscheme
         ) |> List.concat
       in
       List.concat [
@@ -238,7 +230,7 @@ and stringify_document_signature (docsig : document_tree_signature) : string lis
           Printf.sprintf "<code>%s</code>" (spec.token "sig");
           "<ul>";
         ];
-        docelems |> List.map stringify_document_element |> List.concat;
+        docelems |> List.map (stringify_document_element ~seen_from) |> List.concat;
         [
           "</ul>";
           Printf.sprintf "<code>%s</code>" (spec.token "end");
@@ -248,9 +240,9 @@ and stringify_document_signature (docsig : document_tree_signature) : string lis
   | DocSigFunctor(m, docsig1, docsig2) ->
       List.concat [
         [ Printf.sprintf "<code>%s(%s : </code>" (spec.token "fun") m ];
-        stringify_document_signature docsig1;
+        stringify_document_signature ~seen_from docsig1;
         [ Printf.sprintf "<code>) -&gt; </code>" ];
-        stringify_document_signature docsig2;
+        stringify_document_signature ~seen_from:(seen_from |> Address.append_functor_body ~arg:m) docsig2;
       ]
 
 
@@ -273,7 +265,7 @@ let main (abspath_doc_out : absolute_path) (out : PackageChecker.single_output) 
         "</head>";
         "<body><ul>";
       ];
-      stringify_document_element docelem;
+      stringify_document_element ~seen_from:Address.root docelem;
       [
         "</ul></body>";
         "</html>";

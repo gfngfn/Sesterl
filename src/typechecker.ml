@@ -3242,7 +3242,7 @@ and typecheck_declaration ~(address : Address.t) (tyenv : Typeenv.t) (utdecl : u
         | None       -> Kind([], TypeKind)
         | Some(mnkd) -> decode_manual_kind pre_init mnkd
       in
-      let oid = TypeID.fresh (make_address_module_list address) tynm in
+      let oid = TypeID.fresh address tynm in
       let Kind(bkds, _) = kd in
       let tentry =
         let (bids, pty_body) = TypeConv.make_opaque_type_scheme_from_base_kinds bkds oid in
@@ -3326,7 +3326,7 @@ and copy_abstract_signature ~(cause : Range.t) ~(address_to : Address.t) (absmod
     OpaqueIDMap.fold (fun oid_from pkd (quant_to, subst) ->
       let oid_to =
         let s = TypeID.name oid_from in
-        TypeID.fresh (make_address_module_list address_to) s
+        TypeID.fresh address_to s
       in
       let quant_to = quant_to |> OpaqueIDMap.add oid_to pkd in
       let Kind(pbkds, _) = pkd in
@@ -3757,7 +3757,7 @@ and bind_types ~(address : Address.t) (tyenv : Typeenv.t) (tybinds : type_bindin
 
       | BindVariant(vntbind) ->
           let Kind(bkds, _) = kd in
-          let tyid = TypeID.fresh (make_address_module_list address) tynm in
+          let tyid = TypeID.fresh address tynm in
           let tentry =
             let (bids_temp, pty_body_temp) = TypeConv.make_opaque_type_scheme_from_base_kinds bkds tyid in
             {

@@ -17,19 +17,19 @@ let decode_option_function_with_default =
   "decode_option_with_default"
 
 
-let vid_option = TypeID.fresh [] "option"
+let vid_option = TypeID.fresh Address.root "option"
 
 
-let vid_result = TypeID.fresh [] "result"
+let vid_result = TypeID.fresh Address.root "result"
 
 
-let vid_list = TypeID.fresh [] "list"
+let vid_list = TypeID.fresh Address.root "list"
 
 
-let vid_format = TypeID.fresh [] "format"
+let vid_format = TypeID.fresh Address.root "format"
 
 
-let vid_frozen = TypeID.fresh [] "frozen"
+let vid_frozen = TypeID.fresh Address.root "frozen"
 
 
 let option_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =

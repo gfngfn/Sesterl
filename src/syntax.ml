@@ -447,7 +447,7 @@ module OpaqueIDMap = Map.Make(TypeID)
 
 let stringify_opaque_id_quantifier qt =
   OpaqueIDMap.fold (fun oid pkd acc ->
-    Alist.extend acc (Format.asprintf "%a" TypeID.pp oid)
+    Alist.extend acc (Format.asprintf "%a" (TypeID.pp ~seen_from:Address.root) oid)
   ) qt Alist.empty |> Alist.to_list |> List.map (fun s -> " " ^ s) |> String.concat ","
 
 
