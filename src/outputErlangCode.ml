@@ -597,19 +597,20 @@ let stringify_module_binding_output (omodbind : module_binding_output) : string 
       (smod_basename, lines)
 
 
-let write_file (dir_out : string) (smod_basename : string) (lines : string list) : unit =
-  let fpath_out = Core.Filename.concat dir_out (Printf.sprintf "%s.erl" smod_basename) in
-  let fout = open_out fpath_out in
+let write_file (absdir_out : absolute_dir) (smod_basename : string) (lines : string list) : unit =
+  let abspath_out = Core.Filename.concat absdir_out (Printf.sprintf "%s.erl" smod_basename) in
+  let fout = open_out abspath_out in
   lines |> List.iter (fun line ->
-    output_string fout (line ^ "\n")
+    output_string fout line;
+    output_string fout "\n"
   );
   close_out fout;
-  Logging.output_written fpath_out
+  Logging.output_written abspath_out
 
 
-let write_module_to_file (dir_out : string) (omodbind : module_binding_output) : unit =
+let write_module_to_file (absdir_out : absolute_dir) (omodbind : module_binding_output) : unit =
   let (smod_basename, lines) = stringify_module_binding_output omodbind in
-  write_file dir_out smod_basename lines
+  write_file absdir_out smod_basename lines
 
 
 let write_primitive_module (dir_out : string) : unit =
@@ -642,7 +643,7 @@ let write_primitive_module (dir_out : string) : unit =
   write_file dir_out smod lines
 
 
-let main (spec : output_spec) (dir_out : string) (nmap : name_map) ~package_name:(pkgnameopt : space_name option) ~module_name:(sname : space_name) ((modattr, ibinds) : ModuleAttribute.t * binding list) : name_map =
+let main (spec : output_spec) (absdir_out : absolute_dir) (nmap : name_map) ~package_name:(pkgnameopt : space_name option) ~module_name:(sname : space_name) ((modattr, ibinds) : ModuleAttribute.t * binding list) : name_map =
 (*
   Format.printf "OutputErlangCode | package: %a, module: %a\n"
     OutputIdentifier.pp_space pkgname
@@ -657,6 +658,6 @@ let main (spec : output_spec) (dir_out : string) (nmap : name_map) ~package_name
     traverse_binding_list spec sname nmap spacepath modattr ibinds
   in
   omodbinds |> List.iter (fun omodbind ->
-    write_module_to_file dir_out omodbind
+    write_module_to_file absdir_out omodbind
   );
   nmap_after

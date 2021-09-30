@@ -40,9 +40,18 @@ and base_kind =
   | TypeKind
   | RowKind  of LabelSet.t
 
-and module_signature =
+and module_signature_main =
   | ConcStructure of record_signature
   | ConcFunctor   of functor_signature
+
+and module_signature =
+  signature_source * module_signature_main
+
+and signature_source =
+  | ISigVar     of Address.t * signature_name
+  | ISigWith    of signature_source * (type_name * type_entry) list
+  | ISigFunctor of signature_name * signature_source * signature_source
+  | ISigDecls   of record_signature
 
 and functor_signature = {
   opaques  : quantifier;
@@ -52,7 +61,7 @@ and functor_signature = {
 }
 
 and functor_domain =
-  | Domain of record_signature
+  | Domain of signature_source * record_signature
 
 and kind =
   | Kind of (base_kind) list * base_kind
@@ -100,6 +109,22 @@ and quantifier = kind OpaqueIDMap.t
 
 and 'a abstracted = quantifier * 'a
 
+and type_entry = {
+  type_scheme : type_scheme_with_entity;
+  type_kind   : kind;
+  type_doc    : string option;
+}
+[@@deriving show { with_path = false }]
+
+and type_scheme_with_entity = BoundID.t list * poly_type * type_entity
+
+and type_entity =
+  | Opaque  of TypeID.t
+  | Synonym
+  | Variant of constructor_map
+
+and constructor_map = (ConstructorID.t * poly_type list) ConstructorMap.t
+
 val pp_module_signature : Format.formatter -> module_signature -> unit
 
 type ('a, 'b) normalized_row =
@@ -112,19 +137,21 @@ type normalized_poly_row = (poly_type_var, poly_row_var) normalized_row
 type value_entry = {
   val_type   : poly_type;
   val_global : global_name;
+  val_doc    : string option;
 }
 
 type type_scheme = BoundID.t list * poly_type
 
-type type_entry = {
-  type_scheme : type_scheme;
-  type_kind   : kind;
-}
-[@@deriving show { with_path = false }]
-
 type module_entry = {
   mod_signature : module_signature;
   mod_name      : space_name;
+  mod_doc       : string option;
+}
+
+type signature_entry = {
+  sig_signature : module_signature abstracted;
+  sig_doc       : string option;
+  sig_address   : Address.t;
 }
 
 type constructor_entry = {
@@ -133,8 +160,6 @@ type constructor_entry = {
   type_variables  : BoundID.t list;
   parameter_types : poly_type list;
 }
-
-type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorMap.t
 
 type local_row_parameter_map = (MustBeBoundRowID.t * LabelSet.t) RowParameterMap.t
 
@@ -171,9 +196,9 @@ module Typeenv : sig
 
   val find_module : module_name -> t -> module_entry option
 
-  val add_signature : signature_name -> module_signature abstracted -> t -> t
+  val add_signature : signature_name -> signature_entry -> t -> t
 
-  val find_signature : signature_name -> t -> (module_signature abstracted) option
+  val find_signature : signature_name -> t -> signature_entry option
 
 end
 
@@ -203,9 +228,9 @@ module SigRecord : sig
 
   val find_module : module_name -> t -> module_entry option
 
-  val add_signature : signature_name -> module_signature abstracted -> t -> t
+  val add_signature : signature_name -> signature_entry -> t -> t
 
-  val find_signature : signature_name -> t -> (module_signature abstracted) option
+  val find_signature : signature_name -> t -> signature_entry option
 
   val fold :
     v:(identifier -> value_entry -> 'a -> 'a) ->
@@ -213,7 +238,7 @@ module SigRecord : sig
     f:(type_name -> poly_type -> 'a -> 'a) ->
     t:(type_name -> type_entry -> 'a -> 'a) ->
     m:(module_name -> module_entry -> 'a -> 'a) ->
-    s:(signature_name -> module_signature abstracted -> 'a -> 'a) ->
+    s:(signature_name -> signature_entry -> 'a -> 'a) ->
     'a -> t -> 'a
 
   val map_and_fold :
@@ -222,7 +247,7 @@ module SigRecord : sig
     f:(type_name -> poly_type -> 'a -> poly_type * 'a) ->
     t:(type_name -> type_entry -> 'a -> type_entry * 'a) ->
     m:(module_name -> module_entry -> 'a -> module_entry * 'a) ->
-    s:(signature_name -> module_signature abstracted -> 'a -> module_signature abstracted * 'a) ->
+    s:(signature_name -> signature_entry -> 'a -> signature_entry * 'a) ->
     'a -> t -> t * 'a
 
   val map :
@@ -231,7 +256,7 @@ module SigRecord : sig
     f:(type_name -> poly_type -> poly_type) ->
     t:(type_name -> type_entry -> type_entry) ->
     m:(module_name -> module_entry -> module_entry) ->
-    s:(signature_name -> module_signature abstracted -> module_signature abstracted) ->
+    s:(signature_name -> signature_entry -> signature_entry) ->
     t -> t
 
   val disjoint_union : t -> t -> (t, string) result

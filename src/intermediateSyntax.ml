@@ -158,5 +158,3 @@ module SpaceNameMap = Map.Make(OutputIdentifier.Space)
 type name_map = string GlobalNameMap.t * string SpaceNameMap.t
 (* The type for maps tracking which module every global name belongs to.
    This is used by 'Primitives' and 'OutputErlangCode'. *)
-
-type address = module_name Alist.t

@@ -38,9 +38,18 @@ and base_kind =
   | TypeKind
   | RowKind  of LabelSet.t
 
-and module_signature =
+and module_signature_main =
   | ConcStructure of record_signature
   | ConcFunctor   of functor_signature
+
+and module_signature =
+  signature_source * module_signature_main
+
+and signature_source =
+  | ISigVar     of Address.t * signature_name
+  | ISigWith    of signature_source * (type_name * type_entry) list
+  | ISigFunctor of signature_name * signature_source * signature_source
+  | ISigDecls   of record_signature
 
 and functor_signature = {
   opaques  : quantifier;
@@ -52,7 +61,7 @@ and functor_signature = {
 }
 
 and functor_domain =
-  | Domain of record_signature
+  | Domain of signature_source * record_signature
 
 and env_value_entry = {
   typ  : poly_type;
@@ -63,18 +72,37 @@ and env_value_entry = {
 and value_entry = {
   val_type   : poly_type;
   val_global : global_name;
+  val_doc    : string option;
 }
 
 and type_scheme = BoundID.t list * poly_type
 
+and constructor_map = (ConstructorID.t * poly_type list) ConstructorMap.t
+  [@printer (fun ppf _ -> Format.fprintf ppf "<constructor_map>")]
+
+and type_entity =
+  | Opaque  of TypeID.t
+  | Synonym
+  | Variant of constructor_map
+
+and type_scheme_with_entity = BoundID.t list * poly_type * type_entity
+
 and type_entry = {
-  type_scheme : type_scheme;
+  type_scheme : type_scheme_with_entity;
   type_kind   : kind;
+  type_doc    : string option;
 }
 
 and module_entry = {
   mod_signature : module_signature;
   mod_name      : space_name;
+  mod_doc       : string option;
+}
+
+and signature_entry = {
+  sig_signature : module_signature abstracted;
+  sig_doc       : string option;
+  sig_address   : Address.t;
 }
 
 and constructor_entry = {
@@ -99,7 +127,7 @@ and environment = {
     [@printer (fun ppf _ -> Format.fprintf ppf "<opaques>")]
   modules      : module_entry ModuleNameMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<modules>")]
-  signatures   : (module_signature abstracted) SignatureNameMap.t;
+  signatures   : signature_entry SignatureNameMap.t;
     [@printer (fun ppf _ -> Format.fprintf ppf "<signatures>")]
 }
 
@@ -118,7 +146,7 @@ and record_signature_entry =
   | SRType     of type_name * type_entry
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRType>")]
   | SRModule   of module_name * module_entry
-  | SRSig      of signature_name * module_signature abstracted
+  | SRSig      of signature_name * signature_entry
       [@printer (fun ppf _ -> Format.fprintf ppf "<SRSig>")]
 [@@deriving show { with_path = false }]
 
@@ -176,14 +204,7 @@ type normalized_mono_row = (mono_type_var, mono_row_var) normalized_row
 
 type normalized_poly_row = (poly_type_var, poly_row_var) normalized_row
 
-type constructor_branch_map = (ConstructorID.t * poly_type list) ConstructorMap.t
-
 type local_row_parameter_map = (MustBeBoundRowID.t * LabelSet.t) RowParameterMap.t
-
-type variant_entry = {
-  v_type_parameters : BoundID.t list;
-  v_branches        : constructor_branch_map;
-}
 
 
 module Typeenv = struct
@@ -214,7 +235,7 @@ module Typeenv = struct
     let modules =
       tyenv.modules |> ModuleNameMap.map (fun mentry ->
         let (modsig, sname) = fm (mentry.mod_signature, mentry.mod_name) in
-        { mod_signature = modsig; mod_name = sname }
+        { mentry with mod_signature = modsig; mod_name = sname }
       )
     in
     { tyenv with values = values; modules = modules }
@@ -286,13 +307,13 @@ module Typeenv = struct
     tyenv.modules |> ModuleNameMap.find_opt modnm
 
 
-  let add_signature (signm : signature_name) (absmodsig : module_signature abstracted) (tyenv : t) : t =
+  let add_signature (signm : signature_name) (sentry : signature_entry) (tyenv : t) : t =
     { tyenv with
-      signatures = tyenv.signatures |> SignatureNameMap.add signm absmodsig;
+      signatures = tyenv.signatures |> SignatureNameMap.add signm sentry;
     }
 
 
-  let find_signature (signm : signature_name) (tyenv : t) : (module_signature abstracted) option =
+  let find_signature (signm : signature_name) (tyenv : t) : signature_entry option =
     tyenv.signatures |> SignatureNameMap.find_opt signm
 
 end
@@ -361,14 +382,14 @@ module SigRecord = struct
     )
 
 
-  let add_signature (signm : signature_name) (absmodsig : module_signature abstracted) (sigr : t) : t =
-    Alist.extend sigr (SRSig(signm, absmodsig))
+  let add_signature (signm : signature_name) (sentry : signature_entry) (sigr : t) : t =
+    Alist.extend sigr (SRSig(signm, sentry))
 
 
-  let find_signature (signm0 : signature_name) (sigr : t) : (module_signature abstracted) option =
+  let find_signature (signm0 : signature_name) (sigr : t) : signature_entry option =
     sigr |> Alist.to_list |> List.find_map (function
-    | SRSig(signm, absmodsig) -> if String.equal signm signm0 then Some(absmodsig) else None
-    | _                       -> None
+    | SRSig(signm, sentry) -> if String.equal signm signm0 then Some(sentry) else None
+    | _                    -> None
     )
 
 
@@ -378,7 +399,7 @@ module SigRecord = struct
       ~f:(ff : type_name -> poly_type -> a -> a)
       ~t:(ft : type_name -> type_entry -> a -> a)
       ~m:(fm : module_name -> module_entry -> a -> a)
-      ~s:(fs : signature_name -> module_signature abstracted -> a -> a)
+      ~s:(fs : signature_name -> signature_entry -> a -> a)
       (init : a) (sigr : t) : a =
     sigr |> Alist.to_list |> List.fold_left (fun acc entry ->
       match entry with
@@ -387,7 +408,7 @@ module SigRecord = struct
       | SRFold(tynm, pty)       -> ff tynm pty acc
       | SRType(tynm, tentry)    -> ft tynm tentry acc
       | SRModule(modnm, mentry) -> fm modnm mentry acc
-      | SRSig(signm, absmodsig) -> fs signm absmodsig acc
+      | SRSig(signm, sentry)    -> fs signm sentry acc
     ) init
 
 
@@ -397,7 +418,7 @@ module SigRecord = struct
       ~f:(ff : type_name -> poly_type -> a -> poly_type * a)
       ~t:(ft : type_name -> type_entry -> a -> type_entry * a)
       ~m:(fm : module_name -> module_entry -> a -> module_entry * a)
-      ~s:(fs : signature_name -> module_signature abstracted -> a -> module_signature abstracted * a)
+      ~s:(fs : signature_name -> signature_entry -> a -> signature_entry * a)
       (init : a) (sigr : t) : t * a =
       sigr |> Alist.to_list |> List.fold_left (fun (sigracc, acc) entry ->
         match entry with
@@ -421,9 +442,9 @@ module SigRecord = struct
             let (mentry, acc) = fm modnm mentry acc in
             (Alist.extend sigracc (SRModule(modnm, mentry)), acc)
 
-        | SRSig(signm, absmodsig) ->
-            let (absmodsig, acc) = fs signm absmodsig acc in
-            (Alist.extend sigracc (SRSig(signm, absmodsig)), acc)
+        | SRSig(signm, sentry) ->
+            let (sentry, acc) = fs signm sentry acc in
+            (Alist.extend sigracc (SRSig(signm, sentry)), acc)
 
       ) (Alist.empty, init)
 
@@ -434,7 +455,7 @@ module SigRecord = struct
       ~f:(ff : type_name -> poly_type -> poly_type)
       ~t:(ft : type_name -> type_entry -> type_entry)
       ~m:(fm : module_name -> module_entry -> module_entry)
-      ~s:(fs : signature_name -> module_signature abstracted -> module_signature abstracted)
+      ~s:(fs : signature_name -> signature_entry -> signature_entry)
       (sigr : t) : t =
     let (sigr, ()) =
       sigr |> map_and_fold

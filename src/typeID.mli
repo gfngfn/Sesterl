@@ -1,7 +1,7 @@
 
 type t
 
-val fresh : string list -> string -> t
+val fresh : Address.t -> string -> t
 
 val hash : t -> int
 
@@ -11,6 +11,8 @@ val equal : t -> t -> bool
 
 val name : t -> string
 
-val pp : Format.formatter -> t -> unit
+val address : t -> Address.t
+
+val pp : Format.formatter -> ?seen_from:Address.t -> t -> unit
 
 val pp_raw : Format.formatter -> t -> unit

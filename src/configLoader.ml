@@ -36,6 +36,14 @@ type erlang_config = {
   relx                  : relx option;
 }
 
+type document_output_format =
+  | Html
+
+type document_output_config = {
+  document_output_format    : document_output_format;
+  document_output_directory : relative_dir;
+}
+
 type dependency_source =
   | Local of absolute_path
   | Git   of { repository : string; git_spec : git_spec }
@@ -62,6 +70,7 @@ type config = {
   main_module_name   : module_name;
   source_directories : relative_dir list;
   test_directories   : relative_dir list;
+  document_outputs   : document_output_config list;
   dependencies       : dependency list;
   test_dependencies  : dependency list;
   erlang_config      : erlang_config;
@@ -184,6 +193,26 @@ let dependency_decoder (confdir : absolute_dir) : dependency YamlDecoder.t =
   }
 
 
+let document_output_format_decoder : document_output_format YamlDecoder.t =
+  let open YamlDecoder in
+  branch "type" [
+    "html" ==> succeed Html
+  ]
+  ~on_error:(fun other ->
+    Printf.sprintf "unsupported type '%s' for specifying document output format" other
+  )
+
+
+let document_output_decoder : document_output_config YamlDecoder.t =
+  let open YamlDecoder in
+  get "output_directory" string >>= fun reldir_out ->
+  get "format" document_output_format_decoder >>= fun format ->
+  succeed {
+    document_output_format    = format;
+    document_output_directory = RelativeDir(reldir_out);
+  }
+
+
 let config_decoder (confdir : absolute_dir) : config YamlDecoder.t =
   let open YamlDecoder in
   get_opt "language" string >>= fun language_opt ->
@@ -193,6 +222,7 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.t =
   get_or_else "test_directories" (list string) [] >>= fun testdirs ->
   get_or_else "dependencies" (list (dependency_decoder confdir)) [] >>= fun dependencies ->
   get_or_else "test_dependencies" (list (dependency_decoder confdir)) [] >>= fun test_dependencies ->
+  get_or_else "document_outputs" (list document_output_decoder) [] >>= fun document_outputs ->
   get_or_else "erlang" erlang_config_decoder default_erlang_config >>= fun erlang_config ->
   let config =
     {
@@ -202,6 +232,7 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.t =
       main_module_name   = main_module_name;
       source_directories = srcdirs |> List.map (fun srcdir -> RelativeDir(srcdir));
       test_directories   = testdirs |> List.map (fun testdir -> RelativeDir(testdir));
+      document_outputs   = document_outputs;
       dependencies       = dependencies;
       test_dependencies  = test_dependencies;
       erlang_config      = erlang_config;

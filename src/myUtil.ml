@@ -7,6 +7,7 @@ module Alist : sig
   val empty : 'a t
   val extend : 'a t -> 'a -> 'a t
   val append : 'a t -> 'a list -> 'a t
+  val length : 'a t -> int
   val to_list : 'a t -> 'a list
   val to_rev_list : 'a t -> 'a list
   val from_list : 'a list -> 'a t
@@ -20,6 +21,8 @@ end = struct
   let extend acc x = x :: acc
 
   let append acc xs = List.rev_append xs acc
+
+  let length acc = List.length acc
 
   let to_list = List.rev
 
@@ -95,6 +98,10 @@ let make_absolute_path ?canonicalize:(canonicalize = false) (absdir : absolute_d
 
 let append_dir (absdir : absolute_dir) (RelativeDir(reldir) : relative_dir) : absolute_dir =
   Filename.concat absdir reldir
+
+
+let append_path (absdir : absolute_dir) (RelativePath(relpath) : relative_path) : absolute_path =
+  Filename.concat absdir relpath
 
 
 let canonicalize_path (abspath : absolute_path) : absolute_path option =

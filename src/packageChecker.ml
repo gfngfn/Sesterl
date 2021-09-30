@@ -8,9 +8,11 @@ open Errors
 
 module SigRecordMap = Map.Make(String)
 
-type sig_record_map = (SigRecord.t abstracted * space_name) SigRecordMap.t
+type sig_record_map = ((signature_source * SigRecord.t) abstracted * space_name) SigRecordMap.t
 
 type single_output = {
+  module_name : module_name;
+  signature   : (signature_source * SigRecord.t) abstracted;
   space_name  : space_name;
   attribute   : ModuleAttribute.t;
   bindings    : binding list;
@@ -18,7 +20,7 @@ type single_output = {
 }
 
 
-let check_single (is_verbose : bool) ~check_public_signature:(check_public_signature : bool) (sigrmap : sig_record_map) (tyenv_before : Typeenv.t) (source : SourceLoader.loaded_module) : SigRecord.t abstracted * single_output =
+let check_single (is_verbose : bool) ~(is_main_module : bool) (sigrmap : sig_record_map) (tyenv_before : Typeenv.t) (source : SourceLoader.loaded_module) : (signature_source * SigRecord.t) abstracted * single_output =
   let abspath  = source.SourceLoader.source_path in
   let modident = source.SourceLoader.module_identifier in
   let utsigopt = source.SourceLoader.signature in
@@ -35,21 +37,28 @@ let check_single (is_verbose : bool) ~check_public_signature:(check_public_signa
            when submodules are topologically sorted. *)
           raise (ConfigError(ModuleNotFound(rng, depmodnm)))
 
-      | Some(((_, sigr), sname)) ->
-          tyenv |> Typeenv.add_module depmodnm { mod_signature = ConcStructure(sigr); mod_name = sname }
+      | Some(((_, (isig, sigr)), sname)) ->
+          let mentry =
+            {
+              mod_signature = (isig, ConcStructure(sigr));
+              mod_name      = sname;
+              mod_doc       = None;
+            }
+          in
+          tyenv |> Typeenv.add_module depmodnm mentry
     ) tyenv_before
   in
+  let (_, modnm) = modident in
   let absmodsigopt =
-    let tyenv_for_sig = if check_public_signature then tyenv_before else tyenv_for_mod in
-    utsigopt |> Option.map (Typechecker.typecheck_signature ~address:Alist.empty tyenv_for_sig)
+    let tyenv_for_sig = if is_main_module then tyenv_before else tyenv_for_mod in
+    let address = Address.root |> Address.append_member modnm in
+    utsigopt |> Option.map (Typechecker.typecheck_signature ~address tyenv_for_sig)
   in
   let (_, abssigr, sname, (modattr, ibinds)) = Typechecker.main tyenv_for_mod modident absmodsigopt utmod in
-(*
-  let (_, sigr) = abssigr in
-  if is_verbose then display_top_structure modident sigr;
-*)
   let out =
     {
+      module_name = modnm;
+      signature   = abssigr;
       space_name  = sname;
       attribute   = modattr;
       bindings    = ibinds;
@@ -59,10 +68,10 @@ let check_single (is_verbose : bool) ~check_public_signature:(check_public_signa
   (abssigr, out)
 
 
-let main (is_verbose : bool) (tyenv_before : Typeenv.t) (submods : SourceLoader.loaded_module list) (mainmod : SourceLoader.loaded_module) : Typeenv.t * single_output list =
+let main (is_verbose : bool) (tyenv_before : Typeenv.t) (submods : SourceLoader.loaded_module list) (mainmod : SourceLoader.loaded_module) : Typeenv.t * single_output list * single_output =
   let (sigrmap, suboutacc) =
     submods |> List.fold_left (fun (sigrmap, suboutacc) source ->
-      let (abssigr, out) = check_single is_verbose ~check_public_signature:false sigrmap tyenv_before source in
+      let (abssigr, out) = check_single is_verbose ~is_main_module:false sigrmap tyenv_before source in
       let sname = out.space_name in
       let sigrmap =
         let (_, modnm) = source.SourceLoader.module_identifier in
@@ -73,13 +82,20 @@ let main (is_verbose : bool) (tyenv_before : Typeenv.t) (submods : SourceLoader.
     ) (SigRecordMap.empty, Alist.empty)
   in
 
-  let ((_, mainsigr), mainout) =
-    check_single is_verbose ~check_public_signature:true sigrmap tyenv_before mainmod
+  let ((_, (mainisig, mainsigr)), mainout) =
+    check_single is_verbose ~is_main_module:true sigrmap tyenv_before mainmod
   in
   let tyenv =
     let (_, mainmod) = mainmod.SourceLoader.module_identifier in
     let mainsname = mainout.space_name in
-    tyenv_before |> Typeenv.add_module mainmod { mod_signature = ConcStructure(mainsigr); mod_name = mainsname }
+    let mentry =
+      {
+        mod_signature = (mainisig, ConcStructure(mainsigr));
+        mod_name      = mainsname;
+        mod_doc       = None;
+      }
+    in
+    tyenv_before |> Typeenv.add_module mainmod mentry
   in
-  let outs = Alist.to_list (Alist.extend suboutacc mainout) in
-  (tyenv, outs)
+  let subouts = Alist.to_list suboutacc in
+  (tyenv, subouts, mainout)

@@ -1,4 +1,5 @@
 
+open MyUtil
 open Syntax
 open IntermediateSyntax
 open Env
@@ -16,19 +17,19 @@ let decode_option_function_with_default =
   "decode_option_with_default"
 
 
-let vid_option = TypeID.fresh [] "option"
+let vid_option = TypeID.fresh Address.root "option"
 
 
-let vid_result = TypeID.fresh [] "result"
+let vid_result = TypeID.fresh Address.root "result"
 
 
-let vid_list = TypeID.fresh [] "list"
+let vid_list = TypeID.fresh Address.root "list"
 
 
-let vid_format = TypeID.fresh [] "format"
+let vid_format = TypeID.fresh Address.root "format"
 
 
-let vid_frozen = TypeID.fresh [] "frozen"
+let vid_frozen = TypeID.fresh Address.root "frozen"
 
 
 let option_type (rng : Range.t) (ty : ('a, 'b) typ) : ('a, 'b) typ =
@@ -283,23 +284,19 @@ let make_constructor_id (ctor : string) (atom_opt : string option) =
       end
 
 
-let add_variant_types vntdefs (tyenv, gmap) =
+type constructor_definition = constructor_name * string option * poly_type list
+
+
+let add_variant_types (vntdefs : (type_name * TypeID.t * BoundID.t list * constructor_definition list) list) (tyenv, gmap) =
   let tyenv : Typeenv.t =
     vntdefs |> List.fold_left (fun tyenv vntdef ->
       let (tynm, vid, bids, ctordefs) = vntdef in
       let pkd = TypeConv.kind_of_arity (List.length bids) in
-      let tentry =
-        {
-          type_scheme = TypeConv.make_opaque_type_scheme bids vid;
-          type_kind   = pkd;
-        }
-      in
-      let tyenv = tyenv |> Typeenv.add_type tynm tentry in
-      let (tyenv, ctorbrs) =
-        ctordefs |> List.fold_left (fun (tyenv, ctorbrs) ctordef ->
-          let (ctor, atom_opt, paramtys) = ctordef in
-          let ctorid = make_constructor_id ctor atom_opt in
-          let ctorentry =
+      let (centryacc, ctormap) =
+        ctordefs |> List.fold_left (fun (centryacc, ctormap) ctordef ->
+          let (ctornm, atom_opt, paramtys) = ctordef in
+          let ctorid = make_constructor_id ctornm atom_opt in
+          let centry =
             {
               belongs         = vid;
               constructor_id  = ctorid;
@@ -307,10 +304,24 @@ let add_variant_types vntdefs (tyenv, gmap) =
               parameter_types = paramtys;
             }
           in
-          let tyenv = tyenv |> Typeenv.add_constructor ctor ctorentry in
-          let ctorbrs = ctorbrs |> ConstructorMap.add ctor (ctorid, paramtys) in
-          (tyenv, ctorbrs)
-        ) (tyenv, ConstructorMap.empty)
+          let centryacc = Alist.extend centryacc (ctornm, centry) in
+          let ctormap = ctormap |> ConstructorMap.add ctornm (ctorid, paramtys) in
+          (centryacc, ctormap)
+        ) (Alist.empty, ConstructorMap.empty)
+      in
+      let tentry =
+        let (bids, tybody) = TypeConv.make_opaque_type_scheme bids vid in
+        {
+          type_scheme = (bids, tybody, Variant(ctormap));
+          type_kind   = pkd;
+          type_doc    = None;
+        }
+      in
+      let tyenv = tyenv |> Typeenv.add_type tynm tentry in
+      let tyenv =
+        centryacc |> Alist.to_list |> List.fold_left (fun tyenv (ctornm, centry) ->
+          tyenv |> Typeenv.add_constructor ctornm centry
+        ) tyenv
       in
       tyenv
     ) tyenv

@@ -63,7 +63,7 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
 
       ) ExternalMap.empty
     in
-    let (pkgs, absdir_out, absdir_test_out) =
+    let (pkgs, absdir_out, absdir_test_out, doc_configs_opt) =
         let (_, extopt) = Core.Filename.split_extension abspath_in in
         match extopt with
         | Some("sest") ->
@@ -74,7 +74,7 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
               | None          -> raise (ConfigError(NoOutputSpecForSingleSource))
               | Some(dir_out) -> append_dir current_directory (RelativeDir(dir_out))
             in
-            (pkgs, absdir_out, absdir_out)
+            (pkgs, absdir_out, absdir_out, None)
 
         | Some(ext) ->
             raise (ConfigError(UnrecognizableExtension(ext)))
@@ -95,7 +95,8 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
             in
             (pkgs,
              append_dir absdir_in main_config.erlang_config.output_directory,
-             append_dir absdir_in main_config.erlang_config.test_output_directory)
+             append_dir absdir_in main_config.erlang_config.test_output_directory,
+             Some((absdir_in, main_config.document_outputs)))
     in
 
     (* Typecheck each package. *)
@@ -103,8 +104,8 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
     let (_, pkgoutsacc) =
       pkgs |> List.fold_left (fun (tyenv, outsacc) pkg ->
         let (pkgnameopt, submods, mainmod) = pkg in
-        let (tyenv, outs) = PackageChecker.main is_verbose tyenv submods mainmod in
-        (tyenv, Alist.extend outsacc (pkgnameopt, outs))
+        let (tyenv, subouts, mainout) = PackageChecker.main is_verbose tyenv submods mainmod in
+        (tyenv, Alist.extend outsacc (pkgnameopt, subouts, mainout))
       ) (tyenv, Alist.empty)
     in
 
@@ -118,11 +119,34 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
     Core.Unix.mkdir_p absdir_out;
     Core.Unix.mkdir_p absdir_test_out;
     let (_, gmap) = Primitives.initial_environment in
-    pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, outs) ->
+    pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, subouts, mainout) ->
+      doc_configs_opt |> Option.map (fun (absdir_in, doc_configs) ->
+        doc_configs |> List.iter (fun doc_config ->
+          let ConfigLoader.Html = doc_config.ConfigLoader.document_output_format in
+          let absdir_doc_out = append_dir absdir_in doc_config.ConfigLoader.document_output_directory in
+          Core.Unix.mkdir_p absdir_doc_out;
+          let abspath_doc_out =
+            match pkgnameopt with
+            | None ->
+                append_path absdir_doc_out (RelativePath("doc.html"))
+
+            | Some(pkgname) ->
+                let relpath = Printf.sprintf "%s.html" (OutputIdentifier.output_space_to_snake pkgname) in
+                append_path absdir_doc_out (RelativePath(relpath))
+          in
+          DocumentGenerator.main abspath_doc_out mainout
+        )
+      ) |> Option.value ~default:();
+      let outs = List.append subouts [ mainout ] in
       outs |> List.fold_left (fun gmap out ->
         let sname = out.PackageChecker.space_name in
         let imod = (out.PackageChecker.attribute, out.PackageChecker.bindings) in
-        let absdir = if out.PackageChecker.is_for_test then absdir_test_out else absdir_out in
+        let absdir =
+          if out.PackageChecker.is_for_test then
+            absdir_test_out
+          else
+            absdir_out
+        in
         OutputErlangCode.main spec absdir gmap ~package_name:pkgnameopt ~module_name:sname imod
       ) gmap
     ) gmap |> ignore;
