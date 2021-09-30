@@ -3428,7 +3428,7 @@ and typecheck_signature ~(address : Address.t) (tyenv : Typeenv.t) (utsig : unty
           }
         in
         let tyenv = tyenv |> Typeenv.add_module m mentry in
-        let address = Address.root |> Address.append_functor_body ~arg:m in
+        let address = address |> Address.append_functor_body ~arg:m in
         typecheck_signature ~address tyenv utsigcod
       in
       begin

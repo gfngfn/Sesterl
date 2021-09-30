@@ -38,12 +38,8 @@ let address tyid =
   tyid.address
 
 
-let pp (ppf : Format.formatter) ?seen_from:(opt : Address.t option) (tyid : t) =
-  let address =
-    match opt with
-    | Some(seen_from) -> Address.subtract ~long:tyid.address ~short:seen_from
-    | None            -> tyid.address
-  in
+let pp (ppf : Format.formatter) ?(seen_from : Address.t = Address.root) (tyid : t) =
+  let address = Address.subtract ~long:tyid.address ~short:seen_from in
   Format.fprintf ppf "%s%s" (Address.show address) tyid.name
 
 
