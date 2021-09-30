@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), 
 ## [Unreleased]
 ### Added
 - Add a new field `language` to the config file format ([PR\#36](https://github.com/gfngfn/Sesterl/pull/36)).
+- Add the attribute `#[doc(...)]` for doc comments on declarations and equip the mechanism of the document generation ([PR\#42](https://github.com/gfngfn/Sesterl/pull/42)).
 
 ### Changed
 - Change the typing rules for records from a record polymorphism similar to that of SML\# to a kind of row polymorphism ([PR\#39](https://github.com/gfngfn/Sesterl/pull/39); **breaking change**).
