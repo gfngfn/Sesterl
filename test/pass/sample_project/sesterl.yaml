@@ -4,7 +4,10 @@ source_directories:
 
 main_module: "SampleProject"
 
-document_output_directory: "./_doc"
+document_outputs:
+  - format:
+      type: "html"
+    output_directory: "./_doc"
 
 dependencies:
   - name: "stdlib"
