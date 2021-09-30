@@ -22,3 +22,7 @@ let plugin_name =
 
 let plugin_url =
   "https://github.com/gfngfn/rebar_sesterl_plugin.git"
+
+
+let message_tag_atom =
+  "'$sesterl'"

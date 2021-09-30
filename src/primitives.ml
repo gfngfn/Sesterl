@@ -167,8 +167,8 @@ let primitive_definitions = [
     };
     target = {
       target_name = "send";
-      parameters  = ["X"; "Y"];
-      code        = "X ! Y, ok";
+      parameters  = ["Pid"; "Msg"];
+      code        = Printf.sprintf "Pid ! {%s, Msg}, ok" Constants.message_tag_atom;
     };
   };
   {
