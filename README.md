@@ -768,7 +768,7 @@ pure-cases ::=
 
 # effectful computations:
 P ::=
-  | 'do' x '<-' P 'in' P                  # sequential compositions (i.e. so-called a bind in a monadic sense)
+  | 'do' pattern '<-' P 'in' P            # sequential compositions (i.e. so-called a bind in a monadic sense)
   | 'receive' effectful-cases 'end'       # selective receive
   | E '(' val-args ')'                    # function applications
   | 'if' E 'then' P 'else' P              # conditionals
@@ -914,17 +914,17 @@ ctor-branch ::=
 
 # comma-separated sequences of value parameters (for function definitions):
 val-params ::=
-  | x (':' T)? (',' val-params)?
+  | pattern (':' T)? (',' val-params)?
   | val-labeled-params
 
 # comma-separated labeled parameters:
 val-labeled-params ::=
-  | -l x (':' T)? (',' val-labeled-params)?
+  | -l pattern (':' T)? (',' val-labeled-params)?
   | val-optional-params
 
 # comma-separated labeled optional parameters (possibly with default expressions):
 val-optional-params ::=
-  | ?l x (':' T)? ('=' E)? (',' val-optional-params)?
+  | ?l pattern (':' T)? ('=' E)? (',' val-optional-params)?
   | (empty)
 
 # sequences of universal quantifiers for type parameters and row parameters
