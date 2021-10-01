@@ -10,7 +10,7 @@ let fresh_local_symbol () =
 
 
 type val_binding_output =
-  | OBindVal         of global_name * local_name list * local_name LabelAssoc.t * (local_name * ast option) LabelAssoc.t * name_map * ast
+  | OBindVal         of global_name * pattern list * pattern LabelAssoc.t * (pattern * ast option) LabelAssoc.t * name_map * ast
   | OBindValExternal of global_name * string
 
 type module_binding_output =
@@ -24,8 +24,8 @@ type module_binding_output =
 
 let traverse_val_single (nmap : name_map) (_, gnamefun, _, ast) : val_binding_output =
   match ast with
-  | ILambda(None, lnames, mndnamemap, optnamemap, ast0) ->
-      OBindVal(gnamefun, lnames, mndnamemap, optnamemap, nmap, ast0)
+  | ILambda(None, ipats, mndipatmap, optipatmap, ast0) ->
+      OBindVal(gnamefun, ipats, mndipatmap, optipatmap, nmap, ast0)
 
   | _ ->
       assert false
@@ -223,22 +223,22 @@ let stringify_single (nmap : name_map) = function
       Printf.sprintf "(fun(%s, %s) -> %s %s %s end)" s1 s2 s1 sop s2
 
 
-let make_mandatory_parameters (ordlnames : local_name list) (mndnamemap : local_name LabelAssoc.t) : local_name list =
-  let mndlnames =
-    mndnamemap |> LabelAssoc.bindings |> List.map (fun (_, lname) -> lname)
+let make_mandatory_parameters (ordipats : pattern list) (mndnamemap : pattern LabelAssoc.t) : pattern list =
+  let mndipats =
+    mndnamemap |> LabelAssoc.bindings |> List.map (fun (_, ipat) -> ipat)
           (* Labeled mandatory parameters are placed in alphabetical order. *)
   in
-  List.append ordlnames mndlnames
+  List.append ordipats mndipats
 
 
-let rec stringify_option_decoding_operation (nmap : name_map) (sname_map : string) (optnamemap : (local_name * ast option) LabelAssoc.t) : string =
-  LabelAssoc.fold (fun label (lname, default) acc ->
-    let sname = OutputIdentifier.output_local lname in
+let rec stringify_option_decoding_operation (nmap : name_map) (sname_map : string) (optipatmap : (pattern * ast option) LabelAssoc.t) : string =
+  LabelAssoc.fold (fun label (ipat, default) acc ->
+    let spat = stringify_pattern ipat in
     let s =
       match default with
       | None ->
           Printf.sprintf "%s = %s:%s(%s, %s), "
-            sname
+            spat
             Primitives.primitive_module_name
             Primitives.decode_option_function
             sname_map
@@ -246,7 +246,7 @@ let rec stringify_option_decoding_operation (nmap : name_map) (sname_map : strin
 
       | Some(ast) ->
           Printf.sprintf "%s = %s:%s(%s, %s, fun() -> %s end), "
-            sname
+            spat
             Primitives.primitive_module_name
             Primitives.decode_option_function_with_default
             sname_map
@@ -254,7 +254,7 @@ let rec stringify_option_decoding_operation (nmap : name_map) (sname_map : strin
             (stringify_ast nmap ast)
     in
     Alist.extend acc s
-  ) optnamemap Alist.empty |> Alist.to_list |> String.concat ""
+  ) optipatmap Alist.empty |> Alist.to_list |> String.concat ""
 
 
 and stringify_arguments (nmap : name_map) (mrow : mono_row) (ordastargs : ast list) (mndargmap : ast LabelAssoc.t) (optargmap : ast LabelAssoc.t) =
@@ -282,10 +282,10 @@ and stringify_ast (nmap : name_map) (ast : ast) =
   | IBaseConst(bc) ->
       stringify_base_constant bc
 
-  | ILambda(recopt, ordlnames, mndnamemap, optnamemap, ast0) ->
+  | ILambda(recopt, ordipats, mndipatmap, optipatmap, ast0) ->
       let snames =
-        let lnames = make_mandatory_parameters ordlnames mndnamemap in
-        lnames |> List.map OutputIdentifier.output_local
+        let ipats = make_mandatory_parameters ordipats mndipatmap in
+        ipats |> List.map stringify_pattern
       in
       let s0 = iter ast0 in
       let srec =
@@ -293,7 +293,7 @@ and stringify_ast (nmap : name_map) (ast : ast) =
         | None          -> ""
         | Some(namerec) -> " " ^ OutputIdentifier.output_local namerec
       in
-      if LabelAssoc.cardinal optnamemap = 0 then
+      if LabelAssoc.cardinal optipatmap = 0 then
         let sparamscat = snames |> String.concat ", " in
         Printf.sprintf "fun%s(%s) -> %s end"
           srec
@@ -302,7 +302,7 @@ and stringify_ast (nmap : name_map) (ast : ast) =
       else
         let sparamscatcomma = snames |> List.map (fun s -> s ^ ", ") |> String.concat "" in
         let sname_map = fresh_local_symbol () in
-        let sgetopts = stringify_option_decoding_operation nmap sname_map optnamemap in
+        let sgetopts = stringify_option_decoding_operation nmap sname_map optipatmap in
         Printf.sprintf "fun%s(%s%s) -> %s%s end"
           srec
           sparamscatcomma
@@ -531,8 +531,8 @@ let stringify_val_binding_output : val_binding_output -> string list = function
   | OBindVal(gnamefun, ordlnames, mndnamemap, optnamemap, gmap, ast0) ->
       let r = OutputIdentifier.output_global gnamefun in
       let sparams =
-        let lnames = make_mandatory_parameters ordlnames mndnamemap in
-        lnames |> List.map OutputIdentifier.output_local
+        let ipats = make_mandatory_parameters ordlnames mndnamemap in
+        ipats |> List.map stringify_pattern
       in
       let sparamscat = String.concat ", " sparams in
       let sparamscatcomma = sparams |> List.map (fun s -> s ^ ", ") |> String.concat "" in

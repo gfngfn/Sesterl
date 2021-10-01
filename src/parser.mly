@@ -299,24 +299,24 @@ params:
   | labparams=labparams {
       ([], labparams)
     }
-  | ident=LOWER; tyannot=tyannot {
-      ([ (ident, tyannot) ], ([], []))
+  | pat=patcons; tyannot=tyannot {
+      ([ (pat, tyannot) ], ([], []))
     }
-  | ident=LOWER; tyannot=tyannot; COMMA; tail=params {
+  | pat=patcons; tyannot=tyannot; COMMA; tail=params {
       let (ordparams, labparams) = tail in
-      ((ident, tyannot) :: ordparams, labparams)
+      ((pat, tyannot) :: ordparams, labparams)
     }
 ;
 labparams:
   | optparams=optparams {
       ([], optparams)
     }
-  | rlabel=MNDLABEL; ident=LOWER; tyannot=tyannot {
-      ([ (rlabel, (ident, tyannot)) ], [])
+  | rlabel=MNDLABEL; pat=patcons; tyannot=tyannot {
+      ([ (rlabel, (pat, tyannot)) ], [])
     }
-  | rlabel=MNDLABEL; ident=LOWER; tyannot=tyannot; COMMA; tail=labparams {
+  | rlabel=MNDLABEL; pat=patcons; tyannot=tyannot; COMMA; tail=labparams {
       let (mndparams, optparams) = tail in
-      ((rlabel, (ident, tyannot)) :: mndparams, optparams)
+      ((rlabel, (pat, tyannot)) :: mndparams, optparams)
     }
 ;
 optparams:
@@ -325,11 +325,11 @@ optparams:
   | optparam=optparam; COMMA; tail=optparams { optparam :: tail }
 ;
 optparam:
-  | rlabel=OPTLABEL; ident=LOWER; tyannot=tyannot {
-      ((rlabel, (ident, tyannot)), None)
+  | rlabel=OPTLABEL; pat=patcons; tyannot=tyannot {
+      ((rlabel, (pat, tyannot)), None)
     }
-  | rlabel=OPTLABEL; ident=LOWER; tyannot=tyannot; DEFEQ; utast=exprlet {
-      ((rlabel, (ident, tyannot)), Some(utast))
+  | rlabel=OPTLABEL; pat=patcons; tyannot=tyannot; DEFEQ; utast=exprlet {
+      ((rlabel, (pat, tyannot)), Some(utast))
     }
 ;
 tyannot:
@@ -463,9 +463,9 @@ sigexprbot:
     }
 ;
 comp:
-  | tokL=DO; ident=LOWER; tyannot=tyannot; REVARROW; c1=comp; IN; c2=comp {
+  | tokL=DO; pat=patcons; tyannot=tyannot; REVARROW; c1=comp; IN; c2=comp {
       let rng = make_range (Token(tokL)) (Ranged(c2)) in
-      (rng, CompDo(Some((ident, tyannot)), c1, c2))
+      (rng, CompDo(Some((pat, tyannot)), c1, c2))
     }
   | tokL=DO; c1=comp; IN; c2=comp {
       let rng = make_range (Token(tokL)) (Ranged(c2)) in

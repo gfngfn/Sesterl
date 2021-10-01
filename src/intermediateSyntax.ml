@@ -31,7 +31,7 @@ and binding =
 and ast =
   | IBaseConst   of base_constant
   | IVar         of name
-  | ILambda      of local_name option * local_name list * local_name LabelAssoc.t * (local_name * ast option) LabelAssoc.t * ast
+  | ILambda      of local_name option * pattern list * pattern LabelAssoc.t * (pattern * ast option) LabelAssoc.t * ast
   | IApply       of name * mono_row * ast list * ast LabelAssoc.t * ast LabelAssoc.t
   | ILetIn       of local_name * ast * ast
   | ICase        of ast * branch list
@@ -95,7 +95,7 @@ and pp_ast ppf = function
   | IVar(name) ->
       OutputIdentifier.pp ppf name
 
-  | ILambda(lnamerecopt, lnameparams, mndnamemap, optnamemap, e) ->
+  | ILambda(lnamerecopt, ordipats, mndipatmap, optipatmap, e) ->
       let snamerec =
         match lnamerecopt with
         | Some(lnamerec) -> Format.asprintf "%a" OutputIdentifier.pp_local lnamerec
@@ -103,19 +103,19 @@ and pp_ast ppf = function
       in
       Format.fprintf ppf "\\%s(%a -{%a} ?{%a}) ->@[<hov2>@ %a@]"
         snamerec
-        (Format.pp_print_list ~pp_sep:pp_sep_comma OutputIdentifier.pp_local) lnameparams
-        (LabelAssoc.pp OutputIdentifier.pp_local) mndnamemap
-        (LabelAssoc.pp (fun ppf (lname, astopt) ->
+        (Format.pp_print_list ~pp_sep:pp_sep_comma pp_pattern) ordipats
+        (LabelAssoc.pp pp_pattern) mndipatmap
+        (LabelAssoc.pp (fun ppf (ipat, astopt) ->
           match astopt with
           | None ->
               Format.fprintf ppf "%a"
-                OutputIdentifier.pp_local lname
+                pp_pattern ipat
 
           | Some(ast) ->
               Format.fprintf ppf "%a = %a"
-                OutputIdentifier.pp_local lname
+                pp_pattern ipat
                 pp_ast ast
-        )) optnamemap
+        )) optipatmap
         pp_ast e
 
   | IApply(name, _, eargs, mndargmap, optargmap) ->

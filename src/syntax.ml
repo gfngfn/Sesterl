@@ -176,7 +176,7 @@ and manual_domain_type =
 and manual_row =
   | MRow of (label ranged * manual_type) list * (Range.t * row_variable_name) option
 
-and binder = identifier ranged * manual_type option
+and binder = untyped_pattern * manual_type option
 
 and constructor_branch =
   | ConstructorBranch of attribute list * constructor_name ranged * manual_type list
