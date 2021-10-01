@@ -223,9 +223,9 @@ let stringify_single (nmap : name_map) = function
       Printf.sprintf "(fun(%s, %s) -> %s %s %s end)" s1 s2 s1 sop s2
 
 
-let make_mandatory_parameters (ordipats : pattern list) (mndnamemap : pattern LabelAssoc.t) : pattern list =
+let make_mandatory_parameters (ordipats : pattern list) (mndipatmap : pattern LabelAssoc.t) : pattern list =
   let mndipats =
-    mndnamemap |> LabelAssoc.bindings |> List.map (fun (_, ipat) -> ipat)
+    mndipatmap |> LabelAssoc.bindings |> List.map (fun (_, ipat) -> ipat)
           (* Labeled mandatory parameters are placed in alphabetical order. *)
   in
   List.append ordipats mndipats

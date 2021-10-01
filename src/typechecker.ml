@@ -1703,9 +1703,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   | LetPatIn(utpat, utast1, utast2) ->
       let (tyenv, ipat, bindmap, e1) = typecheck_let_pattern pre rng utpat utast1 in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
-      BindingMap.iter (fun x (_, _, rng) ->
-        check_properly_used tyenv (rng, x)
-      ) bindmap;
+      check_binding_map_properly_used tyenv bindmap;
       (ty2, iletpatin ipat e1 e2)
 
   | Constructor(modidents, ctornm, utastargs) ->
@@ -2092,15 +2090,9 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (modidents : (module_name 
 
 and typecheck_pure_case_branch (pre : pre) ~pattern:typatexp ~return:tyret (CaseBranch(pat, utast1)) =
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
-  let tyenv =
-    BindingMap.fold (fun x (ty, lname, _) tyenv ->
-      tyenv |> Typeenv.add_value x (TypeConv.lift ty) (OutputIdentifier.Local(lname))
-    ) bindmap pre.tyenv
-  in
+  let tyenv = pre.tyenv |> add_binding_map_to_type_environment bindmap in
   let (ty1, e1) = typecheck { pre with tyenv } utast1 in
-  BindingMap.iter (fun x (_, _, rng) ->
-    check_properly_used tyenv (rng, x)
-  ) bindmap;
+  check_binding_map_properly_used tyenv bindmap;
   unify typat typatexp;
   unify ty1 tyret;
   IBranch(ipat, e1)
@@ -2108,15 +2100,9 @@ and typecheck_pure_case_branch (pre : pre) ~pattern:typatexp ~return:tyret (Case
 
 and typecheck_effectful_case_branch (pre : pre) ~pattern:typatexp ~return:(eff, tyret) (CompCaseBranch(pat, utcomp1)) =
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
-  let tyenv =
-    BindingMap.fold (fun x (ty, lname, _) tyenv ->
-      tyenv |> Typeenv.add_value x (TypeConv.lift ty) (OutputIdentifier.Local(lname))
-    ) bindmap pre.tyenv
-  in
+  let tyenv = pre.tyenv |> add_binding_map_to_type_environment bindmap in
   let ((eff1, ty1), e1) = typecheck_computation { pre with tyenv } utcomp1 in
-  BindingMap.iter (fun x (_, _, rng) ->
-    check_properly_used tyenv (rng, x)
-  ) bindmap;
+  check_binding_map_properly_used tyenv bindmap;
   unify typat typatexp;
   unify_effect eff1 eff;
   unify ty1 tyret;
@@ -2127,13 +2113,17 @@ and typecheck_receive_branch (pre : pre) (effexp : mono_effect) (tyret : mono_ty
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
   let tyenv = pre.tyenv |> add_binding_map_to_type_environment bindmap in
   let ((eff1, ty1), e1) = typecheck_computation { pre with tyenv } utcomp1 in
-  BindingMap.iter (fun x (_, _, rng) ->
-    check_properly_used tyenv (rng, x)
-  ) bindmap;
+  check_binding_map_properly_used tyenv bindmap;
   unify_effect (Effect(typat)) effexp;
   unify_effect eff1 effexp;
   unify ty1 tyret;
   IBranch(ipat, e1)
+
+
+and check_binding_map_properly_used (tyenv : Typeenv.t) (bindmap : binding_map) : unit =
+  BindingMap.iter (fun x (_, _, rng) ->
+    check_properly_used tyenv (rng, x)
+  ) bindmap
 
 
 and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type * pattern * binding_map =
