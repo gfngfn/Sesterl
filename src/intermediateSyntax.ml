@@ -35,7 +35,7 @@ and ast =
   | IApply       of name * mono_row * ast list * ast LabelAssoc.t * ast LabelAssoc.t
   | ILetIn       of local_name * ast * ast
   | ICase        of ast * branch list
-  | IReceive     of branch list
+  | IReceive     of branch list * (ast * ast) option
   | ITuple       of ast TupleList.t
   | IListNil
   | IListCons    of ast * ast

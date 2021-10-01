@@ -1,0 +1,13 @@
+module TestAfter = struct
+
+  val main(_) = act
+    receive
+    | 42 ->
+        let _ = print_debug("Forty two") in
+        return({})
+    after 100 ->
+        let _ = print_debug("Hey") in
+        return({})
+    end
+
+end

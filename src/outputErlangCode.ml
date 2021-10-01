@@ -422,9 +422,20 @@ and stringify_ast (nmap : name_map) (ast : ast) =
       let sbrs = branches |> List.map (stringify_case_branch nmap) in
       Printf.sprintf "case %s of %s end" s0 (String.concat "; " sbrs)
 
-  | IReceive(branches) ->
-      let sbrs = branches |> List.map (stringify_receive_branch nmap) in
-      Printf.sprintf "receive %s end" (String.concat "; " sbrs)
+  | IReceive(branches, iafter_opt) ->
+      let sbrs = branches |> List.map (stringify_receive_branch nmap) |> String.concat "; " in
+      begin
+        match iafter_opt with
+        | None ->
+            Printf.sprintf "receive %s end" sbrs
+
+        | Some((ast1, ast2)) ->
+            let sv = fresh_local_symbol () in
+            let s1 = iter ast1 in
+            let s2 = iter ast2 in
+            Printf.sprintf "begin %s = %s, receive %s after %s -> %s end end"
+              sv s1 sbrs sv s2
+      end
 
   | ITuple(es) ->
       let ss = es |> TupleList.to_list |> List.map iter in
