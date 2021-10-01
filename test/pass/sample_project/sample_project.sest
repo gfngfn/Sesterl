@@ -84,7 +84,7 @@ module SampleProject = struct
 
     val async_increment(pid) = act
       do n <- Server.get_number(pid) in
-      do Server.set_number(pid, n + 1) in
+      do _ <- Server.set_number(pid, n + 1) in
       return(n + 1)
 
     val rec loop(t, pid) = act
@@ -105,7 +105,7 @@ module SampleProject = struct
       | Ok(pid) ->
           do x <- Server.get_number(pid, ?timeout 1000) in
           let _ = print_debug({"first get", x}) in
-          do Server.set_number(pid, 42) in
+          do _ <- Server.set_number(pid, 42) in
           loop(10, pid)
       end
   end
