@@ -1809,7 +1809,7 @@ and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono
       let e = ICase(e1, [ IBranch(ipat, e2) ]) in
       ((eff2, ty2), e)
 
-  | CompReceive(branches) ->
+  | CompReceive(branches, after_opt) ->
       let lev = pre.level in
       let effexp =
         let ty = fresh_type_variable lev (Range.dummy "receive-recv") in
@@ -1817,7 +1817,17 @@ and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono
       in
       let tyret = fresh_type_variable lev (Range.dummy "receive-ret") in
       let ibrs = branches |> List.map (typecheck_receive_branch pre effexp tyret) in
-      ((effexp, tyret), IReceive(ibrs))
+      let iafter_opt =
+        after_opt |> Option.map (fun (utast1, utcomp2) ->
+          let (ty1, e1) = typecheck pre utast1 in
+          unify ty1 (Range.dummy "after", BaseType(IntType));
+          let ((eff2, ty2), e2) = typecheck_computation pre utcomp2 in
+          unify_effect eff2 effexp;
+          unify ty2 tyret;
+          (e1, e2)
+        )
+      in
+      ((effexp, tyret), IReceive(ibrs, iafter_opt))
 
   | CompLetIn(NonRec(letbind), utcomp2) ->
       let (pty, lname, e1) = typecheck_let generate_local_name pre letbind in

@@ -219,7 +219,7 @@ and untyped_computation_ast =
 
 and untyped_computation_ast_main =
   | CompDo       of binder * untyped_computation_ast * untyped_computation_ast
-  | CompReceive  of untyped_receive_branch list
+  | CompReceive  of untyped_receive_branch list * (untyped_ast * untyped_computation_ast) option
   | CompLetIn    of rec_or_nonrec * untyped_computation_ast
   | CompLetPatIn of untyped_pattern * untyped_ast * untyped_computation_ast
   | CompIf       of untyped_ast * untyped_computation_ast * untyped_computation_ast

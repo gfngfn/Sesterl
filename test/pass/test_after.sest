@@ -1,0 +1,27 @@
+module TestAfter = struct
+
+  module Sub :> sig
+    val wait<$a> : fun(int) -> [$a]bool
+  end = struct
+
+    val wait(timeout) = act
+      receive
+      | _ ->
+          return(true)
+      after timeout ->
+        return(false)
+      end
+
+  end
+
+  val main(_) = act
+    receive
+    | 42 ->
+        let _ = print_debug("Forty two") in
+        return({})
+    after (64 + 36) ->
+        let _ = print_debug("Hey") in
+        return({})
+    end
+
+end

@@ -95,7 +95,7 @@
     (rng, DeclInclude((dr, SigWith((dr, SigDecls([], decls)), [], tybinds))))
 %}
 
-%token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE ACT END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE PACK ASSERT OPEN
+%token<Range.t> LET REC AND IN LAMBDA IF THEN ELSE TRUE FALSE DO RECEIVE AFTER ACT END CASE OF TYPE VAL MODULE STRUCT SIGNATURE SIG WITH EXTERNAL INCLUDE IMPORT FREEZE PACK ASSERT OPEN
 %token<Range.t> LPAREN RPAREN LSQUARE RSQUARE LBRACE RBRACE ATTRIBUTE
 %token<Range.t> DEFEQ COMMA ARROW REVARROW BAR UNDERSCORE CONS COLON COERCE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
@@ -467,9 +467,9 @@ comp:
       let rng = make_range (Token(tokL)) (Ranged(c2)) in
       (rng, CompDo((pat, tyannot), c1, c2))
     }
-  | tokL=RECEIVE; branches=nonempty_list(receive_branch); tokR=END {
+  | tokL=RECEIVE; branches=nonempty_list(receive_branch); after=option(after); tokR=END {
       let rng = make_range (Token(tokL)) (Token(tokR)) in
-      (rng, CompReceive(branches))
+      (rng, CompReceive(branches, after))
     }
   | tokL=LET; rec_or_nonrec=bindvallocal; IN; c2=comp {
       let rng = make_range (Token(tokL)) (Ranged(c2)) in
@@ -492,6 +492,9 @@ comp:
       let rng = make_range (Ranged(efun)) (Token(tokR)) in
       (rng, CompApply(efun, (ordargs, mndargs, optargs)))
     }
+;
+after:
+  | AFTER; e=exprapp; ARROW; c=comp { (e, c) }
 ;
 exprlet:
   | tokL=LET; rec_or_nonrec=bindvallocal; IN; e2=exprlet {

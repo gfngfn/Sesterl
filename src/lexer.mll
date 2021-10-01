@@ -79,6 +79,7 @@ rule token = parse
         | "act"       -> ACT(pos)
         | "do"        -> DO(pos)
         | "receive"   -> RECEIVE(pos)
+        | "after"     -> AFTER(pos)
         | "end"       -> END(pos)
         | "case"      -> CASE(pos)
         | "of"        -> OF(pos)
