@@ -32,7 +32,7 @@ module Adt = struct
     | Nil
     | EvenCons($b, oddlist<$b>)
 
-  val main(args) =
+  val main(_) =
     let tr =
       Node(3, [
         Node(1, [

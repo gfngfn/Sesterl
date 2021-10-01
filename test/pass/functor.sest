@@ -30,7 +30,7 @@ module Functor = struct
   module B = Sub.Bool
   module M = G(B)
 
-  val main(args) =
+  val main(_) =
     print_debug(M.zeroes())
 
 end

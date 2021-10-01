@@ -14,7 +14,7 @@ module Coercion = struct
     end)
   end
 
-  val main(args) =
+  val main(_) =
     print_debug(Sub.power(4, 3))
 
 end

@@ -3,7 +3,7 @@ module Inference = struct
   val f<?$a :: (foo)>(r : {foo : int, ?$a}, x) =
     {x.foo, if true then x else r}
 
-  val main(args) =
+  val main(_) =
     f({ foo = 42 }, { foo = 57 })
 
 end

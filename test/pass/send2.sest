@@ -27,7 +27,7 @@ module Send2 = struct
       in
       spawn_all(pid :: pidacc, n - 1)
 
-  val main(arg) = act
+  val main(_) = act
     let n = 10 in
     do pids <- spawn_all([], n) in
     let _ = print_debug(format(f'spawned: ~p~n', {pids})) in

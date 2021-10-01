@@ -17,7 +17,7 @@ module MandatoryParameter = struct
       ) -> $a
   end
 
-  val main(args) =
+  val main(_) =
     let res =
       foldl(
         -f    fun(x, y) -> x + y end,

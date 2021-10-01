@@ -7,7 +7,7 @@ module TestBinaryPattern = struct
     | _     -> None
     end
 
-  val main(args) =
+  val main(_) =
     print_debug({check("one"), check("two"), check("other")})
 
 end

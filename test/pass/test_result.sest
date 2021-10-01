@@ -6,7 +6,7 @@ module TestResult = struct
     | Error({a, b}) -> a + b
     end
 
-  val main(args) =
+  val main(_) =
     print_debug([
       f(Ok(4423)),
       f(Error({42, 57})),

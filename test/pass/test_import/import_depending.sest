@@ -2,7 +2,7 @@ import ImportDepended
 
 module ImportDepending = struct
 
-  val main(args) =
+  val main(_) =
     print_debug(ImportDepended.hello())
 
 end

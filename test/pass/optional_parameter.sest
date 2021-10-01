@@ -17,7 +17,7 @@ module OptionalParameter = struct
   val f(g) =
     {g(36), g(36, ?diff 64)}
 
-  val main(args) =
+  val main(_) =
     let ans1 = {succ(42), succ(42, ?diff 15), f(succ)} in
     let ans2 = {succ_concise(42), succ_concise(42, ?diff 15), f(succ_concise)} in
     let ans3 = {make_pair("first"), make_pair("first", ?other "second")} in

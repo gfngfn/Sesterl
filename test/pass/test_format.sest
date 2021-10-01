@@ -6,7 +6,7 @@ module TestFormat = struct
   val f4() = f'\"Hello, ~10.3f!\"'
   val f5() = f'Hello.'
 
-  val main(args) =
+  val main(_) =
     let res1 = format(f1(), {"World"}) in
     let res2 = format(f2(), {42, true}) in
     let res3 = format(f3(), {$'*', "The quick brown fox jumps over the lazy dog."}) in

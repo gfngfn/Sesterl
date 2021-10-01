@@ -12,7 +12,7 @@ module RecordTest = struct
   val default(b, x) =
     if b then record() else x
 
-  val main(args) =
+  val main(_) =
     let r = record() in
     print_debug({
       original   = r,

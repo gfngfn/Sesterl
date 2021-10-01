@@ -40,24 +40,25 @@ module SampleProject = struct
         let _ = print_debug({"init", state}) in
         GenServer.init_ok(state)
 
-      val handle_call(req, pid, state) = act
-        let _ = print_debug({"handle_call", req}) in
+      val handle_call(req, _, state) = act
+        let _ = print_debug({"handle_call", req, state}) in
         case req of
         | GetNumber -> GenServer.reply(Number(state.number), state)
         | GetName   -> GenServer.reply(Name(state.name), state)
         end
 
       val handle_cast(msg, state) = act
-        let _ = print_debug({"handle_cast", msg}) in
+        let _ = print_debug({"handle_cast", msg, state}) in
         case msg of
         | SetNumber(m) -> GenServer.no_reply({ number = m, name = state.name })
         end
 
       val handle_info(info, state) = act
+        let _ = print_debug({"info", info, state}) in
         GenServer.no_reply(state)
 
       val terminate(state) = act
-        let _ = print_debug("terminate") in
+        let _ = print_debug({"terminate", state}) in
         return({})
 
     end
@@ -110,7 +111,7 @@ module SampleProject = struct
       end
   end
 
-  val main(args) = act
+  val main(_) = act
     Main.main()
 
 end

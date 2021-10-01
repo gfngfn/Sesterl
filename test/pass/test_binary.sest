@@ -15,7 +15,7 @@ module TestBinary = struct
       {A, B, C, D, E}.
     ```
 
-  val main(args) =
+  val main(_) =
     let woman_scientist = "👩‍🔬" in
     let escape_sequences = "\n\r\t\"\'\\" in
     let single_quote = "'" in
