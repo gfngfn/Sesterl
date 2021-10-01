@@ -419,11 +419,11 @@ and stringify_ast (nmap : name_map) (ast : ast) =
 
   | ICase(ast0, branches) ->
       let s0 = iter ast0 in
-      let sbrs = branches |> List.map (stringify_branch nmap) in
+      let sbrs = branches |> List.map (stringify_case_branch nmap) in
       Printf.sprintf "case %s of %s end" s0 (String.concat "; " sbrs)
 
   | IReceive(branches) ->
-      let sbrs = branches |> List.map (stringify_branch nmap) in
+      let sbrs = branches |> List.map (stringify_receive_branch nmap) in
       Printf.sprintf "receive %s end" (String.concat "; " sbrs)
 
   | ITuple(es) ->
@@ -477,12 +477,20 @@ and mapify_label_assoc (nmap : name_map) (emap : ast LabelAssoc.t) =
   ) emap Alist.empty |> Alist.to_list |> String.concat ", "
 
 
-and stringify_branch (nmap : name_map) (br : branch) =
+and stringify_case_branch (nmap : name_map) (br : branch) =
   match br with
   | IBranch(pat, ast1) ->
       let spat = stringify_pattern pat in
       let s1 = stringify_ast nmap ast1 in
       Printf.sprintf "%s -> %s" spat s1
+
+
+and stringify_receive_branch (nmap : name_map) (br : branch) =
+  match br with
+  | IBranch(pat, ast1) ->
+      let spat = stringify_pattern pat in
+      let s1 = stringify_ast nmap ast1 in
+      Printf.sprintf "{%s, %s} -> %s" Constants.message_tag_atom spat s1
 
 
 and stringify_pattern (ipat : pattern) =
