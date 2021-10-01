@@ -465,11 +465,7 @@ sigexprbot:
 comp:
   | tokL=DO; pat=patcons; tyannot=tyannot; REVARROW; c1=comp; IN; c2=comp {
       let rng = make_range (Token(tokL)) (Ranged(c2)) in
-      (rng, CompDo(Some((pat, tyannot)), c1, c2))
-    }
-  | tokL=DO; c1=comp; IN; c2=comp {
-      let rng = make_range (Token(tokL)) (Ranged(c2)) in
-      (rng, CompDo(None, c1, c2))
+      (rng, CompDo((pat, tyannot), c1, c2))
     }
   | tokL=RECEIVE; branches=nonempty_list(receive_branch); tokR=END {
       let rng = make_range (Token(tokL)) (Token(tokR)) in

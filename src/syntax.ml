@@ -218,7 +218,7 @@ and untyped_computation_ast =
   untyped_computation_ast_main ranged
 
 and untyped_computation_ast_main =
-  | CompDo       of binder option * untyped_computation_ast * untyped_computation_ast
+  | CompDo       of binder * untyped_computation_ast * untyped_computation_ast
   | CompReceive  of untyped_receive_branch list
   | CompLetIn    of rec_or_nonrec * untyped_computation_ast
   | CompLetPatIn of untyped_pattern * untyped_ast * untyped_computation_ast

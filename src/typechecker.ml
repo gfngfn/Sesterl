@@ -1796,21 +1796,14 @@ and typecheck_let_pattern (pre : pre) (rng : Range.t) (utpat : untyped_pattern) 
 and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono_effect * mono_type) * ast =
   let (rng, utcompmain) = utcomp in
   match utcompmain with
-  | CompDo(identopt, utcomp1, utcomp2) ->
+  | CompDo(binder, utcomp1, utcomp2) ->
       let ((eff1, ty1), e1) = typecheck_computation pre utcomp1 in
-      let (tyx, tyenv, ipat) =
-        match identopt with
-        | None ->
-            ((Range.dummy "do-unit", BaseType(UnitType)), pre.tyenv, IPWildCard)
-
-        | Some((utpat, _) as binder) ->
-            let tyx = decode_type_annotation_or_fresh pre binder in
-            let (typat, ipat, bindmap) = typecheck_pattern pre utpat in
-            unify typat tyx;
-            let tyenv = pre.tyenv |> add_binding_map_to_type_environment bindmap in
-            (tyx, tyenv, ipat)
-      in
+      let (utpat, _) = binder in
+      let tyx = decode_type_annotation_or_fresh pre binder in
+      let (typat, ipat, bindmap) = typecheck_pattern pre utpat in
+      unify typat tyx;
       unify ty1 tyx;
+      let tyenv = pre.tyenv |> add_binding_map_to_type_environment bindmap in
       let ((eff2, ty2), e2) = typecheck_computation { pre with tyenv } utcomp2 in
       unify_effect eff1 eff2;
       let e = ICase(e1, [ IBranch(ipat, e2) ]) in
