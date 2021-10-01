@@ -1,6 +1,9 @@
 module TestFloat = struct
+
   val add(x, y) = x +. y
-  val main(args) =
+
+  val main(_) =
     let res = add(42.57, 1.) in
     print_debug({res, round(res), truncate(res)})
+
 end

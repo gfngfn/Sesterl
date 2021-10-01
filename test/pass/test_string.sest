@@ -15,7 +15,7 @@ module TestString = struct
     | _         -> false
     end
 
-  val main(args) =
+  val main(_) =
     let s = phrase() in
     let ans1 = chop_first(s) in
     let ans2 = $'F' :: 'oo' in

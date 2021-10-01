@@ -303,8 +303,8 @@ let iapply (efun : ast) (mrow : mono_row) ((eargs, mndargmap, optargmap) : ast l
       ILetIn(lname, efun, IApply(OutputIdentifier.Local(lname), mrow, eargs, mndargmap, optargmap))
 
 
-let ilambda ((ordnames, mndnamemap, optnamemap) : local_name list * local_name LabelAssoc.t * (local_name * ast option) LabelAssoc.t) (e0 : ast) : ast =
-  ILambda(None, ordnames, mndnamemap, optnamemap, e0)
+let ilambda ((ordipats, mndipatmap, optipatmap) : pattern list * pattern LabelAssoc.t * (pattern * ast option) LabelAssoc.t) (e0 : ast) : ast =
+  ILambda(None, ordipats, mndipatmap, optipatmap, e0)
 
 
 let iletpatin (ipat : pattern) (e1 : ast) (e2 : ast) : ast =
@@ -1386,34 +1386,40 @@ and decode_type_annotation_or_fresh (pre : pre) (((rng, x), tyannot) : binder) :
       decode_manual_type pre mty
 
 
-and decode_parameter (pre : pre) (binder : binder) =
-  let ((rngv, x), _) = binder in
+and decode_parameter (pre : pre) (binder : binder) : mono_type * pattern * binding_map =
+  let (utpat, _) = binder in
+  let (typat, ipat, bindmap) = typecheck_pattern pre utpat in
   let tydom = decode_type_annotation_or_fresh pre binder in
-  let lname : local_name = generate_local_name rngv x in
-  (x, tydom, lname)
+  unify typat tydom;
+  (tydom, ipat, bindmap)
 
 
-and add_ordered_parameters_to_type_environment (pre : pre) (binders : binder list) : Typeenv.t * mono_type list * local_name list =
-  let (tyenv, lnameacc, tydomacc) =
-    List.fold_left (fun (tyenv, lnameacc, ptydomacc) binder ->
-      let (x, tydom, lname) = decode_parameter pre binder in
-      let ptydom = TypeConv.lift tydom in
-      let tyenv = tyenv |> Typeenv.add_value x ptydom (OutputIdentifier.Local(lname)) in
-      (tyenv, Alist.extend lnameacc lname, Alist.extend ptydomacc tydom)
+and add_binding_map_to_type_environment (bindmap : binding_map) (tyenv : Typeenv.t) : Typeenv.t =
+  BindingMap.fold (fun x (ty, lname, _) tyenv ->
+    tyenv |> Typeenv.add_value x (TypeConv.lift ty) (OutputIdentifier.Local(lname))
+  ) bindmap tyenv
+
+
+and add_ordered_parameters_to_type_environment (pre : pre) (binders : binder list) : Typeenv.t * mono_type list * pattern list =
+  let (tyenv, ipatacc, tydomacc) =
+    List.fold_left (fun (tyenv, ipatacc, ptydomacc) binder ->
+      let (tydom, ipat, bindmap) = decode_parameter pre binder in
+      let tyenv = tyenv |> add_binding_map_to_type_environment bindmap in
+      (tyenv, Alist.extend ipatacc ipat, Alist.extend ptydomacc tydom)
     ) (pre.tyenv, Alist.empty, Alist.empty) binders
   in
-  let lnames = lnameacc |> Alist.to_list in
+  let ipats = ipatacc |> Alist.to_list in
   let tydoms = tydomacc |> Alist.to_list in
-  (tyenv, tydoms, lnames)
+  (tyenv, tydoms, ipats)
 
 
-and add_labeled_optional_parameters_to_type_environment (pre : pre) (optbinders : (labeled_binder * untyped_ast option) list) : Typeenv.t * mono_row * (local_name * ast option) LabelAssoc.t =
-  optbinders |> List.fold_left (fun (tyenv, optrow, optnamemap) ((rlabel, binder), utdefault) ->
+and add_labeled_optional_parameters_to_type_environment (pre : pre) (optbinders : (labeled_binder * untyped_ast option) list) : Typeenv.t * mono_row * (pattern * ast option) LabelAssoc.t =
+  optbinders |> List.fold_left (fun (tyenv, optrow, optipatmap) ((rlabel, binder), utdefault) ->
     let (rnglabel, label) = rlabel in
-    if optnamemap |> LabelAssoc.mem label then
+    if optipatmap |> LabelAssoc.mem label then
       raise_error (DuplicatedLabel(rnglabel, label))
     else
-      let (x, ty_inner, lname) = decode_parameter pre binder in
+      let (ty_inner, ipat, bindmap) = decode_parameter pre binder in
       let (ty_outer, default) =
         match utdefault with
         | None ->
@@ -1427,23 +1433,23 @@ and add_labeled_optional_parameters_to_type_environment (pre : pre) (optbinders 
             (ty_inner, Some(e))
       in
       let optrow = RowCons(rlabel, ty_outer, optrow) in
-      let tyenv = tyenv |> Typeenv.add_value x (TypeConv.lift ty_inner) (OutputIdentifier.Local(lname)) in
-      let optnamemap = optnamemap |> LabelAssoc.add label (lname, default) in
-      (tyenv, optrow, optnamemap)
+      let tyenv = tyenv |> add_binding_map_to_type_environment bindmap in
+      let optipatmap = optipatmap |> LabelAssoc.add label (ipat, default) in
+      (tyenv, optrow, optipatmap)
   ) (pre.tyenv, RowEmpty, LabelAssoc.empty)
 
 
-and add_labeled_mandatory_parameters_to_type_environment (pre : pre) (mndbinders : labeled_binder list) : Typeenv.t * mono_type LabelAssoc.t * local_name LabelAssoc.t =
-  mndbinders |> List.fold_left (fun (tyenv, labmap, optnamemap) (rlabel, binder) ->
+and add_labeled_mandatory_parameters_to_type_environment (pre : pre) (mndbinders : labeled_binder list) : Typeenv.t * mono_type LabelAssoc.t * pattern LabelAssoc.t =
+  mndbinders |> List.fold_left (fun (tyenv, labmap, optipatmap) (rlabel, binder) ->
     let (rnglabel, label) = rlabel in
     if labmap |> LabelAssoc.mem label then
       raise_error (DuplicatedLabel(rnglabel, label))
     else
-      let (x, ty, lname) = decode_parameter pre binder in
+      let (ty, ipat, bindmap) = decode_parameter pre binder in
       let labmap = labmap |> LabelAssoc.add label ty in
-      let tyenv = tyenv |> Typeenv.add_value x (TypeConv.lift ty) (OutputIdentifier.Local(lname)) in
-      let optnamemap = optnamemap |> LabelAssoc.add label lname in
-      (tyenv, labmap, optnamemap)
+      let tyenv = tyenv |> add_binding_map_to_type_environment bindmap in
+      let optipatmap = optipatmap |> LabelAssoc.add label ipat in
+      (tyenv, labmap, optipatmap)
   ) (pre.tyenv, LabelAssoc.empty, LabelAssoc.empty)
 
 
@@ -1697,9 +1703,7 @@ and typecheck (pre : pre) ((rng, utastmain) : untyped_ast) : mono_type * ast =
   | LetPatIn(utpat, utast1, utast2) ->
       let (tyenv, ipat, bindmap, e1) = typecheck_let_pattern pre rng utpat utast1 in
       let (ty2, e2) = typecheck { pre with tyenv } utast2 in
-      BindingMap.iter (fun x (_, _, rng) ->
-        check_properly_used tyenv (rng, x)
-      ) bindmap;
+      check_binding_map_properly_used tyenv bindmap;
       (ty2, iletpatin ipat e1 e2)
 
   | Constructor(modidents, ctornm, utastargs) ->
@@ -1792,23 +1796,18 @@ and typecheck_let_pattern (pre : pre) (rng : Range.t) (utpat : untyped_pattern) 
 and typecheck_computation (pre : pre) (utcomp : untyped_computation_ast) : (mono_effect * mono_type) * ast =
   let (rng, utcompmain) = utcomp in
   match utcompmain with
-  | CompDo(identopt, utcomp1, utcomp2) ->
+  | CompDo(binder, utcomp1, utcomp2) ->
       let ((eff1, ty1), e1) = typecheck_computation pre utcomp1 in
-      let (tyx, tyenv, lname) =
-        match identopt with
-        | None ->
-            ((Range.dummy "do-unit", BaseType(UnitType)), pre.tyenv, OutputIdentifier.unused)
-
-        | Some(((rngv, x), _) as binder) ->
-            let tyx = decode_type_annotation_or_fresh pre binder in
-            let lname = generate_local_name rngv x in
-            (tyx, pre.tyenv |> Typeenv.add_value x (TypeConv.lift tyx) (OutputIdentifier.Local(lname)), lname)
-      in
+      let (utpat, _) = binder in
+      let tyx = decode_type_annotation_or_fresh pre binder in
+      let (typat, ipat, bindmap) = typecheck_pattern pre utpat in
+      unify typat tyx;
       unify ty1 tyx;
+      let tyenv = pre.tyenv |> add_binding_map_to_type_environment bindmap in
       let ((eff2, ty2), e2) = typecheck_computation { pre with tyenv } utcomp2 in
       unify_effect eff1 eff2;
-      let e2 = ILetIn(lname, e1, e2) in
-      ((eff2, ty2), e2)
+      let e = ICase(e1, [ IBranch(ipat, e2) ]) in
+      ((eff2, ty2), e)
 
   | CompReceive(branches) ->
       let lev = pre.level in
@@ -2084,15 +2083,9 @@ and typecheck_constructor (pre : pre) (rng : Range.t) (modidents : (module_name 
 
 and typecheck_pure_case_branch (pre : pre) ~pattern:typatexp ~return:tyret (CaseBranch(pat, utast1)) =
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
-  let tyenv =
-    BindingMap.fold (fun x (ty, lname, _) tyenv ->
-      tyenv |> Typeenv.add_value x (TypeConv.lift ty) (OutputIdentifier.Local(lname))
-    ) bindmap pre.tyenv
-  in
+  let tyenv = pre.tyenv |> add_binding_map_to_type_environment bindmap in
   let (ty1, e1) = typecheck { pre with tyenv } utast1 in
-  BindingMap.iter (fun x (_, _, rng) ->
-    check_properly_used tyenv (rng, x)
-  ) bindmap;
+  check_binding_map_properly_used tyenv bindmap;
   unify typat typatexp;
   unify ty1 tyret;
   IBranch(ipat, e1)
@@ -2100,15 +2093,9 @@ and typecheck_pure_case_branch (pre : pre) ~pattern:typatexp ~return:tyret (Case
 
 and typecheck_effectful_case_branch (pre : pre) ~pattern:typatexp ~return:(eff, tyret) (CompCaseBranch(pat, utcomp1)) =
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
-  let tyenv =
-    BindingMap.fold (fun x (ty, lname, _) tyenv ->
-      tyenv |> Typeenv.add_value x (TypeConv.lift ty) (OutputIdentifier.Local(lname))
-    ) bindmap pre.tyenv
-  in
+  let tyenv = pre.tyenv |> add_binding_map_to_type_environment bindmap in
   let ((eff1, ty1), e1) = typecheck_computation { pre with tyenv } utcomp1 in
-  BindingMap.iter (fun x (_, _, rng) ->
-    check_properly_used tyenv (rng, x)
-  ) bindmap;
+  check_binding_map_properly_used tyenv bindmap;
   unify typat typatexp;
   unify_effect eff1 eff;
   unify ty1 tyret;
@@ -2117,19 +2104,19 @@ and typecheck_effectful_case_branch (pre : pre) ~pattern:typatexp ~return:(eff, 
 
 and typecheck_receive_branch (pre : pre) (effexp : mono_effect) (tyret : mono_type) (ReceiveBranch(pat, utcomp1)) =
   let (typat, ipat, bindmap) = typecheck_pattern pre pat in
-  let tyenv =
-    BindingMap.fold (fun x (ty, lname, _) tyenv ->
-      tyenv |> Typeenv.add_value x (TypeConv.lift ty) (OutputIdentifier.Local(lname))
-    ) bindmap pre.tyenv
-  in
+  let tyenv = pre.tyenv |> add_binding_map_to_type_environment bindmap in
   let ((eff1, ty1), e1) = typecheck_computation { pre with tyenv } utcomp1 in
-  BindingMap.iter (fun x (_, _, rng) ->
-    check_properly_used tyenv (rng, x)
-  ) bindmap;
+  check_binding_map_properly_used tyenv bindmap;
   unify_effect (Effect(typat)) effexp;
   unify_effect eff1 effexp;
   unify ty1 tyret;
   IBranch(ipat, e1)
+
+
+and check_binding_map_properly_used (tyenv : Typeenv.t) (bindmap : binding_map) : unit =
+  BindingMap.iter (fun x (_, _, rng) ->
+    check_properly_used tyenv (rng, x)
+  ) bindmap
 
 
 and typecheck_pattern (pre : pre) ((rng, patmain) : untyped_pattern) : mono_type * pattern * binding_map =

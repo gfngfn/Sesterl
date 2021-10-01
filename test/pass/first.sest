@@ -4,7 +4,7 @@ module First = struct
     if i <= 0 then c else
       foldn(f, i - 1, f(i, c))
 
-  val main(args) =
+  val main(_) =
     let ans = foldn(fun(i, c) -> i + c end, 10, 0) in
     print_debug(ans)
 

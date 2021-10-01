@@ -33,7 +33,7 @@ module ModSeq = struct
 
   module ListSeq = Seq(ListD)
 
-  val main(args) =
+  val main(_) =
     let ans = ListSeq.to_reversed_list([3, 1, 4]) in
     print_debug(ans)
 

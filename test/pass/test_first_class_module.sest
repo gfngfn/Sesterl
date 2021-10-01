@@ -12,7 +12,7 @@ module TestFirstClassModule = struct
   val f(x : pack Ord) =
     x
 
-  val main(args) =
+  val main(_) =
     print_debug(f(pack Sub : Ord))
 
 end

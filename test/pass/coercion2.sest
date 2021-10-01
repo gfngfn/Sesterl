@@ -5,5 +5,5 @@ end = struct
   val apply(f, x) = f(x)
   val apply2(f, x) = apply(f, x)
   val succ(n) = n + 1
-  val main(args) = print_debug(apply(succ, 42))
+  val main(_) = print_debug(apply(succ, 42))
 end

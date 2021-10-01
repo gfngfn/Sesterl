@@ -17,7 +17,7 @@ module Functor2 = struct
 
   module M = F(Int)
 
-  val main(args) =
+  val main(_) =
     print_debug(M.zeroes())
 
 end

@@ -2,7 +2,7 @@
 (name sesterl)
 (version 0.1.5)
 
-(using menhir 1.0)
+(using menhir 2.0)
 (generate_opam_files true)
 
 (source (github gfngfn/Sesterl))

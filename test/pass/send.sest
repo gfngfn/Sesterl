@@ -50,7 +50,7 @@ module Send = struct
       in
       spawn_all(pid :: acc, n - 1)
 
-  val main(args) = act
+  val main(_) = act
     let m = 10 in
     do pids <- spawn_all([], m) in
     let _ = print_debug(pids) in

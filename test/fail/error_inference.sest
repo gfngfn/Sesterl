@@ -3,7 +3,7 @@ module ErrorInference = struct
   val f(x) =
     x.foo
 
-  val main(args) =
+  val main(_) =
     f(42)
 
 end

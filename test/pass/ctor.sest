@@ -18,7 +18,7 @@ module Ctor = struct
     | _                     -> false
     end
 
-  val main(args) =
+  val main(_) =
     let _ =
       print_debug([
         to_int(Sub.Bar(42)),

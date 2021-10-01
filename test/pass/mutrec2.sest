@@ -11,7 +11,7 @@ module Mutrec2 = struct
     else
       odd(n - 1)
 
-  val main(args) =
+  val main(_) =
     even(10)
 
 end

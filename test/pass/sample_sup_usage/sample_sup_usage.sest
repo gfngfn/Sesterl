@@ -30,20 +30,20 @@ module SampleSupUsage = struct
         val init(n) = act
           G.init_ok(n)
 
-        val handle_call(request, from, n) = act
+        val handle_call(request, _, n) = act
           case request of
           | Get -> G.reply(Got(n), n)
           end
 
-        val handle_cast(msg, n) = act
+        val handle_cast(msg, _) = act
           case msg of
           | Set(m) -> G.no_reply(m)
           end
 
-        val handle_info(info, n) = act
+        val handle_info(_, n) = act
           G.no_reply(n)
 
-        val terminate(n) = act
+        val terminate(_) = act
           return({})
       end
 
@@ -63,7 +63,7 @@ module SampleSupUsage = struct
           return(Result.map(Child1.as_pid, res))
         end)
 
-      val init(init_arg) = act
+      val init(_) = act
         let sup_flags =
           S.make_sup_flags(
             ?strategy  S.OneForOne,
@@ -85,14 +85,14 @@ module SampleSupUsage = struct
     include S.Make(SupCallback)
   end
 
-  val main(args) = act
+  val main(_) = act
     do res <- Sup.start_link({}) in
     case res of
     | Error(reason) ->
         let _ = print_debug({"did not start", reason}) in
         return({})
 
-    | Ok(proc) ->
+    | Ok(_) ->
         let _ = print_debug("ok") in
         return({})
     end
