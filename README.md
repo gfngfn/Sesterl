@@ -708,8 +708,12 @@ How to read:
   - a keyword token or a symbol token
 * a word without quotations (e.g. `E` or `val-args`):
   - a metavariable of the (extended) BNF
+* `(empty)`
+  - the empty sequence of tokens
 * `( DESCR )*`
   - a possibly empty finite repetition of `DESCR`
+* `( DESCR )+`
+  - equals `DESCR ( DESCR )*`
 * `(empty)`
   - no token (i.e. a token sequence of length zero)
 * `(DESCR1 | DESCR2)`
@@ -744,7 +748,7 @@ E ::=
   | 'fun' '(' val-params ')' '->' E 'end'           # pure abstractions
   | 'fun' '(' val-params ')' '->' 'act' P 'end'     # effectful abstractions
   | 'if' E 'then' E 'else' E                        # conditionals
-  | 'case' E 'of' pure-cases 'end'                  # pattern-matching expressions
+  | 'case' E 'of' (pure-case)+ 'end'                # pattern-matching expressions
   | '{' '}'                                         # the unit value
   | '{' E (',' E)* (',')? '}'                       # tuples
   | '{' l '=' E (',' l '=' E)* (',')? '}'           # records
@@ -763,19 +767,23 @@ E ::=
   | 'false'
   | ...
 
-pure-cases ::=
-  | ('|')? pattern '->' E ('|' pattern '->' E)*
+pure-case ::=
+  | '|' pattern '->' E
 
 # effectful computations:
 P ::=
-  | 'do' pattern '<-' P 'in' P            # sequential compositions (i.e. so-called a bind in a monadic sense)
-  | 'receive' effectful-cases 'end'       # selective receive
-  | E '(' val-args ')'                    # function applications
-  | 'if' E 'then' P 'else' P              # conditionals
-  | 'case' E 'of' effectful-cases 'end'   # pattern-matching expressions
+  | 'do' pattern '<-' P 'in' P                     # sequential compositions (i.e. so-called monadic binds)
+  | 'receive' (effectful-case)+ after-branch 'end' # selective receive
+  | E '(' val-args ')'                             # function applications
+  | 'if' E 'then' P 'else' P                       # conditionals
+  | 'case' E 'of' (effectful-case)+ 'end'          # pattern-matching expressions
 
-effectful-cases ::=
-  | ('|')? pattern '->' P ('|' pattern '->' P)*
+effectful-case ::=
+  | '|' pattern '->' P
+
+after-branch ::=
+  | (empty)
+  | 'after' E '->' P
 
 # sequences of arguments for function applications:
 val-args ::=
