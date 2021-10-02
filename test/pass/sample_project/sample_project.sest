@@ -12,22 +12,19 @@ module SampleProject = struct
 
     type error = GenServer.start_link_error
 
-    type request_impl =
-      | GetNumber
-      | GetName
-
-    type response_impl =
-      | Number(int)
-      | Name(binary)
-
-    type cast_message_impl =
-      | SetNumber(int)
-
     module Callback = struct
 
-      type request = request_impl
-      type response = response_impl
-      type cast_message = cast_message_impl
+      type request =
+        | GetNumber
+        | GetName
+
+      type response =
+        | Number(int)
+        | Name(binary)
+
+      type cast_message =
+        | SetNumber(int)
+
       type state = { number : int,  name : binary }
       type init_arg = state
       type global = unit
@@ -73,17 +70,17 @@ module SampleProject = struct
     include GenServer.Make(Callback)
 
     val set_number<$a>(pid : proc, m : int) : [$a]unit = act
-      cast(pid, SetNumber(m))
+      cast(pid, Callback.SetNumber(m))
 
     val get_number<$a>(pid : proc, ?timeout t_opt) : [$a]int = act
       do res <-
         case t_opt of
-        | None    -> call(pid, GetNumber)
-        | Some(t) -> call(pid, GetNumber, ?timeout t)
+        | None    -> call(pid, Callback.GetNumber)
+        | Some(t) -> call(pid, Callback.GetNumber, ?timeout t)
         end
       in
       case res of
-      | Ok(Number(n)) -> return(n)
+      | Ok(Callback.Number(n)) -> return(n)
       end
 
   end
