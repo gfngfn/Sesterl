@@ -1,6 +1,6 @@
 (lang dune 2.5)
 (name sesterl)
-(version 0.1.5)
+(version 0.2.0)
 
 (using menhir 2.0)
 (generate_opam_files true)

@@ -1,4 +1,5 @@
 package: "echo_server"
+language: "v0.2.0"
 
 source_directories:
   - "./src"
@@ -14,16 +15,16 @@ dependencies:
       type: "git"
       repository: "https://github.com/gfngfn/sesterl_stdlib"
       spec:
-        type: "branch"
-        value: "master"
+        type: "tag"
+        value: "v0.4.0"
 
   - name: "sesterl_cowboy"
     source:
       type: "git"
       repository: "https://github.com/gfngfn/sesterl_cowboy"
       spec:
-        type: "branch"
-        value: "master"
+        type: "tag"
+        value: "v0.1.0"
 
 test_dependencies:
   - name: "sesterl_testing"

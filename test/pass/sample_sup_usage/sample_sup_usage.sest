@@ -24,7 +24,6 @@ module SampleSupUsage = struct
           | Set(int)
         type info = unit
         type global = unit
-        type stop_reason = RawValue.t
         type state = int
 
         val init(n) = act
@@ -40,10 +39,16 @@ module SampleSupUsage = struct
           | Set(m) -> G.no_reply(m)
           end
 
+        val handle_timeout(n) = act
+          G.no_reply(n)
+
+        val handle_down(_, _, _, n) = act
+          G.no_reply(n)
+
         val handle_info(_, n) = act
           G.no_reply(n)
 
-        val terminate(_) = act
+        val terminate(_, _) = act
           return({})
       end
 
