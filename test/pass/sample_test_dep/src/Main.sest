@@ -1,0 +1,8 @@
+module Main :> sig
+  val f : fun() -> int
+end = struct
+
+  val f() =
+    42 + 57
+
+end

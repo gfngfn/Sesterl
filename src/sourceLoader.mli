@@ -6,7 +6,6 @@ open Errors
 exception SyntaxError of syntax_error
 
 type loaded_module = {
-  is_in_test_dirs   : bool;
   source_path       : absolute_path;
   module_identifier : module_name ranged;
   signature         : untyped_signature option;
@@ -16,8 +15,9 @@ type loaded_module = {
 
 type loaded_package = {
   space_name   : space_name;
-  submodules   : loaded_module list;
+  aux_modules  : loaded_module list;
   main_module  : loaded_module;
+  test_modules : loaded_module list;
 }
 
 val single : absolute_path -> loaded_module

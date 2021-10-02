@@ -464,3 +464,5 @@ module TypeNameMap = Map.Make(String)
 module ModuleNameMap = Map.Make(String)
 
 module SignatureNameMap = Map.Make(String)
+
+module ModuleNameSet = Set.Make(String)
