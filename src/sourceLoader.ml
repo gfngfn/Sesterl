@@ -54,75 +54,102 @@ let read_source (abspath_in : absolute_path) : loaded_module =
   | Error(err)  -> raise (SyntaxError(err))
 
 
-let resolve_dependency_among_auxiliary ~aux:(bareauxs : loaded_module list) : loaded_module list * ModuleNameSet.t =
-  (* First, adds the Aux vertices to the graph for solving dependency. *)
-  let (graph_aux, nmmap_aux) =
-    bareauxs |> List.fold_left (fun (graph_aux, nmmap_aux) baremod ->
+let resolve_dependency_scheme (nmmap_known : absolute_path ModuleNameMap.t) (baremods : loaded_module list) : loaded_module list * absolute_path ModuleNameMap.t =
+  (* First, adds the vertices to the graph for solving dependency. *)
+  let (graph, nmmap) =
+    baremods |> List.fold_left (fun (graph, nmmap) baremod ->
       let (_, modnm) = baremod.module_identifier in
       let abspath = baremod.source_path in
       begin
-        match nmmap_aux |> ModuleNameMap.find_opt modnm with
+        match nmmap |> ModuleNameMap.find_opt modnm with
         | Some((_, baremod0)) ->
             let abspath0 = baremod0.source_path in
             raise (ConfigError(MultipleModuleOfTheSameName(modnm, abspath0, abspath)))
 
         | None ->
-            let (graph_aux, vertex) = graph_aux |> FileDependencyGraph.add_vertex modnm in
-            let nmmap_aux = nmmap_aux |> ModuleNameMap.add modnm (vertex, baremod) in
-            (graph_aux, nmmap_aux)
+            begin
+              match nmmap_known |> ModuleNameMap.find_opt modnm with
+              | Some(abspath0) ->
+                  raise (ConfigError(MultipleModuleOfTheSameName(modnm, abspath0, abspath)))
+
+              | None ->
+                  let (graph, vertex) = graph |> FileDependencyGraph.add_vertex modnm in
+                  let nmmap = nmmap |> ModuleNameMap.add modnm (vertex, baremod) in
+                  (graph, nmmap)
+            end
       end
     ) (FileDependencyGraph.empty, ModuleNameMap.empty)
   in
 
-  (* Second, adds the Aux-to-Aux dependency edges to the graph. *)
-  let graph_aux =
-    ModuleNameMap.fold (fun modnm (vertex, baremod) graph_aux ->
+  (* Second, adds the dependency edges to the graph. *)
+  let graph =
+    ModuleNameMap.fold (fun modnm (vertex, baremod) graph ->
       let deps = baremod.dependencies in
       deps |> List.fold_left (fun graph (rng, modnm_dep) ->
-        match nmmap_aux |> ModuleNameMap.find_opt modnm_dep with
+        match nmmap |> ModuleNameMap.find_opt modnm_dep with
         | None ->
-            raise (ConfigError(ModuleNotFound(rng, modnm_dep)))
+            if nmmap_known |> ModuleNameMap.mem modnm_dep then
+            (* If the depended one has already been resolved
+               (i.e. if the dependency is on a source file from a test file) *)
+              graph
+            else
+              raise (ConfigError(ModuleNotFound(rng, modnm_dep)))
 
         | Some((vertex_dep, baremod_dep)) ->
             graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_dep
-      ) graph_aux
-    ) nmmap_aux graph_aux
+      ) graph
+    ) nmmap graph
   in
 
   (* Finally, resolves dependency among Auxs. *)
   let resolved_auxs =
-    match FileDependencyGraph.topological_sort graph_aux with
+    match FileDependencyGraph.topological_sort graph with
     | Error(cycle) ->
         raise (ConfigError(CyclicFileDependencyFound(cycle)))
 
-    | Ok(sorted_aux_paths) ->
-        sorted_aux_paths |> List.map (fun modnm ->
-          match nmmap_aux |> ModuleNameMap.find_opt modnm with
+    | Ok(sorted_paths) ->
+        sorted_paths |> List.map (fun modnm ->
+          match nmmap |> ModuleNameMap.find_opt modnm with
           | None               -> assert false
           | Some((_, baremod)) -> baremod
         )
   in
-  let nmset_aux =
-    ModuleNameMap.fold (fun modnm_aux _ nmset_aux ->
-      nmset_aux |> ModuleNameSet.add modnm_aux
-    ) nmmap_aux ModuleNameSet.empty
+  let nmmap_added =
+    ModuleNameMap.fold (fun modnm (_, baremod) nmmap_added ->
+      nmmap_added |> ModuleNameMap.add modnm baremod.source_path
+    ) nmmap ModuleNameMap.empty
   in
-  (resolved_auxs, nmset_aux)
+  (resolved_auxs, nmmap_added)
 
 
-let check_dependency_of_main_on_auxiliary (nmset_aux : ModuleNameSet.t) ~main:(baremain : loaded_module) : unit =
+let resolve_dependency_among_auxiliary ~aux:(bareauxs : loaded_module list) : loaded_module list * absolute_path ModuleNameMap.t =
+  resolve_dependency_scheme ModuleNameMap.empty bareauxs
+
+
+let check_dependency_of_main_on_auxiliary (nmmap_aux : absolute_path ModuleNameMap.t) ~main:(baremain : loaded_module) : unit =
   baremain.dependencies |> List.iter (fun (rng, modnm_dep) ->
-    if nmset_aux |> ModuleNameSet.mem modnm_dep then
+    if nmmap_aux |> ModuleNameMap.mem modnm_dep then
       ()
     else
       raise (ConfigError(ModuleNotFound(rng, modnm_dep)))
   )
 
 
+let resolve_dependency_among_test (nmmap_src : absolute_path ModuleNameMap.t) ~test:(baretests : loaded_module list) : loaded_module list =
+  let (resolved_tests, _) = resolve_dependency_scheme nmmap_src baretests in
+  resolved_tests
+
+
 let resolve_dependency ~aux:(bareauxs : loaded_module list) ~main:(baremain : loaded_module) ~test:(baretests : loaded_module list) : loaded_module list * loaded_module list =
-  let (resolved_auxs, nmset_aux) = resolve_dependency_among_auxiliary ~aux:bareauxs in
-  check_dependency_of_main_on_auxiliary nmset_aux ~main:baremain;
-  (resolved_auxs, [])  (* TEMPORARY; use `baremain`, `baretests`, and `nmset_aux` to construct `resolved_tests` *)
+  let (resolved_auxs, nmmap_aux) = resolve_dependency_among_auxiliary ~aux:bareauxs in
+  check_dependency_of_main_on_auxiliary nmmap_aux ~main:baremain;
+  let nmmap_src =
+    let (_, modnm_main) = baremain.module_identifier in
+    let abspath_main = baremain.source_path in
+    nmmap_aux |> ModuleNameMap.add modnm_main abspath_main
+  in
+  let resolved_tests = resolve_dependency_among_test nmmap_src ~test:baretests in
+  (resolved_auxs, resolved_tests)
 
 
 let single (abspath_in : absolute_path) : loaded_module =
