@@ -31,10 +31,7 @@ let check_single ~(is_verbose : bool) ~(is_main_module : bool) (sigrmap : sig_re
     deps |> List.fold_left (fun tyenv (rng, depmodnm) ->
       match sigrmap |> SigRecordMap.find_opt depmodnm with
       | None ->
-        (* Only the main module of the given package can cause this error;
-           The dependency between submodules has already been checked by `SourceLoader`
-           when submodules are topologically sorted. *)
-          raise (ConfigError(ModuleNotFound(rng, depmodnm)))
+          assert false
 
       | Some(((_, (isig, sigr)), sname)) ->
           let mentry =

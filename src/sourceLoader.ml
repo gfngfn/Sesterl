@@ -55,7 +55,7 @@ let read_source (abspath_in : absolute_path) : loaded_module =
 
 
 let resolve_dependency_among_auxiliary ~aux:(bareauxs : loaded_module list) : loaded_module list * ModuleNameSet.t =
-  (* First, add the Aux vertices to the graph for solving dependency. *)
+  (* First, adds the Aux vertices to the graph for solving dependency. *)
   let (graph_aux, nmmap_aux) =
     bareauxs |> List.fold_left (fun (graph_aux, nmmap_aux) baremod ->
       let (_, modnm) = baremod.module_identifier in
@@ -74,7 +74,7 @@ let resolve_dependency_among_auxiliary ~aux:(bareauxs : loaded_module list) : lo
     ) (FileDependencyGraph.empty, ModuleNameMap.empty)
   in
 
-  (* Second, add the Aux-to-Aux dependency edges to the graph. *)
+  (* Second, adds the Aux-to-Aux dependency edges to the graph. *)
   let graph_aux =
     ModuleNameMap.fold (fun modnm (vertex, baremod) graph_aux ->
       let deps = baremod.dependencies in
@@ -89,7 +89,7 @@ let resolve_dependency_among_auxiliary ~aux:(bareauxs : loaded_module list) : lo
     ) nmmap_aux graph_aux
   in
 
-  (* Resolves dependency between Auxs. *)
+  (* Finally, resolves dependency among Auxs. *)
   let resolved_auxs =
     match FileDependencyGraph.topological_sort graph_aux with
     | Error(cycle) ->
@@ -110,8 +110,18 @@ let resolve_dependency_among_auxiliary ~aux:(bareauxs : loaded_module list) : lo
   (resolved_auxs, nmset_aux)
 
 
+let check_dependency_of_main_on_auxiliary (nmset_aux : ModuleNameSet.t) ~main:(baremain : loaded_module) : unit =
+  baremain.dependencies |> List.iter (fun (rng, modnm_dep) ->
+    if nmset_aux |> ModuleNameSet.mem modnm_dep then
+      ()
+    else
+      raise (ConfigError(ModuleNotFound(rng, modnm_dep)))
+  )
+
+
 let resolve_dependency ~aux:(bareauxs : loaded_module list) ~main:(baremain : loaded_module) ~test:(baretests : loaded_module list) : loaded_module list * loaded_module list =
-  let (resolved_auxs, _nmset_aux) = resolve_dependency_among_auxiliary ~aux:bareauxs in
+  let (resolved_auxs, nmset_aux) = resolve_dependency_among_auxiliary ~aux:bareauxs in
+  check_dependency_of_main_on_auxiliary nmset_aux ~main:baremain;
   (resolved_auxs, [])  (* TEMPORARY; use `baremain`, `baretests`, and `nmset_aux` to construct `resolved_tests` *)
 
 
