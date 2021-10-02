@@ -216,39 +216,6 @@ let primitive_definitions = [
     };
   };
   {
-    source = Some{
-      identifier = "float";
-      typ        = [i] @-> f;
-    };
-    target = {
-      target_name = "float";
-      parameters  = ["N"];
-      code        = "N";
-    };
-  };
-  {
-    source = Some{
-      identifier = "round";
-      typ        = [f] @-> i;
-    };
-    target = {
-      target_name = "round";
-      parameters  = ["X"];
-      code        = "erlang:round(X)";
-    };
-  };
-  {
-    source = Some{
-      identifier = "truncate";
-      typ        = [f] @-> i;
-    };
-    target = {
-      target_name = "truncate";
-      parameters  = ["X"];
-      code        = "erlang:trunc(X)";
-    };
-  };
-  {
     source = None;
     target = {
       target_name = decode_option_function;
