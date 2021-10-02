@@ -17,6 +17,7 @@ jobs:
         ocaml-compiler:
           - 4.11.x
           - 4.12.x
+          - 4.13.x
 
     runs-on: ${{ matrix.os }}
 
@@ -28,7 +29,7 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          dune-cache: ${{ matrix.os != 'macos-latest' }}
+          dune-cache: true
           opam-depext-flags: --with-test
 
       - name: Setup Erlang
@@ -51,7 +52,7 @@ jobs:
         run: opam exec -- make test-blackbox-negative
 
       - name: Upload compiler artifact
-        if: ${{ matrix.ocaml-compiler == '4.12.x' }}
+        if: ${{ matrix.ocaml-compiler == '4.13.x' }}
         uses: actions/upload-artifact@v2
         with:
           name: sesterl-${{ matrix.os }}
