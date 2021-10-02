@@ -1,0 +1,14 @@
+import Main
+
+module MainTest = #[test] struct
+
+  #[test]
+  val f_test() =
+    Testing.it("equal to 99", fun() ->
+      assert Testing.equal(
+        -expect 99,
+        -got    Main.f(),
+      )
+    end)
+
+end
