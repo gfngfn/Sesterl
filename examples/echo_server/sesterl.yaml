@@ -1,4 +1,5 @@
 package: "echo_server"
+language: "v0.2.0"
 
 source_directories:
   - "./src"
@@ -15,7 +16,7 @@ dependencies:
       repository: "https://github.com/gfngfn/sesterl_stdlib"
       spec:
         type: "branch"
-        value: "master"
+        value: "dev-doc-for-sesterl-0-2-0"
 
   - name: "sesterl_cowboy"
     source:
