@@ -63,11 +63,19 @@ let default_erlang_config : erlang_config =
   }
 
 
+type library_config = {
+  main_module_name : module_name;
+}
+
+type package_type =
+  | Application
+  | Library     of library_config
+
 type config = {
   language_version   : string option;
   config_directory   : absolute_dir;
   package_name       : package_name;
-  main_module_name   : module_name;
+  package_type       : package_type;
   source_directories : relative_dir list;
   test_directories   : relative_dir list;
   document_outputs   : document_output_config list;
@@ -213,12 +221,28 @@ let document_output_decoder : document_output_config YamlDecoder.t =
   }
 
 
+let package_type_decoder : package_type YamlDecoder.t =
+  let open YamlDecoder in
+  branch "type" [
+    "application" ==> begin
+      succeed Application
+    end;
+    "library" ==> begin
+      get "main_module" string >>= fun main_module_name ->
+      succeed (Library({ main_module_name = main_module_name }))
+    end;
+  ]
+  ~on_error:(fun other ->
+    Printf.sprintf "unsupported type '%s' for package type" other
+  )
+
+
 let config_decoder (confdir : absolute_dir) : config YamlDecoder.t =
   let open YamlDecoder in
   get_opt "language" string >>= fun language_opt ->
   get "package" string >>= fun package_name ->
+  get_or_else "package_type" package_type_decoder Application >>= fun package_type ->
   get "source_directories" (list string) >>= fun srcdirs ->
-  get "main_module" string >>= fun main_module_name ->
   get_or_else "test_directories" (list string) [] >>= fun testdirs ->
   get_or_else "dependencies" (list (dependency_decoder confdir)) [] >>= fun dependencies ->
   get_or_else "test_dependencies" (list (dependency_decoder confdir)) [] >>= fun test_dependencies ->
@@ -229,7 +253,7 @@ let config_decoder (confdir : absolute_dir) : config YamlDecoder.t =
       language_version   = language_opt;
       config_directory   = confdir;
       package_name       = package_name;
-      main_module_name   = main_module_name;
+      package_type       = package_type;
       source_directories = srcdirs |> List.map (fun srcdir -> RelativeDir(srcdir));
       test_directories   = testdirs |> List.map (fun testdir -> RelativeDir(testdir));
       document_outputs   = document_outputs;
