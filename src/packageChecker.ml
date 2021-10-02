@@ -16,7 +16,6 @@ type single_output = {
   space_name  : space_name;
   attribute   : ModuleAttribute.t;
   bindings    : binding list;
-  is_for_test : bool;
 }
 
 
@@ -62,7 +61,6 @@ let check_single ~(is_verbose : bool) ~(is_main_module : bool) (sigrmap : sig_re
       space_name  = sname;
       attribute   = modattr;
       bindings    = ibinds;
-      is_for_test = source.SourceLoader.is_in_test_dirs;
     }
   in
   (abssigr, out)
@@ -71,7 +69,9 @@ let check_single ~(is_verbose : bool) ~(is_main_module : bool) (sigrmap : sig_re
 let main ~(is_verbose : bool) (tyenv_before : Typeenv.t) ~aux:(auxmods : SourceLoader.loaded_module list) ~main:(mainmod : SourceLoader.loaded_module) ~test:(testmods : SourceLoader.loaded_module list) : Typeenv.t * single_output list * single_output * single_output list =
   let (sigrmap, auxoutacc) =
     auxmods |> List.fold_left (fun (sigrmap, auxoutacc) auxmod ->
-      let (abssigr, auxout) = check_single ~is_verbose ~is_main_module:false sigrmap tyenv_before auxmod in
+      let (abssigr, auxout) =
+        check_single ~is_verbose ~is_main_module:false sigrmap tyenv_before auxmod
+      in
       let sname = auxout.space_name in
       let sigrmap =
         let (_, modnm) = auxmod.SourceLoader.module_identifier in
@@ -88,7 +88,9 @@ let main ~(is_verbose : bool) (tyenv_before : Typeenv.t) ~aux:(auxmods : SourceL
 
   let (_sigrmap, testoutacc) =
     testmods |> List.fold_left (fun (sigrmap, testoutacc) testmod ->
-      let (abssigr, testout) = check_single ~is_verbose ~is_main_module:false sigrmap tyenv_before testmod in
+      let (abssigr, testout) =
+        check_single ~is_verbose ~is_main_module:false sigrmap tyenv_before testmod
+      in
       let sname = testout.space_name in
       let sigrmap =
         let (_, modnm) = testmod.SourceLoader.module_identifier in

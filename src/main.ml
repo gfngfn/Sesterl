@@ -140,16 +140,17 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
           DocumentGenerator.main abspath_doc_out mainout
         )
       ) |> Option.value ~default:();
-      let outs = List.concat [ auxouts; [ mainout ]; testouts ] in
-      outs |> List.fold_left (fun gmap out ->
+      let outs =
+        List.concat [
+          auxouts |> List.map (fun out -> (out, false));
+          [ (mainout, false) ];
+          testouts |> List.map (fun out -> (out, true));
+        ]
+      in
+      outs |> List.fold_left (fun gmap (out, is_for_test) ->
         let sname = out.PackageChecker.space_name in
         let imod = (out.PackageChecker.attribute, out.PackageChecker.bindings) in
-        let absdir =
-          if out.PackageChecker.is_for_test then
-            absdir_test_out
-          else
-            absdir_out
-        in
+        let absdir = if is_for_test then absdir_test_out else absdir_out in
         OutputErlangCode.main spec absdir gmap ~package_name:pkgnameopt ~module_name:sname imod
       ) gmap
     ) gmap |> ignore;

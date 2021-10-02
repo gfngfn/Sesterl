@@ -7,7 +7,6 @@ exception SyntaxError of syntax_error
 
 
 type loaded_module = {
-  is_in_test_dirs   : bool;
   source_path       : absolute_path;
   module_identifier : module_name ranged;
   signature         : untyped_signature option;
@@ -33,7 +32,7 @@ let listup_sources_in_directory (dir : absolute_dir) : absolute_path list =
   )
 
 
-let read_source ~(is_in_test_dirs : bool) (abspath_in : absolute_path) : loaded_module =
+let read_source (abspath_in : absolute_path) : loaded_module =
   Logging.begin_to_parse abspath_in;
   let inc = open_in abspath_in in
   let lexbuf = Lexing.from_channel inc in
@@ -42,7 +41,6 @@ let read_source ~(is_in_test_dirs : bool) (abspath_in : absolute_path) : loaded_
     let open ResultMonad in
     ParserInterface.process ~fname:fname lexbuf >>= fun (deps, modident, utsigopt, utmod) ->
     return {
-      is_in_test_dirs   = is_in_test_dirs;
       source_path       = abspath_in;
       module_identifier = modident;
       signature         = utsigopt;
@@ -86,14 +84,7 @@ let resolve_dependency_among_auxiliary ~aux:(bareauxs : loaded_module list) : lo
             raise (ConfigError(ModuleNotFound(rng, modnm_dep)))
 
         | Some((vertex_dep, baremod_dep)) ->
-            begin
-              match (baremod.is_in_test_dirs, baremod_dep.is_in_test_dirs) with
-              | (false, true) ->
-                  raise (ConfigError(SourceFileDependsOnTestFile(modnm, modnm_dep)))
-
-              | _ ->
-                  graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_dep
-            end
+            graph |> FileDependencyGraph.add_edge ~depending:vertex ~depended:vertex_dep
       ) graph_aux
     ) nmmap_aux graph_aux
   in
@@ -125,7 +116,7 @@ let resolve_dependency ~aux:(bareauxs : loaded_module list) ~main:(baremain : lo
 
 
 let single (abspath_in : absolute_path) : loaded_module =
-  let baremod = read_source ~is_in_test_dirs:false abspath_in in
+  let baremod = read_source abspath_in in
   let deps = baremod.dependencies in
   if List.length deps > 0 then
     raise (ConfigError(CannotSpecifyDependency))
@@ -168,13 +159,8 @@ let main ~(requires_tests : bool) (config : ConfigLoader.config) : loaded_packag
   in
   let abspaths_src = srcdirs |> List.map listup_sources_in_directory |> List.concat in
   let abspaths_test = testdirs |> List.map listup_sources_in_directory |> List.concat in
-  let baresrcs = abspaths_src |> List.map (read_source ~is_in_test_dirs:false) in
-  let baretests =
-    if requires_tests then
-      abspaths_test |> List.map (read_source ~is_in_test_dirs:true)
-    else
-      []
-  in
+  let baresrcs = abspaths_src |> List.map read_source in
+  let baretests = if requires_tests then abspaths_test |> List.map read_source else [] in
   let (baremain, bareauxs) = separate_main_module config baresrcs in
   let (resolved_auxs, resolved_tests) = resolve_dependency ~aux:bareauxs ~main:baremain ~test:baretests in
   let spkgname =
