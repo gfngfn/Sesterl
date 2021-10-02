@@ -69,9 +69,9 @@ let main ~(is_verbose : bool) (tyenv_before : Typeenv.t) ~aux:(auxmods : SourceL
       let (abssigr, auxout) =
         check_single ~is_verbose ~is_main_module:false sigrmap tyenv_before auxmod
       in
-      let sname = auxout.space_name in
       let sigrmap =
         let (_, modnm) = auxmod.SourceLoader.module_identifier in
+        let sname = auxout.space_name in
         sigrmap |> SigRecordMap.add modnm (abssigr, sname)
       in
       let auxoutacc = Alist.extend auxoutacc auxout in
@@ -79,8 +79,13 @@ let main ~(is_verbose : bool) (tyenv_before : Typeenv.t) ~aux:(auxmods : SourceL
     ) (SigRecordMap.empty, Alist.empty)
   in
 
-  let ((_, (mainisig, mainsigr)), mainout) =
+  let (abssigr_main, mainout) =
     check_single ~is_verbose ~is_main_module:true sigrmap tyenv_before mainmod
+  in
+  let sigrmap =
+    let (_, modnm_main) = mainmod.SourceLoader.module_identifier in
+    let sname_main = mainout.space_name in
+    sigrmap |> SigRecordMap.add modnm_main (abssigr_main, sname_main)
   in
 
   let (_sigrmap, testoutacc) =
@@ -101,6 +106,7 @@ let main ~(is_verbose : bool) (tyenv_before : Typeenv.t) ~aux:(auxmods : SourceL
   let tyenv =
     let (_, mainmod) = mainmod.SourceLoader.module_identifier in
     let mainsname = mainout.space_name in
+    let (_, (mainisig, mainsigr)) = abssigr_main in
     let mentry =
       {
         mod_signature = (mainisig, ConcStructure(mainsigr));
