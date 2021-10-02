@@ -731,7 +731,7 @@ and show_domain : 'a 'b. display_spec -> Address.t -> ('a -> string) -> ('b -> s
 fun spec seen_from showtv showrv domain ->
   let sdoms = domain.ordered |> List.map (show_type spec seen_from showtv showrv) in
   let sdomscat = String.concat ", " sdoms in
-  let is_ord_empty = (List.length sdoms = 0) in
+  let is_ord_empty = (sdoms = []) in
   let (is_mnds_empty, smnds) =
     match show_label_assoc ~prefix:"-" ~suffix:"" spec seen_from showtv showrv domain.mandatory with
     | None    -> (true, "")
