@@ -64,8 +64,8 @@ module SampleProject = struct
         let _ = print_debug({"info", info, state}) in
         GenServer.no_reply(state)
 
-      val terminate(state) = act
-        let _ = print_debug({"terminate", state}) in
+      val terminate(reason, state) = act
+        let _ = print_debug({"terminate", reason, state}) in
         return({})
 
     end

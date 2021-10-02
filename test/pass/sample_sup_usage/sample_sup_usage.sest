@@ -48,7 +48,7 @@ module SampleSupUsage = struct
         val handle_info(_, n) = act
           G.no_reply(n)
 
-        val terminate(_) = act
+        val terminate(_, _) = act
           return({})
       end
 
