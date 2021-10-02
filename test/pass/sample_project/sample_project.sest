@@ -31,7 +31,6 @@ module SampleProject = struct
       type state = { number : int,  name : binary }
       type init_arg = state
       type global = unit
-      type stop_reason = RawValue.t
 
       type info =
         | InfoDummy
@@ -52,6 +51,14 @@ module SampleProject = struct
         case msg of
         | SetNumber(m) -> GenServer.no_reply({ number = m, name = state.name })
         end
+
+      val handle_timeout(state) = act
+        let _ = print_debug({"timeout", state}) in
+        GenServer.no_reply(state)
+
+      val handle_down(mref, pid, reason, state) = act
+        let _ = print_debug({"down", mref, pid, reason, state}) in
+        GenServer.no_reply(state)
 
       val handle_info(info, state) = act
         let _ = print_debug({"info", info, state}) in
@@ -76,7 +83,7 @@ module SampleProject = struct
         end
       in
       case res of
-      | Number(n) -> return(n)
+      | Ok(Number(n)) -> return(n)
       end
 
   end
