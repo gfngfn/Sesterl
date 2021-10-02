@@ -20,7 +20,7 @@ type single_output = {
 }
 
 
-let check_single (is_verbose : bool) ~(is_main_module : bool) (sigrmap : sig_record_map) (tyenv_before : Typeenv.t) (source : SourceLoader.loaded_module) : (signature_source * SigRecord.t) abstracted * single_output =
+let check_single ~(is_verbose : bool) ~(is_main_module : bool) (sigrmap : sig_record_map) (tyenv_before : Typeenv.t) (source : SourceLoader.loaded_module) : (signature_source * SigRecord.t) abstracted * single_output =
   let abspath  = source.SourceLoader.source_path in
   let modident = source.SourceLoader.module_identifier in
   let utsigopt = source.SourceLoader.signature in
@@ -68,23 +68,37 @@ let check_single (is_verbose : bool) ~(is_main_module : bool) (sigrmap : sig_rec
   (abssigr, out)
 
 
-let main (is_verbose : bool) (tyenv_before : Typeenv.t) (submods : SourceLoader.loaded_module list) (mainmod : SourceLoader.loaded_module) : Typeenv.t * single_output list * single_output =
-  let (sigrmap, suboutacc) =
-    submods |> List.fold_left (fun (sigrmap, suboutacc) source ->
-      let (abssigr, out) = check_single is_verbose ~is_main_module:false sigrmap tyenv_before source in
-      let sname = out.space_name in
+let main ~(is_verbose : bool) (tyenv_before : Typeenv.t) ~aux:(auxmods : SourceLoader.loaded_module list) ~main:(mainmod : SourceLoader.loaded_module) ~test:(testmods : SourceLoader.loaded_module list) : Typeenv.t * single_output list * single_output * single_output list =
+  let (sigrmap, auxoutacc) =
+    auxmods |> List.fold_left (fun (sigrmap, auxoutacc) auxmod ->
+      let (abssigr, auxout) = check_single ~is_verbose ~is_main_module:false sigrmap tyenv_before auxmod in
+      let sname = auxout.space_name in
       let sigrmap =
-        let (_, modnm) = source.SourceLoader.module_identifier in
+        let (_, modnm) = auxmod.SourceLoader.module_identifier in
         sigrmap |> SigRecordMap.add modnm (abssigr, sname)
       in
-      let suboutacc = Alist.extend suboutacc out in
-      (sigrmap, suboutacc)
+      let auxoutacc = Alist.extend auxoutacc auxout in
+      (sigrmap, auxoutacc)
     ) (SigRecordMap.empty, Alist.empty)
   in
 
   let ((_, (mainisig, mainsigr)), mainout) =
-    check_single is_verbose ~is_main_module:true sigrmap tyenv_before mainmod
+    check_single ~is_verbose ~is_main_module:true sigrmap tyenv_before mainmod
   in
+
+  let (_sigrmap, testoutacc) =
+    testmods |> List.fold_left (fun (sigrmap, testoutacc) testmod ->
+      let (abssigr, testout) = check_single ~is_verbose ~is_main_module:false sigrmap tyenv_before testmod in
+      let sname = testout.space_name in
+      let sigrmap =
+        let (_, modnm) = testmod.SourceLoader.module_identifier in
+        sigrmap |> SigRecordMap.add modnm (abssigr, sname)
+      in
+      let testoutacc = Alist.extend testoutacc testout in
+      (sigrmap, testoutacc)
+    ) (sigrmap, Alist.empty)
+  in
+
   let tyenv =
     let (_, mainmod) = mainmod.SourceLoader.module_identifier in
     let mainsname = mainout.space_name in
@@ -97,5 +111,6 @@ let main (is_verbose : bool) (tyenv_before : Typeenv.t) (submods : SourceLoader.
     in
     tyenv_before |> Typeenv.add_module mainmod mentry
   in
-  let subouts = Alist.to_list suboutacc in
-  (tyenv, subouts, mainout)
+  let auxouts = Alist.to_list auxoutacc in
+  let testouts = Alist.to_list testoutacc in
+  (tyenv, auxouts, mainout, testouts)

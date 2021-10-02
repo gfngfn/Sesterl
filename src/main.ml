@@ -68,7 +68,7 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
         match extopt with
         | Some("sest") ->
             let source = SourceLoader.single abspath_in in
-            let pkgs = [ (None, [], source) ] in
+            let pkgs = [ (None, [], source, []) ] in
             let absdir_out =
               match dir_out_spec with
               | None          -> raise (ConfigError(NoOutputSpecForSingleSource))
@@ -90,7 +90,10 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
                   String.equal config.ConfigLoader.package_name main_config.ConfigLoader.package_name
                 in
                 let pkg = SourceLoader.main ~requires_tests config in
-                (Some(pkg.SourceLoader.space_name), pkg.SourceLoader.submodules, pkg.SourceLoader.main_module)
+                (Some(pkg.SourceLoader.space_name),
+                 pkg.SourceLoader.aux_modules,
+                 pkg.SourceLoader.main_module,
+                 pkg.SourceLoader.test_modules)
               )
             in
             (pkgs,
@@ -103,9 +106,9 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
     let (tyenv, _) = Primitives.initial_environment in
     let (_, pkgoutsacc) =
       pkgs |> List.fold_left (fun (tyenv, outsacc) pkg ->
-        let (pkgnameopt, submods, mainmod) = pkg in
-        let (tyenv, subouts, mainout) = PackageChecker.main is_verbose tyenv submods mainmod in
-        (tyenv, Alist.extend outsacc (pkgnameopt, subouts, mainout))
+        let (pkgnameopt, auxmods, mainmod, testmods) = pkg in
+        let (tyenv, auxouts, mainout, testouts) = PackageChecker.main ~is_verbose tyenv ~aux:auxmods ~main:mainmod ~test:testmods in
+        (tyenv, Alist.extend outsacc (pkgnameopt, auxouts, mainout, testouts))
       ) (tyenv, Alist.empty)
     in
 
@@ -119,7 +122,7 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
     Core.Unix.mkdir_p absdir_out;
     Core.Unix.mkdir_p absdir_test_out;
     let (_, gmap) = Primitives.initial_environment in
-    pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, subouts, mainout) ->
+    pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, auxouts, mainout, testouts) ->
       doc_configs_opt |> Option.map (fun (absdir_in, doc_configs) ->
         doc_configs |> List.iter (fun doc_config ->
           let ConfigLoader.Html = doc_config.ConfigLoader.document_output_format in
@@ -137,7 +140,7 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
           DocumentGenerator.main abspath_doc_out mainout
         )
       ) |> Option.value ~default:();
-      let outs = List.append subouts [ mainout ] in
+      let outs = List.concat [ auxouts; [ mainout ]; testouts ] in
       outs |> List.fold_left (fun gmap out ->
         let sname = out.PackageChecker.space_name in
         let imod = (out.PackageChecker.attribute, out.PackageChecker.bindings) in
