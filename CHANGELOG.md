@@ -5,12 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+- Allow test modules to be dependent on the main module ([PR\#47](https://github.com/gfngfn/Sesterl/pull/47), which is encouraged by a [Issue\#19](https://github.com/gfngfn/Sesterl/issues/19) by @michallepicki).
+
 ### Added
 - Add a new field `language` to the config file format ([PR\#36](https://github.com/gfngfn/Sesterl/pull/36)).
 - Add the attribute `#[doc(...)]` for doc comments on declarations and equip the mechanism of the document generation ([PR\#42](https://github.com/gfngfn/Sesterl/pull/42)).
 - Allow patterns for function parameters ([PR\#45](https://github.com/gfngfn/Sesterl/pull/45)).
 - Allow `receive`-expressions to have `after`-branches ([PR\#46](https://github.com/gfngfn/Sesterl/pull/46); **breaking change** due to a new keyword `after`).
-- Allow test modules to be dependent on the main module ([PR\#47](https://github.com/gfngfn/Sesterl/pull/47), which is encouraged by a [Issue\#19](https://github.com/gfngfn/Sesterl/issues/19) by @michallepicki).
 
 ### Changed
 - Change the typing rules for records from a record polymorphism similar to that of SML\# to a kind of row polymorphism ([PR\#39](https://github.com/gfngfn/Sesterl/pull/39); **breaking change**).
@@ -18,6 +20,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), 
 - Omit the fallback mechanism for the old config file name `package.yaml` ([PR\#40](https://github.com/gfngfn/Sesterl/pull/40); **breaking change**).
 - Change how to compile messages so that `GenServer` can provide `handle_timeout` ([\PR#44](https://github.com/gfngfn/Sesterl/pull/44); **breaking change for FFIs**).
 - Reject `do`-expressions without binders ([PR\#45](https://github.com/gfngfn/Sesterl/pull/45); **breaking change**).
+- Remove floating-point-number-related primitives ([PR\#48](https://github.com/gfngfn/Sesterl/pull/48); **breaking change**).
 
 ## [0.1.5] - 2021-08-14
 ### Fixed
