@@ -30,10 +30,12 @@
   - [Labeled optional parameters](#labeled-optional-parameters)
   - [Labeled mandatory parameters](#labeled-mandatory-parameters)
   - [Records](#records)
+  - [Doc comments](#doc-comments)
 - [Major differences from similar projects](#major-differences-from-similar-projects)
 - [Future work](#future-work)
   - [TODO list](#todo-list)
-- [Overall Syntax](#overall-syntax)
+- [Configuration file format](#configuration-file-format)
+- [Overall syntax](#overall-syntax)
 - [References](#references)
 
 
@@ -112,12 +114,12 @@ Example usages can be seen in the following:
   - A testing library for Sesterl.
   - Uses [*EUnit*](http://erlang.org/doc/apps/eunit/chapter.html).
   - Tests written by this module can be run by `rebar3 sesterl compile && rebar3 eunit`.
-* [`sesterl_cowboy`](https://github.com/gfngfn/sesterl_cowboy)
-  - A small wrapper for [*Cowboy*](https://github.com/ninenines/cowboy).
 * [`sesterl_json`](https://github.com/gfngfn/sesterl_json)
   - A JSON-handling library.
   - Has APIs similar to those of Elm’s [`elm/json`](https://package.elm-lang.org/packages/elm/json/latest/).
   - Uses [*jsone*](https://github.com/sile/jsone) internally.
+* [`sesterl_cowboy`](https://github.com/gfngfn/sesterl_cowboy)
+  - A small wrapper for [*Cowboy*](https://github.com/ninenines/cowboy).
 
 
 ## Features
@@ -559,7 +561,7 @@ f(arg1, …, argL, -m1 marg1, … -mM margM, ?o1 oarg1, … ?oN oargN)
 ```
 
 
-## Records
+### Records
 
 A *record* is a labeled tuple that has the following syntax:
 
@@ -609,6 +611,38 @@ val main() =
 Note: Prior to Sesterl 0.2.0, polymorphic typing for records was based on the one used in *SML\#* \[Ohori 1995\].
 
 
+### Doc comments
+
+You can add doc comments to members in signatures by using `#[doc(String)]` attribute where `String` is an arbitrary string literal containing a text in Markdown:
+
+````
+module List :> sig
+  ...
+
+  #[doc(```
+    `map f [v_1, …, v_n]` applies function `f` to each `v_i` in the given order,
+    and builds the list [f v_1, …, f v_n] with the results produced by `f`.
+  ```)]
+  val map<$a, $b> : fun(fun($a) -> $b, list<$a>) -> list<$b>
+
+  ...
+end = struct
+  ...
+end
+````
+
+(Note: The outermost triple back ticks in the example above are NOT included in Markdown contents; they just start/terminate the string literal as double quotes do. If you want to use triple back ticks in Markdown contents to display code blocks, you can use quadruple back ticks for enclosing string literals.)
+
+You can, for example, generate documents `./_docs/your_package.html` by specifying the following description in your configuration file:
+
+```yaml
+document_outputs:
+  - format:
+      type: "html"
+    output_directory: "./_doc"
+```
+
+
 ## Major differences from similar projects
 
 There have been brilliant functional languages that compile to Erlang or BEAM (i.e. bytecode for Erlang VM). Some of them are the following:
@@ -644,7 +678,7 @@ Also, though not supporting them currently, we want to add features like the fol
 * Session types in a gradually-typed manner.
 
 
-## Future Work
+## Future work
 
 * Support GADTs.
   - This is mainly for typing `gen_server` callbacks as to synchronous messages.
@@ -660,9 +694,9 @@ Also, though not supporting them currently, we want to add features like the fol
   * [x] `receive`-expressions
   * [x] `send`
   * [x] `self`
-  * [ ] `monitor<$a, $b> : fun(pid<$b>) -> [$a]mref<$b>`
-  * [ ] `demonitor<$a, $b> : fun(mref<$b>) -> [$a]unit`
-  * [ ] Special message form `down(pid<$a>, mref<$a>, down_info)` representing `{'DOWN', process, Pid, Mref, Info}`
+  * [x] `MonitorRef.monitor<$a, $b> : fun(pid<$b>) -> [$a]MonitorRef.t`
+  * [x] `MonitorRef.demonitor<$a> : fun(MonitorRef.t) -> [$a]unit`
+  * [ ] Special message `down(MonitorRef.t, StopReason.t)` representing `{'DOWN', MRef, process, Pid, Reason}`
   * [ ] `link<$a, $b> : fun(pid<$b>) -> [$a]unit`
   * [ ] `unlink<$a, $b> : fun(pid<$b>) -> [$a]unit`
 * [x] Principal type inference
@@ -672,8 +706,7 @@ Also, though not supporting them currently, we want to add features like the fol
 * [ ] Data types
   * [x] Strings (as lists of code points)
   * [x] Binaries
-  * [ ] Durations (e.g. `5000ms`)
-  * [ ] Monitoring references `mref<$a>`
+  * [x] Monitoring references `MonitorRef.t`
   * [ ] Unique references
   * [x] Product types
   * [x] Lists
@@ -683,7 +716,7 @@ Also, though not supporting them currently, we want to add features like the fol
   * [x] Functions with labeled optional parameters
   * [x] Functions with labeled mandatory parameters
   * [ ] GADTs (especially for typing synchronous messages)
-* [x] Mutual recursion by generalized `letrec`-expressions
+* [x] Mutual recursion by generalized `val rec`-expressions
 * [ ] Pattern matching
   * [x] `case`-expressions
   * [x] Generalized `let`-expressions
@@ -700,7 +733,146 @@ Also, though not supporting them currently, we want to add features like the fol
 * [ ] (Multiparty) session types
 
 
-## Overall Syntax
+## Configuration file format
+
+Configuration files must be of the following form. Although configuration files are in the YAML format, their specification is described here by using JSON-like expressions for clarity of the structure:
+
+```
+Config := {
+  package: String
+    # The name of the package. Example: "sesterl_json"
+
+  language: String
+    # The minimum version of Sesterl required by the package.
+    # This field is optional. No check will be performed if omitted.
+
+  source_directories: Array<String>
+    # The list of directories where source files are placed.
+    # All the source files (i.e. files that have
+    # ".sest", ".erl", or ".app.src" as their extension)
+    # that are exactly at one of the specified directories will be used for compilation.
+    # Specified directories must be relative to the configuration file.
+    # Example: [ "./src", "./src/generated" ]
+
+  main_module: String
+    # The name of the main module of the package.
+    # The *main module* of a package is defined to be
+    # the sole module visible from the outside of the package.
+
+  test_directories: Array<String>
+    # The list of directories where test files are placed.
+    # Specified directories must be relative to the configuration file.
+    # This field is optional. Default: []
+    # Example: [ "./test" ]
+
+  dependencies: Array<Dependency>
+    # This field is optional. Default: []
+
+  test_dependencies: Array<Dependency>
+    # This field is optional. Default: []
+
+  erlang: ErlangConfig
+    # This field is optional. Default:
+    #   {
+    #     output_directory: "./_generated"
+    #     test_output_directory: "./_generated_test"
+    #     erlang_dependencies: []
+    #   }
+
+  document_outputs: Array<DocumentOutput>
+    # Settings for the document generation.
+    # This field is optional. Default: []
+}
+
+Dependency := {
+  name: String
+    # The name of the dependency.
+
+  source: (GitSource | LocalSource)
+    # Describes how to get the dependency.
+}
+
+GitSource := {
+  type: "git"
+
+  repository: String
+    # The URI of the Git repository.
+
+  spec: (TagSpec | RefSpec | BranchSpec)
+    # Describes which commit to use.
+}
+
+TagSpec := {
+  type: "tag"
+  value: String  # Example: "v1.3.0"
+}
+
+RefSpec := {
+  type: "ref"
+  value: String  # A commit hash.
+}
+
+BranchSpec := {
+  type: "branch"
+  value: String  # Example: "master"
+}
+
+LocalSource := {
+  type: "local"
+
+  directory: String
+    # The directory where the dependency is placed.
+}
+
+HexSource := {
+  type: "hex"
+
+  version: String
+    # The version number.
+}
+
+ErlangConfig := {
+  output_directory: String
+    # The directory at which Erlang modules are generated.
+    # Must be relative to the configuration file.
+    # This field is Optional. Default: "./_generated"
+
+  test_output_directory: String
+    # The directory at which Erlang test modules for EUnit are generated.
+    # Must be relative to the configuration file.
+    # This field is Optional. Default: "./_generated_test"
+
+  erlang_dependencies: Array<ErlangDependency>
+    # The Erlang libraries on which the package depends.
+    # This field is optional. Default: []
+
+  relx: Relx
+    # This field is optional.
+    # No `relx` stanza will be written on `rebar.config` if omitted.
+}
+
+ErlangDependency := {
+  name: String
+    # The name of the package. Example: "cowboy"
+
+  source: (HexSource | GitSource)
+    # Describes how to get the Erlang library.
+}
+
+DocumentOutput := {
+  format: { type: "html" }
+    # The format of output documents.
+    # Only HTML is supported so far.
+
+  output_directory: String
+    # The directory at which documents are generated.
+    # Must be relative to the configuration file.
+    # Example: [ "./_doc" ]
+}
+```
+
+
+## Overall syntax
 
 How to read:
 
