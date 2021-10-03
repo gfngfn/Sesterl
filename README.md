@@ -772,12 +772,7 @@ Config := {
     # This field is optional. Default: []
 
   erlang: ErlangConfig
-    # This field is optional. Default:
-    #   {
-    #     output_directory: "./_generated"
-    #     test_output_directory: "./_generated_test"
-    #     erlang_dependencies: []
-    #   }
+    # This field is optional. Default: {}
 
   document_outputs: Array<DocumentOutput>
     # Settings for the document generation.
@@ -857,6 +852,17 @@ ErlangDependency := {
 
   source: (HexSource | GitSource)
     # Describes how to get the Erlang library.
+}
+
+Relx := {
+  release: RelxRelease
+  dev_mode: Boolean     # This field is optional. Default: false
+}
+
+RelxRelease := {
+  name: String
+  version: String
+  applications: Array<String>
 }
 
 DocumentOutput := {
