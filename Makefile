@@ -31,3 +31,7 @@ clean:
 .PHONY: clean-test
 clean-test:
 	rm -f test/_generated/*
+
+.PHONY: fmt
+fmt:
+	dune build @fmt --auto-promote
