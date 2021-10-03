@@ -65,7 +65,7 @@ let show (address : t) : string =
       | FunctorBody(r) -> Printf.sprintf "(%s = ...)" r.arg
     )
   in
-  let s_last = if List.length adelems = 0 then "" else "." in
+  let s_last = if adelems = [] then "" else "." in
   (List.append ss [ s_last ]) |> String.concat ""
 
 

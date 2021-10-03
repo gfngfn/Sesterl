@@ -539,7 +539,7 @@ let display_poly_type pty =
   let (sbids, sbrids, sty) = TypeConv.show_poly_type pty in
   let ssub =
     let ss = List.append sbids sbrids in
-    if List.length ss = 0 then
+    if ss = [] then
       ""
     else
       "<" ^ (String.concat ", " ss) ^ ">"
