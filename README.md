@@ -31,6 +31,7 @@
   - [Labeled mandatory parameters](#labeled-mandatory-parameters)
   - [Records](#records)
   - [Doc comments](#doc-comments)
+  - [Writing tests](#writing-tests)
 - [Major differences from similar projects](#major-differences-from-similar-projects)
 - [Future work](#future-work)
   - [TODO list](#todo-list)
@@ -94,6 +95,12 @@ $ rebar3 sesterl compile
 
 Here, `sesterl` is a name space of Rebar3 commands for compiling Sesterl programs, and is introduced by plugin [`rebar_sesterl`](https://github.com/gfngfn/rebar_sesterl_plugin).
 
+Running unit tests (by using [*EUnit*](http://erlang.org/doc/apps/eunit/chapter.html)) can be done by the following:
+
+```console
+$ rebar3 sesterl test
+```
+
 
 ## Example code
 
@@ -113,7 +120,7 @@ Example usages can be seen in the following:
 * [`sesterl_testing`](https://github.com/gfngfn/sesterl_testing)
   - A testing library for Sesterl.
   - Uses [*EUnit*](http://erlang.org/doc/apps/eunit/chapter.html).
-  - Tests written by this module can be run by `rebar3 sesterl compile && rebar3 eunit`.
+  - Tests written by this module can be run by `rebar3 sesterl test`.
 * [`sesterl_json`](https://github.com/gfngfn/sesterl_json)
   - A JSON-handling library.
   - Has APIs similar to those of Elm’s [`elm/json`](https://package.elm-lang.org/packages/elm/json/latest/).
@@ -643,6 +650,71 @@ document_outputs:
 ```
 
 
+## Writing tests
+
+You can write test modules like the following:
+
+```
+./
+├── README.md
+├── sesterl.yaml
+├── rebar.config
+├── rebar.lock
+├── src/
+│   └── Adder.sest
+└── test/
+    └── AdderTests.sest
+```
+
+`sesterl.yaml`:
+
+```
+package: "adder"
+language: "v0.2.0"
+source_directories:
+  - "./src"
+main_module: "Adder"
+test_directories:
+  - "./test"
+```
+
+`src/Adder.sest`:
+
+```
+module Adder = struct
+
+  val add(m, n) = m + n
+
+end
+```
+
+`test/AdderTests.sest`:
+
+```
+import Adder
+
+module AdderTests = #[test] struct
+
+  #[test]
+  val adder_test() =
+    Testing.it("42 plus 57 equals 99", fun() ->
+      assert Testing.equal(
+        -expect 99,
+        -got    Adder.add(42, 57),
+      )
+    end)
+
+end
+```
+
+The following makes the test run:
+
+```
+$ sesterl config ./
+$ rebar3 sesterl test
+```
+
+
 ## Major differences from similar projects
 
 There have been brilliant functional languages that compile to Erlang or BEAM (i.e. bytecode for Erlang VM). Some of them are the following:
@@ -744,6 +816,9 @@ Config := {
 
   language: String
     # The minimum version of Sesterl required by the package.
+    # Example: "v0.2.0"
+    # The Sesterl compiler refers to this field for checking that
+    # the compiler is backward-compatible with the required version.
     # This field is optional. No check will be performed if omitted.
 
   source_directories: Array<String>
