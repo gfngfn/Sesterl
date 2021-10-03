@@ -1,4 +1,3 @@
-
 type 'a t
 (** ['a t] is the type for lists (of values of type ['a]) the length of which is more than or equal to 2. *)
 

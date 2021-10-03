@@ -1,4 +1,3 @@
-
 open Syntax
 
 type t
@@ -31,8 +30,10 @@ val make_bound_row_id_hash_set : t -> LabelSet.t BoundRowIDHashTable.t
 
 val fold_free_id : (FreeID.t -> string -> 'a -> 'a) -> 'a -> t -> 'a
 
-val fold_free_row_id : (FreeRowID.t -> string * LabelSet.t -> 'a -> 'a) -> 'a -> t -> 'a
+val fold_free_row_id :
+  (FreeRowID.t -> string * LabelSet.t -> 'a -> 'a) -> 'a -> t -> 'a
 
 val fold_bound_id : (BoundID.t -> string -> 'a -> 'a) -> 'a -> t -> 'a
 
-val fold_bound_row_id : (BoundRowID.t -> string * LabelSet.t -> 'a -> 'a) -> 'a -> t -> 'a
+val fold_bound_row_id :
+  (BoundRowID.t -> string * LabelSet.t -> 'a -> 'a) -> 'a -> t -> 'a

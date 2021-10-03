@@ -1,7 +1,4 @@
-
-type element =
-  | Member      of string
-  | FunctorBody of { arg : string }
+type element = Member of string | FunctorBody of { arg : string }
 
 type t
 

@@ -1,24 +1,17 @@
 (executable
-  (public_name sesterl)
-  (package sesterl)
-  (name main)
-  (flags (-w -3 -bin-annot -thread))
-  (libraries
-    menhirLib
-    cmdliner
-    ocamlgraph
-    semver2
-    core
-    uutf
-    yaml
-    omd)
-  (preprocess
-    (pps
-      ppx_deriving.show)))
+ (public_name sesterl)
+ (package sesterl)
+ (name main)
+ (flags
+  (-w -3 -bin-annot -thread))
+ (libraries menhirLib cmdliner ocamlgraph semver2 core uutf yaml omd)
+ (preprocess
+  (pps ppx_deriving.show)))
 
 (ocamllex
  (modules lexer))
 
 (menhir
  (modules parser)
- (flags (--table --explain)))
+ (flags
+  (--table --explain)))
