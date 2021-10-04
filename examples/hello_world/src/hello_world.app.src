@@ -1,0 +1,11 @@
+{application, hello_world, [
+    {description, "A Hello World Program"},
+    {vsn, "0.0.1"},
+    {registered, []},
+    {modules, []},
+    {applications, [kernel, stdlib]},
+    {env, []},
+    {modules, []},
+    {licenses, ["MIT"]},
+    {links, []}
+]}.

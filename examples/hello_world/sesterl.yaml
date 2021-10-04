@@ -1,0 +1,5 @@
+package: "hello_world"
+language: "v0.2.0"
+main_module: "Main"
+source_directories:
+  - "./src"
