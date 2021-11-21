@@ -2,7 +2,7 @@ module Calc :> sig
   val fact : fun(int) -> int
   val sum : fun(list<int>) -> int
   val id<$a> : fun($a) -> $a
-  val first<$a, $b> : fun({$a, $b}) -> $a
+  val swap<$a, $b> : fun({$a, $b}) -> {$b, $a}
   val have_same_length<$a, $b> : fun(list<$a>, list<$b>) -> bool
 end = struct
   open Stdlib
@@ -14,17 +14,16 @@ end = struct
     aux(1, n)
 
   val sum(ns) =
-    List.foldl(
-      fun(acc, n) -> acc + n end,
-      0,
-      ns)
+    List.foldl(fun(acc, n) -> acc + n end, 0, ns)
 
   val id(x) = x
 
-  val first({x, _}) = x
+  val swap({x, y}) = {y, x}
 
-  val have_same_length<$a, $b>(xs : list<$a>, ys : list<$b>) : bool =
-    List.length(xs) == List.length(ys)
-
-
+  val rec have_same_length<$a, $b>(xs : list<$a>, ys : list<$b>) : bool =
+    case {xs, ys} of
+    | {[], []}                 -> true
+    | {_ :: xtail, _ :: ytail} -> have_same_length(xtail, ytail)
+    | _                        -> false
+    end
 end
