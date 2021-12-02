@@ -562,17 +562,17 @@ exprcons:
       let rng = make_range (Ranged(e1)) (Ranged(e2)) in
       (rng, ListCons(e1, e2))
     }
-  | e=exprtimes { e }
-;
-exprtimes:
-  | e1=exprplus; op=BINOP_TIMES; e2=exprtimes   { binary e1 op e2 }
-  | e1=exprplus; op=BINOP_DIVIDES; e2=exprtimes { binary e1 op e2 }
-  | e=exprplus                                  { e }
+  | e=exprplus { e }
 ;
 exprplus:
-  | e1=exprapp; op=BINOP_PLUS; e2=exprplus  { binary e1 op e2 }
-  | e1=exprapp; op=BINOP_MINUS; e2=exprplus { binary e1 op e2 }
-  | e=exprapp                               { e }
+  | e1=exprtimes; op=BINOP_PLUS; e2=exprplus  { binary e1 op e2 }
+  | e1=exprtimes; op=BINOP_MINUS; e2=exprplus { binary e1 op e2 }
+  | e=exprtimes                               { e }
+;
+exprtimes:
+  | e1=exprapp; op=BINOP_TIMES; e2=exprtimes   { binary e1 op e2 }
+  | e1=exprapp; op=BINOP_DIVIDES; e2=exprtimes { binary e1 op e2 }
+  | e=exprapp                                  { e }
 ;
 exprapp:
   | efun=exprapp; LPAREN; args=args; tokR=RPAREN {
