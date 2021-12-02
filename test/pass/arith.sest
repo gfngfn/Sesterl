@@ -1,0 +1,7 @@
+module Arith = struct
+
+  val main(_) =
+    let 13 = 3 * 4 + 1 in
+    {}
+
+end
