@@ -178,6 +178,8 @@ rule token = parse
   | "="               { DEFEQ(Range.from_lexbuf lexbuf) }
   | ("=" (nssymbol+)) { BINOP_EQ(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
 
+  | "!="              { BINOP_NEQ(Range.from_lexbuf lexbuf, Lexing.lexeme lexbuf) }
+
   | "<-"              { REVARROW(Range.from_lexbuf lexbuf) }
   | "<<"              { LTLT(Range.from_lexbuf lexbuf) }
   | "<"               { LT_EXACT(Range.from_lexbuf lexbuf) }

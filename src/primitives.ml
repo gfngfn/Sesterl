@@ -98,7 +98,9 @@ let eff tydoms tyrcv ty0 =
 let pid tyrcv = (dr, PidType(Pid(tyrcv)))
 
 let tylogic : poly_type = [b; b] @-> b
-let tycomp  : poly_type = [i; i] @-> b
+let tycomp  : poly_type =
+  let typaram = fresh_bound () in
+  [typaram; typaram] @-> b
 let tyarith : poly_type = [i; i] @-> i
 let tyarith_float : poly_type = [f; f] @-> f
 
@@ -375,6 +377,7 @@ let initial_environment =
       ("&&", tylogic, "and");
       ("||", tylogic, "or" );
       ("==", tycomp , "==" );
+      ("!=", tycomp , "/=" );
       ("<=", tycomp , "=<" );
       (">=", tycomp , ">=" );
       ("<" , tycomp , "<"  );

@@ -100,7 +100,7 @@
 %token<Range.t> DEFEQ COMMA ARROW REVARROW BAR UNDERSCORE CONS COLON COERCE
 %token<Range.t> GT_SPACES GT_NOSPACE LTLT LT_EXACT
 %token<Range.t * string> LOWER DOTLOWER UPPER DOTUPPER TYPARAM ROWPARAM MNDLABEL OPTLABEL
-%token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS BINOP_AMP BINOP_BAR BINOP_EQ BINOP_LT BINOP_GT
+%token<Range.t * string> BINOP_TIMES BINOP_DIVIDES BINOP_PLUS BINOP_MINUS BINOP_AMP BINOP_BAR BINOP_EQ BINOP_NEQ BINOP_LT BINOP_GT
 %token<Range.t * int> INT
 %token<Range.t * float> FLOAT
 %token<Range.t * string> BINARY STRING STRING_BLOCK
@@ -544,6 +544,7 @@ exprlor:
 ;
 exprcomp:
   | e1=exprcons; op=BINOP_EQ; e2=exprcomp { binary e1 op e2 }
+  | e1=exprcons; op=BINOP_NEQ;e2=exprcomp { binary e1 op e2 }
   | e1=exprcons; op=oplt;     e2=exprcomp { binary e1 op e2 }
   | e1=exprcons; op=opgt;     e2=exprcomp { binary e1 op e2 }
   | e=exprcons                            { e }
