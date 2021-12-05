@@ -5,12 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+- **Fix the precedence of arithmetic operators** ([PR\#57](https://github.com/gfngfn/Sesterl/pull/57), which was encouraged by [Issue\#56](https://github.com/gfngfn/Sesterl/issues/56) by @michallepicki).
+
 ### Added
 - Support OCaml 4.13 ([PR\#50](https://github.com/gfngfn/Sesterl/pull/50) by @smorimoto).
 
 ## [0.2.0] - 2021-10-03
 ### Fixed
-- Allow test modules to be dependent on the main module ([PR\#47](https://github.com/gfngfn/Sesterl/pull/47), which is encouraged by [Issue\#19](https://github.com/gfngfn/Sesterl/issues/19) by @michallepicki).
+- Allow test modules to be dependent on the main module ([PR\#47](https://github.com/gfngfn/Sesterl/pull/47), which was encouraged by [Issue\#19](https://github.com/gfngfn/Sesterl/issues/19) by @michallepicki).
 
 ### Added
 - Add a new field `language` to the config file format ([PR\#36](https://github.com/gfngfn/Sesterl/pull/36)).
