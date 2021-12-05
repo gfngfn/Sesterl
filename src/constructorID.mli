@@ -1,4 +1,3 @@
-
 type t
 
 val from_upper_camel_case : string -> t option

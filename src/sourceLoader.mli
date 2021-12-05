@@ -1,4 +1,3 @@
-
 open MyUtil
 open Syntax
 open Errors
@@ -6,17 +5,17 @@ open Errors
 exception SyntaxError of syntax_error
 
 type loaded_module = {
-  source_path       : absolute_path;
+  source_path : absolute_path;
   module_identifier : module_name ranged;
-  signature         : untyped_signature option;
-  module_content    : untyped_module;
-  dependencies      : (module_name ranged) list;
+  signature : untyped_signature option;
+  module_content : untyped_module;
+  dependencies : module_name ranged list;
 }
 
 type loaded_package = {
-  space_name   : space_name;
-  aux_modules  : loaded_module list;
-  main_module  : loaded_module;
+  space_name : space_name;
+  aux_modules : loaded_module list;
+  main_module : loaded_module;
   test_modules : loaded_module list;
 }
 

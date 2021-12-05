@@ -1,4 +1,3 @@
-
 type error
 
 val pp_error : Format.formatter -> error -> unit
@@ -17,7 +16,7 @@ val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
 
 val get : string -> 'a t -> 'a t
 
-val get_opt : string -> 'a t -> ('a option) t
+val get_opt : string -> 'a t -> 'a option t
 
 val get_or_else : string -> 'a t -> 'a -> 'a t
 
@@ -27,11 +26,11 @@ val string : string t
 
 val bool : bool t
 
-val list : 'a t -> ('a list) t
+val list : 'a t -> 'a list t
 
 type 'a branch
 
-val branch : string -> ('a branch) list -> on_error:(string -> string) -> 'a t
+val branch : string -> 'a branch list -> on_error:(string -> string) -> 'a t
 
 val ( ==> ) : string -> 'a t -> 'a branch
 

@@ -1,4 +1,3 @@
-
 type t
 
 val fresh : Address.t -> string -> t

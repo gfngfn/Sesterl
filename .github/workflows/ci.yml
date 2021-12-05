@@ -57,3 +57,25 @@ jobs:
         with:
           name: sesterl-${{ matrix.os }}
           path: sesterl
+
+  lint-fmt:
+    strategy:
+      matrix:
+        ocaml-compiler:
+          - 4.13.x
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Use OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          dune-cache: true
+
+      - run: opam depext ocamlformat=$(awk -F = 'NR==1 {print $2}' .ocamlformat) --install
+
+      - run: opam exec -- make fmt

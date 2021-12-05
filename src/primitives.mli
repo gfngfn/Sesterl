@@ -1,4 +1,3 @@
-
 open Syntax
 open IntermediateSyntax
 open Env
@@ -9,15 +8,12 @@ val decode_option_function : string
 
 val decode_option_function_with_default : string
 
-type source_definition = {
-  identifier  : string;
-  typ         : poly_type;
-}
+type source_definition = { identifier : string; typ : poly_type }
 
 type target_definition = {
   target_name : string;
-  parameters  : string list;
-  code        : string;
+  parameters : string list;
+  code : string;
 }
 
 type primitive_definition = {
@@ -33,7 +29,12 @@ val list_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ
 
 val format_type : Range.t -> ('a, 'b) typ -> ('a, 'b) typ
 
-val frozen_type : Range.t -> rest:('a, 'b) typ -> receive:('a, 'b) typ -> return:('a, 'b) typ -> ('a, 'b) typ
+val frozen_type :
+  Range.t ->
+  rest:('a, 'b) typ ->
+  receive:('a, 'b) typ ->
+  return:('a, 'b) typ ->
+  ('a, 'b) typ
 
 val assertion_function_type : mono_type
 

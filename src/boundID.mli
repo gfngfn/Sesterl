@@ -1,4 +1,3 @@
-
 type t
 
 val initialize : unit -> unit

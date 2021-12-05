@@ -1,0 +1,15 @@
+# git blame master ignore list
+#
+# This file contains a list of git hashes of revisions to be ignored by git
+# blame. These revisions are considered "unimportant" in that they are unlikely
+# that they are unlikely to be what you are interested in when blaming.
+#
+# Instructions:
+# - Only large (generally automated) reformatting should be added to this list.
+#   Do not put things here just because you feel they are trivial or
+#   unimportant. If in doubt, do not put it on this list.
+# - Only put full 40-character hashes on this list (not short hashes or any
+#   other revision reference).
+
+# First run of dune build @fmt --auto-promote
+57dde87123bfb4ca9201e9c903b6e9a060e01760

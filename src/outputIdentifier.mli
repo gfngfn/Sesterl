@@ -1,4 +1,3 @@
-
 type space
 (** The type for abstracting module names in outputs. *)
 
@@ -8,16 +7,9 @@ type global
 
 type operator
 
-type t =
-  | Local    of local
-  | Global   of global
-  | Operator of operator
+type t = Local of local | Global of global | Operator of operator
 
-type global_answer = {
-  function_name : string;
-  arity         : int;
-  has_option    : bool;
-}
+type global_answer = { function_name : string; arity : int; has_option : bool }
 
 val space_of_module_name : string -> space option
 
@@ -29,34 +21,29 @@ val fresh_global_dummy : unit -> global
 
 val generate_local : string -> local option
 
-val generate_global : string -> suffix:string -> arity:int -> has_option:bool -> global option
+val generate_global :
+  string -> suffix:string -> arity:int -> has_option:bool -> global option
 
 val operator : string -> operator
 
 val unused : local
 
 module Space : sig
-
   type t = space
 
   val compare : t -> t -> int
-
 end
 
 module Local : sig
-
   type t = local
 
   val compare : t -> t -> int
-
 end
 
 module Global : sig
-
   type t = global
 
   val compare : t -> t -> int
-
 end
 
 val output_space_to_snake : space -> string
