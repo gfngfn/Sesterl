@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/), 
 ## [Unreleased]
 ### Fixed
 - **Fix the precedence of arithmetic operators** ([PR\#57](https://github.com/gfngfn/Sesterl/pull/57), which was encouraged by [Issue\#56](https://github.com/gfngfn/Sesterl/issues/56) by @michallepicki).
+- **Fix the associativity of arithmetic operators** ([PR\#68](https://github.com/gfngfn/Sesterl/pull/68), which was encouraged by [Issue\#67](https://github.com/gfngfn/Sesterl/issues/67) by @michallepicki).
 
 ### Added
 - Support OCaml 4.13 ([PR\#50](https://github.com/gfngfn/Sesterl/pull/50) by @smorimoto).
