@@ -1,7 +1,7 @@
 
 
 let semantic_version =
-  "v0.2.0"
+  "v0.2.1"
 
 
 let config_file_name =
