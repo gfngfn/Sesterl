@@ -565,13 +565,13 @@ exprcons:
   | e=exprplus { e }
 ;
 exprplus:
-  | e1=exprtimes; op=BINOP_PLUS; e2=exprplus  { binary e1 op e2 }
-  | e1=exprtimes; op=BINOP_MINUS; e2=exprplus { binary e1 op e2 }
+  | e1=exprplus; op=BINOP_PLUS; e2=exprtimes  { binary e1 op e2 }
+  | e1=exprplus; op=BINOP_MINUS; e2=exprtimes { binary e1 op e2 }
   | e=exprtimes                               { e }
 ;
 exprtimes:
-  | e1=exprapp; op=BINOP_TIMES; e2=exprtimes   { binary e1 op e2 }
-  | e1=exprapp; op=BINOP_DIVIDES; e2=exprtimes { binary e1 op e2 }
+  | e1=exprtimes; op=BINOP_TIMES; e2=exprapp   { binary e1 op e2 }
+  | e1=exprtimes; op=BINOP_DIVIDES; e2=exprapp { binary e1 op e2 }
   | e=exprapp                                  { e }
 ;
 exprapp:
