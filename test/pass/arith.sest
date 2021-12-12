@@ -3,6 +3,10 @@ module Arith = struct
   val main(_) =
     let 13 = 3 * 4 + 1 in
     let 13 = 1 + 3 * 4 in
+    let 1 = 4 / 2 / 2 in
+    let 8 = 8 * 2 / 2 in
+    let 14 = 57 - 42 - 1 in
+    let 16 = 57 - 42 + 1 in
     {}
 
 end
