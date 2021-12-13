@@ -1,0 +1,83 @@
+# Based on https://github.com/thomaseizinger/github-action-gitflow-release-workflow
+
+name: "Publish new release"
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - closed
+
+jobs:
+
+  create-release:
+    name: Create release
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    outputs:
+      upload_url: ${{ steps.release.outputs.upload_url }}
+      release_version: ${{ steps.extract-version.outputs.release_version }}
+    steps:
+      - name: Extract version from branch name (for release branches)
+        id: extract-version
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          RELEASE_VERSION=${BRANCH_NAME#release/}
+          echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
+          echo "::set-output name=release_version::$RELEASE_VERSION"
+      - name: Create Release
+        id: release
+        uses: thomaseizinger/create-release@1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          target_commitish: ${{ github.event.pull_request.merge_commit_sha }}
+          tag_name: v${{ env.RELEASE_VERSION }}
+          name: Sesterl v${{ env.RELEASE_VERSION }}
+          draft: true
+          prerelease: false
+
+  build-upload-release-artifacts:
+    name: Build and upload release artifacts
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+        ocaml-compiler:
+          - 4.13.x
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          dune-cache: ${{ matrix.os != 'macos-latest' }}
+
+      - name: Install opam packages
+        run: opam install . --deps-only
+
+      - name: Build Sesterl
+        run: |
+          VERSION_DASHES=$(echo "${{ needs.create-release.outputs.release_version }}" | sed 's/\./-/g')
+          ASSET="sesterl-$VERSION_DASHES-${{ matrix.os }}.zip"
+          echo "ASSET=$ASSET" >> $GITHUB_ENV
+          opam exec -- make all
+          zip "$ASSET" sesterl
+
+      - name: Upload to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ${{ env.ASSET }}
+          asset_name: ${{ env.ASSET }}
+          asset_content_type: application/gzip
