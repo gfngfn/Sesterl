@@ -376,8 +376,8 @@ let initial_environment =
     |> add_operators [
       ("&&", tylogic, "and");
       ("||", tylogic, "or" );
-      ("==", tycomp , "==" );
-      ("!=", tycomp , "/=" );
+      ("==", tycomp , "=:=" );
+      ("!=", tycomp , "=/=" );
       ("<=", tycomp , "=<" );
       (">=", tycomp , ">=" );
       ("<" , tycomp , "<"  );
