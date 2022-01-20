@@ -1,0 +1,13 @@
+{application, calc, [
+    {description, "calc"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {modules, []},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {env, []},
+    {licenses, ["MIT"]},
+    {links, []}
+]}.

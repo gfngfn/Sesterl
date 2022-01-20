@@ -1,0 +1,4 @@
+[{<<"sesterl_stdlib">>,
+  {git,"https://github.com/gfngfn/sesterl_stdlib",
+       {ref,"0c45578e2d91d3b127135ada704e9f80b3997fd7"}},
+  0}].

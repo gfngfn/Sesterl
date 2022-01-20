@@ -1,0 +1,24 @@
+module BinTree :> sig
+  type t :: (o) -> o
+  val leaf<$a> : fun($a) -> t<$a>
+  val node<$a> : fun($a, t<$a>, t<$a>) -> t<$a>
+  val tree_size<$a> : fun(t<$a>) -> int
+end = struct
+
+  type t<$a> =
+    | Empty
+    | Node($a, t<$a>, t<$a>)
+
+  val leaf(x) =
+    Node(x, Empty, Empty)
+
+  val node(x, tree1, tree2) =
+    Node(x, tree1, tree2)
+
+  val rec tree_size(tree) =
+    case tree of
+    | Empty                 -> 0
+    | Node(_, tree1, tree2) -> 1 + tree_size(tree1) + tree_size(tree2)
+    end
+
+end
