@@ -119,15 +119,15 @@ let build (fpath_in : string) (dir_out_spec : string option) (is_verbose : bool)
     in
 
     (* Generate and output code corresponding to each package. *)
-    Core.Unix.mkdir_p absdir_out;
-    Core.Unix.mkdir_p absdir_test_out;
+    Core_unix.mkdir_p absdir_out;
+    Core_unix.mkdir_p absdir_test_out;
     let (_, gmap) = Primitives.initial_environment in
     pkgoutsacc |> Alist.to_list |> List.fold_left (fun gmap (pkgnameopt, auxouts, mainout, testouts) ->
       doc_configs_opt |> Option.map (fun (absdir_in, doc_configs) ->
         doc_configs |> List.iter (fun doc_config ->
           let ConfigLoader.Html = doc_config.ConfigLoader.document_output_format in
           let absdir_doc_out = append_dir absdir_in doc_config.ConfigLoader.document_output_directory in
-          Core.Unix.mkdir_p absdir_doc_out;
+          Core_unix.mkdir_p absdir_doc_out;
           let abspath_doc_out =
             match pkgnameopt with
             | None ->
