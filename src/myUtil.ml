@@ -89,7 +89,7 @@ type relative_dir = RelativeDir of string
 
 
 let make_absolute_path ?canonicalize:(canonicalize = false) (absdir : absolute_dir) (fpath : string) : absolute_path =
-  let f = if canonicalize then Core.Filename.realpath else (fun s -> s) in
+  let f = if canonicalize then Filename_unix.realpath else (fun s -> s) in
   if Filename.is_relative fpath then
     f (Filename.concat absdir fpath)
   else
@@ -106,9 +106,9 @@ let append_path (absdir : absolute_dir) (RelativePath(relpath) : relative_path) 
 
 let canonicalize_path (abspath : absolute_path) : absolute_path option =
   try
-    Some(Core.Filename.realpath abspath)
+    Some(Filename_unix.realpath abspath)
   with
-  | Unix.Unix_error(_) -> None
+  | _ -> None
 
 
 let is_existing_directory (abspath : absolute_path) : bool =
